@@ -20,6 +20,7 @@ export function providerLabel(provider: string): string {
     'pi:lmstudio': 'LM Studio',
     'pi:llamacpp': 'llama.cpp',
     'pi:vllm': 'vLLM',
+    'pi:relay': '中转服务',
     'pi:custom': '自定义',
   };
   return map[provider] ?? provider.replace(/^(pi|bridge):/, '');

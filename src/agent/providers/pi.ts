@@ -19,6 +19,7 @@ import type { AgentToolDef, JsonSchema } from '../tools';
 import { emptyUsage, type TokenUsage } from '../types';
 import { LIMIT_TEXT, type DecisionContext, type DecisionOutcome, type LLMProvider } from './types';
 import { READ_TOOLS, jsonModeInstructions, parseActions } from './json-mode';
+import { normalizeRelayBase } from '../relay';
 
 // ───────────────────────── Schema → TypeBox ─────────────────────────
 
@@ -51,6 +52,7 @@ export function buildPiModel(c: AgentModelConfig): Model<Api> {
   const preset = c.preset ?? 'custom';
   const info = PRESETS[preset];
   const api: PiApi = c.api ?? info.api;
+  if (preset === 'relay') return buildRelayModel(c, api);
   const baseUrl = c.baseUrl ?? info.baseUrl;
   const kp = KNOWN[preset];
   if (kp) {
@@ -71,6 +73,42 @@ export function buildPiModel(c: AgentModelConfig): Model<Api> {
   };
   if (info.local && api === 'openai-completions') {
     (m as Model<'openai-completions'>).compat = { supportsDeveloperRole: false, supportsReasoningEffort: false, supportsStore: false, supportsStrictMode: false };
+  }
+  return m;
+}
+
+/**
+ * 中转服务：地址按 API 规范化（openai-* → …/v1；anthropic-messages → 不带 /v1），
+ * 价格 / 上下文借用 pi 模型表里同名模型（仅用于预算估算），并关掉中转站常不支持的可选字段 / 自定义头：
+ *  - completions：不发 store、不用 developer 角色、不发 strict、用 max_tokens；
+ *  - responses：不发 session_id 头（跨域预检多一个自定义头就可能被拒）；
+ *  - messages：不发 eager_input_streaming、不用 1h 缓存。
+ * Anthropic SDK 在 pi 里固定带 dangerouslyAllowBrowser + anthropic-dangerous-direct-browser-access 头。
+ */
+export function buildRelayModel(c: AgentModelConfig, api: PiApi = c.api ?? 'openai-completions'): Model<Api> {
+  let known: Model<Api> | undefined;
+  for (const kp of ['anthropic', 'openai', 'google'] as KnownProvider[]) {
+    known = (getModels(kp) as Model<Api>[]).find((m) => m.id === c.model || c.model.endsWith(`/${m.id}`));
+    if (known) break;
+  }
+  const m: Model<Api> = {
+    id: c.model,
+    name: c.model,
+    api,
+    provider: 'relay',
+    baseUrl: normalizeRelayBase(c.baseUrl ?? '', api),
+    reasoning: false,
+    input: ['text'],
+    cost: known ? { ...known.cost } : { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: known?.contextWindow ?? 128_000,
+    maxTokens: c.maxOutputTokens ?? Math.min(known?.maxTokens ?? 8192, 16_000),
+  };
+  if (api === 'openai-completions') {
+    (m as Model<'openai-completions'>).compat = { supportsStore: false, supportsDeveloperRole: false, supportsReasoningEffort: false, supportsStrictMode: false, maxTokensField: 'max_tokens' };
+  } else if (api === 'openai-responses') {
+    (m as Model<'openai-responses'>).compat = { sendSessionIdHeader: false, supportsLongCacheRetention: false };
+  } else if (api === 'anthropic-messages') {
+    (m as Model<'anthropic-messages'>).compat = { supportsEagerToolInputStreaming: false, supportsLongCacheRetention: false };
   }
   return m;
 }
@@ -115,6 +153,7 @@ export class PiProvider implements LLMProvider {
       reasoning: this.m.reasoning && this.c.effort ? LEVEL[this.c.effort] : undefined,
       sessionId: `desk-defense-${ctx.role}`,
       cacheRetention: 'short' as const,
+      ...(this.c.maxRetries !== undefined ? { maxRetries: this.c.maxRetries } : {}),
     };
   }
 

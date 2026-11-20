@@ -10,6 +10,7 @@ import { PRESETS, resolveConfig, type AgentModelConfig } from './config';
 import type { LLMProvider } from './providers/types';
 import { createProvider } from './factory';
 import type { AgentToolDef } from './tools';
+import { listRelayModels, RELAY_CORS_HINT } from './relay';
 
 export interface ModelListing {
   ok: boolean;
@@ -20,12 +21,17 @@ export interface ModelListing {
 }
 
 const corsHint = (c: AgentModelConfig): string | undefined => {
+  if (c.preset === 'relay') return RELAY_CORS_HINT;
   if (!PRESETS[c.preset ?? 'custom']?.local) return undefined;
   return '连不上本机模型：确认服务已启动，并允许本站跨域（Ollama: OLLAMA_ORIGINS；LM Studio: Enable CORS；llama.cpp / vLLM: --allowed-origins），Chrome 弹出"本地网络访问"时点允许。也可以改用本机桥接器。';
 };
 
 export async function listModels(partial: Partial<AgentModelConfig>, fetchImpl: typeof fetch = fetch): Promise<ModelListing> {
   const c = resolveConfig(partial);
+  if (c.provider === 'pi' && c.preset === 'relay') {
+    const r = await listRelayModels(c.baseUrl ?? '', c.apiKey, fetchImpl);
+    return { ok: r.ok, models: r.models, ...(r.error ? { error: r.error } : {}), ...(r.hint ? { hint: r.hint } : {}) };
+  }
   try {
     if (c.provider === 'claude-native' || (c.provider === 'pi' && c.api === 'anthropic-messages')) {
       const headers: Record<string, string> = { 'anthropic-version': '2023-06-01' };

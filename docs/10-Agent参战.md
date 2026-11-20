@@ -226,7 +226,7 @@ MAP
 ```ts
 interface AgentModelConfig {
   provider: 'claude-native' | 'pi' | 'bridge' | 'scripted';
-  preset?: 'anthropic'|'openai'|'google'|'openrouter'|'deepseek'|'ollama'|'lmstudio'|'llamacpp'|'vllm'|'custom';
+  preset?: 'anthropic'|'openai'|'google'|'openrouter'|'deepseek'|'ollama'|'lmstudio'|'llamacpp'|'vllm'|'relay'|'custom';
   api?: 'anthropic-messages'|'openai-completions'|'openai-responses'|'google-generative-ai';
   baseUrl?: string;
   model: string;
@@ -241,6 +241,7 @@ interface AgentModelConfig {
   decision?: { mode?: 'pause'|'realtime'; waveIntervalSec?: number; realtimeLatencySec?: number | 'measured' };
   budget?: { tokens?: number; usd?: number };
   decisionTimeoutMs?: number;    // 默认 90000
+  maxRetries?: number;           // pi：SDK 自动重试次数（缺省 SDK 默认 2；中转接口探测时为 0）
   bridge?: { url: string; code: string };
   refusalFallback?: boolean;     // claude-native：默认开
   browser?: boolean;             // 浏览器直连托管 API（BYO key）
@@ -261,6 +262,7 @@ interface AgentModelConfig {
 | lmstudio | openai-completions | http://localhost:1234/v1 | qwen3-8b | 本机 |
 | llamacpp | openai-completions | http://localhost:8080/v1 | — | `llama-server --jinja` 才有工具调用 |
 | vllm | openai-completions | http://localhost:8000/v1 | Qwen/Qwen3-8B | `--enable-auto-tool-choice --tool-call-parser hermes` |
+| relay | 自动检测 / 三选一 | 玩家填写（任意形式，自动规范化） | 自填 / 从列表选 | 中转服务，见 §10.8 |
 | custom | 自填 | 自填 | 自填 | |
 
 本机预设自动设 `compat: { supportsDeveloperRole:false, supportsReasoningEffort:false, supportsStore:false, supportsStrictMode:false }`。
@@ -284,7 +286,7 @@ interface LLMProvider { id: string; model: string; decide(ctx: DecisionContext):
 - **scripted**：确定性脚本策略，与模型用同一套工具（测试、离线演示、评测下限）。
 
 ### 8.4 listModels / testConnection
-- `listModels(config)`：OpenAI 兼容（含所有本地服务）`GET {baseUrl}/models`；Anthropic `GET /v1/models`；Google / OpenAI 也可回退到 pi 内置表。失败时返回 CORS / 本地网络权限提示。
+- `listModels(config)`：中转服务（`preset: 'relay'`）`GET {根}/v1/models`，先 `Authorization: Bearer`，失败再试 `x-api-key` + `anthropic-version`；OpenAI 兼容（含所有本地服务）`GET {baseUrl}/models`；Anthropic `GET /v1/models`；Google / OpenAI 也可回退到 pi 内置表。失败时返回 CORS / 本地网络权限提示。
 - `testConnection(config)`：发一个只有 `end_turn` 工具的极小请求，返回 `{ reachable, toolCalling, latencyMs, tokens, error, hint, advice }`。模型连得上但不调用工具时建议换模型或改 `toolMode: 'json'`。
 
 ---
@@ -370,7 +372,43 @@ Pages Functions 代理调用模型、由我们付费：需要登录 + 每人配�
 - 本地推理慢：暂停模式下延迟只影响等待时间，不影响结果；实时模式不建议用于本地小模型。
 
 ### 10.7 CSP / connect-src
-当前站点没有 CSP。以后若加 CSP，`connect-src` 必须允许玩家配置的端点：`https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com https://openrouter.ai https://api.deepseek.com http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*`，以及"自定义"预设——因为自定义地址无法预知，建议 AI 模式放在单独的页面 / 路由下使用宽松的 `connect-src https: http://localhost:* ws://localhost:*`，主游戏页面保持严格。
+当前站点没有 CSP。以后若加 CSP，`connect-src` 必须允许玩家配置的端点：`https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com https://openrouter.ai https://api.deepseek.com http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*`，以及"自定义" / "中转服务"预设——因为这些地址无法预知，建议 AI 模式放在单独的页面 / 路由下使用宽松的 `connect-src https: http://localhost:* ws://localhost:*`，主游戏页面保持严格。
+
+### 10.8 中转服务（API relay / 代理商，纯前端）
+很多玩家手里的是中转站（OpenAI / Anthropic 兼容的 API 代理商）的地址和 Key。设置页的模型服务列表里，"离线演示"之后就是 **中转服务（OpenAI / Anthropic 兼容）**（`preset: 'relay'`，代码在 `src/agent/relay.ts`）。
+
+**设计原则：不做服务器转发。** 请求由玩家的浏览器直接发给他填写的中转地址，我们的服务器不经手 Key 也不经手流量；代价是**中转站必须允许跨域（CORS）**——多数中转站返回 `Access-Control-Allow-Origin: *` 并放行任意请求头，可以直接用；不允许的，诊断会明确说"中转站不允许网页跨域访问"，建议改用本机桥接器（§10.4）。
+
+表单只有四项：
+- **服务地址**：任意形式都行——带不带结尾斜杠、带不带 `/v1`、甚至直接粘贴完整端点。`normalizeRelayBase(url, api)` 统一规范化：
+
+  | 玩家填写 | OpenAI 两种接口的 baseUrl | Anthropic Messages 的 baseUrl |
+  |---|---|---|
+  | `https://relay.example` / `…/` / `…/v1` / `…/v1/` | `https://relay.example/v1` | `https://relay.example` |
+  | `…/v1/chat/completions`、`…/v1/responses`、`…/v1/messages`、`…/v1/models` | 同上（端点后缀被去掉） | 同上 |
+  | `https://x.com/openai/v1`（带前缀） | `https://x.com/openai/v1` | `https://x.com/openai` |
+  | `relay.example`（没写协议） | 按 https 处理 | 按 https 处理 |
+  | `https://x.com/api/v3`（非 v1 版本段） | 原样保留 `…/api/v3` | `https://x.com/api` |
+
+  原因：OpenAI SDK 在 baseUrl 后拼 `/chat/completions`、`/responses`，所以 baseUrl 要以 `/v1` 结尾；Anthropic SDK 自己拼 `/v1/messages`，所以 baseUrl **不能**带 `/v1`。
+- **API Key**：和其他服务一样默认只在内存（可选 sessionStorage / localStorage），字段下方实时显示"Key 只会发送到 `主机名`"。Key 只发往玩家填写的这个主机（模型列表、探测、对局请求都一样）。
+- **接口类型**：`自动检测`（默认）| `OpenAI Chat Completions` | `OpenAI Responses` | `Anthropic Messages`。三种都经 pi 适配器（`provider: 'pi'`），**中转服务不走 Claude 官方 SDK 适配器**；Anthropic Messages 由 pi 用 Anthropic SDK 以 `dangerouslyAllowBrowser` + `anthropic-dangerous-direct-browser-access: true` + `x-api-key` 发出。
+- **模型**：可手填；"获取模型列表"调用 `GET {根}/v1/models`（先 Bearer，再试 `x-api-key` + `anthropic-version`），结果按家族（Claude / GPT / Gemini / 其他）分组、可搜索，点选即可。
+
+**自动检测**（`detectRelayApi`）：点"测试连接"，或开始对局时发现这个"地址 + 模型"还没检测过，就按顺序用极小的工具调用请求探测——只有一个 `end_turn` 工具、一句提示、`maxOutputTokens` 很小、SDK 不重试：
+1. 模型名像 Claude（含 `claude` / `anthropic`）→ 先试 Anthropic Messages；
+2. OpenAI Responses；
+3. OpenAI Chat Completions；
+4. Anthropic Messages（非 Claude 模型时排最后）。
+
+第一个**真正调用了工具**的接口即为结果，立即停止；界面显示进度（"正在检测接口…（2/3：OpenAI Responses）"）和每种接口的结果，并把结果缓存到不含 Key 的设置里（`per.relay.detected = { api, for: 规范化地址|模型 }`，换地址或模型自动失效）。全部失败时按错误分类给出说明：
+- 全是网络错误 → **CORS**：中转站必须允许跨域，我们不做转发；或改用桥接器；
+- 401 / 403 → Key 错误 / 过期 / 没额度；
+- 404 → 路径不对或中转站不支持这种接口；
+- 模型不存在（`model_not_found`、"无可用渠道"等）→ 从模型列表里选；
+- 能回复但不调用工具 → 记下这个接口并自动切到 JSON 动作模式。
+
+**为了少踩中转站的兼容坑**，`buildRelayModel` 给三种接口设了保守的 compat：Chat Completions 不发 `store`、不用 `developer` 角色、不发 `strict`、用 `max_tokens`；Responses 不发 `session_id` 头（多一个自定义头就多一分跨域预检被拒的可能）；Messages 不发 `eager_input_streaming`、不用 1 小时缓存。模型价格借用 pi 模型表里同名模型（只用于预算估算，以中转站账单为准）。工具调用与 JSON 动作模式（`toolMode: 'json'`）在三种接口上都可用（`tests/agent/relay.test.ts` 用 mock fetch 覆盖了 responses 的原生工具调用和 JSON 回退）。
 
 ---
 
@@ -485,6 +523,7 @@ npm run agent:play -- --mode endless --map ch1 --difficulty normal --model claud
 - 调度：首个决策点在第 0 帧、`game_start/build/wave_interval/perk` 都会出现、wave_interval 间隔、手动模式等待开波、realtime `elapse`。
 - 运行器：脚本策略端到端 ≥10 波、两次运行结果与日志完全一致、回放复现同一 `stateHash`；基线模式；token 预算耗尽转兜底；超时转兜底；连续错误熔断；realtime 下决策间世界前进。
 - 适配器：Claude（注入假 client：自适应思考、effort、strict、缓存、服务端回退参数、thinking 块原样回传、并行工具结果同一消息；Haiku 无回退、拒答 → 错误）；pi（faux provider：原生工具循环、TypeBox 转换、JSON 模式、`testConnection`）；桥接器（内存 socket：错误配对码、配对、工具回传、after）；MCP 处理函数（new_game → 动作 → advance → 回放）。
+- 中转服务（`relay.test.ts`，mock fetch）：`normalizeRelayBase` 的各种地址形式与幂等性；模型列表的 Bearer → x-api-key 回退与 CORS 提示；探测顺序（Claude 先试 Messages）、首个成功即停、错误分类（CORS / 401 / 404 / 模型 / 不调用工具）；经 pi 的 responses（原生工具 + JSON 回退）/ completions / messages 三种请求的 URL、鉴权头与兼容字段。
 
 ---
 

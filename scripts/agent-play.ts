@@ -6,7 +6,7 @@
  *   --provider claude|pi|scripted|baseline   claude = 官方 SDK（默认）；pi = 多厂商；scripted = 内置确定性策略；baseline = 只跑内置机器人
  *   --model claude-opus-5-5                  claude-opus-5-5 | claude-sonnet-5-5 | claude-haiku-5-5 | claude-fable-5-2 | pi 的模型 id
  *   --effort low|medium|high|xhigh|max       默认 medium
- *   --preset ollama|lmstudio|llamacpp|vllm|openai|google|openrouter|deepseek|anthropic|custom   （pi）
+ *   --preset ollama|lmstudio|llamacpp|vllm|openai|google|openrouter|deepseek|anthropic|relay|custom   （pi）
  *   --api openai-completions|openai-responses|anthropic-messages|google-generative-ai  --base-url URL   （pi，覆盖预设）
  *   --tool-mode native|json  --context full|compact
  *   --mode endless|campaign  --map ch1|ch2|ch3  --difficulty easy|normal|hard|nightmare|abyss  --abyss N

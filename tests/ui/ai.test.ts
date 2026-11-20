@@ -124,6 +124,7 @@ describe('格式化', () => {
     expect(fmtCost(1.234)).toBe('$1.23');
     expect(providerLabel('claude-native')).toBe('Claude');
     expect(providerLabel('pi:ollama')).toBe('Ollama');
+    expect(providerLabel('pi:relay')).toBe('中转服务');
     expect(providerLabel('scripted')).toBe('内置策略');
     expect(providerLabel('pi:somethingnew')).toBe('somethingnew');
   });
@@ -156,6 +157,16 @@ describe('设置保存与上传标记', () => {
     expect(AI_SETUP_KEY).toContain('desk-defense.ai');
     expect(defaultSetup().keyMode).toBe('memory');
     expect(defaultSetup().source).toBe('demo');
+
+    // 中转服务：接口检测结果是不含 Key 的普通设置，可以保存
+    const r = defaultSetup();
+    r.source = 'relay';
+    r.per.relay = { baseUrl: 'https://relay.test/v1', model: 'gpt-5-mini', relayApi: 'auto', detected: { api: 'openai-responses', for: 'https://relay.test|gpt-5-mini' } };
+    r.lastConfig = saveableConfig(resolveConfig({ provider: 'pi', preset: 'relay', api: 'openai-responses', baseUrl: 'https://relay.test/v1', model: 'gpt-5-mini', apiKey: 'test-RELAYKEY' }));
+    saveSetup(r);
+    const raw2 = mem.get(AI_SETUP_KEY) ?? '';
+    expect(raw2).not.toContain('RELAYKEY');
+    expect(loadSetup().per.relay?.detected).toEqual({ api: 'openai-responses', for: 'https://relay.test|gpt-5-mini' });
   });
 
   it('上传标记通过服务端校验；军师 / 接管 / 非无尽的对局不能进 AI 榜', async () => {

@@ -16,7 +16,7 @@ export type ProviderKind = 'claude-native' | 'pi' | 'bridge' | 'scripted';
 export type PiApi = 'anthropic-messages' | 'openai-completions' | 'openai-responses' | 'google-generative-ai';
 export type Preset =
   | 'anthropic' | 'openai' | 'google' | 'openrouter' | 'deepseek'
-  | 'ollama' | 'lmstudio' | 'llamacpp' | 'vllm' | 'custom';
+  | 'ollama' | 'lmstudio' | 'llamacpp' | 'vllm' | 'relay' | 'custom';
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 export interface AgentModelConfig {
@@ -53,6 +53,8 @@ export interface AgentModelConfig {
     /** 整局费用上限（美元，估算） */
     usd?: number;
   };
+  /** pi：SDK 层的自动重试次数（缺省用 SDK 默认值 2）；中转服务接口探测时设为 0，失败立刻试下一种接口 */
+  maxRetries?: number;
   /** 单次决策超时（毫秒，默认 90000）；超时本次由内置机器人兜底 */
   decisionTimeoutMs?: number;
   /** provider = bridge */
@@ -85,6 +87,10 @@ export const PRESETS: Record<Preset, PresetInfo> = {
   lmstudio: { label: 'LM Studio（本机）', api: 'openai-completions', baseUrl: 'http://localhost:1234/v1', local: true, defaultModel: 'qwen3-8b', notes: '浏览器直连需在 Server 设置里打开 Enable CORS' },
   llamacpp: { label: 'llama.cpp server（本机）', api: 'openai-completions', baseUrl: 'http://localhost:8080/v1', local: true, defaultModel: 'local', notes: '启动参数加 --jinja 以启用工具调用' },
   vllm: { label: 'vLLM（本机）', api: 'openai-completions', baseUrl: 'http://localhost:8000/v1', local: true, defaultModel: 'Qwen/Qwen3-8B', notes: '需 --enable-auto-tool-choice --tool-call-parser hermes' },
+  relay: {
+    label: '中转服务（OpenAI / Anthropic 兼容）', api: 'openai-completions', baseUrl: '', local: false, defaultModel: '',
+    notes: '填中转站给你的地址和 Key 即可；请求由浏览器直接发给中转站（不经我们的服务器），中转站必须允许跨域（CORS）',
+  },
   custom: { label: '自定义', api: 'openai-completions', baseUrl: 'http://localhost:8000/v1', local: false, defaultModel: '' },
 };
 
@@ -135,6 +141,10 @@ export function validateConfig(c: Partial<AgentModelConfig>): string[] {
     }
   }
   if (c.provider === 'pi' && c.preset === 'custom' && !c.baseUrl) e.push('自定义预设需要 baseUrl');
+  if (c.provider === 'pi' && c.preset === 'relay') {
+    if (!c.baseUrl) e.push('中转服务需要填写服务地址');
+    if (c.api === 'google-generative-ai') e.push('中转服务只支持 OpenAI Chat Completions / OpenAI Responses / Anthropic Messages');
+  }
   if (c.provider === 'bridge') {
     if (!c.bridge?.url) e.push('bridge 需要 url（ws://127.0.0.1:端口）');
     else if (!/^wss?:\/\//.test(c.bridge.url)) e.push('bridge url 必须是 ws:// 或 wss://');

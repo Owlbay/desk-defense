@@ -169,6 +169,72 @@
   white-space: nowrap;
 }
 
+.ai-key-dest {
+  overflow-wrap: anywhere;
+}
+
+/* 中转服务：可搜索、按家族分组的模型列表 */
+.ai-model-picker {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1.5px dashed var(--ink-faint);
+  border-radius: var(--radius-s);
+  background: var(--paper-2);
+}
+
+.ai-model-groups {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.ai-model-family {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.ai-model-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ai-model-chip {
+  max-width: 100%;
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1.5px solid var(--ink-faint);
+  border-radius: var(--radius-s);
+  background: var(--paper);
+  color: inherit;
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ai-model-chip:hover {
+  border-color: var(--ink);
+}
+
+.ai-model-chip:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.ai-model-chip.on {
+  border-color: var(--ink);
+  background: var(--pencil);
+  font-weight: 700;
+}
+
 .ai-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -7,8 +7,17 @@
 import {
   BYO_KEY_WARNING,
   CLAUDE_MODELS,
+  FAMILY_LABEL,
   PRESETS,
+  RELAY_API_LABEL,
+  classifyRelayError,
   connectBridge,
+  detectRelayApi,
+  groupModels,
+  normalizeRelayBase,
+  parseRelayUrl,
+  relayFailureText,
+  relayHost,
   listModels,
   resolveConfig,
   saveableConfig,
@@ -20,6 +29,8 @@ import {
   type LLMProvider,
   type PiApi,
   type Preset,
+  type RelayApi,
+  type RelayDetection,
 } from '../../agent';
 import type { WsLike } from '../../agent/bridge';
 import type { DifficultyId, MapId } from '../../core/types';
@@ -43,7 +54,7 @@ import { requestAiLaunch, type AiRole } from './launch';
 import { bridgeCommands, detectOs, localGuides, networkNotes, OS_NAME, type OsId, type SetupStep } from './snippets';
 import { forgetKey, keyModeOf, loadSetup, readKey, saveSetup, writeKey, type AiSetupSaved, type AiSource, type KeyMode } from './store';
 
-const SOURCE_ORDER: AiSource[] = ['demo', 'claude', 'openai', 'google', 'openrouter', 'deepseek', 'ollama', 'lmstudio', 'llamacpp', 'vllm', 'anthropic', 'custom'];
+const SOURCE_ORDER: AiSource[] = ['demo', 'relay', 'claude', 'openai', 'google', 'openrouter', 'deepseek', 'ollama', 'lmstudio', 'llamacpp', 'vllm', 'anthropic', 'custom'];
 const SOURCE_LABEL = (s: AiSource): string =>
   s === 'demo' ? '离线演示（内置策略，不需要 Key）' : s === 'claude' ? 'Claude（官方 SDK，推荐）' : s === 'anthropic' ? 'Anthropic（经 pi 适配器）' : PRESETS[s].label;
 const API_LABEL: Record<PiApi, string> = {
@@ -147,7 +158,10 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
   const run = { seed: '', layoutSeed: randomSeed(), rerolled: false };
   const models = new Map<AiSource, string[]>();
   let diag: { source: AiSource; d: ReturnType<typeof normalizeDiag> } | null = null;
-  let busy: 'test' | 'models' | 'bridge' | null = null;
+  let busy: 'test' | 'models' | 'bridge' | 'detect' | null = null;
+  /** 中转服务：最近一次自动检测的结果 / 进度 */
+  let relayResult: RelayDetection | null = null;
+  let relayProgress = '';
 
   // ── 可选范围：AI 模式不发奖励，简单 / 普通与第一章始终可选，其余跟随玩家的解锁进度 ──
   const mapOk = (m: MapId): boolean => (st.run.mode === 'campaign' ? chapterCleared(p, m) : m === 'ch1' || chapterCleared(p, m));
@@ -339,6 +353,24 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
   const baseUrlOf = (s: AiSource = st.source): string => (isPreset(s) ? (per(s).baseUrl ?? PRESETS[s].baseUrl) : '');
   const apiOf = (s: AiSource = st.source): PiApi | undefined => (isPreset(s) ? (per(s).api ?? PRESETS[s].api) : undefined);
 
+  // ── 中转服务 ──
+  const relayMode = (): 'auto' | RelayApi => per('relay').relayApi ?? 'auto';
+  /** 检测缓存的键：规范化地址 + 模型（换了就要重新检测） */
+  const relayFor = (): string => {
+    const u = parseRelayUrl(baseUrlOf('relay'));
+    return u ? `${u.origin}${u.root}|${modelOf('relay').trim()}` : '';
+  };
+  const relayDetected = (): RelayApi | undefined => {
+    const d = per('relay').detected;
+    return d && d.for === relayFor() ? d.api : undefined;
+  };
+  /** 实际使用的接口：手动选择 > 检测结果 > Chat Completions（尚未检测时的占位） */
+  const relayApiNow = (): RelayApi => {
+    const m = relayMode();
+    return m !== 'auto' ? m : (relayDetected() ?? 'openai-completions');
+  };
+  const relayNeedsDetect = (): boolean => st.tab === 'direct' && st.source === 'relay' && relayMode() === 'auto' && !relayDetected();
+
   /** 当前表单 → 模型配置（含内存里的 Key） */
   const buildConfig = (): Partial<AgentModelConfig> => {
     const common: Partial<AgentModelConfig> = {
@@ -356,6 +388,12 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
     if (s === 'demo') return { ...common, provider: 'scripted', model: 'scripted-v1' };
     const key = readKey(s).trim();
     if (s === 'claude') return { ...common, provider: 'claude-native', model: modelOf(s).trim(), browser: true, ...(key ? { apiKey: key } : {}) };
+    if (s === 'relay') {
+      // 中转服务一律走 pi（不走 Claude 官方 SDK 适配器）；地址按接口类型规范化
+      const api = relayApiNow();
+      const raw = baseUrlOf(s).trim();
+      return { ...common, provider: 'pi', preset: 'relay', api, baseUrl: raw ? normalizeRelayBase(raw, api) : '', model: modelOf(s).trim(), browser: true, ...(key ? { apiKey: key } : {}) };
+    }
     return {
       ...common,
       provider: 'pi',
@@ -379,6 +417,17 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
     }
     const s = st.source;
     if (s !== 'demo' && !isLocal(s) && s !== 'custom' && !readKey(s).trim()) errs.push('请填写 API Key');
+    if (s === 'relay') {
+      const raw = baseUrlOf(s).trim();
+      const i = errs.indexOf('baseUrl 不是合法 URL');
+      if (i >= 0) errs.splice(i, 1);
+      if (raw && !parseRelayUrl(raw)) errs.push('服务地址不是合法的 http(s) 地址');
+      if (!modelOf(s).trim()) {
+        const j = errs.indexOf('缺少 model');
+        if (j >= 0) errs.splice(j, 1);
+        errs.push('请填写模型名（可以点“获取模型列表”选择）');
+      }
+    }
     return errs;
   };
 
@@ -402,11 +451,21 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
       diagBox.appendChild(h('div.ai-diag-card.pending', null, h('span.ai-spinner', { attrs: { 'aria-hidden': 'true' } }), '正在测试连接：发送一个很小的请求…'));
       return;
     }
+    if (busy === 'detect') {
+      diagBox.appendChild(h('div.ai-diag-card.pending', null, h('span.ai-spinner', { attrs: { 'aria-hidden': 'true' } }), `正在检测接口…${relayProgress}`));
+      return;
+    }
+    const line = (ok: boolean, text: string) => h(`li.${ok ? 'ok' : 'bad'}`, null, h('span.gi', { html: ok ? G.check : G.close }), text);
+    if (st.tab === 'direct' && st.source === 'relay' && relayResult) {
+      diagBox.appendChild(relayCard(relayResult, line));
+      return;
+    }
     if (!diag || diag.source !== st.source || st.tab !== 'direct') return;
     const d = diag.d;
-    const line = (ok: boolean, text: string) => h(`li.${ok ? 'ok' : 'bad'}`, null, h('span.gi', { html: ok ? G.check : G.close }), text);
     const notes: string[] = [];
-    if (!d.reachable) {
+    if (st.source === 'relay') {
+      if (!d.reachable || (d.error && !d.ok)) notes.push(relayFailureText(classifyRelayError(d.error, d.reachable, d.tokens)));
+    } else if (!d.reachable) {
       if (isLocal(st.source) || st.source === 'custom') {
         if (d.network && !d.hint) notes.push('没有连上本机服务：确认它已经启动，并且允许本站跨域（见下面的配置方法）。');
         notes.push(...networkNotes(pageProtocol, baseUrlOf()));
@@ -449,6 +508,38 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
       ),
     );
   };
+
+  const SHORT_FAIL: Record<string, string> = {
+    cors: '连不上（跨域 / 网络）',
+    auth: 'Key 被拒绝',
+    not_found: '接口不存在',
+    model: '模型不可用',
+    rate: '限流 / 额度不足',
+    no_tools: '有回复，但没有调用工具',
+    other: '失败',
+  };
+  function relayCard(r: RelayDetection, line: (ok: boolean, text: string) => HTMLElement): HTMLElement {
+    const partial = !r.ok && r.api;
+    const failed = r.attempts.filter((a) => !a.ok);
+    const err = failed.find((a) => a.failure === r.failure)?.error ?? failed[0]?.error;
+    const host = relayHost(baseUrlOf('relay'));
+    return h(
+      `div.ai-diag-card.${r.ok ? 'good' : partial ? 'warn' : 'bad'}`,
+      null,
+      h('b', null, r.ok && r.api ? `接口检测完成：${RELAY_API_LABEL[r.api]}` : partial ? '连上了，但模型没有按要求调用工具' : '接口检测失败'),
+      h(
+        'ul.ai-diag-list.ai-relay-attempts',
+        null,
+        r.attempts.map((a) =>
+          line(a.ok, `${RELAY_API_LABEL[a.api]}${a.ok ? ` · ${(a.latencyMs / 1000).toFixed(1)} 秒` : ` · ${SHORT_FAIL[a.failure ?? 'other']}`}`),
+        ),
+      ),
+      h('p', null, r.message),
+      r.ok ? h('p.muted', null, `已记住：${host} + 这个模型以后直接用 ${RELAY_API_LABEL[r.api!]}（换地址或模型会重新检测）。`) : null,
+      !r.ok && err ? h('p.ai-diag-err', null, `错误：${err}`) : null,
+      r.failure === 'cors' ? h('p', null, '提示：中转站文档里一般会写是否支持网页 / 浏览器直接调用；不支持时可以改用“使用本地桥接”，由你电脑上的桥接器代为请求。') : null,
+    );
+  }
 
   const toolSeg = segs(
     [
@@ -519,7 +610,7 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
       paintSummary();
       paintErrors();
     };
-    directBox.appendChild(field('模型服务', srcSel, isPreset(s) && PRESETS[s].notes ? PRESETS[s].notes : undefined));
+    directBox.appendChild(field('模型服务', srcSel, isPreset(s) && s !== 'relay' && PRESETS[s].notes ? PRESETS[s].notes : undefined));
 
     if (s === 'demo') {
       directBox.appendChild(
@@ -534,7 +625,89 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
       return;
     }
 
-    if (isPreset(s)) {
+    /** 中转服务：Key 的去向（随地址实时更新） */
+    const keyDest = h('small.muted.ai-key-dest');
+    const paintKeyDest = (): void => {
+      const host = relayHost(baseUrlOf('relay'));
+      setText(keyDest, host ? `Key 只会发送到 ${host}` : '填好服务地址后，Key 只会发送到那个地址');
+    };
+    const relayChanged = (): void => {
+      relayResult = null;
+      paintDiag();
+      paintSummary();
+      paintErrors();
+    };
+
+    if (s === 'relay') {
+      const relayEndpointHint = (raw: string): string => {
+        const ep = (api: RelayApi): string =>
+          `${normalizeRelayBase(raw, api)}${api === 'anthropic-messages' ? '/v1/messages' : api === 'openai-responses' ? '/responses' : '/chat/completions'}`;
+        if (relayMode() !== 'auto' || relayDetected()) return `将请求 ${ep(relayApiNow())}`;
+        return `会自动规范化：OpenAI 接口用 ${normalizeRelayBase(raw, 'openai-completions')}，Anthropic 接口用 ${ep('anthropic-messages')}`;
+      };
+      directBox.appendChild(
+        h(
+          'div.ai-note',
+          null,
+          h('b', null, '中转服务'),
+          h('p', null, '用中转站（API 代理商）给你的地址和 Key 直接玩：支持 OpenAI Chat Completions、OpenAI Responses 和 Anthropic Messages 三种接口，默认自动检测。'),
+          h('p.muted.small', null, '请求由你的浏览器直接发给中转站，不经过我们的服务器；因此中转站必须允许网页跨域访问（CORS）。'),
+        ),
+      );
+      const urlInput = h<HTMLInputElement>('input.input', {
+        attrs: { type: 'url', inputmode: 'url', autocomplete: 'off', spellcheck: 'false', placeholder: 'https://中转站地址（带不带 /v1 都可以）', 'aria-label': '服务地址' },
+      });
+      urlInput.value = baseUrlOf(s);
+      const urlHint = h('small.muted');
+      const paintUrlHint = (): void => {
+        const raw = urlInput.value.trim();
+        const u = raw ? parseRelayUrl(raw) : null;
+        setText(urlHint, !raw ? '粘贴中转站文档里的地址即可，例如 https://example.com 或 https://example.com/v1，完整的 …/v1/chat/completions 也行' : u ? relayEndpointHint(raw) : '地址格式不对：应该像 https://example.com/v1');
+      };
+      paintUrlHint();
+      urlInput.addEventListener('input', () => {
+        per(s).baseUrl = urlInput.value.trim();
+        paintUrlHint();
+        paintKeyDest();
+      });
+      urlInput.addEventListener('change', () => {
+        const v = urlInput.value.trim();
+        if (v) per(s).baseUrl = v;
+        else delete per(s).baseUrl;
+        persist();
+        relayChanged();
+      });
+      directBox.appendChild(field('服务地址', urlInput, urlHint));
+
+      const apiSel = h<HTMLSelectElement>('select.input', { attrs: { 'aria-label': '接口类型' } });
+      apiSel.appendChild(h('option', { attrs: { value: 'auto', selected: relayMode() === 'auto' } }, '自动检测（推荐）'));
+      for (const a of ['openai-completions', 'openai-responses', 'anthropic-messages'] as RelayApi[]) {
+        apiSel.appendChild(h('option', { attrs: { value: a, selected: relayMode() === a } }, RELAY_API_LABEL[a]));
+      }
+      const apiHint = h('small.muted');
+      const paintApiHint = (): void => {
+        const d = relayDetected();
+        setText(
+          apiHint,
+          relayMode() !== 'auto'
+            ? '手动指定：不再自动检测'
+            : d
+              ? `已检测：${RELAY_API_LABEL[d]}（点“测试连接”可重新检测）`
+              : '点“测试连接”或开始对局时自动检测（依次发几个很小的请求）',
+        );
+      };
+      paintApiHint();
+      apiSel.onchange = () => {
+        const v = apiSel.value as 'auto' | RelayApi;
+        if (v === 'auto') delete per(s).relayApi;
+        else per(s).relayApi = v;
+        persist();
+        paintApiHint();
+        paintUrlHint();
+        relayChanged();
+      };
+      directBox.appendChild(field('接口类型', apiSel, apiHint));
+    } else if (isPreset(s)) {
       const apiSel = h<HTMLSelectElement>('select.input', { attrs: { 'aria-label': 'API 类型' } });
       for (const a of Object.keys(API_LABEL) as PiApi[]) apiSel.appendChild(h('option', { attrs: { value: a, selected: a === apiOf(s) } }, API_LABEL[a]));
       apiSel.disabled = s !== 'custom';
@@ -572,9 +745,52 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
     modelInput.addEventListener('change', () => {
       per(s).model = modelInput.value.trim();
       persist();
+      if (s === 'relay') relayChanged();
       paintSummary();
       paintErrors();
     });
+    // 中转服务：可搜索、按家族分组的模型列表
+    const picker = h('div.ai-model-picker');
+    const pickModel = (m: string): void => {
+      audio.play('click');
+      modelInput.value = m;
+      per(s).model = m;
+      persist();
+      relayChanged();
+      paintPicker();
+    };
+    const pickerFilter = h<HTMLInputElement>('input.input', {
+      attrs: { type: 'search', autocomplete: 'off', spellcheck: 'false', placeholder: '搜索模型，例如 claude、gpt-5、gemini', 'aria-label': '搜索模型' },
+    });
+    const pickerList = h('div.ai-model-groups');
+    function paintPicker(): void {
+      const all = models.get(s) ?? [];
+      picker.hidden = s !== 'relay' || !all.length;
+      if (picker.hidden) return;
+      clear(pickerList);
+      const groups = groupModels(all, pickerFilter.value);
+      if (!groups.length) pickerList.appendChild(h('p.muted.small', null, '没有匹配的模型'));
+      const cur = modelInput.value.trim();
+      for (const g of groups) {
+        pickerList.appendChild(
+          h(
+            'div.ai-model-group',
+            null,
+            h('b.ai-model-family', null, `${FAMILY_LABEL[g.family]}（${g.models.length}）`),
+            h(
+              'div.ai-model-chips',
+              null,
+              g.models.map((m) =>
+                h(`button.ai-model-chip${m === cur ? '.on' : ''}`, { attrs: { type: 'button', 'aria-pressed': m === cur ? 'true' : 'false' }, onclick: () => pickModel(m) }, m),
+              ),
+            ),
+          ),
+        );
+      }
+    }
+    pickerFilter.addEventListener('input', () => paintPicker());
+    picker.append(pickerFilter, pickerList);
+    paintPicker();
     const listMsg = h('small.muted.ai-list-msg', { attrs: { role: 'status' } });
     const listBtn = h<HTMLButtonElement>(
       'button.btn.small',
@@ -593,8 +809,9 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
           if (r.ok && r.models.length) {
             models.set(s, r.models);
             fillList();
-            setText(listMsg, `找到 ${r.models.length} 个模型，点输入框选择`);
-            if (!modelInput.value.trim() || !r.models.includes(modelInput.value.trim())) {
+            paintPicker();
+            setText(listMsg, s === 'relay' ? `找到 ${r.models.length} 个模型，在下面搜索并点选` : `找到 ${r.models.length} 个模型，点输入框选择`);
+            if (s !== 'relay' && (!modelInput.value.trim() || !r.models.includes(modelInput.value.trim()))) {
               if (isLocal(s) || !modelInput.value.trim()) {
                 modelInput.value = r.models[0];
                 per(s).model = r.models[0];
@@ -611,6 +828,7 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
       '获取模型列表',
     );
     directBox.appendChild(field('模型', h('div.ai-inline', null, modelInput, listBtn, dl), listMsg));
+    if (s === 'relay') directBox.appendChild(picker);
 
     // Key
     const local = isLocal(s);
@@ -625,6 +843,7 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
       },
     });
     keyInput.value = readKey(s);
+    if (s === 'relay') paintKeyDest();
     st.keyMode = keyModeOf(s) ?? st.keyMode;
     const saveKey = (): void => {
       writeKey(s, keyInput.value.trim(), st.keyMode);
@@ -667,7 +886,7 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
       h(
         'div.ai-key',
         null,
-        field(local ? 'Key / Token（可选）' : 'API Key', h('div.ai-inline', null, keyInput, forgetBtn)),
+        field(local ? 'Key / Token（可选）' : 'API Key', h('div.ai-inline', null, keyInput, forgetBtn), s === 'relay' ? keyDest : undefined),
         keySeg.el,
         localWarn,
         h('p.ai-warn', null, h('span.gi', { html: G.warn }), h('span', null, BYO_KEY_WARNING)),
@@ -716,6 +935,16 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
           const errs = paintErrors(true);
           if (errs.length) return audio.play('error');
           audio.play('click');
+          if (st.source === 'relay' && relayMode() === 'auto') {
+            testBtn.disabled = true;
+            const r = await runRelayDetect();
+            if (disposed) return;
+            testBtn.disabled = false;
+            paintDirectHints();
+            if (r) audio.play(r.ok ? 'select' : 'error');
+            return;
+          }
+          relayResult = null;
           busy = 'test';
           testBtn.disabled = true;
           paintDiag();
@@ -746,7 +975,56 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
       h('span.gi', { html: G.bolt }),
       '测试连接',
     );
-    directBox.appendChild(h('div.ai-test-row', null, testBtn, h('small.muted', null, '会发送一个很小的请求（几十个 token）')));
+    directBox.appendChild(
+      h('div.ai-test-row', null, testBtn, h('small.muted', null, s === 'relay' && relayMode() === 'auto' ? '自动检测接口：最多依次发 3 个很小的请求' : '会发送一个很小的请求（几十个 token）')),
+    );
+  };
+
+  /** 检测结束后刷新“接口类型”下的说明（重画整个直连表单最简单，不会丢失输入：值都已保存） */
+  const paintDirectHints = (): void => {
+    if (st.tab === 'direct' && st.source === 'relay') paintDirect();
+  };
+
+  /** 中转服务：自动检测接口类型，结果缓存到（不含 Key 的）设置里 */
+  const runRelayDetect = async (): Promise<RelayDetection | null> => {
+    if (busy) return null;
+    busy = 'detect';
+    diag = null;
+    relayResult = null;
+    relayProgress = '';
+    paintDiag();
+    // 用玩家填写的原始地址（各接口在 detectRelayApi 里各自规范化）
+    const cfg = { ...buildConfig(), baseUrl: baseUrlOf('relay').trim() };
+    const forKey = relayFor();
+    let r: RelayDetection;
+    try {
+      r = await detectRelayApi(cfg, {
+        onProgress: (api, i, n) => {
+          relayProgress = `（${i + 1}/${n}：${RELAY_API_LABEL[api]}）`;
+          if (!disposed) paintDiag();
+        },
+      });
+    } catch (e) {
+      r = { ok: false, attempts: [], failure: 'other', message: e instanceof Error ? e.message : String(e) };
+    }
+    busy = null;
+    relayProgress = '';
+    if (disposed) return null;
+    relayResult = r;
+    if (r.api && forKey && relayFor() === forKey) {
+      per('relay').detected = { api: r.api, for: forKey };
+      persist();
+    }
+    // 能回复但不会调用工具：切到 JSON 动作模式（文档 10 §17.9）
+    if (!r.ok && r.api && st.toolMode === 'native') {
+      st.toolMode = 'json';
+      persist();
+      toolSeg.paint();
+      app.toast('模型没有调用工具，已切换到“JSON 动作”模式', 'info');
+    }
+    paintDiag();
+    paintSummary();
+    return r;
   };
 
   // ───────────── 模型：本机桥接 ─────────────
@@ -907,13 +1185,28 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
     'button.btn.primary.big',
     {
       attrs: { type: 'button' },
-      onclick: () => {
+      onclick: async () => {
+        if (busy) return;
         const errs = paintErrors(true);
         if (errs.length) {
           audio.play('error');
           app.toast(errs[0], 'warn');
           errBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
           return;
+        }
+        // 中转服务 + 自动检测：还没检测过这个地址 + 模型时，先检测再开局
+        if (relayNeedsDetect()) {
+          audio.play('click');
+          diagBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          const r = await runRelayDetect();
+          if (disposed || !r) return;
+          paintDirectHints();
+          if (!r.api) {
+            audio.play('error');
+            app.toast('没有检测到可用的接口，详见“模型”一栏的诊断', 'warn');
+            diagBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            return;
+          }
         }
         audio.play('select');
         const cfg = buildConfig();

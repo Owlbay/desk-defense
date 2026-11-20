@@ -3,6 +3,7 @@
  * API Key 另行处理：默认只在内存；可选 sessionStorage（关标签页即清除）或 localStorage（不推荐，玩家显式选择）。
  */
 import type { AgentModelConfig, PiApi, Preset } from '../../agent/config';
+import type { RelayApi } from '../../agent/relay';
 import type { DifficultyId, MapId } from '../../core/types';
 import { safeStorage } from '../../meta/storage';
 import type { AiRole } from './launch';
@@ -14,6 +15,16 @@ const KEY_PREFIX = 'desk-defense.ai.key.';
 export type AiSource = 'demo' | 'claude' | Preset;
 export type KeyMode = 'memory' | 'session' | 'local';
 
+export interface PerSource {
+  model?: string;
+  baseUrl?: string;
+  api?: PiApi;
+  /** 中转服务：接口类型（默认 auto = 自动检测） */
+  relayApi?: 'auto' | RelayApi;
+  /** 中转服务：上次自动检测的结果（不含 Key）。for = 规范化地址 + '|' + 模型，换地址 / 模型后失效 */
+  detected?: { api: RelayApi; for: string };
+}
+
 export interface AiSetupSaved {
   v: 1;
   tab: 'direct' | 'bridge';
@@ -21,7 +32,7 @@ export interface AiSetupSaved {
   source: AiSource;
   run: { mode: 'endless' | 'campaign'; map: MapId; difficulty: DifficultyId; abyss: number; pure: boolean; autoWave: boolean };
   /** 每个来源各自记住的模型 / 地址 */
-  per: Partial<Record<AiSource, { model?: string; baseUrl?: string; api?: PiApi }>>;
+  per: Partial<Record<AiSource, PerSource>>;
   toolMode: 'native' | 'json';
   context: 'full' | 'compact';
   effort: NonNullable<AgentModelConfig['effort']>;

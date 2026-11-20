@@ -31,6 +31,7 @@ export { DecisionEngine } from './engine';
 export { runAgentGame, aiBoardKey, type AgentRunConfig, type AgentRunReport } from './runner';
 export { createProvider } from './factory';
 export { listModels, testConnection, type ModelListing, type ConnectionDiagnostics } from './models';
+export * from './relay';
 export { connectBridge, originAllowed, makePairingCode, BRIDGE_PROTOCOL } from './bridge';
 export { scriptedFallback, ScriptedProvider } from './providers/scripted';
 export type { LLMProvider, DecisionContext, DecisionOutcome } from './providers/types';
