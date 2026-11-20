@@ -1,9 +1,12 @@
 import type { GameEvent } from '../core/types';
 import { abilityFx } from './abilities';
 import type { RenderCtx } from './ctx';
+import type { EnemyLayer } from './enemies';
 import type { FieldLayer } from './field';
 import { BOARD_H, BOARD_W, CELL } from './layout';
-import { C, ENEMY_COLOR } from './palette';
+import type { ShakeMode } from './motion';
+import { C, ENEMY_COLOR, TOWER_COLOR } from './palette';
+import type { SwatterLayer } from './swatter';
 import type { TowerLayer } from './towers';
 
 const BEAM: Record<'warm' | 'cyan' | 'magenta', number> = { warm: C.lampLight, cyan: C.cyan, magenta: C.magenta };
@@ -17,16 +20,30 @@ const PULSE: Record<'steel' | 'cyan' | 'magenta' | 'gold' | 'ink', number> = {
 
 /** 把 core 事件翻译成特效 */
 export class EventFx {
+  /** 苍蝇拍专属特效层（Board 创建后注入） */
+  swatter: SwatterLayer | null = null;
+
+  /** 本 tick 内的即时命中（钉、光、扫）：记下开火的塔，命中火花按塔着色、顺着弹道方向飞 */
+  private fireTick = -1;
+  private fireN = 0;
+  private fireX = new Float32Array(16);
+  private fireY = new Float32Array(16);
+  private fireA = new Float32Array(16);
+  private fireC = new Int32Array(16);
+
   constructor(
     private ctx: RenderCtx,
     private towers: TowerLayer,
     private field: FieldLayer,
+    private enemies: EnemyLayer,
   ) {}
 
-  private shake(ms: number, k: number): void {
-    const cam = this.ctx.scene.cameras.main;
-    // 强度为视口比例；按缩放修正为固定逻辑像素量
-    cam.shake(ms, (k * CELL) / Math.max(1, cam.width * cam.zoom));
+  private shake(ms: number, k: number, mode: ShakeMode = 'rumble'): void {
+    this.ctx.cam.shake(ms, k, mode);
+  }
+
+  shakeBy(ms: number, k: number): void {
+    this.shake(ms, k);
   }
 
   handle(ev: GameEvent): void {
@@ -35,12 +52,17 @@ export class EventFx {
     const P = (v: number) => v * CELL;
     switch (ev.type) {
       case 'place':
+        // 落地的一圈灰尘（塔身的压扁回弹在 TowerView.pop）
         fx.dust(P(ev.cx + 0.5), P(ev.cy + 0.5) + 12, 24);
-        fx.ring(P(ev.cx + 0.5), P(ev.cy + 0.5) + 6, 6, 26, C.deskDark, 0.3, 3);
+        fx.ring(P(ev.cx + 0.5), P(ev.cy + 0.5) + 8, 6, 28, C.deskDark, 0.32, 3);
+        fx.ring(P(ev.cx + 0.5), P(ev.cy + 0.5) + 8, 4, 18, TOWER_COLOR[ev.tower] ?? C.paper, 0.26, 2, false, 0.05);
         break;
       case 'sell':
-        fx.dust(P(ev.cx + 0.5), P(ev.cy + 0.5) + 8, 26, C.paper);
-        fx.shatter(P(ev.cx + 0.5), P(ev.cy + 0.5), C.paper, 5, 4);
+        // 塔身折叠缩小（TowerLayer）→ 硬币飞起
+        this.towers.onSell(ev.uid);
+        fx.dust(P(ev.cx + 0.5), P(ev.cy + 0.5) + 10, 22, C.paper);
+        fx.coinBurst(P(ev.cx + 0.5), P(ev.cy + 0.5) - 4, Math.max(3, Math.min(7, Math.round(ev.refund / 25) + 2)));
+        fx.sparkle(P(ev.cx + 0.5), P(ev.cy + 0.5) - 8, C.goldLight, 3, 18);
         break;
       case 'levelUp': {
         const t = st.towers.get(ev.uid);
@@ -52,9 +74,21 @@ export class EventFx {
         if (!ev.tierChanged) fx.ring(x, y, 10, 28, C.goldLight, 0.35, 2.5);
         break;
       }
-      case 'fire':
+      case 'fire': {
         this.towers.onFire(ev.uid);
+        if (st.tick !== this.fireTick) {
+          this.fireTick = st.tick;
+          this.fireN = 0;
+        }
+        if (this.fireN < 16) {
+          const i = this.fireN++;
+          this.fireX[i] = ev.tx;
+          this.fireY[i] = ev.ty;
+          this.fireA[i] = Math.atan2(ev.ty - ev.y, ev.tx - ev.x);
+          this.fireC[i] = TOWER_COLOR[ev.tower] ?? C.paper;
+        }
         break;
+      }
       case 'beam':
         {
           // width 为格（<1）或像素
@@ -83,17 +117,31 @@ export class EventFx {
         break;
       case 'hit': {
         const amt = Math.round(ev.amount);
-        const x = P(ev.x) + (Math.random() - 0.5) * 8,
-          y = P(ev.y) - 10;
+        const hx = P(ev.x),
+          hy = P(ev.y);
+        const y = hy - 10;
         if (ev.kind === 'shield') {
-          fx.disc(P(ev.x), P(ev.y), 4, C.cyan, 0.12, true);
-          if (amt > 0) fx.text(x, y, String(amt), 'shield');
+          fx.disc(hx, hy, 4, C.cyan, 0.12, true);
+          if (amt > 0) fx.damage(ev.enemyUid, hx, y, amt, 'shield');
         } else if (ev.crit) {
-          fx.text(x, y - 4, `${amt}!`, 'crit');
-          fx.disc(P(ev.x), P(ev.y), 6, C.goldLight, 0.1, true);
+          // 暴击：大数字 + 白闪 + 只冻结这个敌人 2–3 帧
+          fx.damage(ev.enemyUid, hx + (Math.random() - 0.5) * 6, y - 5, amt, 'crit');
+          fx.disc(hx, hy, 10, C.white, 0.1, true, 0.9);
+          fx.ring(hx, hy, 3, 17, C.goldLight, 0.2, 2.5);
+          fx.sparks(hx, hy, C.goldLight, 6);
+          this.enemies.hitStop(ev.enemyUid, 0.045);
         } else if (ev.kind === 'dot') {
-          if (amt > 0) fx.text(x, y, String(amt), 'dot');
-        } else if (amt > 0) fx.text(x, y, String(amt), ev.kind === 'true' ? 'warn' : 'dmg');
+          if (amt > 0) fx.damage(ev.enemyUid, hx, y, amt, 'dot');
+        } else if (amt > 0) fx.damage(ev.enemyUid, hx, y, amt, ev.kind === 'true' ? 'warn' : 'dmg');
+        // 即时命中的火花：找本 tick 开火且落点在这里的塔
+        if (ev.kind !== 'dot' && this.fireTick === st.tick) {
+          for (let i = 0; i < this.fireN; i++) {
+            if (Math.abs(this.fireX[i] - ev.x) + Math.abs(this.fireY[i] - ev.y) < 0.4) {
+              fx.sparks(hx, hy, this.fireC[i], 3, this.fireA[i], 1.5, 95);
+              break;
+            }
+          }
+        }
         break;
       }
       case 'immune':
@@ -107,14 +155,35 @@ export class EventFx {
         break;
       case 'death': {
         const col = ENEMY_COLOR[ev.enemy] ?? C.paper;
+        const x = P(ev.x),
+          y = P(ev.y);
         const n = ev.boss ? 14 : ev.elite ? 8 : 4 + Math.floor(Math.random() * 3);
-        fx.shatter(P(ev.x), P(ev.y), col, n, ev.boss ? 9 : 5);
-        if (ev.elite) fx.ring(P(ev.x), P(ev.y), 4, 26, C.white, 0.3, 3);
-        if (ev.gold > 0) fx.text(P(ev.x), P(ev.y) - 14, `+${Math.round(ev.gold)}`, 'gold');
+        // 碎裂 + 本体色小纸屑 + 一闪 + 影子淡出
+        fx.shatter(x, y, col, n, ev.boss ? 9 : 5);
+        fx.confettiOf(x, y - 2, col, ev.boss ? 14 : ev.elite ? 8 : 4);
+        fx.disc(x, y, ev.boss ? 26 : ev.elite ? 13 : 9, C.white, 0.09, true, 0.75);
+        fx.shadowFade(x, y + (ev.boss ? 16 : 7), ev.boss ? 54 : ev.elite ? 26 : 20, ev.boss ? 20 : 8, ev.boss ? 0.9 : 0.45);
+        if (ev.elite) {
+          fx.ring(x, y, 4, 28, C.white, 0.3, 3);
+          fx.ring(x, y, 4, 20, C.goldLight, 0.3, 2, false, 0.06);
+        }
+        if (ev.gold > 0) fx.text(x, y - 14, `+${Math.round(ev.gold)}`, 'gold');
         if (ev.boss) {
-          fx.ring(P(ev.x), P(ev.y), 10, 120, col, 0.6, 6);
-          fx.confetti(P(ev.x), P(ev.y), 24);
-          this.shake(260, 0.15);
+          // Boss：拉长的连环爆裂（全部用粒子自带的延迟，不开定时器）
+          fx.ring(x, y, 10, 120, col, 0.7, 6);
+          fx.ring(x, y, 10, 160, C.white, 0.9, 3, false, 0.12);
+          for (let i = 0; i < 5; i++) {
+            const a = i * 2.4,
+              d = 10 + i * 5;
+            const bx = x + Math.cos(a) * d,
+              by = y + Math.sin(a) * d * 0.8;
+            fx.shatter(bx, by, i % 2 ? col : C.paper, 6, 6, 0.1 + i * 0.13);
+            fx.ring(bx, by, 4, 40 + i * 8, i % 2 ? C.goldLight : col, 0.45, 3, false, 0.1 + i * 0.13);
+          }
+          fx.confetti(x, y, 24);
+          fx.confetti(x, y - 6, 16, 0.45);
+          this.shake(720, 0.2);
+          this.ctx.cam.flash(C.white, 0.42, 420);
         }
         break;
       }
@@ -122,14 +191,12 @@ export class EventFx {
         fx.dust(P(ev.x), P(ev.y), 14, C.paper);
         break;
       case 'leak': {
-        for (const e of st.grid.exits) fx.cell(P(e.x), P(e.y), CELL, CELL, C.bad, 0.55, 0.5);
         const ex = st.grid.exits.length ? P(st.grid.exits.reduce((s, e) => s + e.x + 0.5, 0) / st.grid.exits.length) : BOARD_W / 2;
         const ey = st.grid.exits.length ? P(st.grid.exits[0].y) : BOARD_H - CELL;
         if (ev.lives > 0) fx.text(ex, ey - 4, `-${ev.lives}♥`, 'goldLoss');
-        if (ev.stolenGold > 0 && !ev.lives) {
-          /* 偷金币的数字由 gold 事件显示 */
-        }
-        this.shake(120, 0.06);
+        // 出口笔记本：纸页翻动 + 红色脉冲（FieldLayer）
+        this.field.onLeak(ev.lives);
+        this.shake(140, 0.06);
         break;
       }
       case 'spawn':
@@ -139,7 +206,9 @@ export class EventFx {
             fx.ring(P(e.x), P(e.y), 10, 90, C.bad, 0.7, 5);
             fx.ring(P(e.x), P(e.y), 10, 60, C.ink, 0.5, 3, false, 0.15);
           }
-          this.shake(300, 0.12);
+          // Boss 登场：沉重的一震 + 很小的镜头推进
+          this.shake(380, 0.14, 'thud');
+          this.ctx.cam.punch(0.028, 460);
         }
         break;
       case 'bossSkill': {
@@ -151,10 +220,12 @@ export class EventFx {
             fx.ring(x, y, r * 0.2, r, C.coffee, 0.5, 8);
             fx.disc(x, y, r, C.coffee, 0.5, false, 0.35);
             fx.shatter(x, y, C.coffee, 10, 4);
+            this.shake(200, 0.07, 'thud');
             break;
           case 'shred':
             fx.shatter(x, y, C.paper, 8, 4);
             fx.confetti(x, y, 6);
+            this.shake(160, 0.05);
             break;
           case 'inkShield':
             fx.ring(x, y, 8, r, C.inkBlue, 0.55, 6);
@@ -171,7 +242,8 @@ export class EventFx {
             fx.ring(x, y, 10, Math.max(BOARD_W, BOARD_H), C.alarmRed, 0.8, 6);
             fx.ring(x, y, 10, Math.max(BOARD_W, BOARD_H) * 0.8, C.goldLight, 0.8, 3, false, 0.12);
             fx.ring(x, y, 10, Math.max(BOARD_W, BOARD_H) * 0.6, C.alarmRed, 0.8, 3, false, 0.24);
-            this.shake(280, 0.12);
+            // 闹钟：长一点的嗡嗡震动
+            this.shake(520, 0.11);
             break;
         }
         break;
@@ -206,7 +278,7 @@ export class EventFx {
         break;
       case 'terrainChanged':
         // 背景按地形键自动重画；这里只给一点反馈
-        if (ev.reason !== 'drop') this.shake(100, 0.04);
+        if (ev.reason !== 'drop') this.shake(140, 0.045);
         break;
       case 'towerMoved': {
         this.towers.onMoved(ev.uid, ev.fromX, ev.fromY);
@@ -217,8 +289,22 @@ export class EventFx {
       case 'evolve':
         this.towers.onEvolve(ev.uid, ev.stars, ev.mythic);
         break;
-      case 'towerAbility':
+      case 'towerAbility': {
         abilityFx(this.ctx, this.towers, this.field, ev, (ms, k) => this.shake(ms, k));
+        const t = st.towers.get(ev.uid);
+        if (t?.id === 'swatter' || (!t && ev.ability.startsWith('swatter'))) {
+          const br = t?.branch ?? (/_b$|_B$/.test(ev.ability) ? 'B' : 'A');
+          this.swatter?.onAbility(br === 'B' ? 'B' : 'A', ev.uid);
+        }
+        break;
+      }
+      // ── 苍蝇拍 ──
+      case 'swat':
+        if (this.swatter) this.swatter.onSwat(ev);
+        else this.towers.onSwing(ev.uid);
+        break;
+      case 'chain':
+        this.swatter?.onChain(ev);
         break;
       default:
         break;
@@ -241,7 +327,7 @@ export class EventFx {
         this.ctx.scene.time.delayedCall(170, () => {
           fx.shatter(x, y, C.pink, 10, 4);
           fx.dust(x, y + 6, r * 0.8, C.paper);
-          this.shake(160, 0.08);
+          this.shake(220, 0.1, 'thud');
         });
         break;
       }

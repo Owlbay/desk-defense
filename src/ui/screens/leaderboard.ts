@@ -1,36 +1,143 @@
 import { allDiffKeys, keyLabel, leaderKey } from '../../meta/progress';
+import { dailyInfo, dayOf, parseBoard } from '../../shared/leaderboard';
+import { fetchDaily } from '../../meta/online';
 import { screenHeader, type App, type Screen } from '../App';
 import { audio } from '../audio';
 import { MAP_META } from '../coreMeta';
 import { clear, copyText, fmtNum, h } from '../dom';
+import { G } from '../icons';
+import { takeLeaderboardRequest, type LbTab } from '../online/nav';
+import { nicknameChip } from '../online/nickname';
+import { onlineBoard } from '../online/table';
+
+const TAB_NAME: Record<LbTab, string> = { local: '本地', global: '全服', daily: '每日挑战' };
 
 export function leaderboardScreen(app: App): Screen {
   const p = app.store.get();
+  const req = takeLeaderboardRequest();
   // 默认选中有记录的第一个难度
   const keys = allDiffKeys();
   const count = (k: string) =>
     [false, true].reduce((n, pure) => n + [false, true].reduce((m, auto) => m + (p.leaderboard[leaderKey(k, pure, auto)]?.length ?? 0), 0), 0);
   const firstKey = keys.find((k) => count(k) > 0) ?? 'normal';
   const state = {
+    tab: (req?.tab ?? 'local') as LbTab,
     key: firstKey,
     pure: false,
     // 默认显示有记录的开波方式（优先自动）
     auto: (p.leaderboard[leaderKey(firstKey, false, true)]?.length ?? 0) > 0 || (p.leaderboard[leaderKey(firstKey, false, false)]?.length ?? 0) === 0,
   };
+  // 从结算面板跳过来：直接定位到那一局的榜
+  const parsed = req?.board ? parseBoard(req.board) : null;
+  if (parsed?.kind === 'endless') {
+    state.key = parsed.difficulty === 'abyss' ? `abyss${parsed.abyssLevel ?? 1}` : parsed.difficulty;
+    state.pure = parsed.pure;
+    state.auto = parsed.auto;
+  } else if (parsed?.kind === 'daily') state.tab = 'daily';
+
+  const modeTabs = h('div.lb-mode-tabs', { attrs: { role: 'tablist', 'aria-label': '排行榜类型' } });
   const tabs = h('div.tabs.scroll-x', { attrs: { role: 'tablist' } });
   const pureSeg = h('div.seg-grid.two');
   const autoSeg = h('div.seg-grid.two');
+  const filters = h('div.lb-filters', null, pureSeg, autoSeg);
   const table = h('div.board-table');
+  const global = onlineBoard(app, { limit: 50 });
+  const daily = onlineBoard(app, { limit: 50, emptyHint: '今天还没有人上榜，去挑战一下吧！' });
+  const dailyHead = h('div.online-bar');
+  const customCard = h('section.card.section');
+  const nickBar = h(
+    'div.online-bar.lb-nick-bar',
+    null,
+    nicknameChip(() => {
+      global.reload();
+      daily.reload();
+    }),
+  );
+
+  const filterSection = h('section.card.section', null, tabs, filters, table, global.el);
+  const dailySection = h('section.card.section', null, dailyHead, daily.el);
+
+  let dailyLoaded = false;
+  let globalBoard = '';
+  const showDaily = async () => {
+    if (dailyLoaded) return;
+    dailyLoaded = true;
+    let info = dailyInfo(dayOf(Date.now()));
+    paintDailyHead(info.day, MAP_META[info.map]?.name ?? info.map);
+    daily.load(info.board);
+    const r = await fetchDaily();
+    if (r.ok && r.data.board !== info.board) {
+      info = r.data;
+      paintDailyHead(info.day, MAP_META[info.map]?.name ?? info.map);
+      daily.load(info.board);
+    }
+  };
+  const paintDailyHead = (day: string, map: string) => {
+    clear(dailyHead);
+    dailyHead.append(
+      h('div', null, h('h3', null, `今日挑战 · ${map}`), h('small.muted', null, `第 ${day} 期 · 北京时间零点换期`)),
+      h(
+        'button.btn.small.primary',
+        { attrs: { type: 'button' }, onclick: () => (audio.play('click'), app.go({ name: 'daily' })) },
+        h('span.gi', { html: G.play }),
+        '去挑战',
+      ),
+    );
+  };
+
+  const seg = (on: boolean, label: string, fn: () => void) =>
+    h(
+      `button.seg${on ? '.on' : ''}`,
+      {
+        attrs: { type: 'button', 'aria-pressed': on ? 'true' : 'false' },
+        onclick: () => {
+          audio.play('click');
+          fn();
+          render();
+        },
+      },
+      label,
+    );
 
   const render = () => {
+    clear(modeTabs);
+    for (const t of ['local', 'global', 'daily'] as LbTab[]) {
+      modeTabs.appendChild(
+        h(
+          `button.seg${state.tab === t ? '.on' : ''}`,
+          {
+            attrs: { type: 'button', role: 'tab', 'aria-selected': state.tab === t ? 'true' : 'false' },
+            onclick: () => {
+              if (state.tab === t) return;
+              audio.play('click');
+              state.tab = t;
+              render();
+            },
+          },
+          TAB_NAME[t],
+        ),
+      );
+    }
+    const local = state.tab === 'local';
+    filterSection.hidden = state.tab === 'daily';
+    dailySection.hidden = state.tab !== 'daily';
+    customCard.hidden = !local;
+    nickBar.hidden = local;
+    table.hidden = !local;
+    global.el.hidden = state.tab !== 'global';
+    if (state.tab === 'daily') {
+      void showDaily();
+      return;
+    }
+
     clear(tabs);
     for (const k of keys) {
       const has = count(k) > 0;
       tabs.appendChild(
         h(
-          `button.tab${state.key === k ? '.on' : ''}${k.startsWith('abyss') ? '.abyss' : ''}${has ? '' : '.empty'}`,
+          `button.tab${state.key === k ? '.on' : ''}${k.startsWith('abyss') ? '.abyss' : ''}${has || !local ? '' : '.empty'}`,
           {
-            attrs: { role: 'tab', 'aria-selected': state.key === k ? 'true' : 'false' },
+            attrs: { type: 'button', role: 'tab', 'aria-selected': state.key === k ? 'true' : 'false' },
             onclick: () => {
               audio.play('click');
               state.key = k;
@@ -42,39 +149,20 @@ export function leaderboardScreen(app: App): Screen {
       );
     }
     clear(pureSeg);
-    for (const pure of [false, true]) {
-      pureSeg.appendChild(
-        h(
-          `button.seg${state.pure === pure ? '.on' : ''}`,
-          {
-            onclick: () => {
-              audio.play('click');
-              state.pure = pure;
-              render();
-            },
-          },
-          pure ? '纯净模式' : '启用天赋',
-        ),
-      );
-    }
+    for (const pure of [false, true]) pureSeg.appendChild(seg(state.pure === pure, pure ? '纯净模式' : '启用天赋', () => (state.pure = pure)));
     clear(autoSeg);
-    for (const auto of [true, false]) {
-      autoSeg.appendChild(
-        h(
-          `button.seg${state.auto === auto ? '.on' : ''}`,
-          {
-            onclick: () => {
-              audio.play('click');
-              state.auto = auto;
-              render();
-            },
-          },
-          auto ? '自动开波' : '手动开波',
-        ),
-      );
+    for (const auto of [true, false]) autoSeg.appendChild(seg(state.auto === auto, auto ? '自动开波' : '手动开波', () => (state.auto = auto)));
+
+    const board = leaderKey(state.key, state.pure, state.auto);
+    if (!local) {
+      if (board !== globalBoard) {
+        globalBoard = board;
+        global.load(board);
+      }
+      return;
     }
     clear(table);
-    const list = p.leaderboard[leaderKey(state.key, state.pure, state.auto)] ?? [];
+    const list = p.leaderboard[board] ?? [];
     if (list.length === 0) {
       table.appendChild(h('div.empty-state', null, h('p', null, '还没有记录'), h('small.muted', null, '在无尽模式里撑过几波，成绩就会出现在这里。')));
     } else {
@@ -118,21 +206,15 @@ export function leaderboardScreen(app: App): Screen {
   };
 
   const best = p.customBest;
+  customCard.append(
+    h('h3', null, '自定义 · 个人最佳'),
+    best ? h('p', null, `${fmtNum(best.score)} 分 · ${best.wave} 波 · ${best.date}`) : h('p.muted', null, '还没有记录'),
+  );
   const el = h(
     'div.screen.leaderboard-screen',
     null,
     screenHeader(app, '排行榜'),
-    h(
-      'div.screen-body',
-      null,
-      h('section.card.section', null, tabs, h('div.lb-filters', null, pureSeg, autoSeg), table),
-      h(
-        'section.card.section',
-        null,
-        h('h3', null, '自定义 · 个人最佳'),
-        best ? h('p', null, `${fmtNum(best.score)} 分 · ${best.wave} 波 · ${best.date}`) : h('p.muted', null, '还没有记录'),
-      ),
-    ),
+    h('div.screen-body', null, modeTabs, nickBar, filterSection, dailySection, customCard),
   );
   render();
   return { el };

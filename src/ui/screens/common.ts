@@ -7,6 +7,7 @@ import { audio } from '../audio';
 import { generateLayout, SKILL_META, SKILL_ORDER, spawnerName } from '../coreMeta';
 import { h, img } from '../dom';
 import { G } from '../icons';
+import { anim, DUR, EASE_IN, EASE_SPRING } from './motion';
 
 export function unlockedSkills(p: Profile): SkillId[] {
   return SKILL_ORDER.filter((id) => unlockReached(p, SKILL_META[id]?.unlock));
@@ -135,16 +136,42 @@ export function layoutThumb(map: MapId, seed: string, fixedLayout = false): HTML
 export function layoutPicker(o: { map: () => MapId; seed: () => string; onReroll: () => void; fixed?: () => boolean }): { el: HTMLElement; refresh(): void } {
   const host = h('div.layout-host');
   const refresh = () => host.replaceChildren(layoutThumb(o.map(), o.seed(), o.fixed?.() ?? false));
+  const icon = h('span.gi', { html: G.refresh });
+  let flipOut: Animation | null = null;
+  /** 翻牌：先翻到侧面，换内容，再弹回正面；连点时取消上一次、直接重来 */
+  const flipRefresh = () => {
+    if (flipOut) {
+      flipOut.onfinish = null;
+      flipOut.cancel();
+    }
+    anim(icon, [{ transform: 'rotate(0)' }, { transform: 'rotate(360deg)' }], { duration: DUR.l, easing: EASE_SPRING });
+    const out = anim(host, [{ transform: 'perspective(520px) rotateY(0) scale(1)' }, { transform: 'perspective(520px) rotateY(88deg) scale(0.94)' }], {
+      duration: 120,
+      easing: EASE_IN,
+      fill: 'forwards',
+    });
+    if (!out) return refresh();
+    flipOut = out;
+    out.onfinish = () => {
+      flipOut = null;
+      refresh();
+      out.cancel();
+      anim(host, [{ transform: 'perspective(520px) rotateY(-88deg) scale(0.94)' }, { transform: 'perspective(520px) rotateY(0) scale(1)' }], {
+        duration: DUR.m + 60,
+        easing: EASE_SPRING,
+      });
+    };
+  };
   const btn = h(
     'button.btn.small',
     {
       onclick: () => {
         audio.play('click');
         o.onReroll();
-        refresh();
+        flipRefresh();
       },
     },
-    h('span.gi', { html: G.refresh }),
+    icon,
     '换一个',
   );
   const el = h('div.layout-picker', null, host, h('div.layout-side', null, h('p.muted.small', null, '杂物按种子随机摆放，同一个种子布局完全相同。'), btn));
@@ -180,8 +207,14 @@ export function loadoutStrip(app: App, from: Route): HTMLElement {
   );
 }
 
-export function starRow(n: number, max = 3): HTMLElement {
-  const wrap = h('span.stars', { attrs: { 'aria-label': `${n} 星` } });
-  for (let i = 0; i < max; i++) wrap.appendChild(h(`span.star${i < n ? '.on' : ''}`));
+/**
+ * 星级。earnedFrom：从第几颗星开始是"刚刚获得"的 —— 这些星先显示空星，再依次盖上实心星（.earn-fill）。
+ */
+export function starRow(n: number, max = 3, earnedFrom = n): HTMLElement {
+  const wrap = h('span.stars', { attrs: { role: 'img', 'aria-label': `${n} 星` } });
+  for (let i = 0; i < max; i++) {
+    if (i < n && i >= earnedFrom) wrap.appendChild(h('span.star.earn', { style: `--i:${i - earnedFrom}` }, h('span.star.on.earn-fill')));
+    else wrap.appendChild(h(`span.star${i < n ? '.on' : ''}`));
+  }
   return wrap;
 }

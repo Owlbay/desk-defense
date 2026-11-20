@@ -10,7 +10,9 @@ import { G } from '../icons';
 import { settingsPanel } from '../screens/settings';
 import { RARITY_NAME, type GameCtx } from './context';
 import { runSummary } from '../screens/menu';
+import { countUp } from './motion';
 import { starRow } from '../screens/common';
+import { mountOnlineSubmit } from '../online/submit';
 
 function overlay(cls: string, ...children: HTMLElement[]): HTMLElement {
   return h(`div.overlay.${cls}`, null, ...children);
@@ -80,6 +82,7 @@ export class PerkModal {
         h(
           `button.perk-card.r-${c.rarity}`,
           { style: `--i:${i}`, onclick: () => this.choose(c) },
+          h('span.perk-shine', { attrs: { 'aria-hidden': 'true' } }),
           h('span.perk-rarity', null, RARITY_NAME[c.rarity]),
           h('h3', null, c.name),
           h('p', null, c.desc),
@@ -124,6 +127,7 @@ export function branchModal(ctx: GameCtx, uid: number, onClose: (done: boolean) 
     return h(
       `button.branch-card.br-${b}${perk || info.canAffordUpgrade ? '' : '.poor'}`,
       {
+        style: `--i:${b === 'A' ? 0 : 1}`,
         onclick: () => {
           const r = perk ? ctx.cmd({ type: 'choosePerk', id: o.perkId!, uid, branch: b }) : ctx.cmd({ type: 'upgrade', uid, branch: b });
           if (r.ok) close(true);
@@ -320,13 +324,22 @@ export function gameOverView(ctx: GameCtx, d: GameOverData, hd: GameOverHandlers
       : `倒在第 ${d.wave} / ${st.totalWaves} 波`
     : `撑过 ${d.wavesSurvived} 波`;
 
-  const stat = (label: string, value: string) => h('div.go-stat', null, h('span.muted', null, label), h('b', null, value));
+  // 结算演出：数字依次从 0 涨上来（元素里先写好最终值，「减少动画」时保持不变）
+  let statIdx = 0;
+  const stat = (label: string, value: string, num?: number) => {
+    const b = h('b', null, value);
+    const k = statIdx++;
+    if (num !== undefined) countUp(b, Math.round(num), fmtNum, 450 + k * 120, 700);
+    return h('div.go-stat', { style: `--i:${k}` }, h('span.muted', null, label), b);
+  };
+  const inkNum = h('b.go-ink', null, String(d.rewards.ink));
+  if (d.rewards.ink > 0) countUp(inkNum, d.rewards.ink, String, 1100, 800);
 
   const rewards: HTMLElement[] = [];
   if (campaign && d.won) {
     rewards.push(h('div.go-reward', null, starRow(d.rewards.starsBest), d.rewards.stars > 0 ? h('span', null, `+${d.rewards.stars}`, h('span.gi', { html: G.star })) : h('span.muted', null, '未超过最佳星数')));
   }
-  if (d.rewards.ink > 0) rewards.push(h('div.go-reward', null, h('span.gi', { html: G.ink }), `墨水 +${d.rewards.ink}`));
+  if (d.rewards.ink > 0) rewards.push(h('div.go-reward', null, h('span.gi', { html: G.ink }), '墨水 +', inkNum));
   if (d.rewards.rank > 0) rewards.push(h('div.go-reward', null, h('span.gi', { html: G.trophy }), `排行榜第 ${d.rewards.rank} 名`));
   if (d.rewards.newRecord && !campaign) rewards.push(h('div.go-reward.new', null, '新纪录！'));
 
@@ -339,7 +352,7 @@ export function gameOverView(ctx: GameCtx, d: GameOverData, hd: GameOverHandlers
           towers.map((t, i) =>
             h(
               `div.mvp-row${i === 0 ? '.first' : ''}`,
-              null,
+              { style: `--i:${i}` },
               h('span.mvp-rank', null, i === 0 ? h('span.gi', { html: G.crown }) : String(i + 1)),
               img(towerIcon(t.id, t.tier, t.branch, t.level), 'ico'),
               h(
@@ -354,6 +367,9 @@ export function gameOverView(ctx: GameCtx, d: GameOverData, hd: GameOverHandlers
         )
       : null;
 
+  const onlineSlot = h('div.go-online', { data: { slot: 'online-submit' } });
+  mountOnlineSubmit(onlineSlot, ctx, d.wavesSurvived);
+
   return overlay(
     `gameover-overlay.${d.won ? 'won' : 'lost'}`,
     h(
@@ -363,11 +379,13 @@ export function gameOverView(ctx: GameCtx, d: GameOverData, hd: GameOverHandlers
       h(
         'div.go-stats',
         null,
-        stat('得分', fmtNum(d.score)),
-        stat('击杀', fmtNum(st.stats.kills)),
+        stat('得分', fmtNum(d.score), d.score),
+        stat('击杀', fmtNum(st.stats.kills), st.stats.kills),
         stat('剩余生命', `${st.lives}/${st.maxLives}`),
-        stat('漏怪', fmtNum(st.stats.leaks)),
+        stat('漏怪', fmtNum(st.stats.leaks), st.stats.leaks),
       ),
+      // 在线排行榜「提交成绩」面板的挂载点（空的时候不占位）：mountOnlineSubmit(onlineSlot, ctx)
+      onlineSlot,
       rewards.length ? h('div.go-rewards', null, rewards) : null,
       mvp,
       h(

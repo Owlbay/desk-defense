@@ -39,6 +39,11 @@ export class BoardInput {
   private off: (() => void)[] = [];
   /** 触摸：能力选敌第一次点中的敌人 */
   private pendingEnemy: number | null = null;
+  /** 幽灵塔：当前显示位置（向目标格缓动）、是否正在显示、无效放置的抖动剩余时间 */
+  private gx = 0;
+  private gy = 0;
+  private ghostOn = false;
+  private ghostShake = 0;
 
   constructor(
     private ctx: RenderCtx,
@@ -488,6 +493,7 @@ export class BoardInput {
   fail(cell: Cell, reason?: string): void {
     const fx = this.ctx.fx;
     fx.cell(cell.cx * CELL, cell.cy * CELL, CELL, CELL, C.bad, 0.5, 0.55);
+    this.ghostShake = 0.32;
     if (reason) {
       const x = Phaser.Math.Clamp((cell.cx + 0.5) * CELL, 70, BOARD_W - 70);
       const y = Math.max(24, cell.cy * CELL - 2);
@@ -605,14 +611,41 @@ export class BoardInput {
     if (ghostAsset && ghostCell && this.ctx.atlas.ready) {
       this.ghost.bind(this.ctx.atlas, ghostAsset);
       this.ghostRoot.setVisible(true);
-      this.ghostRoot.setPosition((ghostCell.cx + 0.5) * CELL, (ghostCell.cy + 0.5) * CELL);
+      const tx = (ghostCell.cx + 0.5) * CELL,
+        ty = (ghostCell.cy + 0.5) * CELL;
+      const red = this.ctx.reduced;
+      const rdt = this.ctx.rdt;
+      if (!this.ghostOn || red) {
+        this.gx = tx;
+        this.gy = ty;
+      } else {
+        // 换格：快速吸附过去（指数缓动，约 80ms 到位）
+        const k = 1 - Math.exp(-rdt * 30);
+        this.gx += (tx - this.gx) * k;
+        this.gy += (ty - this.gy) * k;
+      }
+      this.ghostOn = true;
+      let sx = 0;
+      if (this.ghostShake > 0) {
+        // 放不下：左右摇头
+        this.ghostShake -= rdt;
+        if (!red) sx = Math.sin(this.ghostShake * 60) * 4.5 * Math.max(0, this.ghostShake / 0.32);
+      }
+      // 轻轻上下浮动 + 呼吸
+      const bob = red ? 0 : Math.sin(rt * 3.2) * 1.6;
+      this.ghostRoot.setPosition(this.gx + sx, this.gy - 2 + bob);
+      this.ghostRoot.setScale(red ? 1 : 1 + 0.025 * Math.sin(rt * 3.2 + 1));
+      this.ghostRoot.setAlpha(ghostOk ? 0.62 : 0.5);
       for (const img of this.ghost.order) {
         if (ghostOk) img.clearTint();
         else img.setTint(0xff8080);
       }
       const glow = this.ghost.get('glow');
       if (glow) glow.setVisible(false);
-    } else this.ghostRoot.setVisible(false);
+    } else {
+      this.ghostRoot.setVisible(false);
+      this.ghostOn = false;
+    }
   }
 
   private rangeRings(

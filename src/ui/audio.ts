@@ -38,7 +38,9 @@ export type Sfx =
   | 'countdown'
   | 'evolveStar'
   | 'mythic'
-  | 'ability';
+  | 'ability'
+  // 苍蝇拍：电蚊拍连锁闪电
+  | 'zap';
 
 const MIN_GAP: Partial<Record<Sfx, number>> = {
   fire: 0.07,
@@ -50,6 +52,7 @@ const MIN_GAP: Partial<Record<Sfx, number>> = {
   coin: 0.04,
   eventWarn: 0.4,
   eventStart: 0.4,
+  zap: 0.08,
 };
 
 const PENTA = [0, 2, 4, 7, 9];
@@ -367,6 +370,10 @@ class AudioEngine {
         this.arp([60, 67, 72, 76, 79, 84, 88, 91], 0.06, { gain: 0.2, len: 0.45 });
         this.tone(midi(96), 1.1, { type: 'sine', gain: 0.08, delay: 0.5 });
         break;
+      case 'zap':
+        this.noise(0.09, { freq: 5200 * r, q: 6, gain: 0.05 });
+        this.tone(1900 * r, 0.06, { type: 'square', gain: 0.025, slide: 2600 });
+        break;
       case 'ability':
         this.tone(midi(69), 0.3, { type: 'sawtooth', gain: 0.07, slide: midi(93) });
         this.arp([81, 88, 93], 0.05, { type: 'triangle', gain: 0.14, len: 0.3 });
@@ -399,6 +406,11 @@ class AudioEngine {
         break;
       case 'pen':
         this.noise(0.05, { freq: 700 * r, q: 2, gain: 0.06 });
+        break;
+      case 'swatter':
+        // 挥拍的风声 + 拍下的「啪」
+        this.noise(0.07, { freq: 600 * r, q: 0.8, gain: 0.05, sweep: 2600 });
+        this.noise(0.035, { freq: 1500 * r, q: 1.5, gain: 0.09, delay: 0.06 });
         break;
       default:
         this.noise(0.03, { freq: 2600 * r, q: 2, gain: 0.04 });
@@ -505,6 +517,8 @@ class AudioEngine {
         return this.play(ev.mythic ? 'mythic' : 'evolveStar');
       case 'towerAbility':
         return this.play('ability');
+      case 'chain':
+        return this.play('zap');
       default:
         return;
     }

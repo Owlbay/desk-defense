@@ -31,6 +31,8 @@ export const C = {
   penBlue: 0x2e4a7d,
   screen: 0x9ae6b4,
   piggy: 0xf6a6b2,
+  swatter: 0x7bc67e,
+  netString: 0xf4ead2,
   inkBlue: 0x2b3a67,
   alarmRed: 0xe63946,
   coffee: 0x6f4e37,
@@ -73,6 +75,7 @@ export const TOWER_COLOR: Record<TowerId, number> = {
   pen: 0x2e4a7d,
   calculator: 0x4a5568,
   piggy: 0xf6a6b2,
+  swatter: 0x7bc67e,
 };
 
 export const FONT = '"PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei",system-ui,sans-serif';

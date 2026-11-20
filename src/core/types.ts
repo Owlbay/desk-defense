@@ -349,6 +349,10 @@ export interface RunStats {
   goldSpent: number;
   towersBuilt: number;
   skillsCast: number;
+  /** 得分公式用的"最后完整清掉的波数"（排行榜重算得分用） */
+  cleared: number;
+  /** 累计的老师表扬等额外得分（排行榜重算得分用） */
+  bonus: number;
 }
 
 export interface WorldState {

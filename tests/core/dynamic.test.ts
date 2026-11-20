@@ -495,7 +495,7 @@ describe('legend evolution (doc 11)', () => {
 
   it('every ★3 ability is castable without throwing and goes on cooldown', () => {
     const ids = Object.keys(EVOLUTION) as TowerId[];
-    expect(Object.keys(ABILITY_META).length).toBe(20);
+    expect(Object.keys(ABILITY_META).length).toBe(22);
     for (const id of ids) {
       for (const branch of ['A', 'B'] as const) {
         const { w, uid } = legend(id, branch);

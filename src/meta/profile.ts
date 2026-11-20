@@ -25,6 +25,8 @@ export interface Settings {
   autoWave: boolean | null;
   /** 战役使用固定杂物布局 */
   fixedLayout: boolean;
+  /** 减少动画（界面加上 html.reduce-motion，所有动画近乎瞬时） */
+  reduceMotion: boolean;
 }
 
 export interface LeaderEntry {
@@ -91,7 +93,7 @@ export interface Profile {
 export const DEFAULT_LOADOUT: SkillId[] = ['eraser_strike', 'bell', 'whiteout_zone'];
 
 export function defaultSettings(): Settings {
-  return { quality: 'high', sfx: 0.8, music: 0.5, lang: 'zh', autoWave: null, fixedLayout: false };
+  return { quality: 'high', sfx: 0.8, music: 0.5, lang: 'zh', autoWave: null, fixedLayout: false, reduceMotion: false };
 }
 
 export function defaultProfile(): Profile {
@@ -201,6 +203,7 @@ export function normalizeProfile(raw: unknown): Profile {
     p.settings.music = clamp01(num(s.music, d.settings.music));
     p.settings.autoWave = typeof s.autoWave === 'boolean' ? s.autoWave : null;
     p.settings.fixedLayout = s.fixedLayout === true;
+    p.settings.reduceMotion = s.reduceMotion === true;
   }
   if (isObj(raw.lastEndless)) {
     const l = raw.lastEndless;

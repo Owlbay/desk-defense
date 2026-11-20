@@ -7,6 +7,7 @@ import { DIFFICULTY_PRESETS, eventMeta, MAP_META, RANDOM_EVENT_IDS, resolveParam
 import { clear, copyText, h } from '../dom';
 import { G } from '../icons';
 import { buildRunOptions, layoutPicker, loadoutStrip, randomSeed, switchRow } from './common';
+import { pop, popSelected } from './motion';
 
 const TONE_GLYPH = { bad: G.warn, good: G.gift, neutral: G.swirl } as const;
 
@@ -64,6 +65,7 @@ export function customScreen(app: App): Screen {
               audio.play('click');
               state.params = { ...state.params, spawnMode: m.id };
               renderSpawnModes();
+              popSelected(spawnModeBox);
               updateCode();
               persist();
             },
@@ -89,7 +91,11 @@ export function customScreen(app: App): Screen {
               audio.play('click');
               if (on) state.events[id] = false;
               else delete state.events[id];
+              const idx = RANDOM_EVENT_IDS.indexOf(id);
               renderEvents();
+              const again = eventBox.children[idx] as HTMLElement | undefined;
+              again?.focus({ preventScroll: true });
+              pop(again, 1.05);
               updateCode();
               persist();
             },
@@ -116,6 +122,7 @@ export function customScreen(app: App): Screen {
               syncSliders();
               renderSpawnModes();
               renderPresets();
+              popSelected(presetBox);
               updateCode();
               persist();
             },
@@ -137,6 +144,7 @@ export function customScreen(app: App): Screen {
               audio.play('click');
               state.map = m;
               renderMaps();
+              popSelected(mapBox);
               layout.refresh();
               updateCode();
               persist();

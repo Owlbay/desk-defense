@@ -1,0 +1,520 @@
+/**
+ * 全服排行榜客户端（文档 12）。
+ *
+ * - 设备 id：随机 UUID，存在 localStorage（服务端只存其加盐哈希）
+ * - 昵称：独立于存档的 localStorage 键
+ * - 提交成绩：指令日志用 CompressionStream('gzip') 压缩（不支持时直接发 JSON）；
+ *   断网 / 服务不可用 / 被限流时进入离线队列，下次启动或 online 事件时重试
+ * - API 不存在（例如本地 `vite dev`）时状态为 'unavailable'，所有函数都不会抛异常
+ *
+ * UI 用法：启动时 initOnline()；subscribeOnline(fn) 订阅状态；结算时 submitWorldRun(world, {...})。
+ */
+import type { RunOptions, WorldState } from '../core/types';
+import { decodeLogPayload, encodeLog } from '../shared/codec';
+import {
+  GAME_VERSION,
+  boardForOpts,
+  dailyInfo,
+  dayOf,
+  isDeviceId,
+  sanitizeNickname,
+  type ApiError,
+  type Checked,
+  type ClaimedResult,
+  type DailyInfo,
+  type LeaderboardResponse,
+  type LogEntry,
+  type RunDetail,
+  type StatusResponse,
+  type SubmitBody,
+  type SubmitResponse,
+} from '../shared/leaderboard';
+import type { MidRun } from './profile';
+import { safeStorage, type KV } from './storage';
+
+export const DEVICE_KEY = 'desk-defense.online.device.v1';
+export const NICK_KEY = 'desk-defense.online.nickname.v1';
+export const QUEUE_KEY = 'desk-defense.online.queue.v1';
+export const QUEUE_MAX = 20;
+/** 队列里的成绩最多保留 7 天 */
+export const QUEUE_TTL_MS = 7 * 86_400_000;
+
+// ───────────────────────── 状态 ─────────────────────────
+
+/**
+ * unknown：还没探测；online：API 可用；offline：网络不通（会自动重试）；
+ * unavailable：API 未部署 / 未配置（如本地 vite dev），界面应显示「在线功能不可用」。
+ */
+export type OnlineStatus = 'unknown' | 'online' | 'offline' | 'unavailable';
+
+export interface OnlineState {
+  status: OnlineStatus;
+  /** 给玩家看的中文说明 */
+  message: string;
+  /** 离线队列里待上传的成绩数 */
+  pending: number;
+  serverVersion: string | null;
+  turnstileSiteKey: string | null;
+  /** 今日挑战（离线时由本地推算，与服务端一致） */
+  daily: DailyInfo | null;
+}
+
+const STATUS_TEXT: Record<OnlineStatus, string> = {
+  unknown: '正在连接…',
+  online: '已连接',
+  offline: '网络未连接，成绩会在联网后自动上传',
+  unavailable: '在线功能不可用',
+};
+
+interface Config {
+  fetch: typeof fetch;
+  storage: KV;
+  baseUrl: string;
+  now: () => number;
+}
+
+let cfg: Config | null = null;
+const conf = (): Config => {
+  if (!cfg) {
+    cfg = {
+      fetch: (input, init) => fetch(input, init),
+      storage: safeStorage(),
+      baseUrl: '',
+      now: () => Date.now(),
+    };
+  }
+  return cfg;
+};
+
+let state: OnlineState = {
+  status: 'unknown',
+  message: STATUS_TEXT.unknown,
+  pending: 0,
+  serverVersion: null,
+  turnstileSiteKey: null,
+  daily: null,
+};
+const listeners = new Set<(s: OnlineState) => void>();
+
+function setState(patch: Partial<OnlineState>): void {
+  state = { ...state, ...patch };
+  if (patch.status && !patch.message) state.message = STATUS_TEXT[patch.status];
+  for (const fn of listeners) {
+    try {
+      fn(state);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+export const getOnlineState = (): OnlineState => state;
+
+/** 订阅在线状态（立即回调一次），返回取消订阅函数 */
+export function subscribeOnline(fn: (s: OnlineState) => void): () => void {
+  listeners.add(fn);
+  fn(state);
+  return () => listeners.delete(fn);
+}
+
+/** 测试 / 特殊部署用：替换 fetch、存储、API 前缀、时钟 */
+export function configureOnline(c: Partial<Config>): void {
+  cfg = { ...conf(), ...c };
+  state = { ...state, pending: readQueue().length };
+}
+
+// ───────────────────────── 设备 id / 昵称 ─────────────────────────
+
+function randomUuid(): string {
+  const c = (globalThis as { crypto?: Crypto }).crypto;
+  if (c && typeof c.randomUUID === 'function') return c.randomUUID();
+  const b = new Uint8Array(16);
+  if (c && typeof c.getRandomValues === 'function') c.getRandomValues(b);
+  else for (let i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256);
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+/** 本设备的随机 id（首次调用时生成并保存） */
+export function getDeviceId(): string {
+  const kv = conf().storage;
+  let id: string | null = null;
+  try {
+    id = kv.get(DEVICE_KEY);
+  } catch {
+    id = null;
+  }
+  if (!isDeviceId(id)) {
+    id = randomUuid();
+    try {
+      kv.set(DEVICE_KEY, id);
+    } catch {
+      /* ignore */
+    }
+  }
+  return id.toLowerCase();
+}
+
+/** 已保存的昵称（没有则返回空串，UI 应提示玩家填写） */
+export function getNickname(): string {
+  try {
+    return conf().storage.get(NICK_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+/** 校验并保存昵称；失败返回中文原因 */
+export function setNickname(raw: string): Checked<string> {
+  const r = sanitizeNickname(raw);
+  if (r.ok) {
+    try {
+      conf().storage.set(NICK_KEY, r.value);
+    } catch {
+      /* ignore */
+    }
+  }
+  return r;
+}
+
+// ───────────────────────── 请求 ─────────────────────────
+
+type CallResult<T> =
+  | { kind: 'ok'; status: number; data: T }
+  | { kind: 'api'; status: number; error: ApiError }
+  | { kind: 'offline'; message: string }
+  | { kind: 'unavailable'; message: string };
+
+async function call<T>(path: string, init?: RequestInit): Promise<CallResult<T>> {
+  const c = conf();
+  let res: Response;
+  try {
+    res = await c.fetch(`${c.baseUrl}${path}`, {
+      ...init,
+      headers: { Accept: 'application/json', ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...(init?.headers ?? {}) },
+    });
+  } catch {
+    return { kind: 'offline', message: STATUS_TEXT.offline };
+  }
+  const ct = res.headers.get('Content-Type') ?? '';
+  // vite dev / 静态托管没有 API：返回 index.html 或纯 404
+  if (!ct.includes('application/json')) return { kind: 'unavailable', message: STATUS_TEXT.unavailable };
+  let data: unknown;
+  try {
+    data = await res.json();
+  } catch {
+    return { kind: 'unavailable', message: STATUS_TEXT.unavailable };
+  }
+  if (res.ok) return { kind: 'ok', status: res.status, data: data as T };
+  const err = data as Partial<ApiError>;
+  if (typeof err?.error !== 'string') return { kind: 'unavailable', message: STATUS_TEXT.unavailable };
+  if (err.error === 'not_configured') return { kind: 'unavailable', message: err.message ?? STATUS_TEXT.unavailable };
+  return { kind: 'api', status: res.status, error: { error: err.error, message: err.message ?? '请求失败', ...(err.retryAfter ? { retryAfter: err.retryAfter } : {}) } };
+}
+
+function noteTransport<T>(r: CallResult<T>): void {
+  if (r.kind === 'offline') setState({ status: 'offline' });
+  else if (r.kind === 'unavailable') setState({ status: 'unavailable', message: r.message });
+  else if (state.status !== 'online') setState({ status: 'online' });
+}
+
+export type Fetched<T> = { ok: true; data: T } | { ok: false; status: OnlineStatus; message: string };
+
+function toFetched<T>(r: CallResult<T>): Fetched<T> {
+  noteTransport(r);
+  if (r.kind === 'ok') return { ok: true, data: r.data };
+  if (r.kind === 'api') return { ok: false, status: 'online', message: r.error.message };
+  return { ok: false, status: r.kind, message: r.message };
+}
+
+// ───────────────────────── 探测 / 初始化 ─────────────────────────
+
+let initialized = false;
+
+/** 探测 API 并上传离线队列；可重复调用（例如进入排行榜页面时） */
+export async function probeOnline(): Promise<OnlineState> {
+  const r = await call<StatusResponse>('/api/status');
+  noteTransport(r);
+  if (r.kind === 'ok') {
+    setState({ serverVersion: r.data.gameVersion, turnstileSiteKey: r.data.turnstileSiteKey, daily: r.data.daily });
+    if (r.data.gameVersion !== GAME_VERSION) setState({ message: '游戏有新版本，刷新页面后才能上传成绩' });
+    await flushQueue();
+  } else if (!state.daily) {
+    setState({ daily: dailyInfo(dayOf(conf().now())) });
+  }
+  return state;
+}
+
+/** 游戏启动时调用一次：探测 + 重试队列 + 监听 online 事件 */
+export function initOnline(): Promise<OnlineState> {
+  if (!initialized) {
+    initialized = true;
+    setState({ pending: readQueue().length });
+    try {
+      if (typeof window !== 'undefined') window.addEventListener('online', () => void probeOnline());
+    } catch {
+      /* ignore */
+    }
+  }
+  return probeOnline().catch(() => state);
+}
+
+// ───────────────────────── Turnstile ─────────────────────────
+
+let turnstileProvider: (() => Promise<string | null>) | null = null;
+
+/**
+ * 服务端开启 Turnstile 时（state.turnstileSiteKey 非空），UI 提供一个取 token 的函数
+ * （例如渲染隐形挑战并等待回调）。每次发送前都会调用一次，因为 token 只能用一次。
+ */
+export function setTurnstileProvider(fn: (() => Promise<string | null>) | null): void {
+  turnstileProvider = fn;
+}
+
+// ───────────────────────── 离线队列 ─────────────────────────
+
+interface QueueItem {
+  body: Omit<SubmitBody, 'turnstileToken'>;
+  queuedAt: number;
+  attempts: number;
+}
+
+function readQueue(): QueueItem[] {
+  try {
+    const raw = conf().storage.get(QUEUE_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw) as unknown;
+    if (!Array.isArray(arr)) return [];
+    const now = conf().now();
+    return arr.filter(
+      (x): x is QueueItem => !!x && typeof x === 'object' && typeof (x as QueueItem).queuedAt === 'number' && now - (x as QueueItem).queuedAt < QUEUE_TTL_MS,
+    );
+  } catch {
+    return [];
+  }
+}
+
+function writeQueue(q: QueueItem[]): void {
+  const trimmed = q.slice(-QUEUE_MAX);
+  try {
+    if (trimmed.length) conf().storage.set(QUEUE_KEY, JSON.stringify(trimmed));
+    else conf().storage.remove(QUEUE_KEY);
+  } catch {
+    /* ignore */
+  }
+  setState({ pending: trimmed.length });
+}
+
+export const pendingCount = (): number => readQueue().length;
+
+// ───────────────────────── 提交 ─────────────────────────
+
+export type SubmitOutcome =
+  /** 已上传（res 含名次） */
+  | { kind: 'ok'; res: SubmitResponse }
+  /** 暂时传不上，已放进离线队列 */
+  | { kind: 'queued'; message: string }
+  /** 服务端拒收（数据不合法 / 版本过旧等），不会重试 */
+  | { kind: 'rejected'; message: string };
+
+export interface SubmitInput {
+  opts: RunOptions;
+  log: LogEntry[];
+  result: ClaimedResult;
+  /** 每日挑战的日期（DailyInfo.day）；无尽榜不填 */
+  dailyDay?: string | null;
+  /** 缺省用 getNickname() */
+  nickname?: string;
+}
+
+const RETRYABLE_CODES = new Set(['rate_limited', 'turnstile', 'internal', 'not_configured']);
+
+async function send(body: Omit<SubmitBody, 'turnstileToken'>): Promise<{ outcome: SubmitOutcome; retry: boolean }> {
+  let token: string | null = null;
+  if (state.turnstileSiteKey && turnstileProvider) {
+    try {
+      token = await turnstileProvider();
+    } catch {
+      token = null;
+    }
+  }
+  const full: SubmitBody = { ...body, ...(token ? { turnstileToken: token } : {}) };
+  const r = await call<SubmitResponse>('/api/runs', { method: 'POST', body: JSON.stringify(full) });
+  noteTransport(r);
+  if (r.kind === 'ok') return { outcome: { kind: 'ok', res: r.data }, retry: false };
+  if (r.kind === 'api') {
+    const retry = RETRYABLE_CODES.has(r.error.error) || r.status >= 500;
+    return { outcome: retry ? { kind: 'queued', message: r.error.message } : { kind: 'rejected', message: r.error.message }, retry };
+  }
+  return { outcome: { kind: 'queued', message: r.message }, retry: true };
+}
+
+/** 组装请求体（压缩日志）；昵称不合法时返回错误 */
+export async function buildSubmitBody(input: SubmitInput): Promise<Checked<Omit<SubmitBody, 'turnstileToken'>>> {
+  const nick = sanitizeNickname(input.nickname ?? getNickname());
+  if (!nick.ok) return nick;
+  const seed = input.opts.seed ?? '';
+  return {
+    ok: true,
+    value: {
+      nickname: nick.value,
+      deviceId: getDeviceId(),
+      board: boardForOpts(input.opts, input.dailyDay ?? null),
+      opts: JSON.parse(JSON.stringify(input.opts)) as RunOptions,
+      seed,
+      log: await encodeLog(input.log),
+      result: input.result,
+      gameVersion: GAME_VERSION,
+    },
+  };
+}
+
+/** 上传一局成绩。网络 / 服务问题时自动进入离线队列。永不抛异常。 */
+export async function submitRun(input: SubmitInput): Promise<SubmitOutcome> {
+  try {
+    const built = await buildSubmitBody(input);
+    if (!built.ok) return { kind: 'rejected', message: built.message };
+    if (state.serverVersion && state.serverVersion !== GAME_VERSION) {
+      return { kind: 'rejected', message: '游戏有新版本，刷新页面后才能上传成绩' };
+    }
+    // 先把队列里更早的成绩传掉，保证顺序
+    if (readQueue().length) await flushQueue();
+    const { outcome, retry } = await send(built.value);
+    if (retry) {
+      const q = readQueue();
+      q.push({ body: built.value, queuedAt: conf().now(), attempts: 1 });
+      writeQueue(q);
+    }
+    return outcome;
+  } catch {
+    return { kind: 'rejected', message: '上传失败' };
+  }
+}
+
+/** 从结束时的 world 取声明结果（wavesSurvived 与本地结算一致：失败时 = 当前波 - 1） */
+export function resultFromWorld(
+  st: Pick<WorldState, 'score' | 'lives' | 'gold' | 'tick' | 'stats'>,
+  wavesSurvived: number,
+  extra: { cleared?: number; bonus?: number } = {},
+): ClaimedResult {
+  return {
+    wave: wavesSurvived,
+    score: Math.round(st.score),
+    kills: st.stats.kills,
+    lives: st.lives,
+    gold: st.gold,
+    won: false,
+    ticks: st.tick,
+    ...extra,
+  };
+}
+
+/** 结算时的便捷入口：world 结束后直接调用 */
+export function submitWorldRun(
+  world: { readonly log: readonly LogEntry[]; readonly state: Pick<WorldState, 'score' | 'lives' | 'gold' | 'tick' | 'stats' | 'opts' | 'seed'> },
+  o: { wavesSurvived: number; dailyDay?: string | null; nickname?: string },
+): Promise<SubmitOutcome> {
+  const st = world.state;
+  const opts: RunOptions = { ...st.opts, seed: st.opts.seed ?? st.seed };
+  return submitRun({
+    opts,
+    log: world.log.map((e) => ({ tick: e.tick, cmd: e.cmd })),
+    result: resultFromWorld(st, o.wavesSurvived),
+    dailyDay: o.dailyDay ?? null,
+    nickname: o.nickname,
+  });
+}
+
+let flushing: Promise<number> | null = null;
+
+/** 依次重试离线队列，返回本次成功上传的条数 */
+export function flushQueue(): Promise<number> {
+  if (flushing) return flushing;
+  flushing = (async () => {
+    let sent = 0;
+    try {
+      const q = readQueue();
+      while (q.length) {
+        const item = q[0];
+        if (item.body.gameVersion !== GAME_VERSION) {
+          q.shift();
+          continue;
+        }
+        const { outcome, retry } = await send(item.body);
+        if (retry) {
+          item.attempts++;
+          break;
+        }
+        q.shift();
+        if (outcome.kind === 'ok') sent++;
+      }
+      writeQueue(q);
+    } catch {
+      /* ignore */
+    } finally {
+      flushing = null;
+    }
+    return sent;
+  })();
+  return flushing;
+}
+
+// ───────────────────────── 查询 ─────────────────────────
+
+/** 拉取某榜前 N 名；around = true 时附带本设备的最佳名次（me） */
+export async function fetchLeaderboard(board: string, o: { limit?: number; around?: boolean } = {}): Promise<Fetched<LeaderboardResponse>> {
+  const p = new URLSearchParams({ board, limit: String(o.limit ?? 20) });
+  if (o.around) p.set('around', getDeviceId());
+  return toFetched(await call<LeaderboardResponse>(`/api/leaderboard?${p.toString()}`));
+}
+
+/** 今日挑战；服务端不可用时用本地推算（结果与服务端一致，但成绩只能进离线队列） */
+export async function fetchDaily(): Promise<Fetched<DailyInfo> & { source?: 'server' | 'local' }> {
+  const r = toFetched(await call<DailyInfo>('/api/daily'));
+  if (r.ok) {
+    setState({ daily: r.data });
+    return { ...r, source: 'server' };
+  }
+  if (r.status === 'online') return r;
+  return { ok: true, data: dailyInfo(dayOf(conf().now())), source: 'local' };
+}
+
+export interface RunReplay extends RunDetail {
+  log: LogEntry[];
+}
+
+/** 拉取一条成绩的种子 + 参数 + 指令日志（解压后），用于观看回放 */
+export async function fetchRun(id: string): Promise<Fetched<RunReplay>> {
+  const r = toFetched(await call<RunDetail>(`/api/runs/${encodeURIComponent(id)}`));
+  if (!r.ok) return r;
+  try {
+    const { log } = await decodeLogPayload({ gz: r.data.logGz });
+    return { ok: true, data: { ...r.data, log: log as LogEntry[] } };
+  } catch {
+    return { ok: false, status: 'online', message: '回放数据损坏' };
+  }
+}
+
+/** 把线上成绩转成 midrun 回放结构：createWorld(m.opts) 后用 replayAsync(world, m) 快进到结束 */
+export function runToMidRun(r: RunReplay): MidRun {
+  return {
+    v: 1,
+    opts: { ...r.opts, seed: r.seed },
+    tick: r.result.ticks,
+    log: r.log.map((e) => ({ tick: e.tick, cmd: e.cmd })),
+    wave: r.result.wave,
+    savedAt: r.createdAt,
+  };
+}
+
+/** 仅测试用：重置模块状态 */
+export function _resetOnlineForTests(): void {
+  cfg = null;
+  initialized = false;
+  turnstileProvider = null;
+  flushing = null;
+  listeners.clear();
+  state = { status: 'unknown', message: STATUS_TEXT.unknown, pending: 0, serverVersion: null, turnstileSiteKey: null, daily: null };
+}

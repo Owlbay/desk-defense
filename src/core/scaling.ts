@@ -2,6 +2,7 @@ import type { DifficultyParams, RunOptions, SpawnMode } from './types';
 
 const SPAWN_MODES: SpawnMode[] = ['fixed', 'roundRobin', 'random', 'split', 'focus'];
 import { PRESETS, abyssParams } from '../config/difficulty';
+import { CAMPAIGN_HP } from '../config/campaign';
 
 /** 文档 04 §3 成长公式 */
 export function hpScale(D: DifficultyParams, w: number): number {
@@ -37,6 +38,7 @@ export function resolveParams(opts: RunOptions): DifficultyParams {
   if (opts.mode === 'campaign') {
     // 战役只有普通 / 困难两档
     base = opts.difficulty === 'hard' ? { ...PRESETS.hard } : { ...PRESETS.normal };
+    base.hpMul *= CAMPAIGN_HP[opts.difficulty === 'hard' ? 'hard' : 'normal'][opts.map] ?? 1;
   }
   if (opts.mode === 'custom' && opts.custom) {
     const out = base as unknown as Record<string, unknown>;

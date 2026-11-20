@@ -1,12 +1,18 @@
+import './styles/motion.css';
 import './styles/main.css';
+import './styles/screens-motion.css';
+import './styles/hud-motion.css';
+import './styles/online.css';
 import { ui } from './game/UiStore';
 import { ProfileStore } from './meta/profile';
 import { App, applySettings } from './ui/App';
 import { audio } from './ui/audio';
+import { initOnline } from './meta/online';
 import { campaignScreen } from './ui/screens/campaign';
 import { customScreen } from './ui/screens/custom';
 import { endlessScreen } from './ui/screens/endless';
 import { leaderboardScreen } from './ui/screens/leaderboard';
+import { dailyScreen } from './ui/screens/daily';
 import { menuScreen } from './ui/screens/menu';
 import { settingsScreen } from './ui/screens/settings';
 import { skillsScreen } from './ui/screens/skills';
@@ -39,6 +45,8 @@ function boot(): void {
   const store = new ProfileStore();
   audio.install();
   applySettings(store.get().settings);
+  // 联网：探测排行榜接口并补交离线时排队的成绩（失败不影响游戏）
+  void initOnline().catch(() => undefined);
 
   const app = new App(root, store);
   app.register('menu', (a) => menuScreen(a));
@@ -48,6 +56,7 @@ function boot(): void {
   app.register('skills', (a, r) => skillsScreen(a, r));
   app.register('talents', (a) => talentsScreen(a));
   app.register('leaderboard', (a) => leaderboardScreen(a));
+  app.register('daily', (a) => dailyScreen(a));
   app.register('settings', (a) => settingsScreen(a));
   app.register('game', (a, r) => gameScreen(a, r));
   app.go({ name: 'menu' });

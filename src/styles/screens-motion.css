@@ -1,0 +1,697 @@
+/*
+ * 菜单各页面的动画（动画小组：页面）
+ * 规范见 motion.css：只动 transform / opacity / filter，时长与缓动用变量。
+ * 作用范围：.screen:not(.game-screen)、应用级提示 .app-toast、确认框 .confirm-overlay、
+ * 以及进入对局时的稿纸转场。局内界面的动画在 hud-motion.css。
+ *
+ * 状态类（由 App.ts 维护）：
+ *   .screen.is-entering   页面刚进入（约 0.9 秒后移除；用于依次入场）
+ *   .screen.is-leaving    页面正在离场
+ *   .screen[data-nav]     forward / back / fade
+ *   html.reduce-motion    设置里开启了"减少动画"
+ *   html.tab-hidden       标签页不可见（循环动画暂停）
+ */
+
+/* ───────────── 减少动画 / 后台暂停 ───────────── */
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0s !important;
+}
+
+html.reduce-motion .menu-ambience {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-ambience {
+    display: none;
+  }
+}
+
+html.tab-hidden .screen:not(.game-screen) *,
+html.tab-hidden .screen:not(.game-screen) *::before,
+html.tab-hidden .screen:not(.game-screen) *::after {
+  animation-play-state: paused !important;
+}
+
+/* ───────────── 页面切换 ───────────── */
+.screen.is-leaving {
+  pointer-events: none;
+}
+
+/* 进入对局：稿纸盖住，再向左掀开 */
+.paper-wipe {
+  position: absolute;
+  top: -12%;
+  bottom: -12%;
+  left: -25%;
+  width: 150%;
+  z-index: 200;
+  pointer-events: none;
+  background-color: var(--paper);
+  background-image: repeating-linear-gradient(0deg, transparent 0 27px, rgba(79, 163, 224, 0.22) 27px 28px);
+  border-right: 3px solid var(--ink);
+  box-shadow: 16px 0 0 rgba(59, 47, 42, 0.14);
+  transform: skewX(-8deg);
+  will-change: transform;
+}
+
+/* 局内面板依次入场。特意用 :where() 把优先级压到 0：hud-motion.css 里任何规则都能覆盖它 */
+:where(.game-screen.is-entering) :where(.side > *) {
+  animation: sm-rise var(--dur-m) var(--ease-out) backwards;
+  animation-delay: calc(var(--dur-m) + var(--si, 0) * var(--stagger) * 1.5);
+}
+:where(.game-screen.is-entering) :where(.side > :nth-child(2)) { --si: 1; }
+:where(.game-screen.is-entering) :where(.side > :nth-child(3)) { --si: 2; }
+:where(.game-screen.is-entering) :where(.side > :nth-child(4)) { --si: 3; }
+:where(.game-screen.is-entering) :where(.side > :nth-child(5)) { --si: 4; }
+:where(.game-screen.is-entering) :where(.side > :nth-child(n + 6)) { --si: 5; }
+
+/* 页面内容依次入场 */
+.screen.is-entering:not(.game-screen) .screen-body > :not(.chapter-list, .skill-grid, .talent-grid),
+.screen.is-entering:not(.game-screen) :is(.chapter-list, .skill-grid, .talent-grid) > *,
+.screen.is-entering .menu-card > :not(.menu-grid),
+.screen.is-entering .menu-grid > * {
+  animation: sm-rise var(--dur-m) var(--ease-out) backwards;
+  animation-delay: calc(var(--stagger) * (1.5 + var(--si, 0)));
+}
+.screen.is-entering :is(.screen-body, .chapter-list, .skill-grid, .talent-grid, .menu-card, .menu-grid) > :nth-child(2) { --si: 1; }
+.screen.is-entering :is(.screen-body, .chapter-list, .skill-grid, .talent-grid, .menu-card, .menu-grid) > :nth-child(3) { --si: 2; }
+.screen.is-entering :is(.screen-body, .chapter-list, .skill-grid, .talent-grid, .menu-card, .menu-grid) > :nth-child(4) { --si: 3; }
+.screen.is-entering :is(.screen-body, .chapter-list, .skill-grid, .talent-grid, .menu-card, .menu-grid) > :nth-child(5) { --si: 4; }
+.screen.is-entering :is(.screen-body, .chapter-list, .skill-grid, .talent-grid, .menu-card, .menu-grid) > :nth-child(6) { --si: 5; }
+.screen.is-entering :is(.screen-body, .chapter-list, .skill-grid, .talent-grid, .menu-card, .menu-grid) > :nth-child(7) { --si: 6; }
+.screen.is-entering :is(.screen-body, .chapter-list, .skill-grid, .talent-grid, .menu-card, .menu-grid) > :nth-child(n + 8) { --si: 7; }
+/* 四宫格接在上面几个大按钮之后 */
+.screen.is-entering .menu-grid > * { animation-delay: calc(var(--stagger) * (6 + var(--si, 0))); }
+
+@keyframes sm-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+}
+
+@keyframes sm-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes sm-pop {
+  0% {
+    transform: scale(0.92);
+  }
+  55% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ───────────── 主菜单 ───────────── */
+.menu-screen {
+  isolation: isolate;
+}
+
+/* 环境层：缓慢漂移的木纹 + 橡皮屑。各自是独立合成层，只动 transform */
+.menu-ambience {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+}
+
+.amb-grain {
+  position: absolute;
+  inset: -48px;
+  background-image:
+    repeating-linear-gradient(94deg, rgba(201, 173, 128, 0.2) 0 3px, transparent 3px 71px),
+    repeating-linear-gradient(86deg, rgba(255, 255, 255, 0.14) 0 2px, transparent 2px 37px);
+  animation: sm-grain 36s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+@keyframes sm-grain {
+  to {
+    transform: translate3d(-44px, -18px, 0);
+  }
+}
+
+.crumb {
+  position: absolute;
+  border: 1.5px solid rgba(59, 47, 42, 0.55);
+  border-radius: 42% 58% 55% 45%;
+  background: var(--pink);
+  opacity: 0.7;
+  animation: sm-crumb var(--dur, 18s) ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * -3.1s);
+  will-change: transform;
+}
+.crumb.c1 { background: var(--paper); }
+.crumb.c2 { background: var(--sky); }
+
+@keyframes sm-crumb {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0);
+  }
+  33% {
+    transform: translate3d(14px, -20px, 0) rotate(120deg);
+  }
+  66% {
+    transform: translate3d(-10px, -32px, 0) rotate(240deg);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(360deg);
+  }
+}
+
+/* 标题：逐字落下弹一弹（开机和打完一局回来时播，普通返回只跟着页面滑入） */
+.logo-ch {
+  display: inline-block;
+  transform-origin: 50% 90%;
+}
+
+.menu-screen.is-entering[data-nav='fade'] .logo-ch {
+  animation: sm-letter-drop var(--dur-xl) linear backwards;
+  animation-delay: calc(var(--stagger) * (2 + var(--i, 0) * 2.25));
+}
+
+@keyframes sm-letter-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-72px) rotate(-14deg);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  12% {
+    opacity: 1;
+  }
+  42% {
+    transform: translateY(0) rotate(4deg) scale(1.12, 0.82);
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  64% {
+    transform: translateY(-16px) rotate(-2deg) scale(0.96, 1.06);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  82% {
+    transform: translateY(0) scale(1.05, 0.94);
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+.menu-screen.is-entering[data-nav='fade'] .logo-en {
+  animation: sm-badge-pop var(--dur-l) var(--ease-spring) backwards;
+  animation-delay: calc(var(--stagger) * 14);
+}
+
+@keyframes sm-badge-pop {
+  from {
+    opacity: 0;
+    transform: rotate(-10deg) scale(0.3);
+  }
+}
+
+/* 塔的队列：外层负责入场，里面的图标负责错相位的轻轻起伏 */
+.parade-item {
+  animation: none;
+}
+
+.menu-screen.is-entering .parade-item {
+  animation: sm-parade-in var(--dur-l) var(--ease-spring) backwards;
+  animation-delay: calc(var(--stagger) * (4 + var(--i, 0)));
+}
+
+@keyframes sm-parade-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.6);
+  }
+}
+
+.parade-item .ico {
+  animation: sm-bob 2.8s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * -0.37s);
+}
+
+@keyframes sm-bob {
+  0%,
+  100% {
+    transform: translateY(1px) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-4px) rotate(2deg);
+  }
+}
+
+/* 继续游戏：外圈呼吸环（替代原来对 box-shadow 的动画） */
+.menu-btn {
+  position: relative;
+}
+
+.menu-btn.continue {
+  animation: none;
+}
+
+.menu-btn.continue::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border: 3px solid rgba(242, 193, 78, 0.85);
+  border-radius: 19px;
+  pointer-events: none;
+  opacity: 0;
+  animation: sm-ring 2.4s var(--ease-out) infinite;
+}
+
+@keyframes sm-ring {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.975);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.025);
+  }
+}
+
+/* 每日挑战 */
+.menu-btn.daily {
+  background: #e3f0f8;
+}
+
+.badge.today {
+  flex: none;
+  background: var(--pencil);
+  transform: rotate(-4deg);
+  animation: sm-today 2.6s ease-in-out infinite;
+}
+
+@keyframes sm-today {
+  0%,
+  100% {
+    transform: rotate(-4deg) scale(1);
+  }
+  50% {
+    transform: rotate(3deg) scale(1.08);
+  }
+}
+
+/* 货币：数值变化时数字滚动 + 轻弹 */
+.chip-num {
+  display: inline-block;
+}
+
+.chip:is(.gain, .spend) {
+  animation: sm-pop var(--dur-l) var(--ease-out);
+}
+
+.chip.gain .gi {
+  animation: sm-chip-spin var(--dur-xl) var(--ease-out);
+}
+
+@keyframes sm-chip-spin {
+  from {
+    transform: rotate(-200deg) scale(0.6);
+  }
+  60% {
+    transform: rotate(12deg) scale(1.3);
+  }
+}
+
+/* ───────────── 按压 / 悬停 ───────────── */
+:is(.screen:not(.game-screen), .confirm-overlay) :is(.btn, .menu-btn, .seg, .tab, .diff-card, .diff-btn, .abyss-lv, .slot.filled, .event-toggle, .seed-btn) {
+  transition:
+    transform var(--dur-s) var(--ease-spring),
+    opacity var(--dur-s) linear;
+}
+
+/* 按下：当帧生效（过渡极短），松开再弹回 */
+:is(.screen:not(.game-screen), .confirm-overlay) :is(.btn, .menu-btn, .seg, .tab, .diff-card, .diff-btn, .abyss-lv, .slot.filled, .event-toggle, .seed-btn):active:not(:disabled) {
+  transform: scale(0.97) translateY(2px);
+  transition-duration: 40ms;
+  transition-timing-function: ease-out;
+}
+
+:is(.screen:not(.game-screen), .confirm-overlay) :is(.btn, .menu-btn, .diff-card, .diff-btn, .slot.filled):active:not(:disabled, .locked) {
+  box-shadow: 0 1px 0 var(--ink);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :is(.screen:not(.game-screen), .confirm-overlay) :is(.btn, .menu-btn, .diff-card, .diff-btn, .slot.filled, .tab, .seg, .abyss-lv):hover:not(:disabled, .locked, :active) {
+    transform: translateY(-2px);
+  }
+
+  .screen:not(.game-screen) :is(.skill-card, .talent-card, .chapter-card):not(.locked) {
+    transition: transform var(--dur-m) var(--ease-out);
+  }
+
+  .screen:not(.game-screen) :is(.skill-card, .talent-card, .chapter-card):not(.locked):hover {
+    transform: translateY(-3px);
+  }
+}
+
+:is(.tab, .diff-card, .diff-btn, .abyss-lv, .slot.filled, .event-toggle, .seed-btn):focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.range:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+
+/* ───────────── 开关 / 滑块 ───────────── */
+.switch input:checked + .knob {
+  background: var(--paper-2);
+}
+
+.switch .knob {
+  transition: none;
+}
+
+/* 底色用一层青色淡入，不直接过渡 background-color */
+.switch .knob::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--teal);
+  opacity: 0;
+  transition: opacity var(--dur-s) linear;
+}
+
+.switch input:checked + .knob::before {
+  opacity: 1;
+}
+
+.switch .knob::after {
+  transition: transform var(--dur-m) var(--ease-spring);
+}
+
+.switch input:active + .knob::after {
+  transform: scale(1.14, 0.9);
+}
+
+.switch input:checked:active + .knob::after {
+  transform: translateX(24px) scale(1.14, 0.9);
+}
+
+.range::-webkit-slider-thumb {
+  transition: transform var(--dur-s) var(--ease-spring);
+}
+
+.range::-moz-range-thumb {
+  transition: transform var(--dur-s) var(--ease-spring);
+}
+
+.range:active::-webkit-slider-thumb {
+  transform: scale(1.18);
+}
+
+.range:active::-moz-range-thumb {
+  transform: scale(1.18);
+}
+
+.slider-val {
+  display: inline-block;
+  transform-origin: 100% 50%;
+}
+
+/* ───────────── 战役：得星 ───────────── */
+.star.earn {
+  position: relative;
+}
+
+.star.earn-fill {
+  position: absolute;
+  inset: 0;
+  animation: sm-star-earn var(--dur-l) var(--ease-spring) backwards;
+  animation-delay: calc(var(--stagger) * (12 + var(--i, 0) * 4.5));
+}
+
+@keyframes sm-star-earn {
+  0% {
+    opacity: 0;
+    transform: scale(0) rotate(-70deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.55) rotate(12deg);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.stars,
+.talent-ico,
+.skill-card-head {
+  position: relative;
+}
+
+/* 纸屑（motion.ts burst） */
+.fx-burst {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.skill-card-head > .fx-burst {
+  left: 28px;
+}
+
+.fx-dot {
+  position: absolute;
+  left: -4px;
+  top: -4px;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--ink);
+  border-radius: 50%;
+}
+
+.fx-dot.sq {
+  border-radius: 2px;
+}
+
+.fx-ring {
+  position: absolute;
+  left: -26px;
+  top: -26px;
+  width: 52px;
+  height: 52px;
+  border: 3px solid var(--pencil);
+  border-radius: 50%;
+}
+
+/* ───────────── 无尽：魔境卡片 ───────────── */
+/* 一道斜光扫过 + 裂纹明暗呼吸 */
+.diff-card.abyss:not(.locked)::before {
+  content: '';
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: 0;
+  width: 46%;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(190, 150, 255, 0.26) 42%, rgba(255, 255, 255, 0.3) 50%, rgba(190, 150, 255, 0.26) 58%, transparent);
+  transform: translateX(-140%) skewX(-18deg);
+  animation: sm-sheen 4.4s var(--ease-in-out) infinite;
+}
+
+@keyframes sm-sheen {
+  0%,
+  52% {
+    transform: translateX(-140%) skewX(-18deg);
+  }
+  100% {
+    transform: translateX(340%) skewX(-18deg);
+  }
+}
+
+.diff-card.abyss:not(.locked)::after {
+  animation: sm-crack 2.6s ease-in-out infinite;
+}
+
+@keyframes sm-crack {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.abyss-box.reveal .abyss-panel {
+  animation: sm-rise var(--dur-m) var(--ease-spring) backwards;
+}
+
+.layout-host {
+  backface-visibility: hidden;
+}
+
+/* ───────────── 技能 / 书包 ───────────── */
+.slot.just-filled {
+  animation: sm-slot-fill var(--dur-l) var(--ease-spring) backwards;
+}
+
+.slot.just-filled .ico {
+  animation: sm-slot-drop var(--dur-l) var(--ease-spring) backwards;
+}
+
+.slot.just-filled::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border: 3px solid var(--teal);
+  border-radius: 14px;
+  pointer-events: none;
+  opacity: 0;
+  animation: sm-slot-ring var(--dur-xl) var(--ease-out);
+}
+
+@keyframes sm-slot-fill {
+  from {
+    transform: scale(0.82);
+  }
+}
+
+@keyframes sm-slot-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-22px) scale(0.6) rotate(-14deg);
+  }
+}
+
+@keyframes sm-slot-ring {
+  from {
+    opacity: 0.9;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.14);
+  }
+}
+
+.skill-card.just-picked {
+  animation: sm-pop var(--dur-m) var(--ease-out);
+}
+
+:is(.skill-card, .talent-card).level-up {
+  animation: sm-pop var(--dur-l) var(--ease-out);
+}
+
+.talent-card.level-up .talent-ico > svg,
+.skill-card.level-up .skill-ico {
+  animation: sm-ico-jump var(--dur-xl) var(--ease-out);
+}
+
+@keyframes sm-ico-jump {
+  0% {
+    transform: scale(0.8) rotate(-10deg);
+  }
+  35% {
+    transform: translateY(-10px) scale(1.25) rotate(8deg);
+  }
+  65% {
+    transform: translateY(0) scale(0.95) rotate(-3deg);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+.pip.just-on {
+  animation: sm-pip var(--dur-l) var(--ease-spring) backwards;
+  animation-delay: var(--dur-s);
+}
+
+@keyframes sm-pip {
+  from {
+    transform: scale(0);
+  }
+  60% {
+    transform: scale(1.9);
+  }
+}
+
+/* ───────────── 排行榜 ───────────── */
+.board-table .lb-row:not(.lb-head) {
+  animation: sm-rise var(--dur-m) var(--ease-out) backwards;
+  animation-delay: calc(var(--stagger) * 0.75 * var(--si, 0));
+}
+.board-table .lb-row:nth-child(3) { --si: 1; }
+.board-table .lb-row:nth-child(4) { --si: 2; }
+.board-table .lb-row:nth-child(5) { --si: 3; }
+.board-table .lb-row:nth-child(6) { --si: 4; }
+.board-table .lb-row:nth-child(7) { --si: 5; }
+.board-table .lb-row:nth-child(8) { --si: 6; }
+.board-table .lb-row:nth-child(9) { --si: 7; }
+.board-table .lb-row:nth-child(n + 10) { --si: 8; }
+
+/* ───────────── 提示 ───────────── */
+.app-toast {
+  animation: sm-toast-in var(--dur-m) var(--ease-spring) backwards;
+  transition:
+    opacity var(--dur-s) linear,
+    transform var(--dur-m) var(--ease-in);
+}
+
+.app-toast.out {
+  opacity: 0;
+  transform: translateY(-12px) scale(0.9);
+}
+
+@keyframes sm-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.84);
+  }
+}
+
+/* ───────────── 确认框 ───────────── */
+.confirm-overlay {
+  animation: sm-fade var(--dur-s) linear;
+}
+
+.confirm-overlay .dialog {
+  animation: sm-dialog-in var(--dur-m) var(--ease-spring);
+}
+
+@keyframes sm-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.86);
+  }
+}
+
+.confirm-overlay.out {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-s) linear;
+}
+
+.confirm-overlay.out .dialog {
+  transform: translateY(8px) scale(0.94);
+  transition: transform var(--dur-s) var(--ease-in);
+}

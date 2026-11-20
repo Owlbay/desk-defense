@@ -182,8 +182,12 @@ export class Tutorial {
     const ring = h('div.coach-ring');
     this.ctx.root.append(ring, bubble);
     this.active = { step: s, bubble, ring, target: this.targetFor(s) };
+    // 目标基本是静止的界面元素：前几帧立即定位，之后每 6 帧（约 10 次/秒）才重新量一次位置，
+    // 避免每帧读布局；提示圈的呼吸动画由 CSS 完成。
+    let n = 0;
     const loop = () => {
-      this.position();
+      if (n < 3 || n % 6 === 0) this.position();
+      n++;
       this.raf = requestAnimationFrame(loop);
     };
     cancelAnimationFrame(this.raf);
@@ -199,6 +203,7 @@ export class Tutorial {
     const bh = a.bubble.offsetHeight;
     if (!tgt || !tgt.isConnected || tgt.getClientRects().length === 0) {
       a.ring.style.opacity = '0';
+      delete a.ring.dataset.k;
       a.bubble.style.left = `${(root.width - bw) / 2}px`;
       a.bubble.style.top = `${root.height * 0.3}px`;
       a.bubble.dataset.side = 'none';
@@ -207,10 +212,14 @@ export class Tutorial {
     const r = tgt.getBoundingClientRect();
     const x = r.left - root.left;
     const y = r.top - root.top;
-    a.ring.style.opacity = '1';
-    a.ring.style.transform = `translate(${x - 4}px, ${y - 4}px)`;
-    a.ring.style.width = `${r.width + 8}px`;
-    a.ring.style.height = `${r.height + 8}px`;
+    const ringKey = `${Math.round(x)},${Math.round(y)},${Math.round(r.width)},${Math.round(r.height)}`;
+    if (a.ring.dataset.k !== ringKey) {
+      a.ring.dataset.k = ringKey;
+      a.ring.style.opacity = '1';
+      a.ring.style.transform = `translate(${x - 4}px, ${y - 4}px)`;
+      a.ring.style.width = `${r.width + 8}px`;
+      a.ring.style.height = `${r.height + 8}px`;
+    }
     const cx = x + r.width / 2;
     const margin = 10;
     let left = Math.max(margin, Math.min(root.width - bw - margin, cx - bw / 2));
@@ -251,7 +260,8 @@ export class Tutorial {
     if (!a) return;
     this.active = null;
     a.bubble.classList.add('out');
-    a.ring.remove();
+    a.ring.classList.add('out');
+    setTimeout(() => a.ring.remove(), 200);
     setTimeout(() => a.bubble.remove(), 200);
   }
 

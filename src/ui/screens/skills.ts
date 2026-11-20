@@ -7,6 +7,7 @@ import { SKILL_META, SKILL_ORDER } from '../coreMeta';
 import { clear, h, img } from '../dom';
 import { G } from '../icons';
 import { unlockedSkills } from './common';
+import { burst } from './motion';
 
 const TARGET_TEXT: Record<string, string> = {
   none: '全场 · 立即释放',
@@ -22,6 +23,11 @@ export function skillsScreen(app: App, route: Route): Screen {
   const back: Route = route.name === 'skills' && route.from ? route.from : { name: 'menu' };
   const body = h('div.screen-body');
   const el = h('div.screen.skills-screen');
+
+  /** 上一次渲染时带入的技能；用来找出"刚放进槽位"的那个 */
+  let prevLoadout: SkillId[] | null = null;
+  /** 刚升级的技能：这次渲染给它播升级演出 */
+  let justUpgraded: SkillId | null = null;
 
   const render = () => {
     const p = app.store.get();
@@ -48,7 +54,7 @@ export function skillsScreen(app: App, route: Route): Screen {
       } else if (s) {
         slotRow.appendChild(
           h(
-            'button.slot.filled',
+            `button.slot.filled${prevLoadout && !prevLoadout.includes(s) ? '.just-filled' : ''}`,
             {
               title: '点击移出',
               onclick: () => {
@@ -79,11 +85,12 @@ export function skillsScreen(app: App, route: Route): Screen {
       const cost = skillUpgradeCost(lv);
       const inLoadout = loadout.includes(id);
       const pips = h('span.pips');
-      for (let i = 1; i <= SKILL_MAX_LEVEL; i++) pips.appendChild(h(`span.pip${i <= lv ? '.on' : ''}`));
+      const up = justUpgraded === id;
+      for (let i = 1; i <= SKILL_MAX_LEVEL; i++) pips.appendChild(h(`span.pip${i <= lv ? '.on' : ''}${up && i === lv ? '.just-on' : ''}`));
       const cdText = !meta ? '' : id === 'relocate' ? `充能 ${[2, 3, 4][lv - 1]} 次` : `冷却 ${Math.round((meta?.cd ?? 0) * (1 - 0.08 * (lv - 1)))} 秒`;
-      grid.appendChild(
-        h(
-          `article.skill-card.card${ok ? '' : '.locked'}${inLoadout ? '.picked' : ''}`,
+      const justPicked = !!prevLoadout && inLoadout && !prevLoadout.includes(id);
+      const card = h(
+          `article.skill-card.card${ok ? '' : '.locked'}${inLoadout ? '.picked' : ''}${justPicked ? '.just-picked' : ''}${up ? '.level-up' : ''}`,
           null,
           h('div.skill-card-head', null, img(skillIcon(id), 'ico skill-ico'), h('div', null, h('h3', null, meta?.name ?? id), pips)),
           h('p.skill-desc', null, meta?.desc ?? (id === 'seal_tape' ? '封掉一个空降出生点，立即关闭它。' : '')),
@@ -128,6 +135,7 @@ export function skillsScreen(app: App, route: Route): Screen {
                           if (ok2) {
                             audio.play('upgrade');
                             app.toast(`${meta?.name ?? id} 升到 Lv${lv + 1}`, 'good');
+                            justUpgraded = id;
                             render();
                           } else {
                             audio.play('error');
@@ -141,9 +149,15 @@ export function skillsScreen(app: App, route: Route): Screen {
                     ),
               )
             : h('div.lock-line', null, h('span.gi', { html: G.lock }), unlockText(meta?.unlock)),
-        ),
-      );
+        );
+      grid.appendChild(card);
+      if (up) {
+        const ico = card.querySelector<HTMLElement>('.skill-card-head');
+        if (ico) burst(ico, 10, 44);
+      }
     }
+    prevLoadout = loadout;
+    justUpgraded = null;
 
     body.append(
       h('section.card.section', null, h('h3', null, `带入的技能（${loadout.length}/${slots}）`), slotRow, h('p.muted', null, '对局中按 Q / W / E / R 释放。开局时所有技能都已就绪。')),

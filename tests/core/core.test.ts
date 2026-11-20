@@ -360,3 +360,25 @@ describe('skills & perks', () => {
     }
   });
 });
+
+describe('leaderboard score fields', () => {
+  it('stats.cleared / stats.bonus reproduce state.score via computeScore at game over', async () => {
+    const { computeScore } = await import('../../src/shared/leaderboard');
+    // 少量生命、不建塔：很快结束；跑到结束（或兜底步数）
+    for (const o of [base({ seed: 'lb-1', custom: { lives: 3 }, mode: 'custom' }), base({ seed: 'lb-2', mode: 'campaign', difficulty: 'hard' })]) {
+      const w = createWorld(o);
+      w.command({ type: 'place', tower: 'pencil', cx: 5, cy: 5 });
+      for (let i = 0; i < 60 * 60 * 30 && w.state.phase !== 'lost' && w.state.phase !== 'won'; i++) {
+        if (w.state.phase === 'perk') { w.command({ type: 'choosePerk', id: w.state.perkChoices![0].id }); continue; }
+        if (w.state.phase === 'build') w.command({ type: 'startWave' });
+        w.step();
+        w.drainEvents();
+      }
+      const s = w.state;
+      expect(s.phase === 'lost' || s.phase === 'won').toBe(true);
+      expect(s.stats.cleared).toBeGreaterThanOrEqual(0);
+      expect(s.stats.bonus).toBeGreaterThanOrEqual(0);
+      expect(computeScore({ cleared: s.stats.cleared, kills: s.stats.kills, lives: s.lives, gold: s.gold, bonus: s.stats.bonus }, s.params.scoreMul)).toBe(s.score);
+    }
+  });
+});

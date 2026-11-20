@@ -19,6 +19,7 @@ import { DIFFICULTY_PRESETS, MAP_META, resolveParams } from '../coreMeta';
 import { clear, h } from '../dom';
 import { G } from '../icons';
 import { buildRunOptions, layoutPicker, loadoutStrip, randomSeed, switchRow } from './common';
+import { popSelected } from './motion';
 
 const DIFF_ORDER: DifficultyId[] = ['easy', 'normal', 'hard', 'nightmare', 'abyss'];
 const DIFF_BLURB: Record<DifficultyId, string> = {
@@ -50,6 +51,7 @@ export function endlessScreen(app: App): Screen {
   const abyssBox = h('div.abyss-box');
   const infoBox = h('div.endless-info');
 
+  let lastDiff: DifficultyId | null = null;
   const renderAll = () => {
     clear(mapBox);
     for (const m of MAPS) {
@@ -63,6 +65,7 @@ export function endlessScreen(app: App): Screen {
               audio.play('click');
               state.map = m;
               renderAll();
+              popSelected(mapBox);
               layout.refresh();
             },
           },
@@ -85,6 +88,7 @@ export function endlessScreen(app: App): Screen {
               audio.play('click');
               state.diff = d;
               renderAll();
+              popSelected(diffBox);
             },
           },
           h('span.diff-title', null, DIFF_NAME[d]),
@@ -95,6 +99,7 @@ export function endlessScreen(app: App): Screen {
     }
     clear(abyssBox);
     if (state.diff === 'abyss') {
+      abyssBox.classList.toggle('reveal', lastDiff !== 'abyss' && lastDiff !== null);
       const row = h('div.abyss-levels');
       for (let i = 1; i <= ABYSS_MAX; i++) {
         const ok = i <= abyssMax;
@@ -108,6 +113,7 @@ export function endlessScreen(app: App): Screen {
                 audio.play('click');
                 state.abyss = i;
                 renderAll();
+                popSelected(abyssBox);
               },
             },
             roman(i),
@@ -134,6 +140,7 @@ export function endlessScreen(app: App): Screen {
     } catch {
       /* core 未就绪时不显示 */
     }
+    lastDiff = state.diff;
     el.dataset.difficulty = state.diff;
     autoSw.input.checked = autoWaveNow();
   };

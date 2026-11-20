@@ -2,6 +2,13 @@ import { applySettings, confirmDialog, screenHeader, type App, type Screen } fro
 import { audio } from '../audio';
 import { h } from '../dom';
 import { G } from '../icons';
+import { anim, popSelected } from './motion';
+
+/** 滑块数值变化时轻轻跳一下（上一次没播完就接着播，不叠加） */
+function bump(el: HTMLElement): void {
+  if (el.getAnimations?.().length) return;
+  anim(el, [{ transform: 'scale(1.14)' }, { transform: 'scale(1)' }], { duration: 160, easing: 'ease-out' });
+}
 
 /** 设置面板（菜单页与暂停菜单共用） */
 export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLElement } = {}): HTMLElement {
@@ -23,6 +30,7 @@ export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLEle
               audio.play('click');
               save(() => (app.store.get().settings.quality = q));
               renderQuality();
+              popSelected(qualitySeg);
             },
           },
           q === 'high' ? '高' : '低（省电）',
@@ -49,6 +57,7 @@ export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLEle
               audio.play('click');
               save(() => (app.store.get().settings.autoWave = v));
               renderWave();
+              popSelected(waveSeg);
             },
           },
           label,
@@ -64,6 +73,13 @@ export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLEle
     save(() => (app.store.get().settings.fixedLayout = fixedInput.checked));
   };
 
+  const motionInput = h<HTMLInputElement>('input', { attrs: { type: 'checkbox' } });
+  motionInput.checked = s.reduceMotion;
+  motionInput.onchange = () => {
+    audio.play('click');
+    save(() => (app.store.get().settings.reduceMotion = motionInput.checked));
+  };
+
   const volume = (label: string, glyph: string, key: 'sfx' | 'music') => {
     const out = h('output.slider-val', null, `${Math.round(s[key] * 100)}%`);
     const input = h<HTMLInputElement>('input.range', { attrs: { type: 'range', min: 0, max: 100, step: 5, 'aria-label': label } });
@@ -72,6 +88,7 @@ export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLEle
     input.addEventListener('input', () => {
       const v = Number(input.value) / 100;
       out.textContent = `${input.value}%`;
+      bump(out);
       input.style.setProperty('--fill', `${input.value}%`);
       app.store.get().settings[key] = v;
       applySettings(app.store.get().settings);
@@ -88,7 +105,19 @@ export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLEle
   return h(
     'div.settings-panel',
     null,
-    h('section.card.section', null, h('h3', null, '画质'), qualitySeg, h('p.muted', null, '低画质关闭发光层和光环粒子，适合老手机。')),
+    h(
+      'section.card.section',
+      null,
+      h('h3', null, '画质'),
+      qualitySeg,
+      h('p.muted', null, '低画质关闭发光层和光环粒子，适合老手机。'),
+      h(
+        'label.switch-row',
+        null,
+        h('span', null, h('b', null, '减少动画'), h('small.muted', null, '关闭页面切换、弹跳和漂浮等动效，画面更安静')),
+        h('span.switch', null, motionInput, h('span.knob')),
+      ),
+    ),
     h('section.card.section', null, h('h3', null, '声音'), volume('音效', G.sound, 'sfx'), volume('音乐', G.music, 'music')),
     h(
       'section.card.section',

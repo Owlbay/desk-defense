@@ -21,7 +21,10 @@ type FxKind =
   | 'line' // 横扫尺的扫线
   | 'eraser' // 大橡皮落下
   | 'rect2' // 矩形区域闪光
-  | 'bolt'; // 沿直线飞行的一小段（钉子、射线）
+  | 'bolt' // 沿直线飞行的一小段（钉子、射线）
+  | 'spark' // 沿速度方向的短火花
+  | 'coin' // 出售时飞起的小硬币
+  | 'ell'; // 渐隐的地面椭圆（死亡后的影子）
 
 interface FxItem {
   k: FxKind;
@@ -53,10 +56,23 @@ interface FloatText {
   t: Phaser.GameObjects.Text;
   life: number;
   max: number;
-  vy: number;
+  /** 起点与总上升量（像素）：y = y0 - rise * easeOut(p) */
+  y0: number;
+  rise: number;
   prio: number;
   active: boolean;
-  pop: boolean;
+  /** 弹出峰值倍率（1 = 不弹） */
+  peak: number;
+  /** 已套用的样式（相同样式不重复 setStyle，省一次画布重绘） */
+  style: TextStyleKind | '';
+  styleRes: number;
+  /** 伤害数字：所属敌人、累计值、是否待刷新、堆叠槽位 */
+  uid: number;
+  amount: number;
+  dirty: boolean;
+  slot: number;
+  /** 合并时的小回弹（1 → 0） */
+  bump: number;
 }
 
 export type TextStyleKind = 'dmg' | 'crit' | 'dot' | 'shield' | 'gold' | 'goldLoss' | 'heal' | 'info' | 'warn' | 'level' | 'toast';
@@ -77,6 +93,23 @@ const STYLE: Record<TextStyleKind, { size: number; color: number; stroke: number
 
 const MAX_ITEMS = 1400;
 const MAX_TEXTS = 56;
+/** 同一敌人在这段时间内的普通伤害合并成一个数字 */
+const MERGE_WINDOW = 0.28;
+const STACK_X = [0, 9, -9, 5];
+const STACK_Y = [0, -6, -11, -16];
+/** 各样式的上升距离（像素） */
+const RISE: Partial<Record<TextStyleKind, number>> = { dmg: 16, dot: 11, shield: 16, crit: 26, gold: 20, goldLoss: 16, toast: 8 };
+
+function lighten(c: number, k: number): number {
+  const r = (c >> 16) & 255,
+    g = (c >> 8) & 255,
+    b = c & 255;
+  return ((r + (255 - r) * k) << 16) | ((g + (255 - g) * k) << 8) | ((b + (255 - b) * k) | 0);
+}
+
+/** 复用的顶点缓冲（避免每帧分配） */
+const STAR_PTS: { x: number; y: number }[] = [];
+for (let i = 0; i < 8; i++) STAR_PTS.push({ x: 0, y: 0 });
 
 export class Fx {
   private items: FxItem[] = [];
@@ -85,8 +118,17 @@ export class Fx {
   private g: Phaser.GameObjects.Graphics;
   private gAdd: Phaser.GameObjects.Graphics;
   private textBudget = 0;
+  private sparkBudget = 0;
   low = false;
+  /** 减弱动效：粒子减量、数字不做夸张弹跳 */
+  reduced = false;
   private resolution = 1;
+  private byUid = new Map<number, FloatText>();
+
+  /** 粒子密度：低画质 / 减弱动效各减半 */
+  private get density(): number {
+    return (this.low ? 0.5 : 1) * (this.reduced ? 0.5 : 1);
+  }
 
   constructor(private scene: Phaser.Scene) {
     this.g = scene.add.graphics().setDepth(DEPTH.fx);
@@ -136,7 +178,8 @@ export class Fx {
 
   // ───────────── 生成器 ─────────────
 
-  shatter(x: number, y: number, color: number, n: number, size = 5): void {
+  shatter(x: number, y: number, color: number, n: number, size = 5, delay = 0): void {
+    n = Math.max(2, Math.ceil(n * this.density));
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2 + Math.random() * 0.8;
       const sp = 40 + Math.random() * 70;
@@ -149,11 +192,12 @@ export class Fx {
       it.size = size * (0.7 + Math.random() * 0.6);
       it.rot = Math.random() * 6;
       it.vr = (Math.random() - 0.5) * 16;
+      it.delay = delay;
     }
   }
 
   dust(x: number, y: number, r = 20, color: number = C.deskDark): void {
-    const n = this.low ? 5 : 9;
+    const n = Math.max(3, Math.ceil(9 * this.density));
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2;
       const it = this.alloc('dot', x + Math.cos(a) * r * 0.5, y + Math.sin(a) * r * 0.4, 0.35 + Math.random() * 0.15, color);
@@ -166,8 +210,9 @@ export class Fx {
     }
   }
 
-  confetti(x: number, y: number, n = 14): void {
-    const cols = [C.cyan, C.magenta, C.goldLight, C.pink, C.blueCap, C.paper];
+  confetti(x: number, y: number, n = 14, delay = 0): void {
+    const cols = CONFETTI;
+    n = Math.max(2, Math.ceil(n * (this.reduced ? 0.5 : 1)));
     for (let i = 0; i < n; i++) {
       const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.6;
       const sp = 60 + Math.random() * 80;
@@ -180,11 +225,87 @@ export class Fx {
       it.size = 3 + Math.random() * 2;
       it.rot = Math.random() * 6;
       it.vr = (Math.random() - 0.5) * 18;
+      it.delay = delay;
     }
   }
 
+  /** 单色纸屑（敌人死亡：本体色 + 提亮色 + 纸白） */
+  confettiOf(x: number, y: number, color: number, n: number): void {
+    n = Math.ceil(n * this.density);
+    const light = lighten(color, 0.45);
+    for (let i = 0; i < n; i++) {
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 3;
+      const sp = 50 + Math.random() * 70;
+      const it = this.alloc('rect', x, y, 0.55 + Math.random() * 0.3, i % 3 === 0 ? color : i % 3 === 1 ? light : C.paper);
+      if (!it) return;
+      it.vx = Math.cos(a) * sp;
+      it.vy = Math.sin(a) * sp;
+      it.g = 200;
+      it.drag = 2.2;
+      it.size = 2.5 + Math.random() * 1.8;
+      it.rot = Math.random() * 6;
+      it.vr = (Math.random() - 0.5) * 20;
+    }
+  }
+
+  /**
+   * 命中火花：沿 angle 方向（spread 为散布角）飞出的短线。
+   * 每帧有总量预算；低画质不出。
+   */
+  sparks(x: number, y: number, color: number, n: number, angle = 0, spread = Math.PI * 2, speed = 110): void {
+    if (this.low) return;
+    if (this.reduced) n = Math.ceil(n / 2);
+    for (let i = 0; i < n; i++) {
+      if (this.sparkBudget <= 0) return;
+      this.sparkBudget--;
+      const a = angle + (Math.random() - 0.5) * spread;
+      const sp = speed * (0.55 + Math.random() * 0.7);
+      const it = this.alloc('spark', x, y, 0.16 + Math.random() * 0.12, color);
+      if (!it) return;
+      it.vx = Math.cos(a) * sp;
+      it.vy = Math.sin(a) * sp;
+      it.drag = 5;
+      it.w = 1.8;
+    }
+  }
+
+  /** 出售：小硬币向上抛起再落下 */
+  coinBurst(x: number, y: number, n: number): void {
+    n = Math.max(2, Math.ceil(n * this.density));
+    for (let i = 0; i < n; i++) {
+      const it = this.alloc('coin', x + (Math.random() - 0.5) * 12, y, 0.6 + Math.random() * 0.2, C.gold);
+      if (!it) return;
+      it.vx = (Math.random() - 0.5) * 70;
+      it.vy = -110 - Math.random() * 70;
+      it.g = 300;
+      it.size = 4 + Math.random() * 1.5;
+      it.rot = Math.random() * 6;
+      it.vr = 10 + Math.random() * 6;
+      it.delay = i * 0.03;
+    }
+  }
+
+  /** 渐隐的地面影子 */
+  shadowFade(x: number, y: number, w: number, h: number, dur = 0.45): void {
+    const it = this.alloc('ell', x, y, dur, C.ink);
+    if (!it) return;
+    it.x2 = w;
+    it.y2 = h;
+    it.alpha = 0.22;
+  }
+
+  /** 下落的小液滴（墨滴 / 流血） */
+  drip(x: number, y: number, color: number, size = 1.8): void {
+    const it = this.alloc('dot', x, y, 0.42, color);
+    if (!it) return;
+    it.vy = 6;
+    it.g = 150;
+    it.size = size;
+    it.size2 = -size * 0.5;
+  }
+
   sparkle(x: number, y: number, color: number, n = 6, spread = 16): void {
-    if (this.low) n = Math.ceil(n / 2);
+    n = Math.ceil(n * this.density);
     for (let i = 0; i < n; i++) {
       const it = this.alloc('star', x + (Math.random() - 0.5) * spread, y + (Math.random() - 0.5) * spread, 0.5 + Math.random() * 0.4, color);
       if (!it) return;
@@ -311,49 +432,102 @@ export class Fx {
 
   beginFrame(): void {
     this.textBudget = 8;
+    this.sparkBudget = this.reduced ? 12 : 36;
   }
 
-  text(x: number, y: number, str: string, kind: TextStyleKind): void {
+  private allocText(prio: number): FloatText | null {
+    for (const c of this.texts) if (!c.active) return c;
+    if (this.texts.length < MAX_TEXTS) {
+      const t = this.scene.add.text(0, 0, '', { fontFamily: FONT, fontSize: '12px' }).setOrigin(0.5, 1).setDepth(DEPTH.text);
+      t.setResolution(this.resolution);
+      const ft: FloatText = { t, life: 0, max: 1, y0: 0, rise: 0, prio: 0, active: false, peak: 1, style: '', styleRes: this.resolution, uid: 0, amount: 0, dirty: false, slot: 0, bump: 0 };
+      this.texts.push(ft);
+      return ft;
+    }
+    // 回收优先级最低、最老的
+    let best: FloatText | null = null;
+    for (const c of this.texts) if (c.prio <= prio && (!best || c.life / c.max > best.life / best.max)) best = c;
+    if (best) this.releaseText(best);
+    return best;
+  }
+
+  private releaseText(ft: FloatText): void {
+    ft.active = false;
+    if (ft.uid && this.byUid.get(ft.uid) === ft) this.byUid.delete(ft.uid);
+    ft.uid = 0;
+  }
+
+  private spawnText(x: number, y: number, str: string, kind: TextStyleKind): FloatText | null {
     const st = STYLE[kind];
     if (st.prio === 0) {
-      if (this.textBudget <= 0) return;
+      if (this.textBudget <= 0) return null;
       this.textBudget--;
     }
-    let ft = this.texts.find((t) => !t.active);
-    if (!ft) {
-      if (this.texts.length < MAX_TEXTS) {
-        const t = this.scene.add.text(0, 0, '', { fontFamily: FONT, fontSize: '12px' }).setOrigin(0.5, 1).setDepth(DEPTH.text);
-        t.setResolution(this.resolution);
-        ft = { t, life: 0, max: 1, vy: 0, prio: 0, active: false, pop: false };
-        this.texts.push(ft);
-      } else {
-        // 回收优先级最低、最老的
-        let best: FloatText | null = null;
-        for (const c of this.texts) if (c.prio <= st.prio && (!best || c.life / c.max > best.life / best.max)) best = c;
-        if (!best) return;
-        ft = best;
-      }
-    }
+    const ft = this.allocText(st.prio);
+    if (!ft) return null;
     const t = ft.t;
-    t.setStyle({
-      fontFamily: FONT,
-      fontSize: `${st.size}px`,
-      fontStyle: st.bold ? 'bold' : 'normal',
-      color: hex(st.color),
-      stroke: hex(st.stroke),
-      strokeThickness: kind === 'toast' ? 4 : 3,
-    });
+    if (ft.style !== kind || ft.styleRes !== this.resolution) {
+      ft.style = kind;
+      ft.styleRes = this.resolution;
+      t.setStyle({
+        fontFamily: FONT,
+        fontSize: `${st.size}px`,
+        fontStyle: st.bold ? 'bold' : 'normal',
+        color: hex(st.color),
+        stroke: hex(st.stroke),
+        strokeThickness: kind === 'toast' ? 4 : 3,
+      });
+    }
     t.setText(str);
     t.setPosition(x, y);
     t.setAlpha(1);
-    t.setScale(1);
+    t.setScale(this.reduced ? 1 : 0.5);
     t.setVisible(true);
     ft.life = 0;
     ft.max = st.life;
-    ft.vy = st.vy;
+    ft.y0 = y;
+    ft.rise = RISE[kind] ?? -st.vy * 0.5;
     ft.prio = st.prio;
     ft.active = true;
-    ft.pop = kind === 'crit' || kind === 'level' || kind === 'toast';
+    ft.peak = this.reduced ? 1 : kind === 'crit' ? 1.55 : kind === 'level' || kind === 'toast' ? 1.25 : kind === 'gold' ? 1.2 : 1.12;
+    ft.uid = 0;
+    ft.amount = 0;
+    ft.dirty = false;
+    ft.slot = 0;
+    ft.bump = 0;
+    return ft;
+  }
+
+  text(x: number, y: number, str: string, kind: TextStyleKind): void {
+    this.spawnText(x, y, str, kind);
+  }
+
+  /**
+   * 伤害数字：同一敌人短时间内的同类小伤害合并成一个数字（累加、轻轻回弹），
+   * 超出合并窗口的新数字错开位置，避免叠在一起。暴击单独显示、更大。
+   */
+  damage(uid: number, x: number, y: number, amount: number, kind: 'dmg' | 'dot' | 'shield' | 'warn' | 'crit'): void {
+    if (kind === 'crit') {
+      this.spawnText(x, y, `${amount}!`, 'crit');
+      return;
+    }
+    const prev = this.byUid.get(uid);
+    let slot = 0;
+    if (prev && prev.active) {
+      if (prev.style === kind && prev.life < MERGE_WINDOW) {
+        prev.amount += amount;
+        prev.dirty = true;
+        prev.bump = 1;
+        return;
+      }
+      slot = (prev.slot + 1) % STACK_X.length;
+    }
+    const ft = this.spawnText(x + STACK_X[slot], y + STACK_Y[slot], String(amount), kind);
+    if (!ft) return;
+    ft.uid = uid;
+    ft.amount = amount;
+    ft.slot = slot;
+    this.byUid.set(uid, ft);
   }
 
   // ───────────── 更新与绘制 ─────────────
@@ -387,15 +561,32 @@ export class Fx {
       if (!ft.active) continue;
       ft.life += dt;
       if (ft.life >= ft.max) {
-        ft.active = false;
+        this.releaseText(ft);
         ft.t.setVisible(false);
         continue;
       }
+      if (ft.dirty) {
+        // 合并的伤害：每帧最多刷新一次文字
+        ft.dirty = false;
+        ft.t.setText(String(ft.amount));
+      }
       const p = ft.life / ft.max;
-      ft.t.y += ft.vy * dt;
-      ft.vy *= Math.max(0, 1 - 2.5 * dt);
-      ft.t.setAlpha(p < 0.6 ? 1 : 1 - (p - 0.6) / 0.4);
-      if (ft.pop) ft.t.setScale(p < 0.12 ? 0.6 + (p / 0.12) * 0.6 : p < 0.25 ? 1.2 - ((p - 0.12) / 0.13) * 0.2 : 1);
+      // 上升：先快后慢
+      const q = 1 - p;
+      ft.t.y = ft.y0 - ft.rise * (1 - q * q * q);
+      // 淡出 + 缩小退场
+      const out = p < 0.62 ? 0 : (p - 0.62) / 0.38;
+      ft.t.setAlpha(1 - out * out);
+      let sc: number;
+      if (p < 0.1) sc = 0.5 + (ft.peak - 0.5) * (p / 0.1);
+      else if (p < 0.28) sc = ft.peak - (ft.peak - 1) * ((p - 0.1) / 0.18);
+      else sc = 1 - out * 0.3;
+      if (ft.bump > 0) {
+        sc += 0.16 * ft.bump;
+        ft.bump = Math.max(0, ft.bump - dt * 9);
+      }
+      if (this.reduced) sc = 1;
+      ft.t.setScale(sc);
     }
   }
 
@@ -414,17 +605,18 @@ export class Fx {
           const s = it.size;
           const c = Math.cos(it.rot),
             sn = Math.sin(it.rot);
-          const pts = [
-            [0, -s],
-            [s * 0.9, s * 0.6],
-            [-s * 0.9, s * 0.6],
-          ];
-          const X = pts.map(([px, py]) => it.x + px * c - py * sn);
-          const Y = pts.map(([px, py]) => it.y + px * sn + py * c);
+          const bx = s * 0.9,
+            by = s * 0.6;
+          const x0 = it.x + s * sn,
+            y0 = it.y - s * c;
+          const x1 = it.x + bx * c - by * sn,
+            y1 = it.y + bx * sn + by * c;
+          const x2 = it.x - bx * c - by * sn,
+            y2 = it.y - bx * sn + by * c;
           gg.fillStyle(it.color, a);
-          gg.fillTriangle(X[0], Y[0], X[1], Y[1], X[2], Y[2]);
+          gg.fillTriangle(x0, y0, x1, y1, x2, y2);
           gg.lineStyle(1.2, C.ink, a * 0.8);
-          gg.strokeTriangle(X[0], Y[0], X[1], Y[1], X[2], Y[2]);
+          gg.strokeTriangle(x0, y0, x1, y1, x2, y2);
           break;
         }
         case 'dot': {
@@ -572,6 +764,31 @@ export class Fx {
           g.lineBetween(hx - ux * tl, hy - uy * tl, hx, hy);
           break;
         }
+        case 'spark': {
+          const a = 1 - p;
+          const k = 0.045;
+          gg.lineStyle(it.w, it.color, a);
+          gg.lineBetween(it.x - it.vx * k, it.y - it.vy * k, it.x, it.y);
+          break;
+        }
+        case 'coin': {
+          const a = p < 0.7 ? 1 : 1 - (p - 0.7) / 0.3;
+          const sx = 0.3 + 0.7 * Math.abs(Math.cos(it.rot));
+          const r = it.size;
+          g.fillStyle(C.goldDark, a);
+          g.fillEllipse(it.x, it.y + 1, r * 2 * sx + 1.6, r * 2 + 1.6);
+          g.fillStyle(C.gold, a);
+          g.fillEllipse(it.x, it.y, r * 2 * sx, r * 2);
+          g.fillStyle(C.goldLight, a);
+          g.fillEllipse(it.x - r * 0.15 * sx, it.y - r * 0.2, r * 1.1 * sx, r * 1.1);
+          break;
+        }
+        case 'ell': {
+          const q = 1 - p;
+          g.fillStyle(it.color, it.alpha * q);
+          g.fillEllipse(it.x, it.y, it.x2 * (0.6 + 0.4 * q), it.y2 * (0.6 + 0.4 * q));
+          break;
+        }
         case 'eraser': {
           // 0..0.35 下落，之后压扁回弹并淡出
           const r = it.size;
@@ -602,17 +819,22 @@ export class Fx {
     this.items.length = 0;
     for (const ft of this.texts) {
       ft.active = false;
+      ft.uid = 0;
       ft.t.setVisible(false);
     }
+    this.byUid.clear();
   }
 }
 
+const CONFETTI = [C.cyan, C.magenta, C.goldLight, C.pink, C.blueCap, C.paper];
+
 export function drawStar(g: Phaser.GameObjects.Graphics, x: number, y: number, s: number, rot: number, color: number, alpha: number): void {
-  const pts: { x: number; y: number }[] = [];
+  const pts = STAR_PTS;
   for (let i = 0; i < 8; i++) {
     const r = i % 2 === 0 ? s : s * 0.4;
     const a = rot + (i * Math.PI) / 4;
-    pts.push({ x: x + Math.cos(a) * r, y: y + Math.sin(a) * r });
+    pts[i].x = x + Math.cos(a) * r;
+    pts[i].y = y + Math.sin(a) * r;
   }
   g.fillStyle(color, alpha);
   g.fillPoints(pts, true);

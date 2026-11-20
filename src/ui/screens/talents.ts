@@ -4,6 +4,7 @@ import { audio } from '../audio';
 import { TALENT_META, TALENT_ORDER } from '../coreMeta';
 import { clear, h } from '../dom';
 import { G } from '../icons';
+import { burst } from './motion';
 
 const TALENT_GLYPH: Record<string, string> = {
   wallet: G.coin,
@@ -18,6 +19,8 @@ const TALENT_GLYPH: Record<string, string> = {
 
 export function talentsScreen(app: App): Screen {
   const el = h('div.screen.talents-screen');
+  /** 刚买的天赋：这次渲染给它播"升级"演出 */
+  let justBought: string | null = null;
   const render = () => {
     const p = app.store.get();
     clear(el);
@@ -29,7 +32,8 @@ export function talentsScreen(app: App): Screen {
       const lv = talentLevel(p, id);
       const maxed = lv >= m.max;
       const pips = h('span.pips');
-      for (let i = 1; i <= m.max; i++) pips.appendChild(h(`span.pip${i <= lv ? '.on' : ''}`));
+      const up = justBought === id;
+      for (let i = 1; i <= m.max; i++) pips.appendChild(h(`span.pip${i <= lv ? '.on' : ''}${up && i === lv ? '.just-on' : ''}`));
       const buy = (cur: 'star' | 'ink') => {
         const cost = cur === 'star' ? m.star : m.ink;
         const can = p.currency[cur] >= cost;
@@ -44,6 +48,7 @@ export function talentsScreen(app: App): Screen {
               if (ok) {
                 audio.play('upgrade');
                 app.toast(`${m.name} 升到 ${lv + 1} 级`, 'good');
+                justBought = id;
                 render();
               } else {
                 audio.play('error');
@@ -55,16 +60,19 @@ export function talentsScreen(app: App): Screen {
           String(cost),
         );
       };
+      const icoEl = h('span.talent-ico', { html: TALENT_GLYPH[id] ?? G.star });
+      if (up) burst(icoEl, 12, 52);
       grid.appendChild(
         h(
-          `article.talent-card.card${maxed ? '.maxed' : ''}`,
+          `article.talent-card.card${maxed ? '.maxed' : ''}${up ? '.level-up' : ''}`,
           null,
-          h('div.talent-head', null, h('span.talent-ico', { html: TALENT_GLYPH[id] ?? G.star }), h('div', null, h('h3', null, m.name), pips)),
+          h('div.talent-head', null, icoEl, h('div', null, h('h3', null, m.name), pips)),
           h('p', null, m.desc, m.max > 1 ? h('small.muted', null, `（每级，最高 ${m.max} 级）`) : null),
           maxed ? h('span.badge.good', null, '已满级') : h('div.row.buy-row', null, buy('star'), h('span.muted.or', null, '或'), buy('ink')),
         ),
       );
     }
+    justBought = null;
     el.appendChild(
       h(
         'div.screen-body',

@@ -90,7 +90,7 @@ function btn(label: string, fn: () => void): HTMLButtonElement {
 const sep = () => panel.appendChild(document.createElement('hr'));
 
 info.textContent = useMock ? '使用假 World（mock）' : '使用真实 core';
-TOWER_IDS.forEach((id, i) => btn(`${i < 9 ? i + 1 : i === 9 ? 0 : '-'} ${id}`, () => ui.set({ build: ui.state.build === id ? null : id, pending: null, aiming: null })));
+TOWER_IDS.forEach((id, i) => btn(`${i < 9 ? i + 1 : (['0', '-', '='][i - 9] ?? '')} ${id}`, () => ui.set({ build: ui.state.build === id ? null : id, pending: null, aiming: null })));
 sep();
 for (const s of world.state.skills) btn(`技能 ${s.id}`, () => {
   if (s.target === 'none') {
@@ -111,6 +111,7 @@ function abilityKey(): void {
     if (!r.ok) console.warn(r.reason);
   } else ui.set({ abilityAiming: ui.state.abilityAiming === uid ? null : uid, aiming: null, build: null, pending: null });
 }
+btn('飞行敌人 ×6', () => dev?.spawnFlyers(6));
 btn('传奇 L', () => ui.state.selected !== null && dev?.makeLegend(ui.state.selected, Math.random() < 0.5 ? 'A' : 'B'));
 btn('进化 E', () => {
   if (ui.state.selected === null) return;
@@ -196,13 +197,41 @@ function scenario(): void {
     const y = boss ? 9 + Math.floor((i - 13) / 3) * 3 : 1.5 + Math.floor(i / 6) * 2.3;
     st.enemies.push({
       uid: u++, id, x, y, angle: Math.PI / 2, hp: i % 2 ? 50 : 100, maxHp: 100, shield: id === 'sticky' ? 40 : 0, maxShield: 40, armor: 0, speed: 0,
-      radius: boss ? 0.7 : id === 'crumbmini' ? 0.16 : 0.27, scale: i === 2 ? 1.2 : 1, flying: id === 'plane' || id === 'moth', boss,
+      radius: boss ? 0.7 : id === 'crumbmini' ? 0.16 : 0.27, scale: i === 2 ? 1.2 : 1, flying: id === 'plane', boss,
       elite: i === 2 || i === 5, affixes: i === 2 ? ['hard', 'shield', 'rally'] : i === 5 ? ['swift', 'stealth'] : [], group: i === 7 ? 5 : 1,
       hidden: id === 'invisink', stealthy: id === 'invisink' || i === 5, slowPct: 0.4, slowUntil: i === 0 ? 999 : 0, stunUntil: i === 1 ? 999 : 0,
       rootUntil: i === 3 ? 999 : 0, inkStacks: i === 4 ? 4 : 0, bleedStacks: 0, burnUntil: 0, markedUntil: i === 6 ? 999 : 0,
+      // 飞蛾：演示被捕虫网网在地上
+      netUntil: id === 'moth' ? 999 : 0,
       jumping: id === 'rubberband', lastHit: -1, spawnedAt: -10,
     });
   });
   session.paused = true;
 }
-Object.assign((window as unknown as { dd: Record<string, unknown> }).dd, { drive, scenario });
+/** 压力测试：摆 n 个打不死的敌人（带各种状态），手动推进 6×300 帧，返回每帧 CPU 毫秒（含 mock step + 渲染提交） */
+function bench(n = 150): string {
+  const st = world.state;
+  const ids = ['crumb', 'inkdot', 'paperclip', 'plane', 'paperball', 'sticky', 'ant', 'moth'] as const;
+  let u = 90000 + Math.floor(Math.random() * 1e6);
+  st.enemies.length = 0;
+  for (let i = 0; i < n; i++) {
+    const id = ids[i % ids.length];
+    st.enemies.push({
+      uid: u++, id, x: 0.5 + (i % 12) * 0.95, y: 1 + Math.floor(i / 12) * 0.9, angle: Math.PI / 2, hp: 5e8, maxHp: 1e9, shield: 0, maxShield: 0, armor: 0, speed: 0,
+      radius: 0.27, scale: 1, flying: id === 'plane' || id === 'moth', boss: false, elite: i % 20 === 0, affixes: [], group: 1,
+      hidden: false, stealthy: false, slowPct: 0.4, slowUntil: i % 5 === 0 ? 1e9 : 0, stunUntil: i % 7 === 0 ? 1e9 : 0,
+      rootUntil: 0, inkStacks: i % 6 === 0 ? 3 : 0, bleedStacks: i % 9 === 0 ? 2 : 0, burnUntil: i % 8 === 0 ? 1e9 : 0, markedUntil: i % 10 === 0 ? 1e9 : 0,
+      netUntil: 0, jumping: false, lastHit: -1, spawnedAt: -10,
+    });
+  }
+  session.paused = false;
+  drive(120);
+  const out: string[] = [];
+  for (let k = 0; k < 6; k++) {
+    const t0 = performance.now();
+    drive(300);
+    out.push(((performance.now() - t0) / 300).toFixed(3));
+  }
+  return `${out.join(', ')} ms/frame · enemies ${st.enemies.length} · towers ${st.towers.size}`;
+}
+Object.assign((window as unknown as { dd: Record<string, unknown> }).dd, { drive, scenario, bench });

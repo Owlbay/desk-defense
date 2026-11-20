@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { Session } from '../game/Session';
+import { Ambience } from './ambience';
 import { ArtAtlas } from './assets';
 import { boardKey, drawBoard, obstacleKey } from './background';
 import type { RenderCtx } from './ctx';
@@ -9,8 +10,10 @@ import { FieldLayer } from './field';
 import { Fx } from './fx';
 import { BoardInput } from './input';
 import { BOARD_H, BOARD_W, CELL, DEPTH, type Quality } from './layout';
+import { CameraRig, readReducedMotion } from './motion';
 import { C, FONT, hex } from './palette';
 import { ShotLayer } from './shots';
+import { SwatterLayer } from './swatter';
 import { TowerLayer } from './towers';
 import { ensureSprites } from './sprites';
 
@@ -38,6 +41,8 @@ export class Board {
   private input: BoardInput | null = null;
   private events: EventFx | null = null;
   private field: FieldLayer | null = null;
+  private swatter: SwatterLayer | null = null;
+  private ambience: Ambience | null = null;
   /** 静态桌面：画进 Graphics（不入显示列表），再烘焙到 RenderTexture，避免每帧重新细分几何 */
   private bg: Phaser.GameObjects.Graphics | null = null;
   private bgRT: Phaser.GameObjects.RenderTexture | null = null;
@@ -50,6 +55,7 @@ export class Board {
   private dpr = 1;
   private boardScale = 1;
   private rasterCheckT = 0;
+  private motionCheckT = 0;
   private destroyed = false;
   /** 背景缓存：快速探针（版本号等）变化时才计算完整键 */
   private bgProbe = '';
@@ -100,6 +106,8 @@ export class Board {
       atlas: new ArtAtlas(scene),
       fx,
       quality: this.quality,
+      reduced: readReducedMotion(),
+      cam: new CameraRig(scene),
       vtime: 0,
       vdt: 0,
       rdt: 0,
@@ -108,14 +116,19 @@ export class Board {
     };
     this.ctx = ctx;
     fx.low = this.quality === 'low';
+    fx.reduced = ctx.reduced;
+    ctx.cam.reduced = ctx.reduced;
     ensureSprites(scene);
     this.bg = scene.make.graphics({}, false);
     this.tint = scene.add.graphics().setDepth(DEPTH.tint);
+    this.ambience = new Ambience(ctx);
     this.towers = new TowerLayer(ctx);
     this.enemies = new EnemyLayer(ctx);
     this.shots = new ShotLayer(ctx);
     this.field = new FieldLayer(ctx);
-    this.events = new EventFx(ctx, this.towers, this.field);
+    this.events = new EventFx(ctx, this.towers, this.field, this.enemies);
+    this.swatter = new SwatterLayer(ctx, this.towers, this.enemies, (ms, k) => this.events?.shakeBy(ms, k));
+    this.events.swatter = this.swatter;
     this.input = new BoardInput(ctx, canvas, (cx, cy) => this.clientToWorld(cx, cy), this.field);
     this.loading = scene.add
       .text(BOARD_W / 2, BOARD_H / 2, '加载中…', {
@@ -215,8 +228,8 @@ export class Board {
     const zoom = Math.max(0.05, this.boardScale * this.dpr);
     const cam = this.scene.cameras.main;
     cam.setSize(w, h);
-    cam.setZoom(zoom);
-    cam.centerOn(BOARD_W / 2, BOARD_H / 2);
+    // 基准缩放 / 居中交给镜头（震屏、缩放冲击叠加在其上）
+    this.ctx.cam.setBase(zoom);
     this.ctx.zoom = zoom;
     const res = Math.min(4, Math.max(1, zoom));
     this.ctx.fx.setResolution(res);
@@ -251,6 +264,18 @@ export class Board {
     ctx.vtime += ctx.vdt;
     ctx.alpha = live ? Math.max(0, Math.min(1, s.alpha)) : 1;
 
+    // 减弱动效开关（系统设置 / 应用内 html.reduce-motion）：低频轮询
+    this.motionCheckT -= rdt;
+    if (this.motionCheckT <= 0) {
+      this.motionCheckT = 0.5;
+      const red = readReducedMotion();
+      if (red !== ctx.reduced) {
+        ctx.reduced = red;
+        ctx.fx.reduced = red;
+        ctx.cam.reduced = red;
+      }
+    }
+
     // 地形变化（随机布局、书本倒下、整理、空降落地、暗门开启）时重画背景
     this.checkBackground();
 
@@ -274,10 +299,13 @@ export class Board {
     this.enemies!.sync();
     this.shots!.sync();
     this.field!.sync();
+    this.swatter!.sync();
+    this.ambience!.sync();
     // 暂停时仍让一次性反馈（失败提示等）以真实时间播完
     ctx.fx.update(live ? ctx.vdt : rdt);
     ctx.fx.draw();
     this.input!.draw();
+    ctx.cam.update(rdt);
     this.drawTint(st.time, st.caffeineUntil);
   }
 
@@ -292,6 +320,11 @@ export class Board {
       g.lineStyle(6, C.coffee, 0.35 * k);
       g.strokeRoundedRect(3, 3, BOARD_W - 6, BOARD_H - 6, 10);
     }
+    const fa = this.ctx!.cam.flashAlpha();
+    if (fa > 0.004) {
+      g.fillStyle(this.ctx!.cam.flashColor, fa);
+      g.fillRoundedRect(0, 0, BOARD_W, BOARD_H, 12);
+    }
   }
 
   destroy(): void {
@@ -304,6 +337,8 @@ export class Board {
     this.enemies?.destroy();
     this.shots?.destroy();
     this.field?.destroy();
+    this.swatter?.destroy();
+    this.ambience?.destroy();
     this.ctx?.atlas.destroy();
     this.game.destroy(true);
   }

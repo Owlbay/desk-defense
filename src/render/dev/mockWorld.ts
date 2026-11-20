@@ -32,15 +32,15 @@ import {
 
 const RANGE: Record<TowerId, number> = {
   wall: 0, pencil: 2.5, stapler: 1.6, glue: 2.2, lamp: 3.5, compass: 1.8,
-  eraser: 2, ruler: 4.5, pen: 2.8, calculator: 0, piggy: 0,
+  eraser: 2, ruler: 4.5, pen: 2.8, calculator: 0, piggy: 0, swatter: 3,
 };
 const INTERVAL: Record<TowerId, number> = {
   wall: 0, pencil: 0.5, stapler: 1, glue: 0.8, lamp: 1.5, compass: 0.25,
-  eraser: 1, ruler: 2, pen: 1, calculator: 0, piggy: 0,
+  eraser: 1, ruler: 2, pen: 1, calculator: 0, piggy: 0, swatter: 1.2,
 };
 const PROJ: Partial<Record<TowerId, ProjectileKind>> = { pencil: 'graphite', glue: 'glue', pen: 'ink', ruler: 'ruler', eraser: 'eraser' };
 const COST: Record<TowerId, number> = {
-  wall: 5, pencil: 20, stapler: 45, glue: 35, lamp: 80, compass: 60, eraser: 40, ruler: 70, pen: 55, calculator: 90, piggy: 100,
+  wall: 5, pencil: 20, stapler: 45, glue: 35, lamp: 80, compass: 60, eraser: 40, ruler: 70, pen: 55, calculator: 90, piggy: 100, swatter: 50,
 };
 
 interface Proj extends ProjectileState {
@@ -55,6 +55,8 @@ export interface MockDev {
   dropSpawner(): boolean;
   /** 选中塔直接变成 Lv10（★2），再进化一次即成神话 */
   makeLegend(uid: number, branch: 'A' | 'B'): void;
+  /** 一群飞行敌人（演示苍蝇拍） */
+  spawnFlyers(n: number): void;
 }
 
 export function createMockWorld(): IWorld & { dev: MockDev } {
@@ -134,7 +136,7 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
     perkChoices: null,
     perkRerollCost: 0,
     nextWave: { wave: 1, tags: [], groups: [], earlyBonus: 0 },  // 由 makePreview() 填充
-    unlockedTowers: ['wall', 'pencil', 'stapler', 'glue', 'lamp', 'compass', 'eraser', 'ruler', 'pen', 'calculator', 'piggy'],
+    unlockedTowers: ['wall', 'pencil', 'stapler', 'glue', 'lamp', 'compass', 'eraser', 'ruler', 'pen', 'calculator', 'piggy', 'swatter'],
     caffeineUntil: 0,
     spawners,
     events: [],
@@ -143,7 +145,7 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
     crateChoice: null,
     autoWave: { enabled: false, started: false, nextAt: null, deadline: null, blocked: false },
     bossUids: [],
-    stats: { kills: 0, leaks: 0, goldEarned: 0, goldSpent: 0, towersBuilt: 0, skillsCast: 0 },
+    stats: { kills: 0, leaks: 0, goldEarned: 0, goldSpent: 0, towersBuilt: 0, skillsCast: 0, cleared: 0, bonus: 0 },
   };
 
   let events: GameEvent[] = [];
@@ -272,6 +274,7 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
       bleedStacks: 0,
       burnUntil: 0,
       markedUntil: 0,
+      netUntil: 0,
       jumping: false,
       lastHit: -1,
       spawnedAt: state.time,
@@ -637,7 +640,7 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
     pencil_A: 'none', pencil_B: 'none', stapler_A: 'direction', stapler_B: 'none', glue_A: 'none', glue_B: 'rect3',
     lamp_A: 'none', lamp_B: 'none', compass_A: 'none', compass_B: 'enemy', eraser_A: 'none', eraser_B: 'enemy',
     ruler_A: 'axis', ruler_B: 'enemy', pen_A: 'circle', pen_B: 'none', calculator_A: 'none', calculator_B: 'tower',
-    piggy_A: 'none', piggy_B: 'none',
+    piggy_A: 'none', piggy_B: 'none', swatter_A: 'none', swatter_B: 'none',
   };
 
   function evolve(t: TowerState): CommandResult {
@@ -700,6 +703,9 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
         if (o.level < 9) levelUp(o, false);
         break;
       }
+      case 'swatter_B':
+        for (const e of state.enemies) if (e.flying) netEnemy(e, e.boss ? 1.5 : 5);
+        break;
       case 'piggy_A':
         state.gold += 60;
         events.push({ type: 'gold', amount: 60, x: t.cx + 0.5, y: t.cy + 0.5, reason: 'piggy' });
@@ -713,6 +719,16 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
 
   makePreview();
 
+  /** 苍蝇拍·捕虫网（mock）：飞行敌人落地 */
+  const netted = new Set<number>();
+  function netEnemy(e: EnemyState, dur: number): void {
+    if (e.boss) return;
+    e.netUntil = state.time + dur;
+    e.flying = false;
+    netted.add(e.uid);
+  }
+  const swatCount = new Map<number, number>();
+
   function step(): void {
     state.tick++;
     state.time += DT;
@@ -723,6 +739,14 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
       if (spawnQueue[i].at <= now) {
         const q = spawnQueue.splice(i, 1)[0];
         spawnEnemy(q.id, q);
+      }
+    }
+    // 网到期：飞回空中
+    for (const e of state.enemies) {
+      if (netted.has(e.uid) && e.netUntil <= now) {
+        netted.delete(e.uid);
+        e.netUntil = 0;
+        e.flying = true;
       }
     }
     // 敌人移动
@@ -782,6 +806,7 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
         bd = Infinity;
       for (const e of state.enemies) {
         if (e.hidden) continue;
+        if (t.id === 'swatter' && !e.flying) continue;
         const d = Math.hypot(e.x - x, e.y - y);
         if (d <= r && d < bd) ((bd = d), (best = e));
       }
@@ -805,6 +830,38 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
         for (const e of state.enemies) if (!e.flying && Math.hypot(e.x - x, e.y - y) <= r) {
           damage(e, dmg);
           if (Math.random() < 0.2) e.stunUntil = now + 0.8;
+        }
+      } else if (t.id === 'swatter') {
+        const n = (swatCount.get(t.uid) ?? 0) + 1;
+        swatCount.set(t.uid, n);
+        if (t.tier >= 4 && t.branch === 'B' && n % 3 === 0) {
+          projs.push({ uid: uid++, kind: 'net', x, y, angle: t.angle, towerUid: t.uid, target: best.uid, speed: 7, dmg: 0, life: 2 });
+          continue;
+        }
+        const sr = t.tier >= 3 ? 0.8 : 0.6;
+        events.push({ type: 'swat', uid: t.uid, x: best.x, y: best.y, r: sr });
+        const hitList = state.enemies.filter((e) => e.flying && Math.hypot(e.x - best!.x, e.y - best!.y) <= sr);
+        for (const e of hitList) damage(e, dmg * 1.5);
+        if (t.tier >= 4 && t.branch !== 'B') {
+          const pts = [{ x: best.x, y: best.y }];
+          let cur = best;
+          const used = new Set([best.uid]);
+          for (let j = 0; j < 3; j++) {
+            let nx: EnemyState | null = null,
+              nd = 2.5;
+            for (const e of state.enemies) {
+              if (!e.flying || used.has(e.uid)) continue;
+              const d = Math.hypot(e.x - cur.x, e.y - cur.y);
+              if (d < nd) ((nd = d), (nx = e));
+            }
+            if (!nx) break;
+            used.add(nx.uid);
+            pts.push({ x: nx.x, y: nx.y });
+            damage(nx, dmg * 0.7);
+            nx.stunUntil = now + 0.3;
+            cur = nx;
+          }
+          if (pts.length > 1) events.push({ type: 'chain', uid: t.uid, points: pts });
         }
       } else if (t.id === 'compass') {
         events.push({ type: 'sweep', uid: t.uid, x, y, r0: 0.8, r1: 1.8, angle: (now * 6) % (Math.PI * 2), arc: 0.8 });
@@ -861,6 +918,7 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
         }
         if (p.kind === 'ink' || p.kind === 'brush') e.inkStacks = Math.min(5, e.inkStacks + 1);
         if (p.kind === 'eraser') e.markedUntil = now + 2;
+        if (p.kind === 'net' && e.flying) netEnemy(e, 4);
         continue;
       }
       p.x += (dx / d) * p.speed * DT;
@@ -1131,6 +1189,13 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
     enemyName(id) {
       return id;
     },
-    dev: { triggerEvent, dropSpawner, makeLegend },
+    dev: {
+      triggerEvent,
+      dropSpawner,
+      makeLegend,
+      spawnFlyers(n: number) {
+        for (let i = 0; i < n; i++) spawnEnemy(i % 2 ? 'moth' : 'plane', { x: 3 + Math.random() * 6, y: 0.5 + Math.random() * 1.5 });
+      },
+    },
   };
 }

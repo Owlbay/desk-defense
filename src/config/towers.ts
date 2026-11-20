@@ -1,5 +1,13 @@
 import type { TowerId } from '../core/types';
 
+/** 0.25 → "25%" */
+export function pct(v: number): string {
+  return `${Math.round(v * 1000) / 10}%`;
+}
+function pct0(v: number): string {
+  return String(Math.round(v * 100) / 100);
+}
+
 export interface TraitText {
   name: string;
   desc: string;
@@ -32,6 +40,62 @@ export interface TowerDef {
   B: TraitText;
 }
 
+/**
+ * 传奇分支与进化星级特性里会被平衡调整的数值（文档 02 §2、文档 11 §2）。
+ * 塔和进化的说明文字直接引用这里的数，改数值不用改文字。
+ */
+export const BRANCH = {
+  pencil: {
+    /** A 自动铅笔：攻击间隔 ×ivl，单发伤害 ×dmg；★1 连射每次攻速 +ramp，最多 rampMax 层；★2 无视 pierce 点护甲 */
+    A: { ivl: 0.5, dmg: 0.7, ramp: 0.05, rampMax: 8, pierce: 2 },
+    /** B 彩色铅笔：红色灼烧每秒 burn（3 秒）、蓝色减速 slow（1 秒）、黄色 +1 金币；★1 颜色效果 ×s1；★2 绿色中毒每秒 poison（4 秒）、紫色易伤 purple（3 秒） */
+    B: { burn: 4, slow: 0.2, s1: 1.5, poison: 6, purple: 0.1, dmg: 1.12 },
+  },
+  glue: {
+    /** A 502：root 概率定身 rootDur 秒；★1 +s1 秒；★2 定身易伤 vuln */
+    A: { root: 0.4, rootDur: 1, s1: 0.5, vuln: 0.2 },
+    /** B 热熔胶：胶滩每秒 dps；★1 ×s1；★2 半径 +r、持续 +dur 秒 */
+    B: { dps: 5.8, s1: 1.5, r: 0.3, dur: 2 },
+  },
+  lamp: {
+    /** A 激光笔：每秒 dps，每秒递增 ramp，倍率上限 cap；★1 上限 ×s1；★2 折射 refract */
+    A: { dps: 25, ramp: 0.25, cap: 5, s1: 1.5, refract: 0.5 },
+    /** B 护眼灯：照射易伤 vuln；★1 提高到 s1；★2 光照内友方射程 +range */
+    B: { vuln: 0.15, s1: 0.25, range: 0.3 },
+  },
+  calculator: {
+    /** A 科学计算器：光环内暴击率 +crit、暴击伤害 +critDmg；★1 再 +s1；★2 光环 +aura */
+    A: { crit: 0.1, critDmg: 0.5, s1: 0.25, aura: 0.5 },
+    /** B 算盘：光环内经验 +xp、伤害再 +dmg；★1 经验再 +s1；★2 升级费用 −discount */
+    B: { xp: 0.5, s1: 0.25, discount: 0.1, dmg: 0.3 },
+  },
+};
+
+/** 苍蝇拍（文档 02 §2.12）的特性数值 */
+export const SWATTER = {
+  /** 拍击半径（格）；镀金双拍 +splashT3 */
+  splash: 0.6,
+  splashT3: 0.2,
+  /** 精良·气流：减速 / 持续 */
+  airSlow: 0.25,
+  airSlowDur: 1.5,
+  /** 传奇 A 电蚊拍：弹跳次数、每跳伤害系数、弹跳距离、麻痹秒数；★1 弹跳 +s1；★2 可打地面，伤害 ×ground */
+  chain: 3,
+  chainMul: 0.7,
+  chainRange: 2,
+  chainStun: 0.3,
+  chainS1: 2,
+  chainGround: 0.5,
+  /** 传奇 B 捕虫网：每第 netEvery 次攻击甩网，网住 netDur 秒；★1 +netS1 秒；★2 每第 netEveryS2 次；网住时受伤 +netVuln */
+  netEvery: 3,
+  netDur: 4,
+  netS1: 2,
+  netEveryS2: 2,
+  netVuln: 0.15,
+  /** 网的飞行速度（格/秒） */
+  netSpeed: 9,
+};
+
 /** 每级成长（文档 02 §1.2） */
 export const GROWTH = { damage: 1.15, interval: 0.97, range: 0.06 };
 
@@ -50,8 +114,8 @@ export const TOWERS: Record<TowerId, TowerDef> = {
     damage: 8, interval: 0.5, range: 2.5, projSpeed: 10, maxLevel: 10,
     t2: { name: '削尖', desc: '15% 概率暴击，造成 2 倍伤害' },
     t3: { name: '双笔齐发', desc: '一次射出 2 发' },
-    A: { name: '自动铅笔', desc: '攻速 ×2，单发伤害 ×0.7' },
-    B: { name: '彩色铅笔', desc: '命中随机附带：红色灼烧、蓝色减速、黄色 +1 金币（每波最多 15 次）' },
+    A: { name: '自动铅笔', desc: `攻速 ×${pct0(1 / BRANCH.pencil.A.ivl)}，单发伤害 ×${BRANCH.pencil.A.dmg}` },
+    B: { name: '彩色铅笔', desc: `命中随机附带：红色灼烧（每秒 ${BRANCH.pencil.B.burn}）、蓝色减速 ${pct(BRANCH.pencil.B.slow)}、黄色 +1 金币（每波最多 15 次）${BRANCH.pencil.B.dmg !== 1 ? `；单发伤害 ×${BRANCH.pencil.B.dmg}` : ''}` },
   },
   stapler: {
     id: 'stapler', name: '订书机', cost: 45, role: '近身群伤', desc: '咔嚓一下，打到范围内所有地面敌人',
@@ -59,7 +123,7 @@ export const TOWERS: Record<TowerId, TowerDef> = {
     damage: 12, interval: 1.0, range: 1.6, projSpeed: 0, maxLevel: 10,
     t2: { name: '钉住', desc: '10% 概率眩晕 0.5 秒（同一目标 3 秒内一次）' },
     t3: { name: '重型订书机', desc: '范围 +0.3 格，对有护甲的敌人 +4 伤害' },
-    A: { name: '电动订书机', desc: '攻击间隔 0.4 秒，单次伤害 ×0.6' },
+    A: { name: '电动订书机', desc: '基础攻击间隔改为 0.4 秒（攻速约 ×2.5，仍随等级缩短），单次伤害 ×0.6' },
     B: { name: '起钉器', desc: '每次命中 −1 护甲（最多 −5），对 0 护甲敌人伤害 +30%' },
   },
   glue: {
@@ -68,8 +132,8 @@ export const TOWERS: Record<TowerId, TowerDef> = {
     damage: 2, interval: 0.8, range: 2.2, projSpeed: 7, maxLevel: 10,
     t2: { name: '残胶', desc: '落点留下一滩胶水，持续 3 秒' },
     t3: { name: '强力胶', desc: '基础减速提高到 55%' },
-    A: { name: '502 胶', desc: '25% 概率定身 1 秒（Boss 0.3 秒）' },
-    B: { name: '热熔胶', desc: '胶滩改为每秒造成 10 点灼烧伤害' },
+    A: { name: '502 胶', desc: `${pct(BRANCH.glue.A.root)} 概率定身 ${BRANCH.glue.A.rootDur} 秒（Boss 0.3 秒）` },
+    B: { name: '热熔胶', desc: `胶滩改为每秒造成 ${BRANCH.glue.B.dps} 点灼烧伤害` },
   },
   lamp: {
     id: 'lamp', name: '台灯', cost: 80, role: '穿甲光束', desc: '瞬发光束，无视护甲，侦测 1.5 格内隐形',
@@ -77,14 +141,14 @@ export const TOWERS: Record<TowerId, TowerDef> = {
     damage: 30, interval: 1.5, range: 3.5, projSpeed: 0, maxLevel: 10,
     t2: { name: '聚光', desc: '连续打同一目标每次 +20%，最多 3 层' },
     t3: { name: '双灯头', desc: '同时打 2 个目标' },
-    A: { name: '激光笔', desc: '持续光束每秒 20 点，每秒递增 25%' },
-    B: { name: '护眼灯', desc: '整个射程侦测隐形；被照到的敌人受到伤害 +15%' },
+    A: { name: '激光笔', desc: `持续光束每秒 ${BRANCH.lamp.A.dps} 点，每秒递增 ${pct(BRANCH.lamp.A.ramp)}（最多 ×${BRANCH.lamp.A.cap}）` },
+    B: { name: '护眼灯', desc: `整个射程侦测隐形；被照到的敌人受到伤害 +${pct(BRANCH.lamp.B.vuln)}` },
   },
   compass: {
     id: 'compass', name: '圆规', cost: 60, role: '环形切割', desc: '对 0.8–1.8 格环形区域持续伤害',
     hitsAir: false, hitsGround: true, unlock: '2-1', attacks: true,
     damage: 6, interval: 0.25, range: 1.8, inner: 0.8, projSpeed: 0, maxLevel: 10,
-    t2: { name: '加速旋转', desc: '攻击间隔变为 0.2 秒' },
+    t2: { name: '加速旋转', desc: '基础攻击间隔从 0.25 秒变为 0.2 秒（攻速 +25%，仍随等级缩短）' },
     t3: { name: '双脚', desc: '内圈也能打到（0–1.8 格）' },
     A: { name: '量角器', desc: '范围 2.5 格扇形来回扫射，伤害 ×1.5' },
     B: { name: '钻头', desc: '命中叠加流血，每层每秒 2 点，最多 10 层' },
@@ -96,7 +160,7 @@ export const TOWERS: Record<TowerId, TowerDef> = {
     t2: { name: '弹跳', desc: '攻击弹到附近第 2 个目标' },
     t3: { name: '深度擦除', desc: '每次命中 −2 护甲' },
     A: { name: '修正带', desc: '在目标脚下拉出 3 格修正带，路过敌人受伤 +25%' },
-    B: { name: '电动橡皮', desc: '攻击间隔 0.35 秒，10% 概率清空护盾' },
+    B: { name: '电动橡皮', desc: '基础攻击间隔改为 0.35 秒（攻速约 ×2.9，仍随等级缩短），10% 概率清空护盾' },
   },
   ruler: {
     id: 'ruler', name: '尺子', cost: 70, role: '远程穿透', desc: '直线刻度波，穿透路线上所有敌人',
@@ -122,8 +186,8 @@ export const TOWERS: Record<TowerId, TowerDef> = {
     damage: 0, interval: 0, range: 0, aura: 2.0, projSpeed: 0, maxLevel: 10,
     t2: { name: '超频', desc: '光环内额外 +8% 攻速' },
     t3: { name: '高精度', desc: '额外 +15% 伤害，射程 +0.3' },
-    A: { name: '科学计算器', desc: '光环内暴击率 +10%，暴击伤害 +50%' },
-    B: { name: '算盘', desc: '光环内的塔获得经验 +50%' },
+    A: { name: '科学计算器', desc: `光环内暴击率 +${pct(BRANCH.calculator.A.crit)}，暴击伤害 +${pct(BRANCH.calculator.A.critDmg)}` },
+    B: { name: '算盘', desc: `光环内的塔获得经验 +${pct(BRANCH.calculator.B.xp)}${BRANCH.calculator.B.dmg > 0 ? `，伤害再 +${pct(BRANCH.calculator.B.dmg)}` : ''}` },
   },
   piggy: {
     id: 'piggy', name: '存钱罐', cost: 100, role: '经济', desc: '每波结束产出 8 金币（最多 3 个）',
@@ -133,6 +197,15 @@ export const TOWERS: Record<TowerId, TowerDef> = {
     t3: { name: '招财', desc: '周围 2.5 格内死亡的敌人额外 +1 金币' },
     A: { name: '金猪', desc: '每波产出翻倍' },
     B: { name: '保险箱', desc: '蚂蚁偷不走金币；每漏 1 只怪返还 10 金币' },
+  },
+  swatter: {
+    id: 'swatter', name: '苍蝇拍', cost: 50, role: '专职防空', desc: `只打空中：一拍打中目标和周围 ${SWATTER.splash} 格内的飞行敌人，飞蛾无法闪避`,
+    hitsAir: true, hitsGround: false, unlock: '1-5', attacks: true,
+    damage: 26, interval: 1.2, range: 3.0, projSpeed: 0, maxLevel: 10,
+    t2: { name: '气流', desc: `被拍中的飞行敌人减速 ${pct(SWATTER.airSlow)}，持续 ${SWATTER.airSlowDur} 秒` },
+    t3: { name: '双拍', desc: `一次拍两个不同的目标，拍击范围 +${SWATTER.splashT3} 格` },
+    A: { name: '电蚊拍', desc: `拍中后放出连锁闪电，在飞行敌人之间弹跳 ${SWATTER.chain} 次，每跳伤害 ×${SWATTER.chainMul}，并让目标麻痹 ${SWATTER.chainStun} 秒` },
+    B: { name: '捕虫网', desc: `每第 ${SWATTER.netEvery} 次攻击改为甩网，把 1 个飞行敌人网到地面 ${SWATTER.netDur} 秒（Boss 不受影响）；被网住的敌人按迷宫行走、会被地面塔攻击，受到伤害 +${pct(SWATTER.netVuln)}` },
   },
 };
 

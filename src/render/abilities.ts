@@ -236,6 +236,19 @@ export function abilityFx(ctx: RenderCtx, towers: TowerLayer, field: FieldLayer,
       fx.text(tx, ty - 24, '锁门!', 'level');
       break;
     }
+    case 'swatter_A': {
+      // 电网：持续放电由 swatter.ts 画；这里给一次释放冲击
+      fx.ring(tx, ty, 6, CELL * 2.2, C.cyan, 0.45, 4, true);
+      for (const e of st.enemies) if (e.flying) fx.disc(P(e.x), P(e.y), 10, C.cyan, 0.2, true, 0.8);
+      fx.text(tx, ty - 24, '电网!', 'level');
+      break;
+    }
+    case 'swatter_B': {
+      // 天网：大网下落动画由 swatter.ts 画
+      fx.ring(tx, ty, 6, CELL * 1.6, C.netString, 0.4, 4);
+      fx.text(tx, ty - 24, '撒网!', 'level');
+      break;
+    }
     default:
       fx.sparkle(ax, ay, col, 8, 26);
       break;

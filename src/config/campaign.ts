@@ -35,6 +35,11 @@ const gs = (enemy: EnemyId, count: number, interval?: number): CampaignGroup => 
 
 export const CAMPAIGN_WAVES = 20;
 export const CAMPAIGN_MINI_BOSS_HP = 0.6;
+/** 战役各章敌人生命额外倍率（文档 04：普通 · 中等以 2～3 星通关为主，困难 · 高手能通关但会掉命） */
+export const CAMPAIGN_HP: Record<'normal' | 'hard', Record<MapId, number>> = {
+  normal: { ch1: 1.5, ch2: 1.3, ch3: 1.0 },
+  hard: { ch1: 1.15, ch2: 1.05, ch3: 1.0 },
+};
 
 export const CAMPAIGN: Record<MapId, CampaignChapter> = {
   ch1: {

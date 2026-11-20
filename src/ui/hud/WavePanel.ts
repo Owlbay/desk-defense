@@ -6,6 +6,7 @@ import { AFFIX_META, ENEMY_META, spawnerName } from '../coreMeta';
 import { h, img, setText, toggle } from '../dom';
 import { G } from '../icons';
 import type { GameCtx } from './context';
+import { replay } from './motion';
 
 const TAG: Record<WavePreview['tags'][number], { name: string; glyph: string }> = {
   boss: { name: 'Boss', glyph: G.skull },
@@ -38,6 +39,8 @@ export class WavePanel {
   /** 本轮倒计时总长（用于进度环） */
   private cdTotal = 0;
   private lastNextAt: number | null = null;
+  private counting = false;
+  private lastP = -1;
 
   constructor(private ctx: GameCtx) {
     this.preview = h('div.preview-list');
@@ -101,9 +104,7 @@ export class WavePanel {
 
   /** 自动开波倒计时剩 3/2/1 秒：按钮闪一下（提示音由 audio 处理） */
   onCountdown(secondsLeft: number): void {
-    this.startBtn.classList.remove('blink');
-    void this.startBtn.offsetWidth;
-    this.startBtn.classList.add('blink');
+    replay(this.startBtn, 'blink', 520);
     this.startBtn.dataset.count = String(secondsLeft);
   }
 
@@ -174,14 +175,28 @@ export class WavePanel {
     toggle(this.startBtn, 'blocked', blocked);
     this.ring.hidden = !counting;
     this.startIco.hidden = counting;
-    if (counting) {
-      const p = this.cdTotal > 0 ? Math.max(0, Math.min(1, remain / this.cdTotal)) : 0;
-      this.ring.style.setProperty('--p', p.toFixed(3));
-    }
+    this.counting = counting;
+    if (counting) this.setRing(remain);
+    else this.lastP = -1;
     const bossNext = !lastWave && nw.tags.includes('boss') && st.phase !== 'won' && st.phase !== 'lost';
     this.bossHint.hidden = !bossNext;
     toggle(this.startBtn, 'boss-next', bossNext);
     this.startBtn.title = bossNext ? 'Boss 波：倒计时 ×1.5，做好准备（空格开波）' : counting ? '提前开波可获得金币（空格）' : '开始下一波（空格）';
+  }
+
+  /** 每帧调用：倒计时环平滑走（只写一个 CSS 变量，其余内容仍按低频刷新） */
+  tickFast(st: WorldState): void {
+    if (!this.counting) return;
+    const at = st.autoWave?.nextAt;
+    if (at == null || st.phase === 'perk') return;
+    this.setRing(Math.max(0, at - st.time));
+  }
+
+  private setRing(remain: number): void {
+    const p = this.cdTotal > 0 ? Math.max(0, Math.min(1, remain / this.cdTotal)) : 0;
+    if (Math.abs(p - this.lastP) < 0.0015) return;
+    this.lastP = p;
+    this.ring.style.setProperty('--p', p.toFixed(4));
   }
 
   /** 预警中的事件：「即将发生」时间轴 */
@@ -242,6 +257,11 @@ export class WavePanel {
       } else items.push(...chips);
     }
     if (items.length === 0) items.push(h('span.muted.small', null, '—'));
+    // 预览变化：小卡片依次弹入
+    items.forEach((it, k) => {
+      it.classList.add('pv-in');
+      it.style.setProperty('--i', String(Math.min(k, 8)));
+    });
     this.preview.replaceChildren(...items);
   }
 

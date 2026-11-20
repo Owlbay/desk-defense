@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import type { EnemyId, EnemyState } from '../core/types';
 import type { RenderCtx } from './ctx';
 import { CELL, DEPTH } from './layout';
+import { easeOutBack } from './motion';
 import { C, FONT, hex } from './palette';
 import { PartSet } from './parts';
 import { TEX } from './sprites';
@@ -57,6 +58,20 @@ class EnemyView {
   age = 0;
   lift = 0;
   fxT = 0;
+  /** 苍蝇拍·捕虫网：当前是否被网在地上 */
+  netted = false;
+  private netBurst = 0;
+  /** 受击后退 / 晃动进度（秒）；<0 = 没有 */
+  private hitT = -1;
+  /** 暴击定格剩余（真实秒）：只冻结这个敌人的显示 */
+  private stop = 0;
+  /** 着色状态：0 原色 / 1 闪白 / 2 灼烧橙 */
+  private tintMode = 0;
+  /** 出场方式：0 原地弹出 / 1 从入口缺口钻出 / 2 从纸箱里跳出 */
+  private spawnKind = 0;
+  private spawnLanded = true;
+  /** 易伤准星锁定动画（秒） */
+  private markT = -1;
   // 标记
   private eliteRing: Phaser.GameObjects.Image;
   private rootBlob: Phaser.GameObjects.Image;
@@ -69,6 +84,7 @@ class EnemyView {
   private barSh: Phaser.GameObjects.Image;
   private stars: Phaser.GameObjects.Image[] = [];
   private eye: Phaser.GameObjects.Image;
+  private net: Phaser.GameObjects.Image;
 
   constructor(private ctx: RenderCtx) {
     const sc = ctx.scene;
@@ -81,13 +97,14 @@ class EnemyView {
     this.root.add([this.eliteRing, this.rootBlob, this.slowFill, this.slowRing]);
     this.parts = new PartSet(sc, this.root, UNDER_COUNT);
     for (let i = 0; i < 5; i++) this.inks.push(img(TEX.disc, C.inkBlue));
-    this.markRing = img(TEX.ring, C.alarmRed).setAlpha(0.7);
+    this.markRing = img(TEX.reticle, C.alarmRed).setAlpha(0.85);
     this.barBg = img(TEX.px, C.ink).setOrigin(0, 0.5).setAlpha(0.85);
     this.barHp = img(TEX.px, C.bad).setOrigin(0, 0.5);
     this.barSh = img(TEX.px, C.cyan).setOrigin(0, 0.5);
     for (let i = 0; i < 3; i++) this.stars.push(img(TEX.star, C.goldLight));
     this.eye = sc.add.image(0, 0, TEX.eye).setVisible(false);
-    this.root.add([...this.inks, this.markRing, this.barBg, this.barHp, this.barSh, ...this.stars, this.eye]);
+    this.net = sc.add.image(0, 0, TEX.net).setVisible(false);
+    this.root.add([this.net, ...this.inks, this.markRing, this.barBg, this.barHp, this.barSh, ...this.stars, this.eye]);
   }
 
   reset(e: EnemyState, tick: number): void {
@@ -103,17 +120,54 @@ class EnemyView {
     this.flashUntil = 0;
     this.lastHitSeen = e.lastHit;
     this.rot = e.angle + Math.PI / 2;
-    this.age = 0;
     this.lift = 0;
+    this.hitT = -1;
+    this.stop = 0;
+    this.markT = -1;
+    this.fxT = Math.random() * 0.18;
+    const wst = this.ctx.session.world.state;
+    // 刚出生的敌人播放出场动画：纸箱里的跳出来，入口 / 暗门的从缺口钻出来
+    const fresh = wst.time - e.spawnedAt < 0.3;
+    this.age = fresh ? 0 : 1;
+    this.spawnKind = 0;
+    this.spawnLanded = true;
+    if (fresh) {
+      if (wst.spawners && wst.spawners.length) {
+        for (const sp of wst.spawners) {
+          let hit = false;
+          for (const c of sp.cells) if (Math.abs(c.x + 0.5 - e.x) < 0.9 && Math.abs(c.y + 0.5 - e.y) < 0.9) hit = true;
+          if (hit) {
+            this.spawnKind = sp.kind === 'drop' ? 2 : 1;
+            break;
+          }
+        }
+      } else for (const c of wst.grid.spawns) if (Math.abs(c.x + 0.5 - e.x) < 0.9 && Math.abs(c.y + 0.5 - e.y) < 0.9) this.spawnKind = 1;
+      this.spawnLanded = this.spawnKind !== 2;
+      if (e.elite) {
+        // 精英登场：金色微光
+        const fx = this.ctx.fx;
+        fx.ring(e.x * CELL, e.y * CELL, 4, 26, C.goldLight, 0.45, 2.5, true);
+        fx.sparkle(e.x * CELL, e.y * CELL - 4, C.goldLight, 5, 22);
+      }
+    }
+    this.netted = (e.netUntil ?? 0) > wst.time;
     this.root.setVisible(true).setActive(true).setAlpha(1).setScale(1);
     this.badgeKey = '';
     this.setBadges(e);
     this.setLabel(e);
-    if (this.flashing) {
+    if (this.tintMode !== 0) {
       this.parts.tintFill(false);
-      this.flashing = false;
+      this.tintMode = 0;
     }
+    this.flashing = false;
     this.applyQuality();
+  }
+
+  /** 暴击定格：冻结显示 sec 秒（真实时间），同时保持闪白 */
+  hitStop(sec: number): void {
+    if (this.ctx.reduced) return;
+    this.stop = sec;
+    this.flashUntil = this.ctx.vtime + 0.09;
   }
 
   applyQuality(): void {
@@ -189,25 +243,89 @@ class EnemyView {
       }
     }
     const a = ctx.alpha;
-    this.x = (this.prevX + (this.curX - this.prevX) * a) * CELL;
-    this.y = (this.prevY + (this.curY - this.prevY) * a) * CELL;
-    this.root.setPosition(this.x, this.y);
-    this.root.setDepth(e.flying ? DEPTH.air + this.y * 0.0001 : DEPTH.ground + this.y * 0.0001);
+    const stopped = this.stop > 0;
+    if (stopped) this.stop -= ctx.rdt;
+    else {
+      this.x = (this.prevX + (this.curX - this.prevX) * a) * CELL;
+      this.y = (this.prevY + (this.curY - this.prevY) * a) * CELL;
+      this.root.setPosition(this.x, this.y);
+    }
+    // 苍蝇拍·捕虫网：被网住的飞行敌人落到地面（core 同时把 flying 置为 false；这里两种情况都按地面画）
+    const netted = (e.netUntil ?? 0) > now;
+    const air = e.flying && !netted;
+    if (netted !== this.netted) {
+      this.netted = netted;
+      if (netted) {
+        // 落地：扬尘 + 一圈网绳色的冲击
+        ctx.fx.dust(this.x, this.y + 6, 16, C.paper);
+        ctx.fx.ring(this.x, this.y + 2, 4, this.rpx(e) * 1.5, C.netString, 0.3, 2.5);
+      } else {
+        // 挣脱：网绳碎片 + 向上飘的灰尘
+        ctx.fx.shatter(this.x, this.y, C.netString, 5, 3);
+        ctx.fx.mote(this.x, this.y - 4, C.paper, -30, 0.5, 2.5, false);
+      }
+    }
+    this.root.setDepth(air ? DEPTH.air + this.y * 0.0001 : DEPTH.ground + this.y * 0.0001);
 
     // 缩放（精英 / 兵团 / Boss）；出生时弹出
-    this.age += ctx.rdt;
-    const born = this.age < 0.25 ? 0.5 + (this.age / 0.25) * 0.5 : 1;
+    let born = 1,
+      bornA = 1,
+      bornLift = 0;
+    if (this.age < 0.32) {
+      this.age += ctx.rdt;
+      const p = Math.min(1, this.age / 0.32);
+      if (ctx.reduced) born = 0.7 + 0.3 * p;
+      else if (this.spawnKind === 1) {
+        // 从缺口钻出：由小变大、淡入、略微从下方冒出
+        born = 0.35 + 0.65 * easeOutBack(p, 2.2);
+        bornA = Math.min(1, p * 2.5);
+        bornLift = -5 * (1 - p) * (1 - p);
+      } else if (this.spawnKind === 2) {
+        // 从纸箱里跳出来：一个小抛物线，落地扬一点灰
+        born = 0.5 + 0.5 * Math.min(1, p * 1.6);
+        bornLift = Math.sin(p * Math.PI) * 12;
+        if (p >= 1 && !this.spawnLanded) {
+          this.spawnLanded = true;
+          if (ctx.quality === 'high') ctx.fx.dust(this.x, this.y + 6, 8, C.tapeTan);
+        }
+      } else born = 0.5 + 0.5 * easeOutBack(p, 2.4);
+    }
     const s = (e.scale || 1) * born;
     this.root.setScale(s);
 
     // 行走动画
     const t = ctx.vtime + this.phase;
-    const lift = e.flying ? 7 + Math.sin(t * 3) * 2 : e.jumping ? 10 : 0;
-    this.lift += (lift - this.lift) * Math.min(1, ctx.rdt * 14);
+    const lift = air ? 7 + Math.sin(t * 3) * 2 : e.jumping ? 10 : 0;
+    // 被网住时快速坠地；挣脱后慢一点升回空中
+    const liftRate = netted ? 22 : lift > this.lift + 0.5 ? 7 : 14;
+    this.lift += (lift - this.lift) * Math.min(1, ctx.rdt * liftRate);
     const stunned = e.stunUntil > now;
-    const frozen = stunned || ctx.vdt === 0;
-    const bob = e.flying || frozen ? 0 : -Math.abs(Math.sin(t * 7)) * 2;
-    const sway = frozen ? 0 : e.flying ? Math.sin(t * 3) * 0.06 : Math.sin(t * 7) * ((4 * Math.PI) / 180);
+    const frozen = stunned || stopped || ctx.vdt === 0;
+    const bob = air || netted || frozen ? 0 : -Math.abs(Math.sin(t * 7)) * 2;
+    let sway = frozen ? 0 : air ? Math.sin(t * 3) * 0.06 : Math.sin(t * 7) * ((4 * Math.PI) / 180);
+    // 网中挣扎：一阵一阵地扭动 + 抖动
+    let jx = 0;
+    if (netted && ctx.vdt > 0) {
+      const burst = Phaser.Math.Clamp(Math.sin(t * 2.2) * 1.6 - 0.3, 0, 1);
+      sway = Math.sin(t * 26) * 0.2 * burst;
+      jx = Math.sin(t * 37) * 1.6 * burst;
+      this.netBurst = burst;
+    } else this.netBurst = 0;
+    // 受击：朝来路后退一下 + 衰减的晃动
+    let jy = 0;
+    if (this.hitT >= 0) {
+      if (!stopped) this.hitT += ctx.rdt;
+      const p = this.hitT / 0.24;
+      if (p >= 1) this.hitT = -1;
+      else {
+        const k = (1 - p) * (1 - p);
+        const kb = 2.6 * k * (e.boss ? 0.5 : 1);
+        jx -= Math.cos(e.angle) * kb;
+        jy -= Math.sin(e.angle) * kb;
+        sway += Math.sin(p * 19) * 0.16 * k * (e.boss ? 0.4 : 1);
+      }
+    }
+    const liftAll = this.lift + bornLift;
     let rot = 0;
     if (DIRECTIONAL.has(e.id)) {
       const target = e.angle + Math.PI / 2;
@@ -219,17 +337,19 @@ class EnemyView {
     }
     for (const [name, img] of this.parts.imgs) {
       if (name === 'shadow') {
-        img.y = e.flying ? 4 : 0;
-        const sh = e.flying || e.jumping ? 0.8 : 1;
+        img.y = air ? 4 : 0;
+        const sh = air || e.jumping ? 0.8 : 1;
         this.parts.scaleRel(img, sh, sh);
-        img.setAlpha(e.flying ? 0.7 : 1);
+        img.setAlpha(air ? 0.7 : 1);
         continue;
       }
-      img.y = bob - this.lift;
+      img.x = jx;
+      img.y = bob - liftAll + jy;
       img.rotation = rot + sway;
       if (name === 'wing-l' || name === 'wing-r') {
-        const f = stunned ? 1 : 0.55 + 0.45 * Math.abs(Math.cos((t * Math.PI) / 0.25));
-        this.parts.scaleRel(img, f, 1);
+        // 网住：翅膀收拢、不再扇动
+        const f = netted ? 0.3 : stunned ? 1 : 0.55 + 0.45 * Math.abs(Math.cos((t * Math.PI) / 0.25));
+        this.parts.scaleRel(img, f, netted ? 0.85 : 1);
       } else if (name === 'glow') {
         img.setAlpha(0.55 + 0.35 * Math.sin(t * 2.5));
       }
@@ -238,20 +358,27 @@ class EnemyView {
     // 受击闪白（连续受击时留出间隔，避免一直是白色）
     if (e.lastHit !== this.lastHitSeen) {
       this.lastHitSeen = e.lastHit;
-      if (ctx.vtime > this.flashUntil + 0.12) this.flashUntil = ctx.vtime + 0.08;
+      if (ctx.vtime > this.flashUntil + 0.12) {
+        this.flashUntil = ctx.vtime + 0.08;
+        if (!ctx.reduced) this.hitT = 0;
+      }
     }
-    const fl = ctx.vtime < this.flashUntil;
-    if (fl !== this.flashing) {
-      this.flashing = fl;
+    const fl = ctx.vtime < this.flashUntil || stopped;
+    this.flashing = fl;
+    // 灼烧：橙色明灭（只在状态切换时改着色）
+    const mode = fl ? 1 : e.burnUntil > now && Math.sin(t * 21) > 0.15 ? 2 : 0;
+    if (mode !== this.tintMode) {
+      this.tintMode = mode;
       for (const [name, img] of this.parts.imgs) {
         if (name === 'shadow' || name === 'glow') continue;
-        if (fl) img.setTintFill(0xffffff);
+        if (mode === 1) img.setTintFill(0xffffff);
+        else if (mode === 2) img.setTint(0xffb46e);
         else img.clearTint();
       }
     }
 
     // 隐形
-    this.root.setAlpha(e.hidden ? 0.25 : 1);
+    this.root.setAlpha((e.hidden ? 0.25 : 1) * bornA);
 
     // 词缀图标 / 兵团标签
     if (e.elite || this.badges.length) this.setBadges(e);
@@ -263,8 +390,15 @@ class EnemyView {
       this.fxT -= ctx.vdt;
       if (this.fxT <= 0) {
         this.fxT = 0.18;
-        if (e.burnUntil > now) ctx.fx.mote(this.x + (Math.random() - 0.5) * 10, this.y - 4, C.lamp, -26, 0.45, 2.2);
-        if (e.bleedStacks > 0 && Math.random() < 0.5) ctx.fx.mote(this.x + (Math.random() - 0.5) * 8, this.y, C.bookRed, 18, 0.4, 1.6, false);
+        const fx = ctx.fx;
+        if (e.burnUntil > now) fx.mote(this.x + (Math.random() - 0.5) * 10, this.y - 4 - this.lift, Math.random() < 0.3 ? C.goldLight : C.lamp, -26, 0.45, 2.2);
+        // 流血：一滴一滴往下掉
+        if (e.bleedStacks > 0 && Math.random() < 0.35 + 0.15 * Math.min(4, e.bleedStacks)) fx.drip(this.x + (Math.random() - 0.5) * 8, this.y - this.lift, C.bookRed, 1.7);
+        // 墨迹：偶尔滴墨
+        if (e.inkStacks > 0 && Math.random() < 0.12 * Math.min(5, e.inkStacks)) fx.drip(this.x + (Math.random() - 0.5) * 10, this.y + 2 - this.lift, C.inkBlue, 2);
+        // 减速：身后留下一小串冷色的点（减弱动效时不出）
+        if (!ctx.reduced && e.slowUntil > now && e.slowPct > 0 && !stunned && Math.random() < 0.45)
+          fx.mote(this.x - Math.cos(e.angle) * 7 + (Math.random() - 0.5) * 5, this.y - Math.sin(e.angle) * 7 + 3 - this.lift, C.blueCap, -4, 0.4, 1.8, false);
       }
     }
   }
@@ -277,7 +411,13 @@ class EnemyView {
     const bodyY = -liftW * k;
     // 精英环
     if (e.elite) {
-      this.eliteRing.setVisible(true).setPosition(0, r * 0.55 * k).setDisplaySize(r * 2.3 * k, r * 0.95 * k);
+      // 精英环：缓慢呼吸的微光
+      const sh = 0.5 + 0.5 * Math.sin(this.ctx.vtime * 3.2 + this.phase);
+      this.eliteRing
+        .setVisible(true)
+        .setPosition(0, r * 0.55 * k)
+        .setDisplaySize(r * (2.3 + 0.12 * sh) * k, r * (0.95 + 0.05 * sh) * k)
+        .setAlpha(0.7 + 0.3 * sh);
     } else this.eliteRing.setVisible(false);
     // 定身
     if (e.rootUntil > now) {
@@ -285,7 +425,7 @@ class EnemyView {
     } else this.rootBlob.setVisible(false);
     // 减速外圈
     if (e.slowUntil > now && e.slowPct > 0) {
-      const d = (r + 3) * 2 * k;
+      const d = (r + 3 + Math.sin(this.ctx.vtime * 4 + this.phase) * 0.8) * 2 * k;
       this.slowRing.setVisible(true).setPosition(0, bodyY).setDisplaySize(d, d);
       this.slowFill.setVisible(true).setPosition(0, bodyY).setDisplaySize(d, d);
     } else {
@@ -294,9 +434,22 @@ class EnemyView {
     }
     // 易伤标记
     if (e.markedUntil > now) {
-      const d = (r + 6) * 2 * k;
-      this.markRing.setVisible(true).setPosition(0, bodyY).setDisplaySize(d, d);
-    } else this.markRing.setVisible(false);
+      // 准星：先从大圈收拢锁定，然后慢慢转、轻微脉动
+      if (this.markT < 0) this.markT = 0;
+      else if (this.markT < 0.25) this.markT += this.ctx.rdt;
+      const lock = this.ctx.reduced ? 1 : Math.min(1, this.markT / 0.25);
+      const open = (1 - lock) * (1 - lock);
+      const d = (r + 7 + Math.sin(this.ctx.vtime * 6) * 0.7) * 2.3 * k * (1 + open * 0.9);
+      this.markRing
+        .setVisible(true)
+        .setPosition(0, bodyY)
+        .setDisplaySize(d, d)
+        .setRotation(this.ctx.reduced ? 0 : this.ctx.vtime * 1.4 + open * 2)
+        .setAlpha(0.85 * (0.3 + 0.7 * lock));
+    } else if (this.markRing.visible) {
+      this.markRing.setVisible(false);
+      this.markT = -1;
+    }
     // 墨迹点
     const ink = Math.min(5, e.inkStacks | 0);
     for (let i = 0; i < 5; i++) {
@@ -341,14 +494,30 @@ class EnemyView {
       const tt = this.ctx.vtime * 5 + this.phase;
       const yb = barTop - (n ? 16 : 4);
       for (let i = 0; i < 3; i++) {
+        // 椭圆轨道：转到后面的星星小一点、淡一点
         const a = tt + (i * Math.PI * 2) / 3;
+        const depth = Math.sin(a);
+        const sz = (7 + depth * 1.8) * k;
         this.stars[i]
           .setVisible(true)
-          .setPosition(Math.cos(a) * r * 0.8 * k, (yb + Math.sin(a) * 3) * k)
-          .setDisplaySize(7 * k, 7 * k)
-          .setRotation(tt);
+          .setPosition(Math.cos(a) * r * 0.85 * k, (yb + depth * 3.2) * k)
+          .setDisplaySize(sz, sz)
+          .setRotation(tt * 1.3 + i)
+          .setAlpha(0.75 + 0.25 * depth);
       }
     } else if (this.stars[0].visible) for (const st of this.stars) st.setVisible(false);
+    // 捕虫网：罩在身上的网（快到期时闪烁）
+    if (this.netted) {
+      const left = (e.netUntil ?? 0) - now;
+      const blink = left < 0.6 ? 0.45 + 0.55 * Math.abs(Math.sin(this.ctx.vtime * 14)) : 1;
+      const d = r * 2.5 * k * (1 + this.netBurst * 0.07 * Math.sin(this.ctx.vtime * 26));
+      this.net
+        .setVisible(true)
+        .setPosition(0, bodyY)
+        .setDisplaySize(d, d)
+        .setRotation(Math.sin(this.ctx.vtime * 3 + this.phase) * 0.08 + this.netBurst * Math.sin(this.ctx.vtime * 31) * 0.07)
+        .setAlpha(blink);
+    } else if (this.net.visible) this.net.setVisible(false);
     // 被侦测的隐形敌人：眼睛
     if (e.stealthy && !e.hidden) {
       this.eye.setVisible(true).setPosition(-r * 0.95 * k, (top - 1) * k).setDisplaySize(12 * k, 12 * k);
@@ -358,10 +527,11 @@ class EnemyView {
 
   release(): void {
     this.root.setVisible(false).setActive(false);
-    if (this.flashing) {
+    if (this.tintMode !== 0) {
       this.parts.tintFill(false);
-      this.flashing = false;
+      this.tintMode = 0;
     }
+    this.flashing = false;
   }
 
   destroy(): void {
@@ -381,6 +551,11 @@ export class EnemyLayer {
   pos(uid: number): { x: number; y: number } | null {
     const v = this.views.get(uid);
     return v ? { x: v.x, y: v.y } : null;
+  }
+
+  /** 暴击定格：只冻结这一个敌人的显示（不影响游戏逻辑） */
+  hitStop(uid: number, sec: number): void {
+    this.views.get(uid)?.hitStop(sec);
   }
 
   setResolution(r: number): void {

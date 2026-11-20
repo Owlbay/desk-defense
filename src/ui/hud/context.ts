@@ -29,8 +29,8 @@ export const TARGET_NAME: Record<TargetMode, string> = {
 
 export const RARITY_NAME = { common: '普通', rare: '稀有', epic: '史诗' } as const;
 
-/** 1–9、0、- 对应塔栏第 1..11 个 */
-export const BUILD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-'];
+/** 1–9、0、-、= 对应塔栏第 1..12 个 */
+export const BUILD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '='];
 export const SKILL_KEYS = ['Q', 'W', 'E', 'R'];
 
 export const fmtSec = (s: number): string => (s >= 10 ? String(Math.ceil(s)) : s > 0 ? s.toFixed(1) : '0');

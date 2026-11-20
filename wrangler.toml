@@ -1,4 +1,28 @@
-# Cloudflare Pages 配置（静态站点，无服务端代码）
+# Cloudflare Pages 配置：静态站点 + Pages Functions（functions/ 目录，提供 /api/* 全服排行榜）
+# 设计与运维步骤见 docs/12-全服排行榜.md
 name = "desk-defense"
 pages_build_output_dir = "dist"
-compatibility_date = "2026-11-01"
+compatibility_date = "2026-10-13"
+
+# D1 数据库（全服排行榜）
+# 1. 创建：npx wrangler@4 d1 create desk-defense   → 把输出里的 database_id 填到下面
+# 2. 建表：npx wrangler@4 d1 migrations apply desk-defense --remote
+# 本地开发（miniflare，数据存在 .wrangler/state）：
+#    npx wrangler@4 d1 migrations apply desk-defense --local
+#    npx vite build && npx wrangler@4 pages dev dist
+# 没有绑定 DB 时，/api/* 返回 503 not_configured，游戏显示「在线功能不可用」，其它功能不受影响。
+[[d1_databases]]
+binding = "DB"
+database_name = "desk-defense"
+database_id = "dea6a39a-e1a2-4e29-9084-341e4556b1ba"
+migrations_dir = "migrations"
+
+# 普通变量（非机密）。机密请用 secret，不要写在这里：
+#   npx wrangler@4 pages secret put HASH_SALT --project-name desk-defense          （必需：哈希 IP / 设备 id 的盐，随机长串）
+#   npx wrangler@4 pages secret put TURNSTILE_SECRET --project-name desk-defense   （可选：设置后提交成绩必须通过 Turnstile）
+# 本地开发可以在项目根目录建 .dev.vars（勿提交）：HASH_SALT=dev-only
+[vars]
+# 可选：Turnstile 站点密钥（公开值，由 /api/status 下发给客户端）；不用 Turnstile 时留空
+TURNSTILE_SITE_KEY = ""
+# 可选：逗号分隔，临时额外接受的客户端版本（默认只接受 src/shared/leaderboard.ts 的 GAME_VERSION）
+ACCEPT_GAME_VERSIONS = ""

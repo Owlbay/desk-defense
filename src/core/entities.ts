@@ -69,6 +69,8 @@ export interface Tower extends TowerState {
   calcCritUntil: number;
   /** 被光环覆盖的计算器中，是否有心算（★2 算盘：升级费用 −10%） */
   abacusDiscount: boolean;
+  /** 苍蝇拍 A ★3「电网」放电计时 */
+  zapT: number;
 }
 
 export interface Enemy extends EnemyState {
@@ -125,6 +127,9 @@ export interface Enemy extends EnemyState {
   rootVulnUntil: number;
   /** 被红笔 ★2 标记：死亡 +1 金币 */
   redGold: boolean;
+  /** 拆解钳「拆解」之后的易伤 */
+  stripUntil: number;
+  stripVuln: number;
 }
 
 export interface Proj extends ProjectileState {

@@ -7,6 +7,7 @@ import { h, img, setText, toggle } from '../dom';
 import { G } from '../icons';
 import { castTowerAbility } from './abilities';
 import { fmtSec, SKILL_KEYS, type GameCtx } from './context';
+import { replay } from './motion';
 
 interface AbilityBtn {
   uid: number;
@@ -17,6 +18,35 @@ interface AbilityBtn {
   cdMax: number;
   maxCharges: number | undefined;
   lastPct: number;
+  wasReady: boolean | null;
+}
+
+/**
+ * 充能显示：不超过 5 格时画成小圆点（充能 / 消耗时圆点弹一下），更多则退回「n/m」文字。
+ * 只在数值变化时写 DOM。
+ */
+function setCharges(el: HTMLElement, n: number, max: number): void {
+  const key = `${n}/${max}`;
+  if (el.dataset.v === key) return;
+  const first = el.dataset.v === undefined;
+  el.dataset.v = key;
+  el.setAttribute('aria-label', `充能 ${key}`);
+  if (max > 5 || max <= 0) {
+    el.classList.remove('dots');
+    el.textContent = key;
+    return;
+  }
+  if (el.childElementCount !== max) {
+    el.classList.add('dots');
+    el.replaceChildren(...Array.from({ length: max }, () => h('i')));
+  }
+  for (let k = 0; k < max; k++) {
+    const d = el.children[k] as HTMLElement;
+    const on = k < n;
+    if (d.classList.contains('on') === on) continue;
+    d.classList.toggle('on', on);
+    if (!first) replay(d, on ? 'gain' : 'spend', 420);
+  }
 }
 
 /** 技能栏右侧「塔能力」区最多显示的神话塔数（文档 11 §1.4） */
@@ -128,14 +158,10 @@ export class SkillBar {
         b.sweep.style.setProperty('--cd', `${(pct * 360).toFixed(1)}deg`);
       }
       setText(b.secs, !s.ready && s.cd > 0 && !(charged && (s.charges ?? 0) > 0) ? fmtSec(s.cd) : '');
-      if (b.charges) setText(b.charges, `${s.charges ?? 0}/${s.maxCharges ?? 0}`);
+      if (b.charges) setCharges(b.charges, s.charges ?? 0, s.maxCharges ?? 0);
       toggle(b.el, 'ready', s.ready);
       toggle(b.el, 'cooling', !s.ready);
-      if (s.ready && !b.wasReady) {
-        b.el.classList.remove('ping');
-        void b.el.offsetWidth;
-        b.el.classList.add('ping');
-      }
+      if (s.ready && !b.wasReady) replay(b.el, 'ping', 650);
       b.wasReady = s.ready;
     }
     this.updateAbilities(st);
@@ -164,9 +190,11 @@ export class SkillBar {
         b.sweep.style.setProperty('--cd', `${(pct * 360).toFixed(1)}deg`);
       }
       setText(b.secs, !ready && !charged && cd > 0 ? fmtSec(cd) : '');
-      if (b.charges) setText(b.charges, `${charges ?? 0}/${b.maxCharges ?? 0}`);
+      if (b.charges) setCharges(b.charges, charges ?? 0, b.maxCharges ?? 0);
       toggle(b.el, 'ready', ready);
       toggle(b.el, 'cooling', !ready);
+      if (ready && b.wasReady === false) replay(b.el, 'ping', 650);
+      b.wasReady = ready;
       toggle(b.el, 'aiming', ui.state.abilityAiming === b.uid);
     }
   }
@@ -194,7 +222,7 @@ export class SkillBar {
         charges,
       );
       this.stripList.appendChild(el);
-      this.abil.push({ uid: t.uid, el, sweep, secs, charges, cdMax: ab.cdMax, maxCharges: ab.maxCharges, lastPct: -1 });
+      this.abil.push({ uid: t.uid, el, sweep, secs, charges, cdMax: ab.cdMax, maxCharges: ab.maxCharges, lastPct: -1, wasReady: null });
     }
     // 能力信息还没就绪时下次重试
     this.abilSig = this.abil.length === towers.length ? sig : '';

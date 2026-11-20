@@ -96,6 +96,9 @@ export class FieldLayer {
   private pickupBorn = new Map<number, number>();
   private pickupSeen = new Set<number>();
   private edgePulse = { t: 99, sec: 0 };
+  /** 漏怪：出口纸页翻动 + 红色脉冲的进度（秒） */
+  private leakT = 99;
+  private leakBig = false;
   private startedFx = new Set<number>();
   private resolution = 1;
   /** 神话能力的全局效果（state.time 截止） */
@@ -154,6 +157,18 @@ export class FieldLayer {
   }
 
   // ───────────── 事件 ─────────────
+
+  /** 敌人漏过出口：纸页翻动、红色脉冲、飞出几张纸片 */
+  onLeak(lives: number): void {
+    this.leakT = 0;
+    this.leakBig = lives > 1;
+    const st = this.ctx.session.world.state;
+    const fx = this.ctx.fx;
+    for (const e of st.grid.exits) {
+      fx.cell(e.x * CELL, e.y * CELL, CELL, CELL, C.bad, 0.5, 0.45);
+      if (lives > 0) fx.confettiOf((e.x + 0.5) * CELL, (e.y + 0.4) * CELL, C.bookPage, 3);
+    }
+  }
 
   handle(ev: GameEvent): void {
     const fx = this.ctx.fx;
@@ -324,8 +339,8 @@ export class FieldLayer {
     fx.dust(x, y + 6, CELL * 0.5, C.paper);
     fx.ring(x, y, CELL * 0.4, CELL * 1.6, C.ink, 0.35, 4);
     fx.shatter(x, y + 8, C.deskDark, 6, 3);
-    const cam = this.ctx.scene.cameras.main;
-    cam.shake(180, (0.09 * CELL) / Math.max(1, cam.width * cam.zoom));
+    // 纸箱落地：一次下砸再回弹
+    this.ctx.cam.shake(260, 0.12, 'thud');
   }
 
   private syncDrops(st: WorldState): void {
@@ -384,6 +399,7 @@ export class FieldLayer {
     this.drawCoins(rdt);
     this.drawGlobal(st, now);
     this.drawEdgePulse(rdt);
+    this.drawLeak(st, rdt);
 
     // 回收未使用的文字 / 图标
     for (let i = this.textN; i < this.texts.length; i++) if (this.texts[i].visible) this.texts[i].setVisible(false);
@@ -441,6 +457,11 @@ export class FieldLayer {
     const groups = st.nextWave?.groups ?? [];
     const rt = performance.now() / 1000;
     const pulse = 0.5 + 0.5 * Math.sin(rt * 5);
+    // 出生点「呼吸」：慢吸慢呼；自动开波只剩 3 秒时越来越急
+    const left = st.autoWave?.nextAt != null ? st.autoWave.nextAt - st.time : 99;
+    const period = left < 3 ? 0.55 : 1.9;
+    const bph = this.ctx.reduced ? 0.6 : (rt / period) % 1;
+    const breath = this.ctx.reduced ? 0.6 : 0.5 - 0.5 * Math.cos(bph * Math.PI * 2);
     const g = this.under;
     const sel = ui.state.spawnerSelected;
     for (const sp of st.spawners) {
@@ -459,10 +480,17 @@ export class FieldLayer {
       const mine = groups.filter((q) => q.spawner === sp.id || q.spawner === '*');
       if (!mine.length) continue;
       // 出生点亮起
-      g.fillStyle(C.bad, 0.1 + 0.1 * pulse);
-      g.fillRoundedRect(X + 2, Y + 2, W - 4, H - 4, 8);
-      g.lineStyle(2.5, C.bad, 0.45 + 0.4 * pulse);
-      g.strokeRoundedRect(X + 2, Y + 2, W - 4, H - 4, 8);
+      const grow = breath * 2.5;
+      g.fillStyle(C.bad, 0.08 + 0.14 * breath);
+      g.fillRoundedRect(X + 2 - grow, Y + 2 - grow, W - 4 + grow * 2, H - 4 + grow * 2, 8);
+      g.lineStyle(2.5, C.bad, 0.4 + 0.45 * breath);
+      g.strokeRoundedRect(X + 2 - grow, Y + 2 - grow, W - 4 + grow * 2, H - 4 + grow * 2, 8);
+      if (!this.ctx.reduced) {
+        // 每次呼气向外吐出一圈淡淡的环
+        const o = 3 + bph * 10;
+        g.lineStyle(2, C.bad, 0.3 * (1 - bph));
+        g.strokeRoundedRect(X - o, Y - o, W + o * 2, H + o * 2, 8 + o * 0.5);
+      }
       // 图标位置：沿"朝向棋盘内部"的方向排开
       const cx = (b.x + b.w / 2) / st.grid.cols,
         cy = (b.y + b.h / 2) / st.grid.rows;
@@ -852,8 +880,8 @@ export class FieldLayer {
         fx.dust(ox, oy + 8, Math.max(f.o.w, f.o.h) * CELL * 0.5, C.deskDark);
         fx.shatter(ox, oy, C.bookPage, 6, 4);
         fx.ring(ox, oy, 6, Math.max(f.o.w, f.o.h) * CELL * 0.8, C.ink, 0.35, 4);
-        const cam = this.ctx.scene.cameras.main;
-        cam.shake(160, (0.08 * CELL) / Math.max(1, cam.width * cam.zoom));
+        // 书本倒下：沉一点的下砸
+        this.ctx.cam.shake(320, 0.14, 'thud');
         this.hiddenObstacles.delete(f.key);
         // 背景下一帧会重画并包含这摞书；稍等一帧再移除，避免闪一下
         const g = f.g;
@@ -889,16 +917,64 @@ export class FieldLayer {
     }
   }
 
+  /** 自动开波最后 3 秒：桌沿向内收拢的双层脉冲，最后 1 秒变红、更重 */
   private drawEdgePulse(rdt: number): void {
     const p = this.edgePulse;
     if (p.t > 0.8) return;
     p.t += rdt;
-    const k = 1 - p.t / 0.8;
-    if (k <= 0) return;
-    const col = p.sec <= 1 ? C.bad : C.goldLight;
-    const w = 4 + (1 - k) * 8;
-    this.top.lineStyle(w, col, 0.55 * k);
-    this.top.strokeRoundedRect(w / 2, w / 2, BOARD_W - w, BOARD_H - w, 12);
+    const q = p.t / 0.8;
+    if (q >= 1) return;
+    const last = p.sec <= 1;
+    const col = last ? C.bad : C.goldLight;
+    const e = this.ctx.reduced ? 0 : 1 - (1 - q) * (1 - q) * (1 - q);
+    const k = (1 - q) * (1 - q);
+    const g = this.top;
+    const w = (last ? 7 : 5) * (1 - 0.5 * e);
+    const inset = w / 2 + e * (last ? 14 : 9);
+    g.lineStyle(w, col, (last ? 0.7 : 0.5) * k);
+    g.strokeRoundedRect(inset, inset, BOARD_W - inset * 2, BOARD_H - inset * 2, 12);
+    // 外圈细线留在桌沿，稍晚淡出
+    g.lineStyle(2, C.white, 0.35 * (1 - q));
+    g.strokeRoundedRect(1.5, 1.5, BOARD_W - 3, BOARD_H - 3, 12);
+    if (last) {
+      g.fillStyle(C.bad, 0.07 * k);
+      g.fillRoundedRect(0, 0, BOARD_W, BOARD_H, 12);
+    }
+  }
+
+  private drawLeak(st: WorldState, rdt: number): void {
+    if (this.leakT > 0.7) return;
+    this.leakT += rdt;
+    const p = this.leakT / 0.7;
+    if (p >= 1) return;
+    const g = this.top;
+    const k = (1 - p) * (1 - p);
+    const red = this.ctx.reduced;
+    for (const e of st.grid.exits) {
+      const X = e.x * CELL,
+        Y = e.y * CELL;
+      // 红色脉冲：两圈先后向外扩散
+      for (let i = 0; i < 2; i++) {
+        const q = p * 1.4 - i * 0.25;
+        if (q <= 0 || q >= 1) continue;
+        const o = red ? 2 : q * (this.leakBig ? 16 : 10);
+        g.lineStyle(3 * (1 - q) + 1, C.bad, 0.75 * (1 - q));
+        g.strokeRoundedRect(X - o, Y - o, CELL + o * 2, CELL + o * 2, 6 + o * 0.5);
+      }
+      if (red) continue;
+      // 纸页翻动：右上角的页角掀起来抖几下
+      const f = Math.abs(Math.sin(p * Math.PI * 3)) * k * CELL * 0.42;
+      if (f > 1) {
+        const cx = X + CELL - 4,
+          cy = Y + 4;
+        g.fillStyle(C.ink, 0.18 * k);
+        g.fillTriangle(cx - f, cy + 1, cx, cy + f + 1, cx - f * 0.75, cy + f * 0.8 + 1);
+        g.fillStyle(C.bookPage, 0.95);
+        g.fillTriangle(cx - f, cy, cx, cy + f, cx - f * 0.8, cy + f * 0.8);
+        g.lineStyle(1.5, C.ink, 0.8);
+        g.strokeTriangle(cx - f, cy, cx, cy + f, cx - f * 0.8, cy + f * 0.8);
+      }
+    }
   }
 
   destroy(): void {

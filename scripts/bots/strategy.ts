@@ -65,11 +65,13 @@ export interface BotParams {
    */
   airGuard?: number;
   airExtra?: number;
+  /** 有飞行漏怪后，轮到铅笔时改买苍蝇拍，最多这么多座（随波数）；缺省 = 不换 */
+  swatters?: (wave: number) => number;
 }
 
 /** 每种塔"单位覆盖"的大致价值（秒伤量级），只用于机器人的买/升比较 */
 const POWER: Record<TowerId, number> = {
-  wall: 0, pencil: 16, stapler: 26, glue: 12, lamp: 24, compass: 40, eraser: 10, ruler: 24, pen: 20, calculator: 0, piggy: 0,
+  wall: 0, pencil: 16, stapler: 26, glue: 12, lamp: 24, compass: 40, eraser: 10, ruler: 24, pen: 20, calculator: 0, piggy: 0, swatter: 30,
 };
 /** 下一级的额外收益系数（形态跃迁） */
 function levelGain(id: TowerId, next: number): number {
@@ -194,6 +196,11 @@ export class StrategyBot {
       const info = this.w.getTowerInfo(t.uid);
       const ab = info?.ability;
       if (!ab || !ab.ready) continue;
+      // 全场瞬发 / 限时的能力：等敌人多一点再放（Boss 在场就直接放）
+      if (ab.target === 'none' && s.bossUids.length === 0) {
+        const air = en.filter((e) => e.flying).length;
+        if (ab.id.startsWith('swatter_') ? air < 3 : en.length < 6) continue;
+      }
       const strong = en.reduce((a, b) => (b.hp > a.hp ? b : a), en[0]);
       const dense = this.densest(1.5, false) ?? { x: strong.x, y: strong.y, v: 0, n: 0 };
       switch (ab.target) {
@@ -212,7 +219,10 @@ export class StrategyBot {
           break;
         case 'enemy': {
           const elite = en.find((e) => e.elite && !e.boss && e.affixes.length > 0);
-          const tgt = ab.id === 'eraser_b' ? elite : strong;
+          // 深钻打掉血最多的；精准测量标在敌群里生命最多的
+          const hurt = en.reduce((a, b) => (b.maxHp - b.hp > a.maxHp - a.hp ? b : a), en[0]);
+          const inDense = en.filter((e) => (e.x - dense.x) ** 2 + (e.y - dense.y) ** 2 <= 2.25).reduce((a, b) => (b.hp > a.hp ? b : a), strong);
+          const tgt = ab.id === 'eraser_b' ? elite : ab.id === 'compass_b' ? hurt : ab.id === 'ruler_b' ? inDense : strong;
           if (tgt) this.w.command({ type: 'towerAbility', uid: t.uid, targetUid: tgt.uid });
           break;
         }
@@ -400,6 +410,9 @@ export class StrategyBot {
       if (id === 'piggy' && this.towers().filter((t) => t.id === 'piggy').length >= 3) continue;
       if (id === 'calculator' && this.attackers().length < 8) continue;
       this.rot = (this.rot + k) % this.p.rotation.length;
+      // 飞行敌人漏过：轮到铅笔时改买苍蝇拍（数量随波数放宽）
+      if (id === 'pencil' && this.p.swatters && s.unlockedTowers.includes('swatter')
+        && this.airLeaks > 0 && this.towers().filter((t) => t.id === 'swatter').length < this.p.swatters(s.wave + 1)) return 'swatter';
       return id;
     }
     return null;
@@ -498,7 +511,8 @@ export class StrategyBot {
     let weak = -1;
     for (let i = 0; i < lines.length; i++) if (pw[i] < max * k && (weak < 0 || pw[i] < pw[weak])) weak = i;
     if (weak < 0) return 'none';
-    const id: TowerId = 'pencil';
+    // 有苍蝇拍就补苍蝇拍（专职防空，对空性价比最高），否则补铅笔
+    const id: TowerId = this.w.state.unlockedTowers.includes('swatter') ? 'swatter' : 'pencil';
     const cost = this.cost(id);
     this.refreshSamples();
     const { r } = this.ranges(id);

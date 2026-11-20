@@ -7,9 +7,29 @@ import { MAP_META, TOWER_META } from '../coreMeta';
 import { h, img } from '../dom';
 import { G } from '../icons';
 import { buildRunOptions, loadoutStrip, starRow, switchRow } from './common';
+import { burst, motionOK } from './motion';
+
+/** 上次在战役页看到的星数：赢了一局回来时，新得的星星依次弹出 */
+const SEEN_KEY = 'dd.ui.seenStars';
+function loadSeen(): Record<string, number> | null {
+  try {
+    const raw = localStorage.getItem(SEEN_KEY);
+    const v: unknown = raw ? JSON.parse(raw) : null;
+    return v && typeof v === 'object' ? (v as Record<string, number>) : null;
+  } catch {
+    return null;
+  }
+}
+function saveSeen(v: Record<string, number>): void {
+  try {
+    localStorage.setItem(SEEN_KEY, JSON.stringify(v));
+  } catch {
+    /* 存不了就算了，只是少播一次动画 */
+  }
+}
 
 const NEW_TOWERS: Record<MapId, TowerId[]> = {
-  ch1: ['wall', 'pencil', 'glue', 'stapler', 'lamp'],
+  ch1: ['wall', 'pencil', 'glue', 'stapler', 'swatter', 'lamp'],
   ch2: ['compass', 'eraser', 'ruler'],
   ch3: ['pen', 'calculator', 'piggy'],
 };
@@ -24,13 +44,21 @@ export function campaignScreen(app: App): Screen {
     app.go({ name: 'game', opts: buildRunOptions(app.store.get(), { mode: 'campaign', map, difficulty: d }) });
   };
 
+  const seen = loadSeen();
+  const nowSeen: Record<string, number> = {};
+  let earnedBtn: HTMLElement | null = null;
+
   const cards = MAPS.map((map, i) => {
     const unlocked = chapterUnlocked(p, map);
     const meta = MAP_META[map];
     const diffBtn = (d: DifficultyId, label: string) => {
       const ok = campaignDiffUnlocked(p, map, d);
       const stars = campaignStars(p, map, d);
-      return h(
+      const key = `${map}.${d}`;
+      nowSeen[key] = stars;
+      // 第一次进战役页（没有记录）不演出，只对比上一次看到的星数
+      const before = seen ? Math.min(stars, Number(seen[key]) || 0) : stars;
+      const b = h(
         `button.diff-btn.${d}${ok ? '' : '.locked'}`,
         {
           onclick: () => {
@@ -44,8 +72,13 @@ export function campaignScreen(app: App): Screen {
           attrs: { 'aria-disabled': ok ? null : 'true' },
         },
         h('span.diff-name', null, label),
-        ok ? starRow(stars) : h('span.gi', { html: G.lock }),
+        ok ? starRow(stars, 3, before) : h('span.gi', { html: G.lock }),
       );
+      if (ok && stars > before) {
+        b.classList.add('earned');
+        earnedBtn ??= b;
+      }
+      return b;
     };
     const wave = p.campaignWave[map] ?? 0;
     return h(
@@ -85,5 +118,18 @@ export function campaignScreen(app: App): Screen {
     screenHeader(app, '战役'),
     h('div.screen-body', null, h('div.chapter-list', null, cards), h('section.card.section.run-options', null, autoSw.el, fixedSw.el), h('p.muted.center', null, '剩余生命 ≥90% 得 3 星，≥50% 得 2 星，通关得 1 星。星星可以在书包里兑换天赋。'), loadoutStrip(app, { name: 'campaign' })),
   );
-  return { el };
+  saveSeen(nowSeen);
+  // 新得星的那张卡片滚到可见处，最后一颗星落定时撒一把纸屑
+  const target = earnedBtn as HTMLElement | null;
+  let timer = 0;
+  if (target) {
+    requestAnimationFrame(() => target.scrollIntoView({ block: 'center', behavior: motionOK() ? 'smooth' : 'auto' }));
+    const n = target.querySelectorAll('.star.earn').length;
+    timer = window.setTimeout(() => {
+      const stars = target.querySelector<HTMLElement>('.stars');
+      if (stars) burst(stars, 10, 40);
+      audio.play('upgrade');
+    }, 520 + n * 180);
+  }
+  return { el, destroy: () => clearTimeout(timer) };
 }

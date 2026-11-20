@@ -1966,6 +1966,42 @@ textarea.input.code {
   display: block;
 }
 
+/* 「只打空中」角标（苍蝇拍） */
+.build-btn .b-air {
+  position: absolute;
+  right: 4px;
+  top: -7px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 0 4px 0 2px;
+  border-radius: 999px;
+  background: #d6efff;
+  border: 1px solid var(--ink-faint);
+  color: var(--ink);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 13px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.build-btn .b-air .gi {
+  width: 10px;
+  height: 10px;
+}
+
+.build-btn.locked .b-air {
+  display: none;
+}
+
+.game[data-layout='portrait'] .build-btn .b-air {
+  right: 50%;
+  transform: translateX(50%);
+  top: -5px;
+}
+
 .build-btn.limit {
   opacity: 0.55;
 }

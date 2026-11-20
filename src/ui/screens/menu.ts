@@ -41,19 +41,58 @@ export function menuScreen(app: App): Screen {
   const parade = h(
     'div.parade',
     { attrs: { 'aria-hidden': 'true' } },
-    (['wall', 'pencil', 'stapler', 'glue', 'lamp', 'compass', 'pen'] as const).map((id, i) =>
+    (['wall', 'pencil', 'stapler', 'glue', 'swatter', 'lamp', 'compass', 'pen'] as const).map((id, i) =>
       h('span.parade-item', { style: `--i:${i}` }, img(towerIcon(id, id === 'pen' ? 3 : id === 'lamp' ? 2 : 1), 'ico')),
     ),
   );
 
+  // 背景环境：缓慢漂移的桌面木纹 + 几粒橡皮屑（纯 transform / opacity，标签页隐藏时暂停）
+  const CRUMBS: [number, number, number, number][] = [
+    // 左 %, 上 %, 尺寸 px, 周期 s
+    [8, 22, 7, 17],
+    [86, 16, 9, 21],
+    [18, 68, 6, 19],
+    [74, 58, 8, 23],
+    [48, 84, 6, 18],
+    [92, 78, 7, 20],
+  ];
+  const ambience = h(
+    'div.menu-ambience',
+    { attrs: { 'aria-hidden': 'true' } },
+    h('span.amb-grain'),
+    CRUMBS.map(([x, y, size, dur], i) => h(`span.crumb.c${i % 3}`, { style: `left:${x}%;top:${y}%;width:${size}px;height:${size}px;--dur:${dur}s;--i:${i}` })),
+  );
+
+  const dailyBtn = endlessOk
+    ? btn(
+        '每日挑战',
+        G.target,
+        () => {
+          audio.play('click');
+          app.go({ name: 'daily' });
+          if (app.route.name !== 'daily') app.toast('每日挑战即将开放', 'info');
+        },
+        '每天一张新桌面',
+        '.daily',
+      )
+    : lockedBtn('每日挑战', G.target, '通关战役第一章解锁');
+  if (endlessOk) dailyBtn.appendChild(h('span.badge.today', null, '今日'));
+
   const el = h(
     'div.screen.menu-screen',
     null,
+    ambience,
     h('div.menu-top', null, currencyChips(app.store)),
     h(
       'div.menu-hero',
       null,
-      h('div.logo', null, h('span.logo-zh', null, '书桌防线'), h('span.logo-en', null, 'DESK DEFENSE')),
+      h(
+        'div.logo',
+        null,
+        // 标题逐字落下；读屏只读整词
+        h('span.logo-zh', { attrs: { role: 'img', 'aria-label': '书桌防线' } }, [...'书桌防线'].map((ch, i) => h('span.logo-ch', { style: `--i:${i}`, attrs: { 'aria-hidden': 'true' } }, ch))),
+        h('span.logo-en', null, 'DESK DEFENSE'),
+      ),
       parade,
     ),
     h(
@@ -73,6 +112,7 @@ export function menuScreen(app: App): Screen {
         : null,
       btn('战役', G.book, go({ name: 'campaign' }), `已通关 ${clearedCount} / 3 章`),
       endlessOk ? btn('无尽', G.infinity, go({ name: 'endless' }), '撑得越久，墨水越多') : lockedBtn('无尽', G.infinity, '通关战役第一章解锁'),
+      dailyBtn,
       customUnlocked(p) ? btn('自定义', G.sliders, go({ name: 'custom' }), '拖动滑块，自己定难度') : lockedBtn('自定义', G.sliders, '通关战役第一章解锁'),
       h(
         'div.menu-grid',

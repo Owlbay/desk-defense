@@ -10,13 +10,20 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "sim": "vite-node scripts/simulate.ts",
+    "docs:data": "vite-node scripts/gen-data-docs.ts",
     "gallery": "node scripts/build-gallery.mjs",
-    "deploy": "npm run build && npx wrangler@4 pages deploy dist --project-name desk-defense"
+    "deploy": "npm run build && npx wrangler@4 pages deploy dist --project-name desk-defense",
+    "test:online": "vitest run tests/online",
+    "typecheck:functions": "tsc --noEmit -p functions",
+    "db:migrate:local": "npx wrangler@4 d1 migrations apply desk-defense --local",
+    "db:migrate:remote": "npx wrangler@4 d1 migrations apply desk-defense --remote",
+    "dev:api": "vite build && npx wrangler@4 pages dev dist"
   },
   "dependencies": {
     "phaser": "^3.90.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260702.1",
     "typescript": "^5.9.3",
     "vite": "^8.3.8",
     "vite-node": "^6.0.0",

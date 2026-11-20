@@ -3,6 +3,7 @@ import { enemyIcon } from '../assets';
 import { ENEMY_META } from '../coreMeta';
 import { fmtNum, h, img, setText } from '../dom';
 import { G } from '../icons';
+import { anim, replay } from './motion';
 
 type RandomEv = Extract<GameEvent, { type: 'randomEvent' }>;
 const TONE_GLYPH: Record<RandomEventState['tone'], string> = { bad: G.warn, good: G.gift, neutral: G.swirl };
@@ -22,8 +23,14 @@ interface Chip {
 interface BossRow {
   el: HTMLElement;
   hp: HTMLElement;
+  ghost: HTMLElement;
   shield: HTMLElement;
   text: HTMLElement;
+  lastHp: string;
+  lastShield: string;
+  lastFrac: number;
+  lastGhost: string;
+  ghostAt: number;
 }
 
 /** 棋盘上方叠加层：Boss 血条、提示、开波横幅 */
@@ -95,20 +102,57 @@ export class BoardOverlay {
     this.cards.set(ev.uid, { el, secs, phase: ev.phase, collapseAt: performance.now() + 3000 });
   }
 
-  private dropCard(uid: number): void {
+  private dropCard(uid: number): EventCard | null {
     const c = this.cards.get(uid);
-    if (!c) return;
+    if (!c) return null;
     this.cards.delete(uid);
     c.el.classList.add('collapse');
     setTimeout(() => c.el.remove(), 380);
+    return c;
+  }
+
+  /**
+   * FLIP：横幅缩进状态栏里对应的小图标。
+   * 只在收起的那一刻读两次布局（横幅和小图标的位置），之后全是合成层上的 transform / opacity。
+   */
+  private flipToChip(card: HTMLElement, chip: HTMLElement): void {
+    const a = card.getBoundingClientRect();
+    const b = chip.getBoundingClientRect();
+    if (a.width <= 0 || b.width <= 0) return;
+    const sx = Math.max(0.05, b.width / a.width);
+    const sy = Math.max(0.05, b.height / a.height);
+    const fly = anim(
+      card,
+      [
+        { transform: 'translate(0, 0) scale(1, 1)', opacity: 1 },
+        { transform: `translate(${(b.left - a.left).toFixed(1)}px, ${(b.top - a.top).toFixed(1)}px) scale(${sx.toFixed(3)}, ${sy.toFixed(3)})`, opacity: 0.15 },
+      ],
+      { duration: 360, easing: 'cubic-bezier(0.65, 0, 0.35, 1)', fill: 'forwards' },
+    );
+    if (!fly) return;
+    card.classList.remove('collapse');
+    card.classList.add('to-chip');
+    // 小图标等横幅「到达」时再弹出来
+    anim(
+      chip,
+      [
+        { transform: 'scale(0.4)', opacity: 0 },
+        { transform: 'scale(0.4)', opacity: 0, offset: 0.55 },
+        { transform: 'scale(1.18)', opacity: 1, offset: 0.82 },
+        { transform: 'scale(1)', opacity: 1 },
+      ],
+      { duration: 560, easing: 'ease-out' },
+    );
   }
 
   private updateEvents(st: WorldState): void {
     const now = performance.now();
+    let collapsing: [number, HTMLElement][] | null = null;
     for (const [uid, c] of this.cards) {
       const e = st.events.find((x) => x.uid === uid);
       if (!e || now >= c.collapseAt) {
-        this.dropCard(uid);
+        const dropped = this.dropCard(uid);
+        if (dropped && e) (collapsing ??= []).push([uid, dropped.el]);
         continue;
       }
       if (e.phase === 'warn') setText(c.secs, `${Math.max(0, Math.ceil(e.startsAt - st.time))}s`);
@@ -135,6 +179,12 @@ export class BoardOverlay {
       if (!seen.has(uid)) {
         chip.el.remove();
         this.chips.delete(uid);
+      }
+    }
+    if (collapsing) {
+      for (const [uid, el] of collapsing) {
+        const chip = this.chips.get(uid);
+        if (chip) this.flipToChip(el, chip.el);
       }
     }
   }
@@ -180,6 +230,7 @@ export class BoardOverlay {
   update(st: WorldState): void {
     this.updateEvents(st);
     this.updateCrate(st.crateChoice ?? null);
+    const now = performance.now();
     const seen = new Set<number>();
     for (const uid of st.bossUids) {
       const e = st.enemies.find((x) => x.uid === uid);
@@ -188,22 +239,43 @@ export class BoardOverlay {
       let row = this.bosses.get(uid);
       if (!row) {
         const hp = h('span.boss-hp');
+        const ghost = h('span.boss-ghost');
         const shield = h('span.boss-shield');
         const text = h('span.boss-num');
         const el = h(
           'div.boss-row',
           null,
           img(enemyIcon(e.id), 'ico'),
-          h('div.boss-main', null, h('div.boss-name', null, ENEMY_META[e.id]?.name ?? e.id, text), h('div.boss-bar', null, hp, shield)),
+          h('div.boss-main', null, h('div.boss-name', null, ENEMY_META[e.id]?.name ?? e.id, text), h('div.boss-bar', null, ghost, hp, shield)),
         );
         this.bossBox.appendChild(el);
-        row = { el, hp, shield, text };
+        row = { el, hp, ghost, shield, text, lastHp: '', lastShield: '', lastFrac: 1, lastGhost: '', ghostAt: 0 };
         this.bosses.set(uid, row);
       }
       const total = Math.max(1, e.maxHp + e.maxShield);
-      row.hp.style.width = `${Math.max(0, (e.hp / total) * 100).toFixed(2)}%`;
-      row.shield.style.left = row.hp.style.width;
-      row.shield.style.width = `${Math.max(0, (e.shield / total) * 100).toFixed(2)}%`;
+      // 血条用 scaleX（不改 width）；残影条每 ~0.45 秒才跟一次，靠 CSS 过渡慢慢追上来
+      const frac = Math.max(0, Math.min(1, e.hp / total));
+      const hpT = `scaleX(${frac.toFixed(4)})`;
+      if (hpT !== row.lastHp) {
+        row.lastHp = hpT;
+        row.hp.style.transform = hpT;
+        // 一次掉血超过 4%：血条闪一下
+        if (row.lastFrac - frac > 0.04) {
+          replay(row.el, 'hit', 260);
+          row.lastFrac = frac;
+        } else if (frac > row.lastFrac) row.lastFrac = frac;
+        row.el.classList.toggle('low', frac < 0.25);
+      }
+      if (hpT !== row.lastGhost && (row.lastGhost === '' || now - row.ghostAt > 450)) {
+        row.lastGhost = hpT;
+        row.ghostAt = now;
+        row.ghost.style.transform = hpT;
+      }
+      const shT = `translateX(${(frac * 100).toFixed(2)}%) scaleX(${Math.max(0, Math.min(1, e.shield / total)).toFixed(4)})`;
+      if (shT !== row.lastShield) {
+        row.lastShield = shT;
+        row.shield.style.transform = shT;
+      }
       setText(row.text, e.shield > 0 ? `${fmtNum(e.hp)} +${fmtNum(e.shield)}` : fmtNum(e.hp));
     }
     for (const [uid, row] of this.bosses) {
@@ -233,19 +305,24 @@ export class BoardOverlay {
       .map((t) => (t === 'boss' ? 'Boss 来袭' : t === 'air' ? '空袭波 · 小心飞行敌人' : '冲锋波 · 敌人更快'))
       .join(' · ');
     const el = h(
-      `div.banner${boss ? '.boss' : ''}`,
+      `div.banner.sweep${boss ? '.boss' : ''}`,
       null,
       boss ? h('span.gi.banner-ico', { html: G.skull }) : null,
       h('div.banner-title', null, total > 0 ? `第 ${wave} / ${total} 波` : `第 ${wave} 波`),
       sub ? h('div.banner-sub', null, sub) : null,
     );
-    this.bannerBox.replaceChildren(el);
+    // 横幅身后扫过整个棋盘的色带
+    const streak = h(`span.banner-streak${boss ? '.boss' : ''}`, { attrs: { 'aria-hidden': 'true' } });
+    this.bannerBox.replaceChildren(streak, el);
     setTimeout(() => el.classList.add('out'), boss ? 2000 : 1300);
-    setTimeout(() => el.remove(), boss ? 2500 : 1800);
+    setTimeout(() => {
+      el.remove();
+      streak.remove();
+    }, boss ? 2500 : 1800);
   }
 
   bigText(title: string, sub: string, cls: string): void {
-    const el = h(`div.banner.${cls}`, null, h('div.banner-title', null, title), h('div.banner-sub', null, sub));
+    const el = h(`div.banner.stamp.${cls}`, null, h('div.banner-title', null, title), h('div.banner-sub', null, sub));
     this.bannerBox.replaceChildren(el);
     setTimeout(() => el.classList.add('out'), 1600);
     setTimeout(() => el.remove(), 2100);

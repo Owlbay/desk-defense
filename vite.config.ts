@@ -4,7 +4,16 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig({
   base: './',
   server: { port: 5173 },
-  build: { target: 'es2022', chunkSizeWarningLimit: 2500 },
+  build: {
+    target: 'es2022',
+    chunkSizeWarningLimit: 2500,
+    rollupOptions: {
+      // Phaser 单独成包：游戏代码更新时，玩家浏览器里缓存的引擎不用重新下载
+      output: {
+        manualChunks: (id: string) => (id.includes('node_modules/phaser') ? 'phaser' : undefined),
+      },
+    },
+  },
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',

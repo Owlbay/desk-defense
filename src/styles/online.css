@@ -1,0 +1,421 @@
+/* ───────────── 全服排行榜 / 每日挑战 / 回放（docs/12） ───────────── */
+
+/* 顶部分页：本地 / 全服 / 每日挑战 */
+.lb-mode-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.lb-mode-tabs .seg {
+  min-height: 44px;
+}
+
+.online-nick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  font-weight: 700;
+}
+
+.online-nick .nick-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 10em;
+}
+
+.online-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.online-state {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 24px 8px;
+  text-align: center;
+  font-weight: 800;
+}
+
+.online-state small {
+  font-weight: 600;
+}
+
+.online-state.loading::before {
+  content: '';
+  width: 22px;
+  height: 22px;
+  border: 3px solid var(--ink-faint);
+  border-top-color: var(--ink);
+  border-radius: 50%;
+  animation: online-spin 0.8s linear infinite;
+}
+
+@keyframes online-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 全服榜表格 */
+.olb-table {
+  display: grid;
+  gap: 4px;
+}
+
+.olb-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 64px 92px 44px;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: var(--radius-s);
+  background: var(--paper-2);
+  font-variant-numeric: tabular-nums;
+  animation: olb-in var(--dur-m, 260ms) var(--ease-out, ease-out) both;
+  animation-delay: calc(var(--i, 0) * var(--stagger, 40ms));
+}
+
+@keyframes olb-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.olb-row.olb-head {
+  min-height: 28px;
+  background: none;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  animation: none;
+}
+
+.olb-row .rank {
+  font-weight: 900;
+  text-align: center;
+}
+
+.olb-row .name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 700;
+}
+
+.olb-row .name > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.olb-row .score {
+  font-weight: 900;
+  text-align: right;
+}
+
+.olb-row .wave {
+  text-align: right;
+}
+
+.olb-row.top1 {
+  background: #fdeeb5;
+}
+
+.olb-row.top2 {
+  background: #ececec;
+}
+
+.olb-row.top3 {
+  background: #f3dcc6;
+}
+
+.olb-row.me {
+  outline: var(--bw) solid var(--ink);
+  outline-offset: -2px;
+  background: #d7efe9;
+}
+
+.olb-gap {
+  text-align: center;
+  color: var(--ink-soft);
+  font-weight: 900;
+  letter-spacing: 4px;
+  line-height: 1;
+}
+
+.badge.pending {
+  background: var(--paper);
+  border-style: dashed;
+  color: var(--ink-soft);
+  font-size: 11px;
+  padding: 1px 6px;
+  flex: none;
+}
+
+.badge.rejected {
+  background: #f6c7cb;
+  font-size: 11px;
+  padding: 1px 6px;
+  flex: none;
+}
+
+.badge.me-tag {
+  background: var(--teal);
+  color: var(--white);
+  font-size: 11px;
+  padding: 1px 6px;
+  flex: none;
+}
+
+.olb-replay {
+  min-height: 36px;
+  min-width: 36px;
+  padding: 0;
+  border-radius: 10px;
+  box-shadow: 0 2px 0 var(--ink);
+}
+
+.olb-replay .gi {
+  width: 18px;
+  height: 18px;
+}
+
+.olb-total {
+  text-align: center;
+  font-size: 12px;
+}
+
+/* 每日挑战 */
+.daily-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.daily-hero h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.daily-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.daily-count {
+  display: grid;
+  justify-items: center;
+  padding: 8px 12px;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--radius-s);
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+
+.daily-count b {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.daily-count small {
+  font-size: 11px;
+}
+
+.daily-best {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.daily-best > div {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: var(--radius-s);
+  background: var(--paper-2);
+}
+
+.daily-best b {
+  font-size: 18px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.daily-rules {
+  margin: 0;
+  padding-left: 1.2em;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+
+/* 结算面板里的上传区 */
+.online-submit {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: var(--bw) dashed var(--ink-soft);
+  border-radius: var(--radius-s);
+  background: var(--paper-2);
+  animation: olb-in var(--dur-m, 260ms) var(--ease-out, ease-out) both;
+}
+
+.online-submit .os-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.online-submit .os-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.online-submit .os-status.good {
+  color: var(--good);
+}
+
+.online-submit .os-status.warn {
+  color: var(--book);
+}
+
+.online-submit .os-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* 昵称对话框 */
+.nick-dialog .form-msg.bad {
+  color: var(--bad);
+}
+
+.nick-dialog .nick-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* 回放 */
+.replay-view {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: var(--desk);
+  padding: calc(8px + var(--sat, 0px)) calc(12px + var(--sar, 0px)) calc(8px + var(--sab, 0px)) calc(12px + var(--sal, 0px));
+  gap: 8px;
+  animation: fade-in var(--dur-m, 260ms) var(--ease-out, ease-out);
+}
+
+.replay-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.replay-title {
+  flex: 1 1 160px;
+  min-width: 0;
+  display: grid;
+}
+
+.replay-title b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.replay-title small {
+  font-variant-numeric: tabular-nums;
+}
+
+.replay-speed {
+  display: flex;
+  gap: 4px;
+}
+
+.replay-speed .seg {
+  min-height: 40px;
+  min-width: 48px;
+}
+
+.replay-stage {
+  position: relative;
+  min-height: 0;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--paper-2);
+}
+
+.replay-board {
+  position: absolute;
+  inset: 0;
+}
+
+/* 拦住棋盘上的所有点击：回放只读 */
+.replay-blocker {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  cursor: default;
+}
+
+.replay-end {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  background: rgba(59, 47, 42, 0.35);
+}
+
+.replay-end .card {
+  padding: 16px 20px;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  text-align: center;
+}
+
+@media (max-width: 560px) {
+  .olb-row {
+    grid-template-columns: 30px minmax(0, 1fr) 46px 74px 40px;
+    gap: 6px;
+    padding: 0 6px;
+    font-size: 14px;
+  }
+
+  .daily-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .daily-count {
+    justify-self: start;
+  }
+
+  .replay-speed .seg {
+    min-width: 42px;
+  }
+}

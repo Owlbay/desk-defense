@@ -10,8 +10,10 @@ import { h, isTypingTarget } from '../dom';
 import { G } from '../icons';
 import { BoardOverlay } from './BoardOverlay';
 import { BuildBar } from './BuildBar';
-import type { GameCtx } from './context';
+import { BUILD_KEYS, type GameCtx } from './context';
+import { GoldFx } from './GoldFx';
 import { InfoPanel } from './InfoPanel';
+import { replay } from './motion';
 import { branchModal, gameOverView, loadingOverlay, pauseMenu, PerkModal } from './Modals';
 import { SkillBar } from './SkillBar';
 import { TopBar } from './TopBar';
@@ -106,7 +108,9 @@ export function gameScreen(app: App, route: Route): Screen {
   skillBar.el.classList.add('g-skills');
   wavePanel.el.classList.add('g-wave');
   const side = h('div.side', null, topBar.el, buildBar.el, info.el, skillBar.el, wavePanel.el);
-  game.append(boardWrap, side, modals);
+  // 金币飞入顶栏的特效层（不接收输入）
+  const goldFx = new GoldFx(boardHost, () => topBar.goldIcon, (n) => topBar.goldArrive(n));
+  game.append(boardWrap, side, goldFx.el, modals);
 
   // 横竖屏切换
   const applyLayout = () => {
@@ -115,8 +119,13 @@ export function gameScreen(app: App, route: Route): Screen {
     const lay = r.width / r.height > 1.1 ? 'landscape' : 'portrait';
     if (game.dataset.layout !== lay) game.dataset.layout = lay;
   };
-  const ro = new ResizeObserver(applyLayout);
+  const ro = new ResizeObserver(() => {
+    applyLayout();
+    goldFx.invalidate();
+  });
   ro.observe(game);
+  ro.observe(boardWrap);
+  ro.observe(topBar.el);
   cleanups.push(() => ro.disconnect());
 
   // 增益选塔提示
@@ -234,6 +243,14 @@ export function gameScreen(app: App, route: Route): Screen {
       case 'leak':
         shake();
         break;
+      case 'death':
+        // 击杀掉落的金币随 death 事件给出：小硬币从敌人位置飞进金币栏
+        if (ev.gold > 0) goldFx.push(ev.gold, ev.x, ev.y);
+        break;
+      case 'gold':
+        // 其他收入：有位置的（拾取、存钱罐…）飞过去，没有位置的直接在金币栏冒「+N」
+        if (ev.amount > 0) goldFx.push(ev.amount, ev.x, ev.y);
+        break;
       // ── 文档 09：动态战场 ──
       case 'randomEvent':
         overlay.randomEvent(ev);
@@ -296,9 +313,7 @@ export function gameScreen(app: App, route: Route): Screen {
   );
 
   function shake(): void {
-    boardWrap.classList.remove('shake');
-    void boardWrap.offsetWidth;
-    boardWrap.classList.add('shake');
+    replay(boardWrap, 'shake', 320);
   }
 
   function pickPerkTower(perkId: string, uid: number): void {
@@ -370,7 +385,9 @@ export function gameScreen(app: App, route: Route): Screen {
   }
 
   // ───────────── 键盘 ─────────────
-  const BUILD_KEY_INDEX: Record<string, number> = { '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, '6': 5, '7': 6, '8': 7, '9': 8, '0': 9, '-': 10 };
+  const BUILD_KEY_INDEX: Record<string, number> = Object.fromEntries(BUILD_KEYS.map((k, i) => [k, i]));
+  /** 按物理键兜底（不同键盘布局 / 小键盘 / Shift+= 输入 '+'） */
+  const BUILD_CODE_INDEX: Record<string, number> = { Minus: 10, NumpadSubtract: 10, Equal: 11, NumpadAdd: 11 };
   const SKILL_KEY_INDEX: Record<string, number> = { q: 0, w: 1, e: 2, r: 3 };
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Shift') ui.set({ shift: true });
@@ -396,9 +413,10 @@ export function gameScreen(app: App, route: Route): Screen {
       if (k === 'p') openPause();
       return;
     }
-    if (k in BUILD_KEY_INDEX || e.code === 'Minus' || e.code === 'NumpadSubtract') {
+    const buildIdx = BUILD_KEY_INDEX[k] ?? (k === '+' ? 11 : BUILD_CODE_INDEX[e.code]);
+    if (buildIdx !== undefined) {
       e.preventDefault();
-      buildBar.pickIndex(BUILD_KEY_INDEX[k] ?? 10);
+      buildBar.pickIndex(buildIdx);
       return;
     }
     if (k in SKILL_KEY_INDEX) {
@@ -460,6 +478,9 @@ export function gameScreen(app: App, route: Route): Screen {
     skillBar.update(st);
     overlay.update(st);
     perkModal.update(st);
+    info.tickFast(st);
+    wavePanel.tickFast(st);
+    goldFx.flush();
     if (dirty || frame % 6 === 0) {
       dirty = false;
       const opts2 = world.getBuildOptions();

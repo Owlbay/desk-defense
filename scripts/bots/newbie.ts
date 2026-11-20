@@ -9,7 +9,7 @@ export function newbie(_ctx: { mode: ModeId; map: MapId }): BotParams {
     mazeSegments: () => 0,
     looseWalls: (w) => Math.min(Math.floor(w / 2), 8),
     wallShare: 0.2,
-    rotation: ['pencil', 'pencil', 'stapler', 'pencil', 'glue', 'pencil', 'lamp', 'stapler'],
+    rotation: ['pencil', 'pencil', 'stapler', 'pencil', 'glue', 'pencil', 'lamp', 'stapler', 'swatter'],
     maxTowers: (w) => Math.min(4 + Math.floor(w / 2), 16),
     upgrade: 'rare',
     upgradeBias: 1,

@@ -34,6 +34,7 @@ export function medium(ctx: { mode: ModeId; map: MapId }): BotParams {
     abilities: 'ready',
     airGuard: 0.6,
     airExtra: 6,
+    swatters: (w) => 1 + Math.floor(w / 12),
     decisionTicks: 30,
     xpProbe: true,
   };

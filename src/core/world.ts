@@ -8,7 +8,7 @@ import {
 } from './types';
 import { generateLayout } from './layout';
 import { RANDOM_EVENTS, EVENT_DIRECTOR, DROP, CRATE_OPTIONS } from '../config/events';
-import { ABILITIES, EVO, evoBranch } from '../config/evolution';
+import { ABILITIES, ABILITY_FX, EVO, evoBranch } from '../config/evolution';
 import { Rng, makeSeed } from './rng';
 import {
   armorAt, goldScale, hpScale, rawUpgradeCost, refundRate, resolveParams, speedScale, xpForLevel, xpScale,
@@ -20,7 +20,7 @@ import {
   F_AOE, F_BEAM, F_CRIT, F_DOT, F_IGNORE_ARMOR, F_SHIELD2, F_SHIELD3, F_SKILL, F_TRUE,
   type Enemy, type Proj, type Tower, type Zone,
 } from './entities';
-import { COMBOS, GROWTH, PIGGY_MAX, TIER_NAMES, TOWERS, UNDO_SECONDS, WALL_UPGRADE_COST } from '../config/towers';
+import { BRANCH, COMBOS, GROWTH, PIGGY_MAX, SWATTER, TIER_NAMES, TOWERS, UNDO_SECONDS, WALL_UPGRADE_COST } from '../config/towers';
 import { ELITE, ENEMIES } from '../config/enemies';
 import { MAPS, spawnerOpenWave, type MapDef } from '../config/maps';
 import { CAPS } from '../config/difficulty';
@@ -34,8 +34,7 @@ const N8X = [1, -1, 0, 0, 1, 1, -1, -1];
 const N8Y = [0, 0, 1, -1, 1, -1, 1, -1];
 /** 同时进行的波次上限 */
 const MAX_CONCURRENT_WAVES = 3;
-/** 激光笔递增倍率上限（★1 +50%） */
-const LASER_RAMP_CAP = 5;
+
 
 /** 事件导演的内部数据（每个事件实例） */
 interface EventFx {
@@ -59,7 +58,7 @@ interface ActiveWave {
   kills0: number;
 }
 
-type DebuffKind = 'glue' | 'eraser' | 'pen';
+type DebuffKind = 'glue' | 'eraser' | 'pen' | 'net';
 
 function tierOf(level: number, isWall: boolean, stars = 0): Tier {
   if (isWall) return Math.max(1, Math.min(3, level)) as Tier;
@@ -215,7 +214,7 @@ export class World implements IWorld {
         started: false, nextAt: null, deadline: null, blocked: false,
       },
       bossUids: [],
-      stats: { kills: 0, leaks: 0, goldEarned: 0, goldSpent: 0, towersBuilt: 0, skillsCast: 0 },
+      stats: { kills: 0, leaks: 0, goldEarned: 0, goldSpent: 0, towersBuilt: 0, skillsCast: 0, cleared: 0, bonus: 0 },
     };
     this.nextEventWave = this.rollEventGap(0);
     for (const id of skillIds) this.state.skills.push(this.makeSkill(id));
@@ -857,7 +856,7 @@ export class World implements IWorld {
       slowPct: 0, slowDur: 0, stunChance: 0, inkMax: 3,
       focusUid: 0, focusStacks: 0, laserUid: 0, laserTime: 0, laserAcc: 0, laserBeamT: 0,
       sweepPhase: 0, colorGold: 0, halfLegend: false, lastTape: -99,
-      pierce: 0, abilityUntil: 0, atkCount: 0, piggyMute: 0, piggyCharge: 0, safeLives: false, calcCritUntil: 0, abacusDiscount: false,
+      pierce: 0, abilityUntil: 0, atkCount: 0, piggyMute: 0, piggyCharge: 0, safeLives: false, calcCritUntil: 0, abacusDiscount: false, zapT: 0,
     };
     this.statsDirty = true;
     return t;
@@ -986,7 +985,7 @@ export class World implements IWorld {
       if (t.level >= 10) return null;
       c = rawUpgradeCost(t.def.cost, t.level) * (1 - this.xpDiscount(t));
       if (t.level === 9 && t.halfLegend) c *= 0.5;
-      if (t.abacusDiscount) c *= 0.9;
+      if (t.abacusDiscount) c *= 1 - BRANCH.calculator.B.discount;
     }
     if (this.hasPerk('sale')) c *= 0.9;
     return Math.max(1, Math.round(c));
@@ -1014,7 +1013,7 @@ export class World implements IWorld {
   private targetModes(t: Tower): TargetMode[] {
     if (!t.def.attacks || t.id === 'stapler' || t.id === 'compass') return [];
     const m: TargetMode[] = ['first', 'last', 'strong', 'weak', 'close'];
-    if (t.def.hitsAir) m.push('air');
+    if (t.def.hitsAir && t.def.hitsGround) m.push('air');
     return m;
   }
 
@@ -1075,6 +1074,7 @@ export class World implements IWorld {
       let calcRange = 0;
       let calcCrit = false;
       let calcCritMul = 0;
+      let calcCritChance = 0;
       let calcAbacus = 0;
       t.abacusDiscount = false;
       t.calcCritUntil = 0;
@@ -1088,7 +1088,7 @@ export class World implements IWorld {
           if (this.evo(c, 'B', 2)) t.abacusDiscount = true;
           if (!d.attacks) continue;
           const sup = 1 + EVO.support * c.stars;
-          const bonus = (0.1 + 0.01 * (c.level - 1) + (c.level >= 7 ? 0.15 : 0)) * sup;
+          const bonus = (0.1 + 0.01 * (c.level - 1) + (c.level >= 7 ? 0.15 : 0) + (c.level >= 10 && c.branch === 'B' ? BRANCH.calculator.B.dmg : 0)) * sup;
           const spd = (c.level >= 4 ? 0.08 : 0) * sup;
           const rg = c.level >= 7 ? 0.3 : 0;
           if (stack) {
@@ -1102,10 +1102,15 @@ export class World implements IWorld {
           }
           if (c.level >= 10 && c.branch === 'A') {
             calcCrit = true;
-            calcCritMul = Math.max(calcCritMul, this.evo(c, 'A', 1) ? 0.75 : 0.5);
-            if (c.stars >= 3) t.calcCritUntil = Math.max(t.calcCritUntil, c.abilityUntil);
+            const CA = BRANCH.calculator.A;
+            calcCritMul = Math.max(calcCritMul, CA.critDmg + (this.evo(c, 'A', 1) ? CA.s1 : 0));
+            calcCritChance = Math.max(calcCritChance, CA.crit);
+            if (c.stars >= 3) {
+              t.calcCritUntil = Math.max(t.calcCritUntil, c.abilityUntil);
+              if (c.abilityUntil > s.time) calcCritMul = Math.max(calcCritMul, CA.critDmg + (this.evo(c, 'A', 1) ? CA.s1 : 0) + ABILITY_FX.calculator_a.critDmg);
+            }
           }
-          if (c.level >= 10 && c.branch === 'B') calcAbacus = Math.max(calcAbacus, this.evo(c, 'B', 1) ? 0.75 : 0.5);
+          if (c.level >= 10 && c.branch === 'B') calcAbacus = Math.max(calcAbacus, BRANCH.calculator.B.xp + (this.evo(c, 'B', 1) ? BRANCH.calculator.B.s1 : 0));
         }
       }
       t.xpGainMul = (1 + calcAbacus) * (this.hasPerk('notes') ? 1.15 : 1);
@@ -1126,14 +1131,15 @@ export class World implements IWorld {
       const B = L >= 10 && t.branch === 'B';
       switch (t.id) {
         case 'pencil':
-          if (A) { baseIvl *= 0.5; baseDmg *= 0.7; }
+          if (A) { baseIvl *= BRANCH.pencil.A.ivl; baseDmg *= BRANCH.pencil.A.dmg; }
+          if (B) baseDmg *= BRANCH.pencil.B.dmg;
           break;
         case 'stapler':
           if (L >= 7) baseRange += 0.3;
           if (A) { baseIvl = 0.4; baseDmg *= 0.6; }
           break;
         case 'lamp':
-          if (A) baseDmg = 20;
+          if (A) baseDmg = BRANCH.lamp.A.dps;
           if (this.hasPerk('bulb')) baseIvl *= 0.8;
           break;
         case 'compass':
@@ -1152,7 +1158,6 @@ export class World implements IWorld {
       t.dmgFactor = lvlDmg * dmgMul;
       t.interval = baseIvl * Math.pow(GROWTH.interval, L - 1) * Math.pow(EVO.interval, t.stars);
       let range = baseRange + GROWTH.range * (L - 1) + EVO.range * t.stars;
-      if (t.id === 'compass' && !A) range = baseRange + GROWTH.range * (L - 1);
       range += calcRange;
       if ((t.combo & C_RULER_COMPASS) !== 0) range += 0.3;
       if ((t.id === 'ruler' || t.id === 'compass') && this.hasPerk('drafting')) range += 0.5;
@@ -1160,9 +1165,9 @@ export class World implements IWorld {
       t.range = range;
       t.inner = inner;
       t.atkMul = 1 + calcSpd;
-      t.critChance = (t.id === 'pencil' && L >= 4 ? 0.15 : 0) + (calcCrit ? 0.1 : 0);
+      t.critChance = (t.id === 'pencil' && L >= 4 ? 0.15 : 0) + (calcCrit ? calcCritChance : 0);
       t.critMul = 2 + calcCritMul;
-      if (t.id === 'pencil' && this.evo(t, 'A', 2)) t.pierce = 2;
+      if (t.id === 'pencil' && this.evo(t, 'A', 2)) t.pierce = BRANCH.pencil.A.pierce;
       if (t.id === 'glue') {
         let sp = L >= 7 ? 0.55 + 0.02 * (L - 7) : 0.4 + 0.02 * (L - 1);
         let dur = 1.5;
@@ -1183,7 +1188,7 @@ export class World implements IWorld {
           const dx = l.cx - t.cx;
           const dy = l.cy - t.cy;
           if (dx * dx + dy * dy <= l.range * l.range) {
-            t.range += 0.3;
+            t.range += BRANCH.lamp.B.range;
             break;
           }
         }
@@ -1192,7 +1197,7 @@ export class World implements IWorld {
   }
 
   private calcAura(c: Tower, stack: boolean): number {
-    return (c.def.aura ?? 2) + (stack ? 1 : 0) + (this.evo(c, 'A', 2) ? 0.5 : 0);
+    return (c.def.aura ?? 2) + (stack ? 1 : 0) + (this.evo(c, 'A', 2) ? BRANCH.calculator.A.aura : 0);
   }
 
   // ───────────────────────── 波次 ─────────────────────────
@@ -1439,7 +1444,7 @@ export class World implements IWorld {
       rallied: false, ringUntil: 0, splitDone: false, cloudDone: false, cloudUntil: 0, zoneVuln: 0,
       permStealth, reflect: affixes.includes('reflect'), crumbHp,
       poisonDps: 0, poisonUntil: 0, poisonOwner: 0, purpleUntil: 0, measuredUntil: 0,
-      redVuln: 0.2, litVuln: 0.15, rootVulnUntil: 0, redGold: false,
+      redVuln: 0.2, litVuln: BRANCH.lamp.B.vuln, rootVulnUntil: 0, redGold: false, netUntil: 0, stripUntil: 0, stripVuln: 0,
     };
     if (e.flying) {
       const exits = s.grid.exits;
@@ -1612,7 +1617,7 @@ export class World implements IWorld {
     const cands = PERKS.filter((p) => {
       if (!p.repeatable && s.perks.includes(p.id)) return false;
       if (p.id === 'legend') return this.towerList.some((t) => t.id !== 'wall' && t.level >= 7 && t.level < 10);
-      if (p.id === 'pocket') return SKILL_IDS.some((k) => !carried.has(k));
+      if (p.id === 'pocket') return SKILL_IDS.some((k) => !carried.has(k) && this.skillReachable(k));
       return true;
     });
     const epicW = s.wave > EPIC_LATE_WAVE ? EPIC_WEIGHT_LATE : RARITY_WEIGHT.epic;
@@ -1667,7 +1672,7 @@ export class World implements IWorld {
         break;
       case 'pocket': {
         const carried = new Set(s.skills.map((k) => k.id));
-        const pool = SKILL_IDS.filter((k) => !carried.has(k));
+        const pool = SKILL_IDS.filter((k) => !carried.has(k) && this.skillReachable(k));
         if (pool.length) {
           const rng = new Rng(`${s.seed}|pocket|${this.perkOffers}`);
           const pick = pool[rng.int(pool.length)];
@@ -1710,6 +1715,20 @@ export class World implements IWorld {
   }
 
   // ───────────────────────── 技能 ─────────────────────────
+
+  /**
+   * 二次元口袋能给的技能：RunOptions 里没有存档的解锁信息，按本局进度推断——
+   * 默认技能总可以；战役解锁 'c-w' 的技能要求 c 章在本图之前，或就是本章且已到第 w 波（战役）；
+   * 无尽 / 自定义按地图章节算（打这一章的图说明这一章已解锁）。
+   */
+  private skillReachable(id: SkillId): boolean {
+    const u = SKILLS[id].unlock;
+    if (u === 'default') return true;
+    const [c, w] = u.split('-').map(Number);
+    const ch = this.mapDef.chapter ?? 1;
+    if (this.campaign) return c < ch || (c === ch && w <= Math.max(1, this.state.wave));
+    return c <= ch;
+  }
 
   private makeSkill(id: SkillId): SkillState {
     const def = SKILLS[id];
@@ -1818,6 +1837,7 @@ export class World implements IWorld {
     for (let i = 0; i < en.length; i++) {
       const e = en[i] as Enemy;
       if (e.dead) continue;
+      if (e.netUntil > 0 && e.netUntil <= t) this.unNet(e);
       // 当前基础速度（未计减速）
       let spd = e.baseSpeed;
       if (e.rallied) spd *= 1.2;
@@ -2204,10 +2224,12 @@ export class World implements IWorld {
     let vul = 1 + e.zoneVuln;
     if (e.redUntil > now) vul += e.redVuln;
     if (e.litUntil > now) vul += e.litVuln;
-    if (e.purpleUntil > now) vul += 0.1;
-    if (e.measuredUntil > now) vul += 0.4;
-    if (e.rootVulnUntil > now && e.rootUntil > now) vul += 0.2;
-    if (this.daylightUntil > now) vul += 0.2;
+    if (e.purpleUntil > now) vul += BRANCH.pencil.B.purple;
+    if (e.measuredUntil > now) vul += ABILITY_FX.ruler_b.vuln;
+    if (e.rootVulnUntil > now && e.rootUntil > now) vul += BRANCH.glue.A.vuln;
+    if (this.daylightUntil > now) vul += ABILITY_FX.lamp_b.vuln;
+    if (e.netUntil > now) vul += SWATTER.netVuln;
+    if (e.stripUntil > now) vul += e.stripVuln;
     a *= vul;
     if ((flags & F_BEAM) !== 0 && e.reflect) a *= 0.5;
     let dealt = 0;
@@ -2510,6 +2532,7 @@ export class World implements IWorld {
       const t = this.towerList[i];
       if (!t.def.attacks) continue;
       if (t.disabledUntil > now) continue;
+      if (t.id === 'swatter' && t.stars >= 3 && t.branch === 'A' && t.abilityUntil > now) this.zapTick(t);
       if (t.id === 'lamp' && t.level >= 10 && t.branch === 'A') {
         this.laserTick(t, caff);
         continue;
@@ -2526,6 +2549,7 @@ export class World implements IWorld {
         case 'eraser': fired = this.atkEraser(t); break;
         case 'ruler': fired = this.atkRuler(t); break;
         case 'pen': fired = this.atkPen(t); break;
+        case 'swatter': fired = this.atkSwatter(t); break;
       }
       if (fired) {
         t.cd += t.interval;
@@ -2543,8 +2567,8 @@ export class World implements IWorld {
   private speedBoost(t: Tower, now: number): number {
     if (t.id !== 'pencil' || t.level < 10 || t.branch !== 'A') return 1;
     let m = 1;
-    if (t.stars >= 1) m += 0.05 * t.focusStacks;
-    if (t.stars >= 3 && t.abilityUntil > now) m *= 3;
+    if (t.stars >= 1) m += BRANCH.pencil.A.ramp * t.focusStacks;
+    if (t.stars >= 3 && t.abilityUntil > now) m *= ABILITY_FX.pencil_a.atk;
     return m;
   }
 
@@ -2566,7 +2590,7 @@ export class World implements IWorld {
     this.aim(t, e);
     const B = t.level >= 10 && t.branch === 'B';
     if (this.evo(t, 'A', 1)) {
-      if (t.focusUid === e.uid) t.focusStacks = Math.min(8, t.focusStacks + 1);
+      if (t.focusUid === e.uid) t.focusStacks = Math.min(BRANCH.pencil.A.rampMax, t.focusStacks + 1);
       else {
         t.focusUid = e.uid;
         t.focusStacks = 0;
@@ -2577,10 +2601,11 @@ export class World implements IWorld {
     for (let k = 0; k < shots; k++) {
       const tgt = k === 0 ? e : second!;
       const crit = this.rollCrit(t);
-      const dmg = t.dmg * (crit ? t.critMul : 1);
+      const palette = B && t.stars >= 3 && t.abilityUntil > this.state.time;
+      const dmg = t.dmg * (crit ? t.critMul : 1) * (palette ? ABILITY_FX.pencil_b.dmg : 1);
       const p = this.spawnProj(t, B ? 'color' : 'graphite', tgt, t.def.projSpeed, dmg, crit);
       if (p && B) p.color = (['red', 'blue', 'yellow', 'green', 'purple'] as const)[this.rng.int(nColors)];
-      if (p && barrage) p.pierce = 1;
+      if (p && barrage) p.pierce = ABILITY_FX.pencil_a.pierce;
       this.emit({ type: 'fire', uid: t.uid, tower: t.id, x: t.cx + 0.5, y: t.cy + 0.5, tx: tgt.x, ty: tgt.y });
     }
     return true;
@@ -2656,16 +2681,17 @@ export class World implements IWorld {
       this.damage(e, dmg, t, F_AOE);
       if (e.dead) continue;
       if (this.applySlow(e, slow, dur)) this.addDebuffer(e, t, 'glue');
-      if (A && this.rng.next() < 0.25) {
-        if (this.applyRoot(e, this.evo(t!, 'A', 1) ? 1.5 : 1) && this.evo(t!, 'A', 2)) e.rootVulnUntil = e.rootUntil;
+      if (A && this.rng.next() < BRANCH.glue.A.root) {
+        if (this.applyRoot(e, BRANCH.glue.A.rootDur + (this.evo(t!, 'A', 1) ? BRANCH.glue.A.s1 : 0)) && this.evo(t!, 'A', 2)) e.rootVulnUntil = e.rootUntil;
       }
     }
     this.emit({ type: 'pulse', x, y, r: 0.8, color: 'cyan' });
     if (t && level >= 4) {
       const big = this.evo(t, 'B', 2);
-      const zr = 0.8 + (big ? 0.3 : 0);
-      const zd = 3 + (big ? 2 : 0);
-      if (B) this.addZone('hotglue', 'circle', x, y, { r: zr, until: now + zd, dps: 10 * t.dmgFactor * (this.evo(t, 'B', 1) ? 1.5 : 1), towerUid: t.uid });
+      const GB = BRANCH.glue.B;
+      const zr = 0.8 + (big ? GB.r : 0);
+      const zd = 3 + (big ? GB.dur : 0);
+      if (B) this.addZone('hotglue', 'circle', x, y, { r: zr, until: now + zd, dps: GB.dps * t.dmgFactor * (this.evo(t, 'B', 1) ? GB.s1 : 1), towerUid: t.uid });
       else this.addZone('glue', 'circle', x, y, { r: 0.8, until: now + 3, slow, towerUid: t.uid });
     }
   }
@@ -2698,7 +2724,7 @@ export class World implements IWorld {
       if (crit) dmg *= t.critMul;
       if (B) {
         tg.litUntil = Math.max(tg.litUntil, now + 1.6);
-        tg.litVuln = Math.max(tg.litVuln, this.evo(t, 'B', 1) ? 0.25 : 0.15);
+        tg.litVuln = Math.max(tg.litVuln, this.evo(t, 'B', 1) ? BRANCH.lamp.B.s1 : BRANCH.lamp.B.vuln);
       }
       this.emit({ type: 'beam', uid: t.uid, x: t.cx + 0.5, y: t.cy + 0.5, tx: tg.x, ty: tg.y, color: B ? 'cyan' : 'warm', width: 0.12 + 0.03 * t.focusStacks });
       this.damage(tg, dmg, t, F_BEAM | F_IGNORE_ARMOR | (crit ? F_CRIT : 0));
@@ -2725,8 +2751,11 @@ export class World implements IWorld {
     }
     this.aim(t, tg);
     t.laserTime += DT;
-    const cap = LASER_RAMP_CAP * (this.evo(t, 'A', 1) ? 1.5 : 1);
-    let dps = t.dmg * Math.min(cap, Math.pow(1.25, t.laserTime)) * caff * t.atkMul;
+    const LA = BRANCH.lamp.A;
+    const cap = LA.cap * (this.evo(t, 'A', 1) ? LA.s1 : 1);
+    // 节能灯泡（攻击间隔 ×0.8）对持续光束等价于秒伤 ×1.25
+    const bulb = this.hasPerk('bulb') ? 1 / 0.8 : 1;
+    let dps = t.dmg * Math.min(cap, Math.pow(1 + LA.ramp, t.laserTime)) * caff * t.atkMul * bulb;
     if (tg.id === 'moth') dps *= 2;
     t.laserAcc += dps * DT;
     t.laserBeamT += DT;
@@ -2739,13 +2768,14 @@ export class World implements IWorld {
       t.laserBeamT = 0;
       this.emit({ type: 'beam', uid: t.uid, x, y, tx: tg.x, ty: tg.y, color: 'magenta', width: Math.min(0.4, 0.1 + 0.03 * t.laserTime) });
       const crit = this.rollCrit(t);
-      const amt = t.laserAcc * (crit ? t.critMul : 1);
+      const amt = t.laserAcc * (crit ? t.critMul : 1) * (t.stars >= 3 && t.abilityUntil > this.state.time ? ABILITY_FX.lamp_a.dmg : 1);
       t.laserAcc = 0;
       const extra: Enemy[] = [];
-      // ★3 过载：光束分裂为 4 道
-      if (t.stars >= 3 && t.abilityUntil > this.state.time) {
+      // ★3 过载：光束分裂为 N 道，每道伤害 ×dmg
+      const overload = t.stars >= 3 && t.abilityUntil > this.state.time;
+      if (overload) {
         let ex = tg.uid;
-        for (let k = 0; k < 3; k++) {
+        for (let k = 0; k < ABILITY_FX.lamp_a.beams - 1; k++) {
           const o = this.findTarget(t, t.range, ex);
           if (!o || o === tg || extra.includes(o)) break;
           extra.push(o);
@@ -2775,7 +2805,7 @@ export class World implements IWorld {
       }
       if (refract && !refract.dead) {
         this.emit({ type: 'beam', uid: t.uid, x: tx0, y: ty0, tx: refract.x, ty: refract.y, color: 'magenta', width: 0.08 });
-        this.damage(refract, amt * 0.5, t, F_BEAM | F_IGNORE_ARMOR);
+        this.damage(refract, amt * LA.refract, t, F_BEAM | F_IGNORE_ARMOR);
       }
     }
   }
@@ -2817,7 +2847,7 @@ export class World implements IWorld {
     for (const e of list) {
       if (e.dead) continue;
       const crit = this.rollCrit(t);
-      this.damage(e, t.dmg * (crit ? t.critMul : 1), t, F_AOE | (crit ? F_CRIT : 0));
+      this.damage(e, t.dmg * (crit ? t.critMul : 1) * (full ? ABILITY_FX.compass_a.dmg : 1), t, F_AOE | (crit ? F_CRIT : 0));
       if (A && !e.dead && this.evo(t, 'A', 2)) this.applySlow(e, 0.15, 1, true);
       if (B && !e.dead) {
         e.bleedStacks = Math.min(this.evo(t, 'B', 1) ? 15 : 10, e.bleedStacks + 1);
@@ -2892,6 +2922,208 @@ export class World implements IWorld {
     this.spawnProj(t, A ? 'brush' : 'ink', e, t.def.projSpeed, t.dmg, this.rollCrit(t));
     this.emit({ type: 'fire', uid: t.uid, tower: t.id, x: t.cx + 0.5, y: t.cy + 0.5, tx: e.x, ty: e.y });
     return true;
+  }
+
+  // ───────────────────────── 苍蝇拍（文档 02 §2.12） ─────────────────────────
+
+  /** 拍击半径 */
+  private swatRadius(t: Tower): number {
+    return SWATTER.splash + (t.level >= 7 ? SWATTER.splashT3 : 0);
+  }
+
+  private atkSwatter(t: Tower): boolean {
+    const e = this.findTarget(t, t.range);
+    if (!e) return false;
+    this.aim(t, e);
+    t.atkCount++;
+    const B = t.level >= 10 && t.branch === 'B';
+    if (B) {
+      const every = this.evo(t, 'B', 2) ? SWATTER.netEveryS2 : SWATTER.netEvery;
+      if (t.atkCount % every === 0) {
+        // 甩网：优先当前目标，目标不能网（Boss / 免控）就换一个能网的；都不行就照常拍
+        const tgt = this.canNet(e, false) ? e : this.findNetTarget(t);
+        if (tgt) {
+          const p = this.spawnProj(t, 'net', tgt, SWATTER.netSpeed, t.dmg, false);
+          if (p) p.angle = Math.atan2(tgt.y - (t.cy + 0.5), tgt.x - (t.cx + 0.5));
+          this.emit({ type: 'fire', uid: t.uid, tower: t.id, x: t.cx + 0.5, y: t.cy + 0.5, tx: tgt.x, ty: tgt.y });
+          return true;
+        }
+      }
+    }
+    const targets: Enemy[] = [e];
+    if (t.level >= 7) {
+      const e2 = this.findTarget(t, t.range, e.uid);
+      if (e2) targets.push(e2);
+    }
+    for (const tg of targets) this.swat(t, tg);
+    return true;
+  }
+
+  /** 一拍：落点周围的飞行敌人都受伤（范围伤害，飞蛾闪避不了） */
+  private swat(t: Tower, e: Enemy): void {
+    const x = e.x;
+    const y = e.y;
+    const r = this.swatRadius(t);
+    const crit = this.rollCrit(t);
+    const dmg = t.dmg * (crit ? t.critMul : 1);
+    const n = this.queryAll(x, y, r, this.qB, true);
+    const list = this.qC;
+    list.length = 0;
+    for (let i = 0; i < n; i++) {
+      const o = this.qB[i];
+      if (o === e || (o.flying && !o.jumping && !o.dead)) list.push(o);
+    }
+    if (!list.includes(e)) list.push(e);
+    const hit = list.slice();
+    this.emit({ type: 'swat', uid: t.uid, x, y, r });
+    this.emit({ type: 'fire', uid: t.uid, tower: t.id, x: t.cx + 0.5, y: t.cy + 0.5, tx: x, ty: y });
+    for (const o of hit) {
+      if (o.dead) continue;
+      this.damage(o, dmg, t, F_AOE | (crit ? F_CRIT : 0));
+      if (!o.dead && t.level >= 4) this.applySlow(o, SWATTER.airSlow, SWATTER.airSlowDur, true);
+    }
+    if (t.level >= 10 && t.branch === 'A') this.chainLightning(t, x, y, e.uid, dmg);
+  }
+
+  /** 电蚊拍：从拍中点开始在飞行敌人之间弹跳（★2 也能弹到地面敌人） */
+  private chainLightning(t: Tower, x: number, y: number, fromUid: number, dmg0: number): void {
+    const bounces = SWATTER.chain + (this.evo(t, 'A', 1) ? SWATTER.chainS1 : 0);
+    const ground = this.evo(t, 'A', 2);
+    const visited: number[] = [fromUid];
+    const points: { x: number; y: number }[] = [{ x, y }];
+    let cx = x;
+    let cy = y;
+    let dmg = dmg0;
+    for (let k = 0; k < bounces; k++) {
+      const n = this.queryAll(cx, cy, SWATTER.chainRange, this.qB, false);
+      let best: Enemy | null = null;
+      let bd = Infinity;
+      for (let i = 0; i < n; i++) {
+        const o = this.qB[i];
+        if (visited.includes(o.uid) || !this.targetable(o)) continue;
+        if (!o.flying && !ground) continue;
+        const dx = o.x - cx;
+        const dy = o.y - cy;
+        const d = dx * dx + dy * dy;
+        if (d < bd) { bd = d; best = o; }
+      }
+      if (!best) break;
+      dmg *= SWATTER.chainMul;
+      visited.push(best.uid);
+      cx = best.x;
+      cy = best.y;
+      points.push({ x: cx, y: cy });
+      this.damage(best, dmg * (best.flying ? 1 : SWATTER.chainGround), t, 0);
+      if (!best.dead) this.applyStun(best, SWATTER.chainStun, true);
+    }
+    if (points.length > 1) this.emit({ type: 'chain', uid: t.uid, points });
+  }
+
+  /** 电网：每秒对全场飞行敌人（含被网住的）造成最大生命百分比的伤害 */
+  private zapTick(t: Tower): void {
+    t.zapT += DT;
+    if (t.zapT < 1 - 1e-9) return;
+    t.zapT -= 1;
+    const fx = ABILITY_FX.swatter_a;
+    const now = this.state.time;
+    const list = (this.state.enemies as Enemy[]).filter((e) => !e.dead && (e.flying || e.netUntil > now));
+    if (!list.length) return;
+    this.emit({ type: 'chain', uid: t.uid, points: [{ x: t.cx + 0.5, y: t.cy + 0.5 }, ...list.slice(0, 12).map((e) => ({ x: e.x, y: e.y }))] });
+    for (const e of list) {
+      if (e.dead) continue;
+      this.damage(e, e.maxHp * (e.boss ? fx.bossPct : fx.pct), t, F_TRUE);
+    }
+  }
+
+  /** 能不能网：飞行中、没被网住、非免控；Boss 只有「天网」能网 */
+  private canNet(e: Enemy, allowBoss: boolean): boolean {
+    return !e.dead && e.flying && !e.jumping && !e.unstoppable && (allowBoss || !e.boss);
+  }
+
+  private findNetTarget(t: Tower): Enemy | null {
+    const n = this.queryAll(t.cx + 0.5, t.cy + 0.5, t.range, this.qA, false);
+    let best: Enemy | null = null;
+    for (let i = 0; i < n; i++) {
+      const o = this.qA[i];
+      if (!this.targetable(o) || !this.canNet(o, false)) continue;
+      if (!best || o.remaining < best.remaining) best = o;
+    }
+    return best;
+  }
+
+  /** 网住落地的格子：当前格可走就用当前格，否则最近的可走格（都要能走到出口）；-1 = 没有 */
+  private netCell(e: Enemy): number {
+    const g = this.state.grid;
+    const cx = Math.max(0, Math.min(g.cols - 1, Math.floor(e.x)));
+    const cy = Math.max(0, Math.min(g.rows - 1, Math.floor(e.y)));
+    const ok = (i: number) => isPassableKind(g.cells[i]) && g.dist[i] < Infinity && !this.reserved.has(i);
+    const i0 = cy * g.cols + cx;
+    if (ok(i0)) return i0;
+    let best = -1;
+    let bd = Infinity;
+    for (let i = 0; i < g.cells.length; i++) {
+      if (!ok(i)) continue;
+      const x = i % g.cols;
+      const y = (i - x) / g.cols;
+      const dx = x + 0.5 - e.x;
+      const dy = y + 0.5 - e.y;
+      const d = dx * dx + dy * dy;
+      if (d < bd - 1e-9) { bd = d; best = i; }
+    }
+    return best;
+  }
+
+  /**
+   * 捕虫网：把飞行敌人网到地面 dur 秒。期间 flying=false，从落地格沿流场按迷宫行走，地面塔可以打；
+   * 到期后恢复飞行，从当前位置直线飞向出口。返回是否网住。
+   */
+  private netEnemy(e: Enemy, dur: number, t: Tower | null): boolean {
+    const now = this.state.time;
+    if (e.dead) return false;
+    if (e.netUntil > now) {
+      e.netUntil = Math.max(e.netUntil, now + dur);
+      return true;
+    }
+    if (!e.flying || e.jumping) return false;
+    if (e.unstoppable) {
+      this.emit({ type: 'immune', x: e.x, y: e.y });
+      return false;
+    }
+    const ci = this.netCell(e);
+    if (ci < 0) return false;
+    const g = this.state.grid;
+    const cx = ci % g.cols;
+    const cy = (ci - cx) / g.cols;
+    if (Math.floor(e.x) !== cx || Math.floor(e.y) !== cy) {
+      e.x = cx + 0.5;
+      e.y = cy + 0.5;
+    }
+    e.flying = false;
+    e.netUntil = now + dur;
+    e.ccx = e.pcx = e.tcx = cx;
+    e.ccy = e.pcy = e.tcy = cy;
+    if (g.cells[ci] !== CellKind.Exit) {
+      const ni = nextCell(g.cols, g.rows, g.cells, g.dist, ci);
+      if (ni >= 0) {
+        e.tcx = ni % g.cols;
+        e.tcy = (ni - e.tcx) / g.cols;
+      }
+    }
+    this.updateRemaining(e);
+    this.addDebuffer(e, t, 'net');
+    return true;
+  }
+
+  /** 网到期：恢复飞行，从当前位置直线飞向原来的出口 */
+  private unNet(e: Enemy): void {
+    e.netUntil = 0;
+    e.flying = true;
+    e.fx0 = e.x;
+    e.fy0 = e.y;
+    e.flyLen = Math.max(0.1, Math.hypot(e.fx1 - e.x, e.fy1 - e.y));
+    e.flyT = 0;
+    e.angle = Math.atan2(e.fy1 - e.y, e.fx1 - e.x);
+    e.remaining = e.flyLen;
   }
 
   private addInk(t: Tower | null, e: Enemy, stacks: number): void {
@@ -3087,8 +3319,9 @@ export class World implements IWorld {
         if (t && (t.combo & C_PENCIL_ERASER) !== 0 && !e.dead) e.armor = Math.max(0, e.armor - 0.5);
         if (p.kind === 'color' && t) {
           const now = this.state.time;
-          const mul = this.evo(t, 'B', 1) ? 1.5 : 1;
+          const PB = BRANCH.pencil.B;
           const all = t.stars >= 3 && t.branch === 'B' && t.abilityUntil > now;
+          const mul = (this.evo(t, 'B', 1) ? PB.s1 : 1) * (all ? ABILITY_FX.pencil_b.mul : 1);
           const colors = all ? (['red', 'blue', 'yellow', 'green', 'purple'] as const) : [p.color ?? 'red'];
           for (const c of colors) {
             if (c === 'yellow') {
@@ -3100,30 +3333,39 @@ export class World implements IWorld {
             }
             if (e.dead) continue;
             if (c === 'red') {
-              e.burnDps = Math.max(e.burnDps, 4 * mul);
+              e.burnDps = Math.max(e.burnDps, PB.burn * mul);
               e.burnUntil = now + 3;
               e.burnOwner = t.uid;
-            } else if (c === 'blue') this.applySlow(e, 0.2 * mul, 1, true);
+            } else if (c === 'blue') this.applySlow(e, Math.min(0.8, PB.slow * mul), 1, true);
             else if (c === 'green') {
-              e.poisonDps = Math.max(e.poisonDps, 6 * mul);
+              e.poisonDps = Math.max(e.poisonDps, PB.poison * mul);
               e.poisonUntil = now + 4;
               e.poisonOwner = t.uid;
             } else if (c === 'purple') e.purpleUntil = now + 3;
           }
         }
-        // 弹幕：穿透 1 个目标
+        // 弹幕：穿透 N 个目标（每次找离上一个命中点最近的）
         if (p.pierce > 0 && t) {
-          const n = this.queryAll(ex, ey, 1.2, this.qB, false);
-          let best: Enemy | null = null;
-          let bd = Infinity;
-          for (let i = 0; i < n; i++) {
-            const o = this.qB[i];
-            if (o === e || !this.targetable(o) || !this.canHit(t, o)) continue;
-            const dx = o.x - ex;
-            const dy = o.y - ey;
-            if (dx * dx + dy * dy < bd) { bd = dx * dx + dy * dy; best = o; }
+          let lx = ex;
+          let ly = ey;
+          const hit: Enemy[] = [e];
+          for (let k = 0; k < p.pierce; k++) {
+            const n = this.queryAll(lx, ly, 1.2, this.qB, false);
+            let best: Enemy | null = null;
+            let bd = Infinity;
+            for (let i = 0; i < n; i++) {
+              const o = this.qB[i];
+              if (hit.includes(o) || !this.targetable(o) || !this.canHit(t, o)) continue;
+              const dx = o.x - lx;
+              const dy = o.y - ly;
+              if (dx * dx + dy * dy < bd) { bd = dx * dx + dy * dy; best = o; }
+            }
+            if (!best) break;
+            hit.push(best);
+            lx = best.x;
+            ly = best.y;
+            this.damage(best, p.dmg * ABILITY_FX.pencil_a.pierceDmg, t, 0);
           }
-          if (best) this.damage(best, p.dmg, t, 0);
         }
         break;
       }
@@ -3155,6 +3397,12 @@ export class World implements IWorld {
       case 'brush':
         this.penHit(t, e, p);
         break;
+      case 'net': {
+        const dur = SWATTER.netDur + (t && this.evo(t, 'B', 1) ? SWATTER.netS1 : 0);
+        if (this.canNet(e, false)) this.netEnemy(e, dur, t);
+        this.damage(e, p.dmg, t, 0);
+        break;
+      }
       default:
         this.damage(e, p.dmg, t, 0);
     }
@@ -3260,6 +3508,8 @@ export class World implements IWorld {
 
   private updateScore(): void {
     const s = this.state;
+    s.stats.cleared = this.lastCleared;
+    s.stats.bonus = this.bonusScore;
     const v = (this.lastCleared * 100 + s.stats.kills + s.lives * 50 + s.gold * 0.1 + this.bonusScore) * s.params.scoreMul;
     s.score = Math.round(v);
   }
@@ -3276,7 +3526,15 @@ export class World implements IWorld {
 
   /** 冷却只在战斗阶段计时 */
   private tickAbilities(dt: number): void {
-    for (const t of this.towerList) if (t.stars >= 3 && t.abilityCd > 0) t.abilityCd = Math.max(0, t.abilityCd - dt);
+    const now = this.state.time;
+    for (const t of this.towerList) {
+      if (t.stars >= 3 && t.abilityCd > 0) t.abilityCd = Math.max(0, t.abilityCd - dt);
+      // 精算结束：暴击伤害加成要撤掉
+      if (t.id === 'calculator' && t.abilityUntil > 0 && t.abilityUntil <= now) {
+        t.abilityUntil = 0;
+        this.statsDirty = true;
+      }
+    }
   }
 
   /** 能力的敌人目标：targetUid，或离 (x,y) 最近的可选中敌人 */
@@ -3331,18 +3589,19 @@ export class World implements IWorld {
         let ang = cmd.angle;
         if (ang === undefined && cmd.x !== undefined && cmd.y !== undefined) ang = Math.atan2(cmd.y - ty, cmd.x - tx);
         if (ang === undefined || !Number.isFinite(ang)) return { ok: false, reason: '请选择方向' };
-        for (let k = 0; k < 12; k++) {
+        const per = Math.max(1, Math.ceil(a.fx.count / 2));
+        for (let k = 0; k < a.fx.count; k++) {
           const p = this.allocProj(t, 'nail', tx, ty);
           if (!p) break;
-          const aa = ang + ((k % 6) - 2.5) * 0.07;
+          const aa = ang + ((k % per) - (per - 1) / 2) * 0.07;
           p.angle = aa;
           p.vx = Math.cos(aa);
           p.vy = Math.sin(aa);
           // 两轮：第二轮从稍后的位置出发，看起来像连发
-          p.x -= p.vx * 0.6 * Math.floor(k / 6);
-          p.y -= p.vy * 0.6 * Math.floor(k / 6);
+          p.x -= p.vx * 0.6 * Math.floor(k / per);
+          p.y -= p.vy * 0.6 * Math.floor(k / per);
           p.speed = 11;
-          p.dmg = t.dmg * 2.5;
+          p.dmg = t.dmg * a.fx.dmg;
           p.maxDist = 7.5;
         }
         t.angle = ang;
@@ -3350,16 +3609,22 @@ export class World implements IWorld {
         break;
       }
       case 'stapler_b': {
-        const n = this.queryAll(tx, ty, 2, this.qC, true);
+        const rr = a.fx.r;
+        const n = this.queryAll(tx, ty, rr, this.qC, true);
         for (let i = 0; i < n; i++) {
           const e = this.qC[i];
           if (e.dead) continue;
           e.armor = 0;
           e.shield = 0;
           e.shred = 99;
+          if (a.fx.dmg > 0) this.damage(e, t.dmg * a.fx.dmg, t, F_AOE | F_IGNORE_ARMOR);
+          if (!e.dead && a.fx.vuln > 0) {
+            e.stripUntil = now + a.fx.vulnDur;
+            e.stripVuln = a.fx.vuln;
+          }
         }
-        this.emit({ type: 'pulse', x: tx, y: ty, r: 2, color: 'steel' });
-        Object.assign(ev, { x: tx, y: ty, r: 2 });
+        this.emit({ type: 'pulse', x: tx, y: ty, r: rr, color: 'steel' });
+        Object.assign(ev, { x: tx, y: ty, r: rr });
         break;
       }
       case 'glue_a': {
@@ -3370,8 +3635,12 @@ export class World implements IWorld {
             this.emit({ type: 'immune', x: e.x, y: e.y });
             continue;
           }
-          e.rootUntil = Math.max(e.rootUntil, now + (e.boss ? 0.5 : 2));
+          e.rootUntil = Math.max(e.rootUntil, now + (e.boss ? a.fx.bossRoot : a.fx.root));
           e.rootVulnUntil = e.rootUntil;
+          if (a.fx.vuln > 0) {
+            e.stripUntil = e.rootUntil;
+            e.stripVuln = Math.max(e.stripUntil > now ? e.stripVuln : 0, a.fx.vuln);
+          }
         }
         this.emit({ type: 'pulse', x: s.grid.cols / 2, y: s.grid.rows / 2, r: 9, color: 'cyan' });
         Object.assign(ev, { x: tx, y: ty });
@@ -3381,7 +3650,7 @@ export class World implements IWorld {
         if (cmd.x === undefined || cmd.y === undefined) return { ok: false, reason: '请选择位置' };
         const x0 = Math.max(0, Math.min(s.grid.cols - 3, Math.floor(cmd.x) - 1));
         const y0 = Math.max(0, Math.min(s.grid.rows - 3, Math.floor(cmd.y) - 1));
-        this.addZone('lava', 'rect', x0, y0, { w: 3, h: 3, until: now + a.duration, dps: 30 * t.dmgFactor, slow: 0.5, towerUid: t.uid });
+        this.addZone('lava', 'rect', x0, y0, { w: 3, h: 3, until: now + a.duration, dps: a.fx.dps * t.dmgFactor, slow: a.fx.slow, towerUid: t.uid });
         Object.assign(ev, { x: x0 + 1.5, y: y0 + 1.5, r: 1.5 });
         break;
       }
@@ -3393,10 +3662,20 @@ export class World implements IWorld {
       case 'compass_b': {
         const e = this.pickEnemy(cmd, () => true);
         if (!e) return { ok: false, reason: '请选择一个敌人' };
-        const lost = Math.max(0, e.maxHp - e.hp);
         this.emit({ type: 'beam', uid: t.uid, x: tx, y: ty, tx: e.x, ty: e.y, color: 'magenta', width: 0.3 });
         Object.assign(ev, { x: e.x, y: e.y, targetUid: e.uid });
-        this.damage(e, Math.max(1, lost * (e.boss ? 0.05 : 0.2)), t, F_TRUE);
+        // 钻穿：r 格内的其他地面敌人同样按各自已损失生命受伤
+        const list: Enemy[] = [e];
+        if (a.fx.r > 0) {
+          const n = this.queryAll(e.x, e.y, a.fx.r, this.qC, true);
+          for (let i = 0; i < n; i++) if (this.qC[i] !== e && !this.qC[i].flying) list.push(this.qC[i]);
+          this.emit({ type: 'pulse', x: e.x, y: e.y, r: a.fx.r, color: 'magenta' });
+        }
+        for (const o of list) {
+          if (o.dead) continue;
+          const lost = Math.max(0, o.maxHp - o.hp);
+          this.damage(o, Math.max(1, lost * (o.boss ? a.fx.bossPct : a.fx.pct)), t, F_TRUE);
+        }
         break;
       }
       case 'eraser_a': {
@@ -3406,7 +3685,7 @@ export class World implements IWorld {
             const i = c.y * s.grid.cols + c.x;
             if (seen.has(i)) continue;
             seen.add(i);
-            this.addZone('fullcorrect', 'rect', c.x, c.y, { w: 1, h: 1, until: now + a.duration, vuln: 0.25, slow: 0.2, towerUid: t.uid });
+            this.addZone('fullcorrect', 'rect', c.x, c.y, { w: 1, h: 1, until: now + a.duration, vuln: a.fx.vuln, slow: a.fx.slow, towerUid: t.uid });
           }
         }
         Object.assign(ev, { x: tx, y: ty });
@@ -3417,6 +3696,16 @@ export class World implements IWorld {
         if (!e) return { ok: false, reason: '请选择一个精英敌人' };
         this.stripAffixes(e);
         Object.assign(ev, { x: e.x, y: e.y, targetUid: e.uid });
+        if (a.fx.pct > 0) {
+          // 余波：r 格内的其他非 Boss 敌人也受到各自最大生命 pct 的伤害
+          const list: Enemy[] = [e];
+          if (a.fx.r > 0) {
+            const n = this.queryAll(e.x, e.y, a.fx.r, this.qC, true);
+            for (let i = 0; i < n; i++) if (this.qC[i] !== e && !this.qC[i].boss) list.push(this.qC[i]);
+            this.emit({ type: 'pulse', x: e.x, y: e.y, r: a.fx.r, color: 'magenta' });
+          }
+          for (const o of list) if (!o.dead) this.damage(o, o.maxHp * a.fx.pct, t, F_TRUE);
+        }
         break;
       }
       case 'ruler_a': {
@@ -3435,7 +3724,10 @@ export class World implements IWorld {
           const v = axis === 'row' ? e.y : e.x;
           if (v >= line - e.radius && v <= line + 1 + e.radius) list.push(e);
         }
-        for (const e of list) this.knockback(e, 2);
+        for (const e of list) {
+          if (a.fx.dmg > 0) this.damage(e, t.dmg * a.fx.dmg, t, F_AOE);
+          if (!e.dead) this.knockback(e, a.fx.dist);
+        }
         Object.assign(ev, { axis, index: line });
         break;
       }
@@ -3443,15 +3735,21 @@ export class World implements IWorld {
         const e = this.pickEnemy(cmd, () => true);
         if (!e) return { ok: false, reason: '请选择一个敌人' };
         e.measuredUntil = now + a.duration;
+        if (a.fx.r > 0) {
+          const n = this.queryAll(e.x, e.y, a.fx.r, this.qC, true);
+          for (let i = 0; i < n; i++) this.qC[i].measuredUntil = now + a.duration;
+          this.emit({ type: 'pulse', x: e.x, y: e.y, r: a.fx.r, color: 'gold' });
+        }
         Object.assign(ev, { x: e.x, y: e.y, targetUid: e.uid });
         break;
       }
       case 'pen_a': {
         if (cmd.x === undefined || cmd.y === undefined) return { ok: false, reason: '请选择位置' };
-        const cx = Math.max(1, Math.min(s.grid.cols - 2, Math.floor(cmd.x)));
-        const cy = Math.max(1, Math.min(s.grid.rows - 2, Math.floor(cmd.y)));
-        this.addZone('inkcross', 'rect', cx - 1, cy, { w: 3, h: 1, until: now + a.duration, ink: 1, towerUid: t.uid, air: true });
-        this.addZone('inkcross', 'rect', cx, cy - 1, { w: 1, h: 3, until: now + a.duration, ink: 1, towerUid: t.uid, air: true });
+        const arm = Math.max(1, Math.round(a.fx.arm));
+        const cx = Math.max(arm, Math.min(s.grid.cols - 1 - arm, Math.floor(cmd.x)));
+        const cy = Math.max(arm, Math.min(s.grid.rows - 1 - arm, Math.floor(cmd.y)));
+        this.addZone('inkcross', 'rect', cx - arm, cy, { w: 2 * arm + 1, h: 1, until: now + a.duration, ink: a.fx.ink, dps: a.fx.dps * t.dmgFactor, towerUid: t.uid, air: true });
+        this.addZone('inkcross', 'rect', cx, cy - arm, { w: 1, h: 2 * arm + 1, until: now + a.duration, ink: a.fx.ink, dps: a.fx.dps * t.dmgFactor, towerUid: t.uid, air: true });
         Object.assign(ev, { x: cx + 0.5, y: cy + 0.5, r: 1.5 });
         break;
       }
@@ -3459,7 +3757,7 @@ export class World implements IWorld {
         const list = (s.enemies as Enemy[]).filter((e) => !e.dead && e.redUntil > now);
         for (const e of list) {
           if (e.dead) continue;
-          this.damage(e, e.maxHp * 0.1, t, F_TRUE);
+          this.damage(e, e.maxHp * a.fx.pct, t, F_TRUE);
         }
         Object.assign(ev, { x: tx, y: ty });
         break;
@@ -3473,12 +3771,12 @@ export class World implements IWorld {
         if (o.level >= 10) {
           if (!this.canEvolveKind(o) || o.stars >= 3) return { ok: false, reason: '这座塔已经满星' };
           if (o.stars === 2 && o.evoXp >= o.evoXpNext) return { ok: false, reason: '进化经验已满' };
-          o.evoXp += 0.5 * o.evoXpNext;
+          o.evoXp += a.fx.evo * o.evoXpNext;
           this.processEvoXp(o);
         } else {
           if (o.level >= 9) return { ok: false, reason: '速算最多升到 Lv9' };
           const oldTier = o.tier;
-          o.level++;
+          o.level = Math.min(9, o.level + Math.max(1, Math.round(a.fx.levels)));
           this.afterLevelChange(o);
           o.xp = Math.min(o.xp, o.xpNext);
           this.emit({ type: 'levelUp', uid: o.uid, level: o.level, tier: o.tier, tierChanged: o.tier !== oldTier, byXp: false });
@@ -3487,9 +3785,9 @@ export class World implements IWorld {
         break;
       }
       case 'piggy_a': {
-        const g = this.piggyOutput(t) * 3;
+        const g = this.piggyOutput(t) * a.fx.mul;
         this.addGold(g, 'piggy', tx, ty);
-        t.piggyMute = 2;
+        t.piggyMute = a.fx.mute;
         t.abilityCharges = 0;
         t.piggyCharge = 0;
         Object.assign(ev, { x: tx, y: ty });
@@ -3499,6 +3797,21 @@ export class World implements IWorld {
         this.vaultUntil = Math.max(this.vaultUntil, now + a.duration);
         Object.assign(ev, { x: tx, y: ty });
         break;
+      case 'swatter_a':
+        t.abilityUntil = now + a.duration;
+        t.zapT = 1; // 立即放第一次电
+        Object.assign(ev, { x: tx, y: ty });
+        break;
+      case 'swatter_b': {
+        for (const e0 of s.enemies) {
+          const e = e0 as Enemy;
+          if (!this.canNet(e, true)) continue;
+          this.netEnemy(e, e.boss ? a.fx.bossNet : a.fx.net, t);
+        }
+        this.emit({ type: 'pulse', x: s.grid.cols / 2, y: s.grid.rows / 2, r: 9, color: 'gold' });
+        Object.assign(ev, { x: tx, y: ty });
+        break;
+      }
       default:
         return { ok: false, reason: '未知能力' };
     }
@@ -4027,7 +4340,7 @@ export class World implements IWorld {
     return false;
   }
 
-  /** 空降点候选：空地、离出口 ≥ 5 格、周围 1 格内没有塔、落地后所有出生点与敌人仍可达 */
+  /** 空降点候选：空地、离出口 ≥ DROP.minExitDist 格、周围 1 格内没有塔、落地后所有出生点与敌人仍可达 */
   private findDropCell(exclude = -1): number {
     const s = this.state;
     const g = s.grid;
@@ -4378,14 +4691,33 @@ export class World implements IWorld {
           if (t.id === 'pencil' && t.level >= 7) dps *= 2;
           if (t.id === 'lamp' && t.level >= 7) dps *= 2;
           if (t.id === 'ruler' && t.level >= 7) dps *= 3;
-          stats.push({ label: '秒伤', value: fmt(dps) + (t.id === 'stapler' || t.id === 'compass' || t.id === 'ruler' ? ' ×N' : '') });
+          if (t.id === 'swatter' && t.level >= 7) dps *= 2;
+          if (t.id === 'pen') {
+            // 钢笔的主要输出是墨迹：按满层墨迹计入
+            const ink = 6 * t.dmgFactor * ((t.combo & C_LAMP_PEN) ? 1.3 : 1);
+            stats.push({ label: '墨迹秒伤', value: `${fmt(ink)}/层，最多 ${t.inkMax} 层（${fmt(ink * t.inkMax)}）` });
+            dps += ink * t.inkMax;
+          }
+          stats.push({ label: '秒伤', value: fmt(dps) + (t.id === 'stapler' || t.id === 'compass' || t.id === 'ruler' || t.id === 'swatter' ? ' ×N' : t.id === 'pen' ? '（含满层墨迹）' : '') });
         }
         if (t.critChance > 0) stats.push({ label: '暴击', value: `${Math.round(t.critChance * 100)}% ×${fmt(t.critMul)}` });
         if (t.id === 'glue') stats.push({ label: '减速', value: `${Math.round(t.slowPct * 100)}% / ${fmt(t.slowDur)} 秒` });
         if (t.id === 'stapler' && t.stunChance > 0) stats.push({ label: '眩晕概率', value: `${Math.round(t.stunChance * 100)}%` });
-        if (t.id === 'pen') stats.push({ label: '墨迹层数', value: `最多 ${t.inkMax} 层` });
         if (t.id === 'eraser') stats.push({ label: '破甲', value: `每次 −${t.level >= 7 ? 2 : 1}` });
         if (t.pierce > 0) stats.push({ label: '穿甲', value: `无视 ${t.pierce} 点护甲` });
+        if (t.id === 'swatter') {
+          stats.push({ label: '目标', value: '只打空中' });
+          stats.push({ label: '拍击范围', value: `${fmt(this.swatRadius(t))} 格${t.level >= 7 ? '，一次 2 拍' : ''}` });
+          if (t.level >= 4) stats.push({ label: '气流', value: `减速 ${Math.round(SWATTER.airSlow * 100)}% / ${fmt(SWATTER.airSlowDur)} 秒` });
+          if (A) {
+            const n = SWATTER.chain + (this.evo(t, 'A', 1) ? SWATTER.chainS1 : 0);
+            stats.push({ label: '连锁闪电', value: `弹跳 ${n} 次，每跳 ×${SWATTER.chainMul}${this.evo(t, 'A', 2) ? '，可打地面' : ''}` });
+          } else if (t.level >= 10 && t.branch === 'B') {
+            const every = this.evo(t, 'B', 2) ? SWATTER.netEveryS2 : SWATTER.netEvery;
+            const dur = SWATTER.netDur + (this.evo(t, 'B', 1) ? SWATTER.netS1 : 0);
+            stats.push({ label: '捕虫网', value: `每第 ${every} 次攻击，网住 ${fmt(dur)} 秒` });
+          }
+        }
       }
     }
     const traits: TowerInfo['traits'] = [];

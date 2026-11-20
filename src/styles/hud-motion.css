@@ -1,0 +1,1078 @@
+/* 局内界面的动画（动画小组：局内）
+ * 规则：只动 transform / opacity / filter；时长与缓动用 motion.css 的变量；
+ * 常驻循环动画只放在很小的元素上（合成层即可完成，不触发布局 / 重绘大面积）。
+ * 本文件在 main.css 之后加载，同名选择器直接覆盖其中旧的局内动画。
+ */
+
+/* ───────────── 通用关键帧 ───────────── */
+@keyframes hud-flash {
+  0% { opacity: 0.95; }
+  100% { opacity: 0; }
+}
+@keyframes hud-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.28); }
+  100% { transform: scale(1); }
+}
+@keyframes hud-pop-in {
+  from { opacity: 0; transform: scale(0.6); }
+}
+@keyframes hud-rise {
+  from { opacity: 0; transform: translateY(12px); }
+}
+@keyframes hud-shine {
+  from { transform: translateX(-140%) skewX(-18deg); }
+  to { transform: translateX(400%) skewX(-18deg); }
+}
+@keyframes hud-breathe {
+  50% { transform: scale(1.03); }
+}
+@keyframes hud-halo {
+  0% { opacity: 0.9; transform: scale(0.97); }
+  70%, 100% { opacity: 0; transform: scale(1.07, 1.22); }
+}
+@keyframes hud-ominous {
+  0%, 78%, 100% { transform: translate(0, 0) rotate(0); }
+  81% { transform: translate(-1.5px, 0.5px) rotate(-3deg); }
+  84% { transform: translate(1.5px, -0.5px) rotate(3deg); }
+  87% { transform: translate(-1.5px, 0) rotate(-2.5deg); }
+  90% { transform: translate(1px, 0.5px) rotate(2deg); }
+  94% { transform: translate(-0.5px, 0) rotate(-1deg); }
+}
+
+/* 星点（motion.ts sparkle） */
+.fx-sparks {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+.fx-sparks i {
+  position: absolute;
+  left: -3px;
+  top: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--teal);
+}
+.fx-sparks i:nth-child(odd) {
+  left: -5px;
+  top: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 0;
+  background: var(--gold-l);
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+}
+.fx-sparks.gold i {
+  background: var(--gold);
+}
+.fx-sparks.gold i:nth-child(odd) {
+  background: #fff4c2;
+}
+
+/* ───────────── 1. 顶栏 ───────────── */
+.stat {
+  position: relative;
+}
+.stat::after {
+  content: '';
+  position: absolute;
+  inset: 1px -5px;
+  border-radius: 10px;
+  opacity: 0;
+  pointer-events: none;
+}
+.stat-v {
+  display: inline-block;
+  transform-origin: 50% 70%;
+}
+.stat.up::after {
+  background: rgba(42, 157, 143, 0.32);
+  animation: hud-flash var(--dur-l) ease-out;
+}
+.stat.down::after,
+.stat.hurt::after {
+  background: rgba(230, 57, 70, 0.4);
+  animation: hud-flash var(--dur-l) ease-out;
+}
+.stat.up .stat-v {
+  color: #17786c;
+  animation: hud-tick-up var(--dur-m) var(--ease-spring);
+}
+.stat.down .stat-v {
+  color: var(--red);
+  animation: hud-tick-down var(--dur-m) var(--ease-spring);
+}
+.game[data-difficulty='abyss'] .stat.up .stat-v {
+  color: var(--cyan);
+}
+@keyframes hud-tick-up {
+  0% { transform: translateY(5px) scale(0.92); }
+  55% { transform: translateY(-2px) scale(1.12); }
+  100% { transform: none; }
+}
+@keyframes hud-tick-down {
+  0% { transform: translateY(-5px) scale(0.92); }
+  55% { transform: translateY(2px) scale(1.06); }
+  100% { transform: none; }
+}
+/* 漏怪：整格左右抖 + 红心猛跳一下 */
+.stat.hurt {
+  animation: hud-hurt 450ms ease;
+}
+.stat.hurt .stat-v {
+  color: var(--red);
+}
+.stat.hurt .gi {
+  animation: hud-heart 450ms var(--ease-spring);
+}
+@keyframes hud-hurt {
+  15%, 55% { transform: translateX(-4px) rotate(-2deg); }
+  35%, 75% { transform: translateX(4px) rotate(2deg); }
+}
+@keyframes hud-heart {
+  0% { transform: scale(1); }
+  25% { transform: scale(1.45); filter: brightness(1.25); }
+  50% { transform: scale(0.85); }
+  100% { transform: scale(1); }
+}
+.stat.lives.low .gi {
+  animation: hud-breathe 0.8s ease-in-out infinite;
+}
+.stat.lives.low.hurt .gi {
+  animation: hud-heart 450ms var(--ease-spring);
+}
+/* 金币到账 */
+.stat.bump > .gi {
+  animation: hud-pop var(--dur-m) var(--ease-spring);
+}
+.stat.gain .stat-v {
+  animation: none;
+}
+.stat-pop {
+  position: absolute;
+  left: 20px;
+  top: calc(100% - 9px);
+  z-index: 6;
+  padding: 0 6px;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  background: var(--gold-l);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 15px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+}
+.stat-pop.show {
+  animation: hud-gold-pop 900ms var(--ease-out);
+}
+@keyframes hud-gold-pop {
+  0% { opacity: 0; transform: translateY(-6px) scale(0.6); }
+  18% { opacity: 1; transform: translateY(0) scale(1.1); }
+  30% { transform: translateY(0) scale(1); }
+  75% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-8px) scale(0.9); }
+}
+/* 波次翻牌 */
+.stat.wave.flip .stat-v {
+  animation: hud-flip var(--dur-l) var(--ease-out);
+}
+@keyframes hud-flip {
+  0% { transform: perspective(160px) rotateX(-88deg) scale(1.2); opacity: 0.2; }
+  60% { transform: perspective(160px) rotateX(14deg) scale(1.2); opacity: 1; }
+  100% { transform: perspective(160px) rotateX(0) scale(1); }
+}
+.stat.wave.flip > .gi {
+  animation: hud-pop var(--dur-l) var(--ease-spring);
+}
+
+/* 金币飞入层 */
+.g-fx {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+}
+.gold-fly {
+  position: absolute;
+  left: -9px;
+  top: -9px;
+  width: 18px;
+  height: 18px;
+  will-change: transform, opacity;
+}
+.gold-fly svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ───────────── 2. 塔栏 ───────────── */
+.build-btn {
+  transition:
+    transform var(--dur-s) var(--ease-spring),
+    opacity var(--dur-m) var(--ease-out);
+}
+.build-btn .b-ico {
+  transition:
+    filter var(--dur-m) var(--ease-out),
+    transform var(--dur-m) var(--ease-spring);
+}
+.build-btn:active {
+  transform: translateY(2px) scale(0.95);
+  transition-duration: var(--dur-xs);
+}
+.build-btn.poor:not(.on) .b-ico,
+.build-btn.locked .b-ico {
+  filter: grayscale(0.9);
+}
+.build-btn.on {
+  transform: translateY(-2px);
+}
+.build-btn.on:active {
+  transform: translateY(0) scale(0.95);
+}
+.build-btn.on .b-ico {
+  transform: scale(1.12) rotate(-5deg);
+}
+/* 选中指示条：弹出来 */
+.b-sel {
+  position: absolute;
+  left: 28%;
+  right: 28%;
+  bottom: 1px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--ink);
+  opacity: 0;
+  transform: scaleX(0);
+  transition:
+    transform var(--dur-m) var(--ease-spring),
+    opacity var(--dur-s) var(--ease-out);
+  pointer-events: none;
+}
+.build-btn.on .b-sel {
+  opacity: 1;
+  transform: scaleX(1);
+}
+/* 刚攒够钱 */
+.build-btn.afford .b-ico {
+  animation: hud-pop var(--dur-l) var(--ease-spring);
+}
+.build-btn.afford .b-cost {
+  animation: hud-pop var(--dur-l) var(--ease-spring);
+}
+/* 新解锁 */
+.b-new {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  z-index: 2;
+  padding: 0 4px;
+  border: 1.5px solid var(--ink);
+  border-radius: 6px;
+  background: var(--red);
+  color: var(--white);
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 13px;
+  letter-spacing: 0.04em;
+  transform: rotate(8deg);
+  animation:
+    hud-new-in var(--dur-l) var(--ease-spring) backwards,
+    hud-new-wiggle 1.6s ease-in-out var(--dur-l) 5;
+  pointer-events: none;
+}
+@keyframes hud-new-in {
+  from { opacity: 0; transform: rotate(-20deg) scale(0); }
+}
+@keyframes hud-new-wiggle {
+  0%, 70%, 100% { transform: rotate(8deg) scale(1); }
+  78% { transform: rotate(-4deg) scale(1.18); }
+  86% { transform: rotate(14deg) scale(1.18); }
+}
+.b-shine {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  pointer-events: none;
+}
+.b-shine::before {
+  content: '';
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: 0;
+  width: 36%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.9), transparent);
+  transform: translateX(-140%) skewX(-18deg);
+  animation: hud-shine 1.2s var(--ease-in-out) 200ms 3;
+}
+.build-btn.is-new .b-ico {
+  animation: hud-pop var(--dur-xl) var(--ease-spring);
+}
+
+/* ───────────── 3. 信息面板 ───────────── */
+.info-body {
+  position: relative;
+}
+.info-enter {
+  animation: hud-info-in var(--dur-m) var(--ease-out);
+}
+.info-ghost {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  animation: hud-info-out var(--dur-s) var(--ease-in) forwards;
+}
+@keyframes hud-info-in {
+  from { opacity: 0; transform: translateY(10px); }
+}
+@keyframes hud-info-out {
+  to { opacity: 0; transform: translateY(-6px) scale(0.98); }
+}
+.tower-info {
+  position: relative;
+}
+.info-ico {
+  position: relative;
+}
+/* 经验条：scaleX 填充 */
+.xp {
+  position: relative;
+}
+.xp-fill {
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform var(--dur-l) var(--ease-out);
+}
+.xp-bar.full .xp-fill {
+  animation: hud-xp-full 1.4s ease-in-out infinite;
+}
+@keyframes hud-xp-full {
+  50% { opacity: 0.6; }
+}
+.xp-bar.lvup::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 40%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.95), transparent);
+  transform: translateX(-140%) skewX(-18deg);
+  animation: hud-shine var(--dur-xl) var(--ease-out) forwards;
+}
+/* 等级点 / 等级数字 */
+.lv {
+  display: inline-block;
+}
+.lv.pop {
+  animation: hud-pop var(--dur-l) var(--ease-spring);
+}
+.pip.pop {
+  animation: hud-pip var(--dur-l) var(--ease-spring);
+}
+@keyframes hud-pip {
+  0% { transform: scale(0.2); }
+  55% { transform: scale(1.9); filter: brightness(1.3); }
+  100% { transform: scale(1); }
+}
+/* 进化星：只有新点亮的那颗弹出来（神话时三颗依次） */
+.evo-star.on {
+  animation: none;
+}
+.evo-star.pop {
+  animation: hud-star var(--dur-l) var(--ease-spring) backwards;
+  animation-delay: calc(var(--i, 0) * 180ms + 80ms);
+}
+@keyframes hud-star {
+  0% { transform: scale(0) rotate(-120deg); opacity: 0; }
+  60% { transform: scale(1.7) rotate(12deg); opacity: 1; filter: brightness(1.4); }
+  100% { transform: scale(1) rotate(0); }
+}
+/* 进化 / 神话一刻：金色扫光 + 图标鼓一下 */
+.info-shimmer {
+  position: absolute;
+  inset: -2px;
+  border-radius: 12px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 3;
+}
+.info-shimmer::before {
+  content: '';
+  position: absolute;
+  top: -30%;
+  bottom: -30%;
+  left: 0;
+  width: 32%;
+  background: linear-gradient(100deg, transparent, rgba(245, 215, 110, 0.85) 40%, rgba(255, 255, 255, 0.9) 50%, rgba(245, 215, 110, 0.85) 60%, transparent);
+  transform: translateX(-140%) skewX(-18deg);
+  animation: hud-shine var(--dur-xl) var(--ease-in-out) forwards;
+}
+.mythic-moment .info-shimmer::before {
+  animation: hud-shine var(--dur-xl) var(--ease-in-out) 2 forwards;
+}
+.evo-moment .info-ico {
+  animation: hud-evo-ico var(--dur-l) var(--ease-spring);
+}
+.mythic-moment .info-ico {
+  animation: hud-evo-ico var(--dur-xl) var(--ease-spring) 2;
+}
+@keyframes hud-evo-ico {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.22) rotate(-6deg); filter: brightness(1.35) saturate(1.3); }
+  100% { transform: scale(1); }
+}
+.mythic-moment .tier-badge {
+  animation: hud-pop var(--dur-xl) var(--ease-spring) 300ms;
+}
+/* 升级成功 */
+.btn.upgrade.success {
+  animation: hud-success var(--dur-l) var(--ease-spring);
+}
+@keyframes hud-success {
+  0% { transform: scale(0.94); filter: brightness(1.35); }
+  50% { transform: scale(1.06); filter: brightness(1.15); }
+  100% { transform: scale(1); }
+}
+.btn.upgrade.poor > .gi {
+  filter: grayscale(0.8);
+}
+.btn.upgrade > .gi {
+  transition: filter var(--dur-m) var(--ease-out);
+}
+/* 主动能力卡 */
+.ability-card.ready .ability-ico {
+  animation: hud-breathe 1.6s ease-in-out infinite;
+}
+.ability-card.ding .ability-ico {
+  animation: hud-ding var(--dur-l) var(--ease-spring);
+}
+.ability-card.aiming .ability-ico {
+  animation: hud-aim 0.9s ease-in-out infinite;
+}
+.ability-ico .ico {
+  transition: filter var(--dur-m) var(--ease-out);
+}
+.ability-card:not(.ready) .ability-ico .ico {
+  filter: grayscale(0.7);
+}
+
+/* ───────────── 4. 技能栏 / 塔能力 ───────────── */
+.skill-btn {
+  transition: transform var(--dur-xs) var(--ease-out);
+}
+.skill-btn:active {
+  transform: translateY(2px) scale(0.95);
+}
+.skill-btn .ico {
+  transition: filter var(--dur-m) var(--ease-out);
+}
+.skill-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0, rgba(245, 215, 110, 0.7) 45%, transparent 70%);
+  opacity: 0;
+  pointer-events: none;
+}
+/* 冷却好了：「叮」 */
+.skill-btn.ping {
+  animation: hud-ding var(--dur-l) var(--ease-spring);
+}
+.skill-btn.ping::after {
+  animation: hud-ding-flash var(--dur-l) ease-out;
+}
+@keyframes hud-ding {
+  0% { transform: scale(0.9); }
+  45% { transform: scale(1.16); filter: brightness(1.15); }
+  100% { transform: scale(1); }
+}
+@keyframes hud-ding-flash {
+  0% { opacity: 0.95; transform: scale(0.3); }
+  100% { opacity: 0; transform: scale(1.6); }
+}
+/* 瞄准中：红圈（静态）+ 轻微呼吸 */
+.skill-btn.aiming {
+  animation: hud-aim 0.9s ease-in-out infinite;
+}
+@keyframes hud-aim {
+  50% { transform: scale(1.07); filter: brightness(1.08); }
+}
+/* 充能圆点 */
+.charges.dots {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px 3px;
+}
+.charges.dots i {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+  transform: scale(0.75);
+}
+.charges.dots i.on {
+  background: var(--teal);
+  transform: scale(1);
+}
+.charges.dots i.gain {
+  animation: hud-dot-gain var(--dur-l) var(--ease-spring);
+}
+.charges.dots i.spend {
+  animation: hud-dot-spend var(--dur-l) var(--ease-out);
+}
+@keyframes hud-dot-gain {
+  0% { transform: scale(0.3); }
+  50% { transform: scale(2); filter: brightness(1.3); }
+  100% { transform: scale(1); }
+}
+@keyframes hud-dot-spend {
+  0% { transform: scale(1.6); opacity: 0.4; }
+  100% { transform: scale(0.75); opacity: 1; }
+}
+.axis-btn.show {
+  animation: hud-pop-in var(--dur-m) var(--ease-spring);
+}
+
+/* ───────────── 5. 波次面板 ───────────── */
+.start-btn {
+  position: relative;
+}
+/* 待命呼吸：缩放 + 外圈光环（取代原来的 box-shadow 动画） */
+.start-btn.pulse:not(:disabled) {
+  animation: hud-breathe 1.8s ease-in-out infinite;
+}
+.start-btn.pulse:not(:disabled)::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 3px solid rgba(242, 193, 78, 0.9);
+  border-radius: 15px;
+  pointer-events: none;
+  animation: hud-halo 1.8s var(--ease-out) infinite;
+}
+.start-btn:active:not(:disabled) {
+  transform: translateY(2px) scale(0.97);
+}
+/* 最后 3 秒：倒计时环急促跳动 */
+.start-btn.urgent .count-ring {
+  animation: hud-urgent 0.5s ease-in-out infinite;
+}
+@keyframes hud-urgent {
+  50% { transform: scale(1.22); }
+}
+.start-btn.urgent .act-label {
+  animation: hud-urgent-txt 0.5s ease-in-out infinite;
+  transform-origin: 0 50%;
+}
+@keyframes hud-urgent-txt {
+  50% { transform: scale(1.05); }
+}
+.count-ring {
+  animation: hud-pop-in var(--dur-m) var(--ease-spring);
+}
+/* 下一波预览：依次弹入 */
+.pv-in {
+  animation: hud-chip-in var(--dur-m) var(--ease-spring) backwards;
+  animation-delay: calc(var(--i, 0) * var(--stagger));
+}
+@keyframes hud-chip-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.7); }
+}
+/* Boss 标记：不祥地抖 */
+.wave-tag.boss.pv-in {
+  animation:
+    hud-chip-in var(--dur-m) var(--ease-spring) backwards,
+    hud-ominous 2.4s linear var(--dur-l) infinite;
+}
+.boss-hint {
+  animation: hud-ominous 2.4s linear infinite;
+}
+.up-event {
+  animation: hud-pop-in var(--dur-m) var(--ease-spring);
+}
+.speed-btn b {
+  display: inline-block;
+}
+.speed-btn:active b {
+  transform: scale(1.2);
+}
+
+/* ───────────── 6. 横幅 / Boss 血条 / 事件 / 弹窗 ───────────── */
+/* 开波横幅：从左扫入、向右扫出，身后一道色带横贯棋盘 */
+.banner.sweep {
+  position: relative;
+  transition: none;
+  animation: hud-banner-in var(--dur-l) var(--ease-out) both;
+}
+.banner.sweep.out {
+  animation: hud-banner-out var(--dur-l) var(--ease-in) forwards;
+}
+@keyframes hud-banner-in {
+  0% { opacity: 0; transform: translateX(-90%) rotate(-2deg) skewX(-16deg) scale(0.9); }
+  65% { opacity: 1; transform: translateX(4%) rotate(-2deg) skewX(4deg) scale(1.03); }
+  100% { opacity: 1; transform: rotate(-2deg); }
+}
+@keyframes hud-banner-out {
+  0% { opacity: 1; transform: rotate(-2deg); }
+  100% { opacity: 0; transform: translateX(90%) rotate(-2deg) skewX(-16deg) scale(0.9); }
+}
+.banner-streak {
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  top: 50%;
+  height: 58px;
+  margin-top: -29px;
+  background: linear-gradient(90deg, transparent, rgba(59, 47, 42, 0.22) 20%, rgba(59, 47, 42, 0.22) 80%, transparent);
+  transform: rotate(-2deg) scaleX(0);
+  transform-origin: 0 50%;
+  animation: hud-streak 1.1s var(--ease-in-out) both;
+  pointer-events: none;
+}
+.banner-streak.boss {
+  background: linear-gradient(90deg, transparent, rgba(230, 57, 70, 0.4) 20%, rgba(230, 57, 70, 0.4) 80%, transparent);
+  animation-duration: 1.6s;
+}
+@keyframes hud-streak {
+  0% { transform: rotate(-2deg) translateX(0) scaleX(0); opacity: 1; }
+  35% { transform: rotate(-2deg) translateX(0) scaleX(1); opacity: 1; }
+  70% { transform: rotate(-2deg) translateX(0) scaleX(1); opacity: 1; }
+  100% { transform: rotate(-2deg) translateX(100%) scaleX(0.2); opacity: 0; }
+}
+.banner.boss .banner-ico {
+  animation: hud-ominous 1.2s linear infinite;
+}
+.banner.boss.sweep {
+  animation:
+    hud-banner-in var(--dur-l) var(--ease-out) both,
+    hud-boss-throb 0.6s ease-in-out var(--dur-l) 2;
+}
+@keyframes hud-boss-throb {
+  50% { transform: rotate(-2deg) scale(1.06); }
+}
+/* 胜利 / 失败：盖章 */
+.banner.stamp {
+  transition:
+    opacity var(--dur-l),
+    transform var(--dur-l);
+  animation: hud-stamp var(--dur-l) cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+@keyframes hud-stamp {
+  0% { opacity: 0; transform: rotate(-12deg) scale(2.6); }
+  60% { opacity: 1; }
+  100% { opacity: 1; transform: rotate(-2deg) scale(1); }
+}
+
+/* 随机事件横幅 */
+.event-card {
+  animation: hud-event-in var(--dur-l) var(--ease-spring);
+}
+@keyframes hud-event-in {
+  from { opacity: 0; transform: translateY(-28px) scale(0.92); }
+}
+.event-card .ev-ico {
+  animation: hud-pop var(--dur-l) var(--ease-spring) 150ms backwards;
+}
+.event-card.tone-bad .ev-ico {
+  animation:
+    hud-pop var(--dur-l) var(--ease-spring) 150ms backwards,
+    hud-ominous 1.6s linear 0.6s infinite;
+}
+.event-card.to-chip {
+  transition: none;
+  pointer-events: none;
+}
+.event-chip {
+  animation: hud-pop-in var(--dur-m) var(--ease-spring);
+  transform-origin: 0 50%;
+}
+
+/* Boss 血条：scaleX 掉血 + 残影 */
+.boss-row {
+  animation: hud-boss-in var(--dur-l) var(--ease-spring);
+}
+@keyframes hud-boss-in {
+  from { opacity: 0; transform: translateY(-16px) scale(0.9); }
+}
+.boss-hp,
+.boss-ghost,
+.boss-shield {
+  left: 0;
+  width: 100%;
+  transform-origin: 0 50%;
+}
+.boss-hp {
+  transition: transform 120ms linear;
+}
+.boss-ghost {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: #fff1b8;
+  transition: transform 420ms var(--ease-in-out);
+}
+.boss-shield {
+  transform: scaleX(0);
+}
+.boss-row.hit .boss-bar {
+  animation: hud-boss-hit 240ms ease-out;
+}
+@keyframes hud-boss-hit {
+  0% { transform: scaleY(1.35); filter: brightness(1.5); }
+  100% { transform: none; }
+}
+.boss-row.hit > .ico {
+  animation: hud-hurt 240ms ease;
+}
+.boss-row.low .boss-hp {
+  animation: hud-xp-full 0.6s ease-in-out infinite;
+}
+
+/* 局内提示 */
+.toasts .toast {
+  animation: hud-toast-in var(--dur-m) var(--ease-spring);
+  transition:
+    opacity var(--dur-m) var(--ease-in),
+    transform var(--dur-m) var(--ease-in);
+}
+@keyframes hud-toast-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.86); }
+}
+.toasts .toast.out {
+  transform: translateY(-8px) scale(0.96);
+}
+.board-hint {
+  animation: hud-rise var(--dur-m) var(--ease-spring);
+}
+
+/* 补给箱三选一 */
+.crate-card {
+  animation: hud-crate-in var(--dur-l) var(--ease-spring);
+}
+@keyframes hud-crate-in {
+  from { opacity: 0; transform: translateY(36px) scale(0.8) rotate(-2deg); }
+}
+.crate-head .gi {
+  animation: hud-crate-wiggle 1.8s ease-in-out infinite;
+}
+@keyframes hud-crate-wiggle {
+  0%, 60%, 100% { transform: rotate(0); }
+  70% { transform: rotate(-12deg) scale(1.1); }
+  80% { transform: rotate(10deg) scale(1.1); }
+  90% { transform: rotate(-5deg); }
+}
+.crate-opt {
+  animation: hud-pop-in var(--dur-m) var(--ease-spring) backwards;
+  animation-delay: calc(var(--i, 0) * 70ms + 140ms);
+  transition: transform var(--dur-xs) var(--ease-out);
+}
+.crate-opt:active {
+  transform: translateY(2px) scale(0.96);
+}
+
+/* 增益三选一：发牌翻入 + 稀有度光效 */
+.perk-cards {
+  perspective: 900px;
+}
+.perk-title {
+  animation: hud-rise var(--dur-m) var(--ease-spring) backwards;
+}
+.perk-card {
+  animation: hud-deal var(--dur-l) var(--ease-out) backwards;
+  animation-delay: calc(var(--i, 0) * 90ms + 80ms);
+  transition: transform var(--dur-s) var(--ease-spring);
+}
+@keyframes hud-deal {
+  0% { opacity: 0; transform: translateY(70px) rotateY(-85deg) rotate(-8deg) scale(0.8); }
+  55% { opacity: 1; }
+  80% { transform: translateY(-4px) rotateY(6deg) rotate(0.5deg) scale(1.02); }
+  100% { opacity: 1; transform: none; }
+}
+.perk-card:active {
+  transform: translateY(2px) scale(0.97);
+  transition-duration: var(--dur-xs);
+}
+.perk-shine {
+  position: absolute;
+  inset: 0;
+  border-radius: 13px;
+  overflow: hidden;
+  pointer-events: none;
+}
+.perk-shine::before {
+  content: '';
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: 0;
+  width: 34%;
+  opacity: 0;
+  transform: translateX(-140%) skewX(-18deg);
+}
+.perk-card.r-rare .perk-shine::before {
+  opacity: 1;
+  background: linear-gradient(100deg, transparent, rgba(79, 163, 224, 0.35), rgba(255, 255, 255, 0.8), rgba(79, 163, 224, 0.35), transparent);
+  animation: hud-shine 900ms var(--ease-in-out) calc(var(--i, 0) * 90ms + 500ms) 1 backwards;
+}
+.perk-card.r-epic .perk-shine::before {
+  opacity: 1;
+  background: linear-gradient(100deg, transparent, rgba(142, 92, 217, 0.4), rgba(255, 255, 255, 0.9), rgba(245, 215, 110, 0.5), transparent);
+  animation: hud-shine-loop 2.6s var(--ease-in-out) calc(var(--i, 0) * 90ms + 500ms) infinite backwards;
+}
+@keyframes hud-shine-loop {
+  0% { transform: translateX(-140%) skewX(-18deg); }
+  45%, 100% { transform: translateX(400%) skewX(-18deg); }
+}
+/* 光晕用伪元素的 opacity 呼吸（不动 box-shadow 本身） */
+.perk-card.r-rare::after,
+.perk-card.r-epic::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 22px;
+  pointer-events: none;
+  opacity: 0.25;
+  animation: hud-glow 1.6s ease-in-out infinite alternate;
+}
+.perk-card.r-rare::after {
+  box-shadow: 0 0 16px 2px rgba(79, 163, 224, 0.7);
+}
+.perk-card.r-epic::after {
+  box-shadow: 0 0 26px 6px rgba(142, 92, 217, 0.85);
+}
+@keyframes hud-glow {
+  to { opacity: 1; }
+}
+.perk-card.r-epic .perk-rarity {
+  animation: hud-pop var(--dur-l) var(--ease-spring) calc(var(--i, 0) * 90ms + 420ms) backwards;
+}
+.reroll .gi {
+  transition: transform var(--dur-l) var(--ease-spring);
+}
+.reroll:active .gi {
+  transform: rotate(180deg);
+}
+
+/* 传奇分支：两张牌从两侧甩入 */
+.branch-card {
+  animation: hud-branch-in var(--dur-l) var(--ease-spring) backwards;
+  animation-delay: calc(var(--i, 0) * 90ms + 80ms);
+  transition: transform var(--dur-s) var(--ease-spring);
+}
+@keyframes hud-branch-in {
+  from {
+    opacity: 0;
+    transform: translateX(calc((var(--i, 0) * 2 - 1) * 48px)) rotate(calc((var(--i, 0) * 2 - 1) * 8deg)) scale(0.85);
+  }
+}
+.branch-card:active {
+  transform: translateY(2px) scale(0.97);
+}
+@media (hover: hover) {
+  .branch-card:hover {
+    transform: translateY(-4px);
+  }
+}
+.branch-ico {
+  animation: hud-float 2.4s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * -1.2s);
+}
+@keyframes hud-float {
+  50% { transform: translateY(-5px) scale(1.04); }
+}
+.branch-tag {
+  animation: hud-pop-in var(--dur-m) var(--ease-spring) calc(var(--i, 0) * 90ms + 300ms) backwards;
+}
+
+/* 暂停菜单：对话框缩放弹入（入场时自带一小段模糊→清晰） */
+.pause-dialog {
+  animation: hud-pause-in var(--dur-m) var(--ease-spring);
+}
+@keyframes hud-pause-in {
+  from { opacity: 0; transform: scale(0.86) translateY(10px); filter: blur(5px); }
+}
+.pause-main > * {
+  animation: hud-rise var(--dur-m) var(--ease-out) backwards;
+}
+.pause-main > :nth-child(2) { animation-delay: 30ms; }
+.pause-main > :nth-child(3) { animation-delay: 60ms; }
+.pause-main > :nth-child(4) { animation-delay: 90ms; }
+.pause-main > :nth-child(5) { animation-delay: 120ms; }
+.pause-main > :nth-child(6) { animation-delay: 150ms; }
+.pause-main > :nth-child(n + 7) { animation-delay: 180ms; }
+.pause-confirm,
+.pause-settings,
+.pause-history {
+  animation: hud-rise var(--dur-m) var(--ease-out);
+}
+/* 背景模糊只给桌面端：手机上对着棋盘画布做 backdrop-filter 太贵 */
+@media (hover: hover) and (min-width: 760px) {
+  .pause-overlay {
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+  }
+}
+.is-paused .pause-btn .gi {
+  animation: hud-breathe 1.2s ease-in-out infinite;
+}
+
+/* 结算：盖章 → 数字 → 奖励 → 伤害条 */
+.gameover {
+  animation: hud-go-in var(--dur-l) var(--ease-spring);
+}
+@keyframes hud-go-in {
+  from { opacity: 0; transform: translateY(28px) scale(0.9); }
+}
+.go-ico {
+  animation:
+    hud-go-ico var(--dur-l) var(--ease-spring) 80ms backwards,
+    bob 1.8s ease-in-out 600ms infinite;
+}
+@keyframes hud-go-ico {
+  from { opacity: 0; transform: scale(0) rotate(-140deg); }
+}
+.go-head h2 {
+  animation: hud-title-stamp var(--dur-l) cubic-bezier(0.2, 1.5, 0.4, 1) 180ms backwards;
+}
+@keyframes hud-title-stamp {
+  0% { opacity: 0; transform: scale(2.4) rotate(-8deg); }
+  60% { opacity: 1; }
+  100% { transform: none; }
+}
+.go-head p {
+  animation: hud-rise var(--dur-m) var(--ease-out) 380ms backwards;
+}
+.go-stat {
+  animation: hud-rise var(--dur-m) var(--ease-spring) backwards;
+  animation-delay: calc(var(--i, 0) * 120ms + 420ms);
+}
+.go-stat b {
+  display: inline-block;
+}
+.go-stat b.counted,
+.go-ink.counted {
+  animation: hud-pop var(--dur-m) var(--ease-spring);
+}
+.go-ink {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+}
+.go-reward {
+  animation: hud-pop-in var(--dur-m) var(--ease-spring) 950ms backwards;
+}
+.go-reward:nth-child(2) { animation-delay: 1070ms; }
+.go-reward:nth-child(3) { animation-delay: 1190ms; }
+.go-reward:nth-child(n + 4) { animation-delay: 1310ms; }
+.go-reward.new {
+  animation:
+    hud-title-stamp var(--dur-l) cubic-bezier(0.2, 1.5, 0.4, 1) 1400ms backwards,
+    hud-breathe 1s ease-in-out 2s infinite;
+}
+.go-online:empty {
+  display: none;
+}
+.mvp-row {
+  animation: hud-rise var(--dur-m) var(--ease-out) backwards;
+  animation-delay: calc(var(--i, 0) * 90ms + 800ms);
+}
+.mvp-bar span {
+  transform-origin: 0 50%;
+  animation: hud-grow var(--dur-xl) var(--ease-out) backwards;
+  animation-delay: calc(var(--i, 0) * 90ms + 950ms);
+}
+@keyframes hud-grow {
+  from { transform: scaleX(0); }
+}
+.mvp-row.first .mvp-rank .gi {
+  animation: hud-pop var(--dur-l) var(--ease-spring) 1.5s backwards;
+}
+
+/* ───────────── 7. 新手提示 ───────────── */
+.coach {
+  animation: hud-coach-in var(--dur-l) var(--ease-spring);
+  transition:
+    opacity var(--dur-s) var(--ease-in),
+    transform var(--dur-s) var(--ease-in);
+}
+.coach[data-side='top'] {
+  transform-origin: var(--ax, 50%) 100%;
+}
+.coach[data-side='bottom'] {
+  transform-origin: var(--ax, 50%) 0;
+}
+.coach[data-side='left'] {
+  transform-origin: 100% var(--ay, 50%);
+}
+@keyframes hud-coach-in {
+  from { opacity: 0; transform: scale(0.7) translateY(8px); }
+}
+.coach.out {
+  transform: scale(0.9);
+}
+.coach-ok {
+  animation: hud-breathe 1.4s ease-in-out 1s infinite;
+}
+/* 提示圈：圈本身不动（位置由 JS 的 transform 控制），外扩的光环用伪元素做 */
+.coach-ring {
+  animation: none;
+}
+.coach-ring.out {
+  opacity: 0;
+}
+.coach-ring::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border: 3px solid var(--red);
+  border-radius: 18px;
+  animation: hud-ring 1.3s var(--ease-out) infinite;
+}
+@keyframes hud-ring {
+  0% { opacity: 0.85; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.1, 1.14); }
+}
+
+/* ───────────── 减少动画 ───────────── */
+html.reduce-motion .game *,
+html.reduce-motion .game *::before,
+html.reduce-motion .game *::after {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0s !important;
+}
+html.reduce-motion .g-fx,
+html.reduce-motion .banner-streak,
+html.reduce-motion .fx-sparks {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .game *,
+  .game *::before,
+  .game *::after {
+    animation-delay: 0s !important;
+    transition-delay: 0s !important;
+  }
+  .g-fx,
+  .banner-streak,
+  .fx-sparks {
+    display: none;
+  }
+}

@@ -7,12 +7,13 @@
  *    无限生命跑若干波，比较"打掉的敌人总生命 / 金币"。
  * 2) 辅助塔：同样金币的 一半铅笔 + 一半辅助塔，对比 全部铅笔。
  * 3) 传奇分支：每种塔 3 座直接升到 Lv10 的 A / B 分支（配 8 座 Lv5 铅笔打底），比较 25～40 波这些塔的输出与漏怪。
- * 4) 神话（文档 11 §5）：同样的布置但 3 座塔进化到 ★3 并自动释放主动能力，统计 40～52 波：
+ * 4) 神话（文档 11 §5）：同样的布置但 3 座塔进化到 ★3（苍蝇拍：1 座，配 8 座 Lv5 订书机），只有第一座自动释放主动能力，统计 40～52 波：
  *    A / B 的"打掉的生命占比"之比（目标 ±15%），以及能力单次释放的价值 ÷ 大橡皮单次释放的价值（目标 1～1.5）。
  *    价值 = 开 / 关能力（或大橡皮）两局的漏掉生命之差 ÷ 释放次数。
  */
 import { createWorld, type Branch, type IWorld, type MapId, type TowerId } from '../src/core';
-import { TOWERS } from '../src/config/towers';
+import { BRANCH, SWATTER, TOWERS } from '../src/config/towers';
+import { ABILITY_FX, EVO } from '../src/config/evolution';
 import { airSamples, coverage, groundSamples, planMaze, targetCells } from './bots/maze';
 import { BOTS, StrategyBot } from './bots';
 
@@ -26,6 +27,21 @@ const BUDGET = Number(arg('budget', '600'));
 const SEEDS = Number(arg('seeds', '3'));
 const MAPS = arg('maps', 'ch1,ch2,ch3').split(',') as MapId[];
 const ATTACKERS: TowerId[] = ['pencil', 'stapler', 'glue', 'lamp', 'compass', 'eraser', 'ruler', 'pen'];
+/** 传奇 / 神话对比的塔（苍蝇拍只打空中，不参加单塔性价比） */
+const LEGENDS: TowerId[] = [...ATTACKERS, 'swatter', 'calculator', 'piggy'];
+
+// --patch '{"branch.glue.B.dps":8,"fx.pencil_b.mul":2}'：运行时临时改配置（branch / swatter / fx / evo / towers），不写文件
+const patchArg = arg('patch', '{}') === '{}' ? '' : arg('patch', '');
+if (patchArg) {
+  const roots: Record<string, unknown> = { branch: BRANCH, swatter: SWATTER, fx: ABILITY_FX, evo: EVO, towers: TOWERS };
+  for (const [path, v] of Object.entries(JSON.parse(patchArg) as Record<string, number>)) {
+    const parts = path.split('.');
+    let o = roots[parts[0]] as Record<string, unknown>;
+    for (const k of parts.slice(1, -1)) o = o[k] as Record<string, unknown>;
+    if (!o || !(parts[parts.length - 1] in o)) throw new Error(`bad patch path ${path}`);
+    o[parts[parts.length - 1]] = v;
+  }
+}
 
 function world(map: MapId, seed: string, skills: 'eraser_strike'[] = []): IWorld {
   // 对比塔的输出：手动开波、关闭随机事件、固定杂物布局（文档 09 的动态因素会干扰对比）
@@ -172,7 +188,9 @@ function branchBench(): void {
   const from = 25;
   const to = Math.max(WAVES, 40);
   console.log(`\n## 3) 传奇分支：3 座 Lv10（A / B）+ 8 座 Lv5 铅笔打底，统计第 ${from}～${to} 波`);
-  for (const id of [...ATTACKERS, 'calculator'] as TowerId[]) {
+  const onlyB = arg('towers', '');
+  for (const id of LEGENDS.filter((x) => x !== 'piggy')) {
+    if (onlyB && !onlyB.split(',').includes(id)) continue;
     const out: Record<Branch, { dmg: number; leaks: number; base: number }> = { A: { dmg: 0, leaks: 0, base: 0 }, B: { dmg: 0, leaks: 0, base: 0 } };
     for (const br of ['A', 'B'] as Branch[]) {
       for (const map of MAPS) for (let k = 0; k < SEEDS; k++) {
@@ -239,20 +257,26 @@ function mythicBench(): void {
   const from = 40;
   const to = 52;
   console.log(`\n## 4) 神话：3 座 ★3（A / B，自动放能力）+ 8 座 Lv5 铅笔，统计第 ${from}～${to} 波`);
-  console.log('   打掉占比 = 1 − 漏掉生命 / 出怪生命；能力价值 = (关能力漏掉 − 开能力漏掉) / 次数，与同布置下"大橡皮"的同一指标相比');
+  console.log('   打掉占比 = 1 − 漏掉生命 / 出怪生命；能力价值 = (关能力漏掉 − 开能力漏掉) / 次数（只有 1 座塔放能力），与同布置下"大橡皮"的同一指标相比');
   const setup = (id: TowerId, br: Branch, map: MapId, seed: string, skills: 'eraser_strike'[] = []): IWorld => {
     const w = world(map, seed, skills);
     buildMaze(w);
-    const base = placeBest(w, 'pencil', 8);
+    // 苍蝇拍：打底换成只打地面的订书机、只放 1 座，否则飞行敌人全被打光，防空能力没有可衡量的价值
+    const air = id === 'swatter';
+    const base = placeBest(w, air ? 'stapler' : 'pencil', 8);
     for (const u of base) for (let l = 1; l < 5; l++) w.command({ type: 'upgrade', uid: u });
-    for (const u of placeBest(w, id, 3)) {
+    for (const u of placeBest(w, id, air ? 1 : 3)) {
       for (let l = 1; l < 10; l++) w.command({ type: 'upgrade', uid: u, branch: br });
       for (let k = 0; k < 3; k++) w.command({ type: 'evolve', uid: u });
     }
     return w;
   };
+  // 只让第一座神话塔放能力（另外两座的冷却拉满）：三座同时放会互相重叠（全场定身、白昼……），
+  // 每次释放的价值就被低估了；大橡皮也只有一个施法者
   const abilityCaster = (w: IWorld, map: MapId) => {
     const bot = new StrategyBot(w, { ...BOTS.expert({ mode: 'custom', map }), abilities: 'ready' }) as unknown as { useAbilities(): void };
+    const myth = [...w.state.towers.values()].filter((t) => t.stars >= 3);
+    for (const t of myth.slice(1)) { t.abilityCd = 1e9; t.abilityCharges = 0; }
     return () => bot.useAbilities();
   };
   const eraserCaster = (w: IWorld) => () => {
@@ -270,7 +294,7 @@ function mythicBench(): void {
   const values: string[] = [];
   const eraserVals: number[] = [];
   const only = arg('towers', '');
-  for (const id of [...ATTACKERS, 'calculator', 'piggy'] as TowerId[]) {
+  for (const id of LEGENDS) {
     if (only && !only.split(',').includes(id)) continue;
     const r: Record<Branch, { on: MythOut; off: MythOut; er: MythOut }> = {} as never;
     for (const br of ['A', 'B'] as Branch[]) {

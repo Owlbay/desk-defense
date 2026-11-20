@@ -40,6 +40,7 @@ export function expert(ctx: { mode: ModeId; map: MapId }): BotParams {
     abilities: 'ready',
     airGuard: 0.6,
     airExtra: 6,
+    swatters: (w) => 1 + Math.floor(w / 10),
     decisionTicks: 20,
     xpProbe: false,
   };

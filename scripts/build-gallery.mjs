@@ -32,6 +32,7 @@ const TOWERS = [
   ['wall', '书本墙'], ['pencil', '铅笔'], ['stapler', '订书机'], ['glue', '胶水'],
   ['lamp', '台灯'], ['compass', '圆规'], ['eraser', '橡皮擦'], ['ruler', '尺子'],
   ['pen', '钢笔'], ['calculator', '计算器'], ['piggy', '存钱罐'],
+  ['swatter', '苍蝇拍'],
 ];
 const TIERS = [['t1', 'T1 草稿'], ['t2', 'T2 精良'], ['t3', 'T3 镀金'], ['t4a', 'T4 传奇 A'], ['t4b', 'T4 传奇 B'], ['t5a', 'T5 神话 A'], ['t5b', 'T5 神话 B']];
 const NAMES = {
@@ -47,7 +48,7 @@ const NAMES = {
   pencil_a: '弹幕', pencil_b: '调色盘', stapler_a: '连环钉', stapler_b: '拆解', glue_a: '封冻', glue_b: '熔胶海',
   lamp_a: '过载', lamp_b: '白昼', compass_a: '满圆', compass_b: '深钻', eraser_a: '全面修改', eraser_b: '擦除',
   ruler_a: '横扫千军', ruler_b: '精准测量', pen_a: '挥毫', pen_b: '不及格', calculator_a: '精算', calculator_b: '速算',
-  piggy_a: '砸罐', piggy_b: '紧急锁门',
+  piggy_a: '砸罐', piggy_b: '紧急锁门', swatter_a: '电网', swatter_b: '天网',
   drop_box: '空降纸箱', lamp_outage: '台灯跳闸', fan: '风扇转起来', books_fall: '书本倒下', homework_check: '作业检查',
   coffee_spill: '咖啡打翻', reinforce: '敌军增援', coins: '掉落零花钱', inspiration_ev: '灵感闪现', nap: '午休铃',
   praise: '老师表扬', supply_crate: '补给箱', tidy: '桌面整理', wind: '窗外起风', secret_door: '暗门',

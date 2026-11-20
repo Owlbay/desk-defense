@@ -2,13 +2,14 @@ import Phaser from 'phaser';
 import type { ProjectileState, ZoneState } from '../core/types';
 import type { RenderCtx } from './ctx';
 import { CELL, DEPTH } from './layout';
-import { C } from './palette';
+import { C, TOWER_COLOR } from './palette';
 
 /** 投射物与地面区域（每帧重画） */
 export class ShotLayer {
   private pg: Phaser.GameObjects.Graphics;
   private zg: Phaser.GameObjects.Graphics;
-  private prev = new Map<number, { x: number; y: number; tick: number; px: number; py: number }>();
+  private prev = new Map<number, Rec>();
+  private pool: Rec[] = [];
   private seen = new Set<number>();
 
   constructor(private ctx: RenderCtx) {
@@ -23,24 +24,56 @@ export class ShotLayer {
     g.clear();
     this.seen.clear();
     const a = this.ctx.alpha;
+    const fx = this.ctx.fx;
+    const trails = this.ctx.quality === 'high' && !this.ctx.reduced;
     for (const p of st.projectiles) {
       this.seen.add(p.uid);
       let rec = this.prev.get(p.uid);
       if (!rec) {
-        rec = { x: p.x, y: p.y, tick: st.tick, px: p.x, py: p.y };
+        rec = this.pool.pop() ?? { x: 0, y: 0, tick: 0, px: 0, py: 0, hx: 0, hy: 0, n: 0, lx: 0, ly: 0, ang: 0, color: 0 };
+        rec.x = rec.px = rec.hx = p.x;
+        rec.y = rec.py = rec.hy = p.y;
+        rec.tick = st.tick;
+        rec.n = 0;
+        rec.color = shotColor(p);
         this.prev.set(p.uid, rec);
       } else if (rec.tick !== st.tick) {
+        rec.hx = rec.px;
+        rec.hy = rec.py;
         rec.px = rec.x;
         rec.py = rec.y;
         rec.x = p.x;
         rec.y = p.y;
         rec.tick = st.tick;
+        if (rec.n < 2) rec.n++;
       }
       const x = (rec.px + (rec.x - rec.px) * a) * CELL;
       const y = (rec.py + (rec.y - rec.py) * a) * CELL;
+      rec.lx = x;
+      rec.ly = y;
+      rec.ang = p.angle;
+      // 短拖尾：最近两个 tick 的位置连成渐细渐淡的两段（低画质 / 减弱动效不画）
+      if (trails && rec.n > 0 && TRAIL[p.kind]) {
+        const mx = rec.px * CELL,
+          my = rec.py * CELL;
+        g.lineStyle(3, rec.color, 0.42);
+        g.lineBetween(x, y, mx, my);
+        if (rec.n > 1) {
+          g.lineStyle(1.6, rec.color, 0.2);
+          g.lineBetween(mx, my, rec.hx * CELL, rec.hy * CELL);
+        }
+      }
       drawProjectile(g, p, x, y, this.ctx.vtime);
     }
-    for (const k of this.prev.keys()) if (!this.seen.has(k)) this.prev.delete(k);
+    for (const [k, rec] of this.prev) {
+      if (this.seen.has(k)) continue;
+      // 投射物消失（命中 / 飞完）：按所属塔的颜色溅出火花
+      if (rec.n > 0) {
+        fx.sparks(rec.lx, rec.ly, rec.color, 3, rec.ang + Math.PI, 2.2, 100);
+      }
+      this.prev.delete(k);
+      if (this.pool.length < 96) this.pool.push(rec);
+    }
   }
 
   private drawZones(zones: ZoneState[], now: number): void {
@@ -139,6 +172,49 @@ export class ShotLayer {
   destroy(): void {
     this.pg.destroy();
     this.zg.destroy();
+  }
+}
+
+interface Rec {
+  x: number;
+  y: number;
+  tick: number;
+  px: number;
+  py: number;
+  /** 再往前一个 tick 的位置（拖尾第二段） */
+  hx: number;
+  hy: number;
+  /** 已记录的历史 tick 数（0–2） */
+  n: number;
+  /** 最近一次显示位置（像素）与朝向：消失时在这里溅火花 */
+  lx: number;
+  ly: number;
+  ang: number;
+  color: number;
+}
+
+const TRAIL: Partial<Record<ProjectileState['kind'], boolean>> = { graphite: true, color: true, ink: true, eraser: true, glue: true, nail: true };
+
+/** 投射物 → 所属塔的颜色（拖尾与命中火花） */
+function shotColor(p: ProjectileState): number {
+  switch (p.kind) {
+    case 'graphite':
+      return TOWER_COLOR.pencil;
+    case 'color':
+      return COLOR_SHOT[p.color ?? 'red'] ?? C.alarmRed;
+    case 'glue':
+      return C.blueCap;
+    case 'ink':
+    case 'brush':
+      return TOWER_COLOR.pen;
+    case 'ruler':
+      return TOWER_COLOR.ruler;
+    case 'eraser':
+      return TOWER_COLOR.eraser;
+    case 'net':
+      return C.netString;
+    default:
+      return C.metal;
   }
 }
 
@@ -290,12 +366,41 @@ function drawProjectile(g: Phaser.GameObjects.Graphics, p: ProjectileState, x: n
   const c = Math.cos(p.angle),
     s = Math.sin(p.angle);
   switch (p.kind) {
+    case 'net': {
+      // 捕虫网：旋转着飞出的网盘
+      const R = 8;
+      const spin = t * 12 + p.uid;
+      g.lineStyle(3, C.netString, 0.3);
+      g.lineBetween(x - c * 16, y - s * 16, x - c * 6, y - s * 6);
+      g.fillStyle(C.netString, 0.3);
+      g.fillCircle(x, y, R);
+      for (const off of [0, Math.PI / 2]) {
+        const a0 = spin + off;
+        const ca = Math.cos(a0),
+          sa = Math.sin(a0);
+        for (let i = -1; i <= 1; i++) {
+          const d = i * R * 0.5;
+          const h = Math.sqrt(Math.max(0, R * R - d * d));
+          const ox = -sa * d,
+            oy = ca * d;
+          g.lineStyle(1.3, C.ink, 0.85);
+          g.lineBetween(x + ox - ca * h, y + oy - sa * h, x + ox + ca * h, y + oy + sa * h);
+        }
+      }
+      g.lineStyle(2.4, C.ink, 1);
+      g.strokeCircle(x, y, R);
+      g.lineStyle(1.2, C.netString, 1);
+      g.strokeCircle(x, y, R);
+      g.fillStyle(C.steel, 1);
+      for (let i = 0; i < 4; i++) {
+        const a = spin + (i * Math.PI) / 2 + Math.PI / 4;
+        g.fillCircle(x + Math.cos(a) * R, y + Math.sin(a) * R, 1.8);
+      }
+      break;
+    }
     case 'graphite':
     case 'color': {
       const col = p.kind === 'color' ? COLOR_SHOT[p.color ?? 'red'] ?? C.alarmRed : C.lead;
-      // 拖尾
-      g.lineStyle(2, col, 0.3);
-      g.lineBetween(x - c * 12, y - s * 12, x, y);
       const L = 6,
         W = 2.4;
       const pts = [
