@@ -26,7 +26,7 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
-      injectRegister: 'auto',
+      injectRegister: false, // 由 src/main.ts 用 virtual:pwa-register 注册：发现新版本自动刷新页面
       includeAssets: ['icon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: '书桌防线 Desk Defense',

@@ -10,6 +10,7 @@ import { ProfileStore } from './meta/profile';
 import { App, applySettings } from './ui/App';
 import { audio } from './ui/audio';
 import { initOnline } from './meta/online';
+import { registerSW } from 'virtual:pwa-register';
 import { campaignScreen } from './ui/screens/campaign';
 import { customScreen } from './ui/screens/custom';
 import { endlessScreen } from './ui/screens/endless';
@@ -48,6 +49,9 @@ function boot(): void {
   const store = new ProfileStore();
   audio.install();
   applySettings(store.get().settings);
+  // PWA：打开游戏时检查更新，发现新版本立即激活并刷新页面（否则玩家要手动刷新两次才能看到新版本）。
+  // 只在启动时检查，不做定时检查，避免对局中途被刷新。
+  if (!import.meta.env.DEV) registerSW({ immediate: true });
   // 联网：探测排行榜接口并补交离线时排队的成绩（失败不影响游戏）
   void initOnline().catch(() => undefined);
 
