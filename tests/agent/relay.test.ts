@@ -121,7 +121,11 @@ describe('validateConfig / resolveConfig（relay）', () => {
   it('buildPiModel：按接口规范化地址、关闭中转站常不支持的字段、借用已知模型价格', () => {
     const base = { provider: 'pi' as const, preset: 'relay' as const, model: 'some-model', baseUrl: 'https://r.test/v1/chat/completions' };
     const comp = buildPiModel(resolveConfig({ ...base, api: 'openai-completions' }));
-    expect(comp).toMatchObject({ api: 'openai-completions', provider: 'relay', baseUrl: 'https://r.test/v1', reasoning: false });
+    expect(comp).toMatchObject({ api: 'openai-completions', provider: 'relay', baseUrl: 'https://r.test/v1', reasoning: true });
+    // 中转推理模型：开启推理强度控制；deepseek 系列使用 deepseek 思考参数格式；中转默认 low
+    expect((comp as { compat?: Record<string, unknown> }).compat).toMatchObject({ supportsReasoningEffort: true });
+    expect((buildPiModel(resolveConfig({ ...base, model: 'deepseek-flash', api: 'openai-completions' })) as { compat?: Record<string, unknown> }).compat).toMatchObject({ thinkingFormat: 'deepseek' });
+    expect(resolveConfig({ ...base, api: 'openai-completions' }).effort).toBe('low');
     expect((comp as { compat?: Record<string, unknown> }).compat).toMatchObject({ supportsStore: false, supportsDeveloperRole: false, maxTokensField: 'max_tokens' });
     const resp = buildPiModel(resolveConfig({ ...base, api: 'openai-responses' }));
     expect(resp.baseUrl).toBe('https://r.test/v1');

@@ -8,6 +8,7 @@
  *   --effort low|medium|high|xhigh|max       默认 medium
  *   --preset ollama|lmstudio|llamacpp|vllm|openai|google|openrouter|deepseek|anthropic|relay|custom   （pi）
  *   --api openai-completions|openai-responses|anthropic-messages|google-generative-ai  --base-url URL   （pi，覆盖预设）
+ *   --api-key-env NAME   （pi：从环境变量 NAME 读取 Key，用于中转服务 / 自定义地址）
  *   --tool-mode native|json  --context full|compact
  *   --mode endless|campaign  --map ch1|ch2|ch3  --difficulty easy|normal|hard|nightmare|abyss  --abyss N
  *   --seed S  --seeds N（评测场：N 个种子）  --max-waves 30
@@ -67,6 +68,8 @@ const config: Partial<AgentModelConfig> = {
   preset: arg('preset') as Preset | undefined,
   api: arg('api') as PiApi | undefined,
   baseUrl: arg('base-url'),
+  // 中转服务 / 自定义地址的 Key：只从环境变量读取（--api-key-env 变量名），从不在命令行明文传入
+  apiKey: arg('api-key-env') ? process.env[arg('api-key-env')!] : undefined,
   toolMode: arg('tool-mode') as 'native' | 'json' | undefined,
   contextBudget: arg('context') as 'full' | 'compact' | undefined,
   maxToolCallsPerDecision: num('max-tool-calls'),

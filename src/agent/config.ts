@@ -118,6 +118,10 @@ export function resolveConfig(c: Partial<AgentModelConfig>): AgentModelConfig {
     out.baseUrl = out.baseUrl ?? p.baseUrl;
     if (!c.model) out.model = p.defaultModel;
     if (p.local && c.decision?.waveIntervalSec === undefined) out.decision!.waveIntervalSec = 20;
+    // 中转服务上的模型多为推理模型：默认低推理强度，避免把输出全花在思考上、来不及调用工具
+    if (out.preset === 'relay' && c.effort === undefined) out.effort = 'low';
+    // 推理模型的开局决策可能超过 3 分钟（实测 deepseek-flash 开局约 180 秒）；暂停模式下等待不影响局势，放宽到 5 分钟
+    if (out.preset === 'relay' && c.decisionTimeoutMs === undefined) out.decisionTimeoutMs = 300_000;
   }
   if (out.provider === 'scripted' && !c.model) out.model = 'scripted-v1';
   return out;

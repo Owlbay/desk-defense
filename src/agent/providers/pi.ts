@@ -105,7 +105,15 @@ export function buildRelayModel(c: AgentModelConfig, api: PiApi = c.api ?? 'open
     maxTokens: c.maxOutputTokens ?? Math.min(known?.maxTokens ?? 8192, 16_000),
   };
   if (api === 'openai-completions') {
-    (m as Model<'openai-completions'>).compat = { supportsStore: false, supportsDeveloperRole: false, supportsReasoningEffort: false, supportsStrictMode: false, maxTokensField: 'max_tokens' };
+    // 推理模型在复杂局面下会把输出全花在思考上（实测 deepseek-flash 4096 token 全是推理、没调用工具），
+    // 所以中转服务一律开启推理强度控制：按模型名选择参数格式，强度取配置的 effort（中转默认 low）。
+    const id = c.model.toLowerCase();
+    const thinkingFormat = id.includes('deepseek') ? 'deepseek' : id.includes('qwen') ? 'qwen' : undefined;
+    m.reasoning = true;
+    (m as Model<'openai-completions'>).compat = {
+      supportsStore: false, supportsDeveloperRole: false, supportsReasoningEffort: true, supportsStrictMode: false, maxTokensField: 'max_tokens',
+      ...(thinkingFormat ? { thinkingFormat } : {}),
+    };
   } else if (api === 'openai-responses') {
     (m as Model<'openai-responses'>).compat = { sendSessionIdHeader: false, supportsLongCacheRetention: false };
   } else if (api === 'anthropic-messages') {
@@ -149,7 +157,8 @@ export class PiProvider implements LLMProvider {
     return {
       signal: ctx.signal,
       apiKey: this.c.apiKey ?? (local ? 'local' : undefined),
-      maxTokens: Math.max(512, Math.min(this.c.maxOutputTokens ?? 4096, ctx.remainingTokens)),
+      // 推理模型（如 deepseek 系列）会先输出大量思考，4096 容易在调用工具前就被截断；默认放宽到 16000
+      maxTokens: Math.max(512, Math.min(this.c.maxOutputTokens ?? 16_000, ctx.remainingTokens)),
       temperature: this.c.temperature,
       reasoning: this.m.reasoning && this.c.effort ? LEVEL[this.c.effort] : undefined,
       sessionId: `desk-defense-${ctx.role}`,
@@ -234,7 +243,8 @@ export class PiProvider implements LLMProvider {
       tools: toPiTools(ctx.tools),
     };
     const texts: string[] = [];
-    for (let req = 0; req < ctx.maxToolCalls + 2; req++) {
+    let nudges = 0;
+    for (let req = 0; req < ctx.maxToolCalls + 4; req++) {
       let msg: AssistantMessage;
       let ms: number;
       try {
@@ -252,6 +262,19 @@ export class PiProvider implements LLMProvider {
       for (const b of msg.content) if (b.type === 'text' && b.text.trim()) texts.push(b.text.trim());
       const calls = msg.content.filter((b) => b.type === 'toolCall');
       if (msg.stopReason === 'length' && calls.length) { out.error = 'output length reached inside a tool call'; break; }
+      // 没有调用任何工具（被截断、或只回了一段文字）且本轮还没结束：追问一次，要求直接行动
+      if (!calls.length && alive && !out.ended && nudges < 2 && !ctx.signal.aborted) {
+        nudges++;
+        context.messages.push(msg);
+        context.messages.push({
+          role: 'user',
+          content: msg.stopReason === 'length'
+            ? '你的回复因长度被截断，还没有执行任何操作。请不要再长篇分析，立即调用工具执行操作（例如 place_tower / upgrade_tower / start_wave），完成后调用 end_turn。'
+            : '请直接调用工具执行操作；如果这一步确实无需操作，请调用 end_turn 并简要说明计划。',
+          timestamp: Date.now(),
+        });
+        continue;
+      }
       if (!calls.length || !alive) break;
       context.messages.push(msg);
       for (const call of calls) {
