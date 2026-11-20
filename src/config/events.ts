@@ -53,11 +53,11 @@ export const EVENT_DIRECTOR = {
 
 /** 空降出生点（文档 09 §2.2） */
 export const DROP = {
-  minExitDist: 5,
+  minExitDist: 7,
   minWaves: 2,
   maxWaves: 4,
-  ratioMin: 0.3,
-  ratioMax: 0.5,
+  ratioMin: 0.25,
+  ratioMax: 0.4,
   demolishBase: 40,
   demolishPerWave: 5,
 };

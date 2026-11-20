@@ -152,7 +152,11 @@ describe('progress rules', () => {
   it('loadout respects slots and unlocks', () => {
     const p = defaultProfile();
     p.skills.loadout = ['caffeine', 'bell', 'bell'];
-    expect(resolveLoadout(p, ['eraser_strike', 'bell', 'whiteout_zone'])).toEqual(['bell', 'eraser_strike', 'whiteout_zone']);
+    // 去掉未解锁和重复的；玩家选了的不自动补满（可以取消带入）
+    expect(resolveLoadout(p, ['eraser_strike', 'bell', 'whiteout_zone'])).toEqual(['bell']);
+    // 一个都没选时才补默认
+    p.skills.loadout = [];
+    expect(resolveLoadout(p, ['eraser_strike', 'bell', 'whiteout_zone'])).toEqual(['eraser_strike', 'bell', 'whiteout_zone']);
     expect(skillSlots(p)).toBe(3);
     p.talents.bigbag = 1;
     expect(skillSlots(p)).toBe(4);

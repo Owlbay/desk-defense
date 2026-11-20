@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs><clipPath id="swatter_t1-mesh"><rect x="46" y="18" width="36" height="28" rx="6"/></clipPath></defs>
+  <g id="shadow"><ellipse cx="64" cy="100" rx="34" ry="8" fill="#3B2F2A" fill-opacity="0.18"/></g>
+  <g id="base"/>
+  <g id="body"><circle cx="64" cy="64" r="17" fill="#7BC67E" stroke="#3B2F2A" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/><circle cx="64" cy="64" r="17" fill="#3B2F2A" fill-opacity="0.15"/></g>
+  <g id="turret"><rect x="60" y="50" width="8" height="52" rx="4" fill="#7BC67E" stroke="#3B2F2A" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/><path d="M61 64 L61 96" stroke="#FFFFFF" stroke-opacity="0.5" stroke-width="2" stroke-linecap="round"/><path d="M55 49 L60 60 L68 60 L73 49 Z" fill="#7BC67E" stroke="#3B2F2A" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/><rect x="40" y="12" width="48" height="40" rx="12" fill="#7BC67E" stroke="#3B2F2A" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/><rect x="46" y="18" width="36" height="28" rx="6" fill="#4A5568" stroke="#3B2F2A" stroke-width="2"/><g clip-path="url(#swatter_t1-mesh)"><path d="M52 18 V46 M58 18 V46 M64 18 V46 M70 18 V46 M76 18 V46 M46 24 H82 M46 30 H82 M46 36 H82 M46 42 H82" fill="none" stroke="#FBF8F1" stroke-opacity="0.6" stroke-width="1.6" stroke-linecap="round"/></g><path d="M43.5 24 L43.5 40" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="2.5" stroke-linecap="round"/><circle cx="64" cy="98" r="1.8" fill="#3B2F2A"/><circle cx="64" cy="64" r="6" fill="#7BC67E" stroke="#3B2F2A" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/></g>
+  <g id="accent"></g>
+</svg>

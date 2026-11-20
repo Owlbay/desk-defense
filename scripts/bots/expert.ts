@@ -38,6 +38,8 @@ export function expert(ctx: { mode: ModeId; map: MapId }): BotParams {
     opening: ['pencil', 'pencil', 'pencil', 'pencil'],
     demolishAt: 1.6,
     abilities: 'ready',
+    airGuard: 0.6,
+    airExtra: 6,
     decisionTicks: 20,
     xpProbe: false,
   };

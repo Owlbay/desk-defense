@@ -52,6 +52,11 @@ export function skillsScreen(app: App, route: Route): Screen {
             {
               title: '点击移出',
               onclick: () => {
+                if (loadout.length <= 1) {
+                  audio.play('error');
+                  app.toast('至少带入 1 个技能', 'warn');
+                  return;
+                }
                 audio.play('click');
                 setLoadout(loadout.filter((x) => x !== s));
               },
@@ -91,7 +96,10 @@ export function skillsScreen(app: App, route: Route): Screen {
                   `button.btn.small${inLoadout ? '.on' : ''}`,
                   {
                     onclick: () => {
-                      if (inLoadout) {
+                      if (inLoadout && loadout.length <= 1) {
+                        audio.play('error');
+                        app.toast('至少带入 1 个技能', 'warn');
+                      } else if (inLoadout) {
                         audio.play('click');
                         setLoadout(loadout.filter((x) => x !== id));
                       } else if (loadout.length >= slots) {

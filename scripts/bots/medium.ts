@@ -32,6 +32,8 @@ export function medium(ctx: { mode: ModeId; map: MapId }): BotParams {
     opening: ['pencil', 'pencil', 'pencil'],
     demolishAt: 2.5,
     abilities: 'ready',
+    airGuard: 0.6,
+    airExtra: 6,
     decisionTicks: 30,
     xpProbe: true,
   };

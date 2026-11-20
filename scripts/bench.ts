@@ -1,16 +1,20 @@
 /**
  * 塔的性价比基准（文档 02 §3 "平衡靠模拟脚本验证"）
  *
- *   npx vite-node scripts/bench.ts -- [--waves 35] [--budget 600] [--seeds 3] [--maps ch1,ch2,ch3]
+ *   npx vite-node scripts/bench.ts -- [--waves 35] [--budget 600] [--seeds 3] [--maps ch1,ch2,ch3] [--only solo|support|branch|mythic] [--towers pencil,glue]
  *
  * 1) 单塔性价比：完整蛇形迷宫（墙免费），用同样的金币只买某一种塔放在最佳位置，不升级（经验照常），
  *    无限生命跑若干波，比较"打掉的敌人总生命 / 金币"。
  * 2) 辅助塔：同样金币的 一半铅笔 + 一半辅助塔，对比 全部铅笔。
  * 3) 传奇分支：每种塔 3 座直接升到 Lv10 的 A / B 分支（配 8 座 Lv5 铅笔打底），比较 25～40 波这些塔的输出与漏怪。
+ * 4) 神话（文档 11 §5）：同样的布置但 3 座塔进化到 ★3 并自动释放主动能力，统计 40～52 波：
+ *    A / B 的"打掉的生命占比"之比（目标 ±15%），以及能力单次释放的价值 ÷ 大橡皮单次释放的价值（目标 1～1.5）。
+ *    价值 = 开 / 关能力（或大橡皮）两局的漏掉生命之差 ÷ 释放次数。
  */
 import { createWorld, type Branch, type IWorld, type MapId, type TowerId } from '../src/core';
 import { TOWERS } from '../src/config/towers';
 import { airSamples, coverage, groundSamples, planMaze, targetCells } from './bots/maze';
+import { BOTS, StrategyBot } from './bots';
 
 const argv = process.argv.slice(2).filter((a) => a !== '--');
 const arg = (n: string, d: string) => {
@@ -23,10 +27,10 @@ const SEEDS = Number(arg('seeds', '3'));
 const MAPS = arg('maps', 'ch1,ch2,ch3').split(',') as MapId[];
 const ATTACKERS: TowerId[] = ['pencil', 'stapler', 'glue', 'lamp', 'compass', 'eraser', 'ruler', 'pen'];
 
-function world(map: MapId, seed: string): IWorld {
+function world(map: MapId, seed: string, skills: 'eraser_strike'[] = []): IWorld {
   // 对比塔的输出：手动开波、关闭随机事件、固定杂物布局（文档 09 的动态因素会干扰对比）
   return createWorld({
-    mode: 'custom', map, difficulty: 'normal', seed, skills: [], pure: true, autoWave: false, fixedLayout: true,
+    mode: 'custom', map, difficulty: 'normal', seed, skills, pure: true, autoWave: false, fixedLayout: true,
     custom: { lives: 1e6, startGold: 1e6, interestCap: 0, eventRate: 0 },
   });
 }
@@ -190,9 +194,121 @@ function branchBench(): void {
   }
 }
 
+interface MythOut { spawned: number; leaked: number; casts: number }
+
+/** 跑第 1～to 波，统计 from 起的出怪生命、漏掉的生命（漏怪时的剩余生命 + 护盾）、释放次数；cast 每 20 步调用一次 */
+function mythRun(w: IWorld, from: number, to: number, cast?: () => void): MythOut {
+  const s = w.state;
+  const out: MythOut = { spawned: 0, leaked: 0, casts: 0 };
+  const last = new Map<number, { id: string; hp: number }>();
+  for (let step = 0; step < 60 * 60 * 60 * 2; step++) {
+    if (s.phase === 'perk') {
+      const neutral = ['pocketmoney', 'earlybird', 'thickcover', 'safe', 'quickreview', 'compound', 'tradein', 'pocket'];
+      const c = s.perkChoices!.find((x) => neutral.includes(x.id)) ?? s.perkChoices!.find((x) => !x.needsTower)!;
+      w.command({ type: 'choosePerk', id: c.id });
+      continue;
+    }
+    if (s.phase === 'build') {
+      if (s.wave >= to) break;
+      w.command({ type: 'startWave' });
+    }
+    if (cast && s.wave >= from && step % 20 === 0) cast();
+    last.clear();
+    for (const e of s.enemies) last.set(e.uid, { id: e.id, hp: e.hp + e.shield });
+    w.step();
+    const alive = new Set(s.enemies.map((e) => e.uid));
+    for (const ev of w.drainEvents()) {
+      if (s.wave < from) continue;
+      if (ev.type === 'spawn') {
+        const e = s.enemies.find((x) => x.uid === ev.enemyUid);
+        if (e) out.spawned += e.maxHp + e.maxShield;
+      } else if (ev.type === 'leak') {
+        for (const [uid, v] of last) {
+          if (alive.has(uid) || v.id !== ev.enemy || v.hp <= 0) continue;
+          out.leaked += v.hp;
+          last.delete(uid);
+          break;
+        }
+      } else if (ev.type === 'towerAbility' || (ev.type === 'skill' && ev.skill === 'eraser_strike')) out.casts++;
+    }
+  }
+  return out;
+}
+
+function mythicBench(): void {
+  const from = 40;
+  const to = 52;
+  console.log(`\n## 4) 神话：3 座 ★3（A / B，自动放能力）+ 8 座 Lv5 铅笔，统计第 ${from}～${to} 波`);
+  console.log('   打掉占比 = 1 − 漏掉生命 / 出怪生命；能力价值 = (关能力漏掉 − 开能力漏掉) / 次数，与同布置下"大橡皮"的同一指标相比');
+  const setup = (id: TowerId, br: Branch, map: MapId, seed: string, skills: 'eraser_strike'[] = []): IWorld => {
+    const w = world(map, seed, skills);
+    buildMaze(w);
+    const base = placeBest(w, 'pencil', 8);
+    for (const u of base) for (let l = 1; l < 5; l++) w.command({ type: 'upgrade', uid: u });
+    for (const u of placeBest(w, id, 3)) {
+      for (let l = 1; l < 10; l++) w.command({ type: 'upgrade', uid: u, branch: br });
+      for (let k = 0; k < 3; k++) w.command({ type: 'evolve', uid: u });
+    }
+    return w;
+  };
+  const abilityCaster = (w: IWorld, map: MapId) => {
+    const bot = new StrategyBot(w, { ...BOTS.expert({ mode: 'custom', map }), abilities: 'ready' }) as unknown as { useAbilities(): void };
+    return () => bot.useAbilities();
+  };
+  const eraserCaster = (w: IWorld) => () => {
+    const sk = w.state.skills.find((k) => k.id === 'eraser_strike');
+    if (!sk || sk.cd > 0 || w.state.enemies.length < 3) return;
+    let best: { x: number; y: number; v: number } | null = null;
+    for (const a of w.state.enemies) {
+      let v = 0;
+      for (const b of w.state.enemies) if ((a.x - b.x) ** 2 + (a.y - b.y) ** 2 <= 2.25) v += b.hp + b.shield;
+      if (!best || v > best.v) best = { x: a.x, y: a.y, v };
+    }
+    if (best) w.command({ type: 'cast', skill: 'eraser_strike', x: best.x, y: best.y });
+  };
+  const ratios: number[] = [];
+  const values: string[] = [];
+  const eraserVals: number[] = [];
+  const only = arg('towers', '');
+  for (const id of [...ATTACKERS, 'calculator', 'piggy'] as TowerId[]) {
+    if (only && !only.split(',').includes(id)) continue;
+    const r: Record<Branch, { on: MythOut; off: MythOut; er: MythOut }> = {} as never;
+    for (const br of ['A', 'B'] as Branch[]) {
+      const acc = { on: { spawned: 0, leaked: 0, casts: 0 }, off: { spawned: 0, leaked: 0, casts: 0 }, er: { spawned: 0, leaked: 0, casts: 0 } };
+      const add = (a: MythOut, b: MythOut) => { a.spawned += b.spawned; a.leaked += b.leaked; a.casts += b.casts; };
+      for (const map of MAPS) for (let k = 0; k < SEEDS; k++) {
+        const seed = `myth-${map}-${k}`;
+        const w1 = setup(id, br, map, seed);
+        add(acc.on, mythRun(w1, from, to, abilityCaster(w1, map)));
+        add(acc.off, mythRun(setup(id, br, map, seed), from, to));
+        const w3 = setup(id, br, map, seed, ['eraser_strike']);
+        add(acc.er, mythRun(w3, from, to, eraserCaster(w3)));
+      }
+      r[br] = acc;
+    }
+    const kill = (o: MythOut) => 1 - o.leaked / Math.max(1, o.spawned);
+    const val = (o: MythOut, off: MythOut) => (off.leaked - o.leaked) / Math.max(1, o.casts);
+    const ratio = kill(r.B.on) / Math.max(1e-9, kill(r.A.on));
+    ratios.push(ratio);
+    const d = TOWERS[id];
+    const line = (br: Branch) => {
+      const o = r[br];
+      const ev = val(o.er, o.off);
+      const av = val(o.on, o.off);
+      values.push(`${id}_${br.toLowerCase()} ${ev > 0 ? (av / ev).toFixed(2) : '—'}`);
+      eraserVals.push(ev);
+      return `${br} 打掉 ${(kill(o.on) * 100).toFixed(1)}%（关能力 ${(kill(o.off) * 100).toFixed(1)}%）能力 ${pad((o.on.casts / (MAPS.length * SEEDS)).toFixed(1), 4)} 次/局 价值×大橡皮 ${ev > 0 ? (av / ev).toFixed(2) : '—'}`;
+    };
+    console.log(`  ${(d.name + '(' + id + ')').padEnd(12)} ${line('A')} | ${line('B')} | B/A ${ratio.toFixed(2)}`);
+  }
+  const off = ratios.filter((x) => Math.abs(x - 1) > 0.15).length;
+  console.log(`  B/A 超出 ±15% 的塔：${off} 个；大橡皮每次少漏 ${Math.round(eraserVals.reduce((a, b) => a + b, 0) / Math.max(1, eraserVals.length))} 生命`);
+}
+
 const which = arg('only', 'all');
 const t0 = performance.now();
 if (which === 'all' || which === 'solo') soloBench();
 if (which === 'all' || which === 'support') supportBench();
 if (which === 'all' || which === 'branch') branchBench();
+if (which === 'all' || which === 'mythic') mythicBench();
 console.log(`\n(${((performance.now() - t0) / 1000).toFixed(1)}s)`);

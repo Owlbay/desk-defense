@@ -150,7 +150,7 @@ describe('auto waves (doc 09 §4)', () => {
         if (e.type === 'waveStart' && e.wave === 2) startAt = w.state.time;
       }
     }
-    expect(nextAt - setAt).toBeCloseTo(15, 5);
+    expect(nextAt - setAt).toBeCloseTo(20, 5);
     expect(startAt).toBeGreaterThan(0);
     expect(Math.abs(startAt - nextAt)).toBeLessThanOrEqual(DT + 1e-6);
     expect(secs).toEqual([3, 2, 1]);
@@ -430,7 +430,7 @@ describe('legend evolution (doc 11)', () => {
     const { w, uid } = legend('pencil', 'A');
     const t = w.state.towers.get(uid)!;
     expect(t.level).toBe(10);
-    expect([t.stars, t.evoXp, t.evoXpNext]).toEqual([0, 0, 2000]);
+    expect([t.stars, t.evoXp, t.evoXpNext]).toEqual([0, 0, EVO.xp[0]]);
     const legendCost = rawUpgradeCost(20, 9);
     let info = w.getTowerInfo(uid)!;
     expect(info.evolveCost).toBe(Math.round(legendCost * 0.8));
@@ -438,22 +438,22 @@ describe('legend evolution (doc 11)', () => {
     expect(info.ability?.id).toBe('pencil_a');
     expect(info.ability?.ready).toBe(false);
     // 经验折扣：进化经验到 50% 时便宜 25%
-    t.evoXp = 1000;
+    t.evoXp = EVO.xp[0] / 2;
     expect(w.getTowerInfo(uid)!.evolveCost).toBe(Math.round(legendCost * 0.8 * 0.75));
     t.evoXp = 0;
     const inv0 = t.invested;
     expect(w.command({ type: 'evolve', uid }).ok).toBe(true);
-    expect([t.stars, t.evoXpNext, t.tier]).toEqual([1, 4000, 4]);
+    expect([t.stars, t.evoXpNext, t.tier]).toEqual([1, EVO.xp[1], 4]);
     expect(t.invested - inv0).toBe(Math.round(legendCost * 0.8));
     // 经验升到 ★2；★2 → ★3 只能花金币：经验到上限后封顶
-    t.evoXp = 4000;
+    t.evoXp = EVO.xp[1];
     (w as unknown as { processEvoXp(t: unknown): void }).processEvoXp(t);
     expect(t.stars).toBe(2);
-    expect(t.evoXpNext).toBe(7000);
+    expect(t.evoXpNext).toBe(EVO.xp[2]);
     t.evoXp = 99999;
     (w as unknown as { processEvoXp(t: unknown): void }).processEvoXp(t);
     expect(t.stars).toBe(2);
-    expect(t.evoXp).toBe(7000);
+    expect(t.evoXp).toBe(EVO.xp[2]);
     info = w.getTowerInfo(uid)!;
     expect(info.xpCapped).toBe(true);
     expect(info.evolveDiscount).toBeCloseTo(0.5, 6);

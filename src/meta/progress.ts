@@ -244,7 +244,8 @@ export function resolveLoadout(p: Profile, unlocked: SkillId[], pure = false): S
   const slots = pure ? 3 : skillSlots(p);
   const out: SkillId[] = [];
   for (const s of p.skills.loadout) if (unlocked.includes(s) && !out.includes(s) && out.length < slots) out.push(s);
-  for (const s of unlocked) if (out.length < slots && !out.includes(s)) out.push(s);
+  // 只有一个都没选时才自动补默认技能；否则尊重玩家的选择（允许少带，取消后不会被自动补回）
+  if (out.length === 0) for (const s of unlocked) if (out.length < slots) out.push(s);
   return out;
 }
 

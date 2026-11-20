@@ -219,12 +219,12 @@ describe('determinism', () => {
 describe('difficulty params', () => {
   it('abyss I equals the base row and abyss X applies increments and limits', () => {
     const a1 = abyssParams(1);
-    expect(a1.hpMul).toBe(1.4);
+    expect(a1.hpMul).toBe(1.2);
     expect(a1.lives).toBe(10);
     const a10 = resolveParams(base({ difficulty: 'abyss', abyssLevel: 10 }));
-    expect(a10.hpMul).toBeCloseTo(2.3, 6);
+    expect(a10.hpMul).toBeCloseTo(2.1, 6);
     expect(a10.hpLinear).toBeCloseTo(0.29, 6);
-    expect(a10.hpExp).toBeCloseTo(1.059, 6);
+    expect(a10.hpExp).toBeCloseTo(1.057, 6);
     expect(a10.lives).toBe(6);
     expect(a10.armorStep).toBe(4);
     expect(a10.speedMul).toBeCloseTo(1.24, 6);

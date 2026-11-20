@@ -59,6 +59,12 @@ export interface BotParams {
   demolishAt?: number;
   /** 神话能力：'none' 不用；'ready' 冷却好且场上有怪就用 */
   abilities?: 'none' | 'ready';
+  /**
+   * 防空补位（文档 09：侧边入口 / 空降点会带来新的飞行路线）：某条开放的飞行路线的对空覆盖
+   * 低于最强路线的这个比例时，优先在那条路线上补对空塔，可超出 maxTowers 至多 airExtra 座。0 / 缺省 = 不补
+   */
+  airGuard?: number;
+  airExtra?: number;
 }
 
 /** 每种塔"单位覆盖"的大致价值（秒伤量级），只用于机器人的买/升比较 */
@@ -234,9 +240,20 @@ export class StrategyBot {
     const max = this.currentSegments();
     let built = 0;
     for (; built < max; built++) {
-      if (this.plan.segments[built].some((i) => g.cells[i] === CellKind.Empty)) break;
+      if (this.plan.segments[built].some((i) => g.cells[i] === CellKind.Empty && this.wallPlaceable(i))) break;
     }
     return Math.min(max, built + 1);
+  }
+
+  /**
+   * 规划格还能不能放墙。地形事件（书本倒下、桌面整理、空降点）之后，规划里个别格子可能永久变成
+   * "会堵死道路"；不能因为这种格子让后面的段永远不算建成（否则后半段迷宫永远选不到塔位）。
+   * 金币不足 / 有敌人站着只是暂时的，仍算可放。
+   */
+  private wallPlaceable(i: number): boolean {
+    const g = this.w.state.grid;
+    const r = this.w.canPlace('wall', i % g.cols, Math.floor(i / g.cols));
+    return r.ok || r.reason === '金币不足' || r.reason === '有敌人在这里';
   }
 
   private refreshSamples(): void {
@@ -397,6 +414,11 @@ export class StrategyBot {
       if (budget <= 0) return;
       const atk = this.attackers().length;
       const minAtk = Math.min(2 + wave, 6);
+      if (atk >= minAtk) {
+        const r = this.guardAir(wave, budget, atk);
+        if (r === 'wait') return;
+        if (r === 'done') continue;
+      }
       if (this.p.looseWalls && atk >= 3 && this.looseWall(wave)) continue;
       if (atk >= Math.min(minAtk, 3) && this.wallSpent < this.p.wallShare * (this.otherSpent + this.wallSpent) + 25 && this.buildWalls(budget)) continue;
       const id = this.nextRotation();
@@ -427,6 +449,71 @@ export class StrategyBot {
       if (this.p.wallUpgrades && this.upgradeWalls(budget)) continue;
       return;
     }
+  }
+
+  /** 每条开放出生点的飞行路线（出生点各格平均 → 最近出口） */
+  private airLines(): Sample[][] {
+    const s = this.w.state;
+    const g = s.grid;
+    const out: Sample[][] = [];
+    for (const sp of s.spawners) {
+      if (!sp.active) continue;
+      const x0 = sp.cells.reduce((a, c) => a + c.x, 0) / sp.cells.length + 0.5;
+      const y0 = sp.cells.reduce((a, c) => a + c.y, 0) / sp.cells.length + 0.5;
+      let best = g.exits[0];
+      for (const ex of g.exits) if (Math.abs(ex.x + 0.5 - x0) < Math.abs(best.x + 0.5 - x0)) best = ex;
+      const x1 = best.x + 0.5;
+      const y1 = best.y + 0.5;
+      const n = Math.max(1, Math.round(Math.hypot(x1 - x0, y1 - y0) / 0.5));
+      const line: Sample[] = [];
+      for (let k = 0; k <= n; k++) line.push({ x: x0 + ((x1 - x0) * k) / n, y: y0 + ((y1 - y0) * k) / n, w: 1 });
+      out.push(line);
+    }
+    return out;
+  }
+
+  /** 对空火力在一条飞行路线上的覆盖（按等级粗略加权） */
+  private airPower(line: Sample[]): number {
+    let v = 0;
+    for (const t of this.attackers()) {
+      if (!TOWERS[t.id].hitsAir) continue;
+      const r = this.ranges(t.id);
+      v += coverage(t.cx, t.cy, r.r, 0, line) * (POWER[t.id] || 10) * Math.pow(1.186, t.level - 1);
+    }
+    return v;
+  }
+
+  /**
+   * 防空补位：有一条飞行路线明显缺对空火力（侧边入口 / 空降点刚开放），就在那条线上补一座对空塔。
+   * 真人看到"左边飞来的纸飞机全漏了"也会这么做；只在买得起时出手，否则不影响正常花钱。
+   */
+  private guardAir(wave: number, budget: number, atk: number): 'none' | 'wait' | 'done' {
+    const k = this.p.airGuard ?? 0;
+    if (k <= 0 || wave < 6) return 'none';
+    if (atk >= this.p.maxTowers(wave) + (this.p.airExtra ?? 0)) return 'none';
+    const lines = this.airLines();
+    if (lines.length < 2) return 'none';
+    const pw = lines.map((l) => this.airPower(l));
+    const max = Math.max(...pw);
+    let weak = -1;
+    for (let i = 0; i < lines.length; i++) if (pw[i] < max * k && (weak < 0 || pw[i] < pw[weak])) weak = i;
+    if (weak < 0) return 'none';
+    const id: TowerId = 'pencil';
+    const cost = this.cost(id);
+    this.refreshSamples();
+    const { r } = this.ranges(id);
+    let best: Slot | null = null;
+    let bv = 0;
+    for (const sl of this.planSlots()) {
+      const v = coverage(sl.cx, sl.cy, r, 0, lines[weak]) + 0.1 * coverage(sl.cx, sl.cy, r, 0, this.gSamples);
+      if (v <= bv) continue;
+      if (!sl.wallUid && !this.w.canPlace(id, sl.cx, sl.cy).ok) continue;
+      best = sl;
+      bv = v;
+    }
+    if (!best || bv < 2) return 'none';
+    if (budget < cost + (best.wallUid ? 3 : 0)) return 'wait';
+    return this.placeAt(id, best) ? 'done' : 'none';
   }
 
   private looseWall(wave: number): boolean {

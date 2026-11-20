@@ -21,8 +21,8 @@ export const PRESETS: Record<Exclude<DifficultyId, 'abyss'>, DifficultyParams> =
     rewardMul: 1.0, xpMul: 1.0,
     eliteStart: 30, eliteRate: 0.004, eliteCap: 0.15, maxAffix: 1,
     bossHpMul: 1.0, skillCdMul: 1.0, interestCap: 20, scoreMul: 1.0,
-    spawnMode: 'roundRobin', maxActiveSpawners: 3, maxDrops: 1, dropWarn: 5,
-    eventRate: 1.0, eventHostile: 0.4, waveGap: 15, waveMax: 60,
+    spawnMode: 'random', maxActiveSpawners: 3, maxDrops: 1, dropWarn: 5,
+    eventRate: 1.0, eventHostile: 0.4, waveGap: 20, waveMax: 60,
   },
   hard: {
     startGold: 130, lives: 15,
@@ -33,7 +33,7 @@ export const PRESETS: Record<Exclude<DifficultyId, 'abyss'>, DifficultyParams> =
     eliteStart: 20, eliteRate: 0.006, eliteCap: 0.25, maxAffix: 2,
     bossHpMul: 1.1, skillCdMul: 1.0, interestCap: 20, scoreMul: 1.5,
     spawnMode: 'random', maxActiveSpawners: 4, maxDrops: 2, dropWarn: 5,
-    eventRate: 1.1, eventHostile: 0.55, waveGap: 12, waveMax: 50,
+    eventRate: 1.1, eventHostile: 0.55, waveGap: 17, waveMax: 55,
   },
   nightmare: {
     startGold: 120, lives: 10,
@@ -44,21 +44,21 @@ export const PRESETS: Record<Exclude<DifficultyId, 'abyss'>, DifficultyParams> =
     eliteStart: 15, eliteRate: 0.008, eliteCap: 0.35, maxAffix: 2,
     bossHpMul: 1.15, skillCdMul: 1.1, interestCap: 15, scoreMul: 2.0,
     spawnMode: 'random', maxActiveSpawners: 4, maxDrops: 3, dropWarn: 4,
-    eventRate: 1.2, eventHostile: 0.6, waveGap: 10, waveMax: 45,
+    eventRate: 1.2, eventHostile: 0.6, waveGap: 16, waveMax: 55,
   },
 };
 
 /** 魔境 I 的参数 */
 export const ABYSS_BASE: DifficultyParams = {
   startGold: 120, lives: 10,
-  hpMul: 1.4, hpLinear: 0.2, hpExp: 1.05,
+  hpMul: 1.2, hpLinear: 0.2, hpExp: 1.048,
   countMul: 1.2, countGrowth: 0.11,
   speedMul: 1.15, armorStep: 7,
   rewardMul: 0.95, xpMul: 0.85,
   eliteStart: 12, eliteRate: 0.01, eliteCap: 0.45, maxAffix: 3,
   bossHpMul: 1.2, skillCdMul: 1.2, interestCap: 15, scoreMul: 3.0,
   spawnMode: 'random', maxActiveSpawners: 5, maxDrops: 3, dropWarn: 3,
-  eventRate: 1.25, eventHostile: 0.62, waveGap: 8, waveMax: 40,
+  eventRate: 1.25, eventHostile: 0.62, waveGap: 15, waveMax: 55,
 };
 
 /** 魔境每升 1 级的增量 */
@@ -104,8 +104,8 @@ export function abyssParams(level: number): DifficultyParams {
   p.eliteStart = Math.max(3, p.eliteStart);
   p.eliteCap = Math.min(0.7, p.eliteCap);
   p.maxAffix = L >= 5 ? 4 : 3;
-  p.waveGap = Math.max(6, p.waveGap);
-  p.waveMax = Math.max(32, p.waveMax);
+  p.waveGap = Math.max(10, p.waveGap);
+  p.waveMax = Math.max(40, p.waveMax);
   p.dropWarn = Math.max(2.5, p.dropWarn);
   p.eventRate = Math.min(1.5, p.eventRate);
   p.eventHostile = Math.min(0.72, p.eventHostile);

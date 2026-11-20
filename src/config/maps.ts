@@ -63,7 +63,7 @@ export const MAPS: Record<MapId, MapDef> = {
     chapterSeed: 'ch1-student-desk',
     spawners: [
       { id: 'north', name: '北入口', cells: [{ x: 5, y: 0 }, { x: 6, y: 0 }], kind: 'edge', weight: 1 },
-      { id: 'west', name: '西入口', cells: [{ x: 0, y: 3 }, { x: 0, y: 4 }], kind: 'edge', weight: 0.6, openFromWave: 25, campaignOpen: 0 },
+      { id: 'west', name: '西入口', cells: [{ x: 0, y: 3 }, { x: 0, y: 4 }], kind: 'edge', weight: 0.4, openFromWave: 25, campaignOpen: 0 },
       { id: 'hidden-1', name: '暗门', cells: [{ x: 11, y: 4 }, { x: 11, y: 5 }], kind: 'hidden', weight: 0.5 },
     ],
     exits: EXIT,
@@ -86,7 +86,7 @@ export const MAPS: Record<MapId, MapDef> = {
     spawners: [
       { id: 'north-1', name: '北入口 1', cells: [{ x: 1, y: 0 }, { x: 2, y: 0 }], kind: 'edge', weight: 1 },
       { id: 'north-2', name: '北入口 2', cells: [{ x: 9, y: 0 }, { x: 10, y: 0 }], kind: 'edge', weight: 1 },
-      { id: 'east', name: '东入口', cells: [{ x: 11, y: 3 }, { x: 11, y: 4 }], kind: 'edge', weight: 0.6, openFromWave: 30, campaignOpen: 15 },
+      { id: 'east', name: '东入口', cells: [{ x: 11, y: 3 }, { x: 11, y: 4 }], kind: 'edge', weight: 0.4, openFromWave: 30, campaignOpen: 15 },
       { id: 'hidden-1', name: '暗门', cells: [{ x: 0, y: 4 }, { x: 0, y: 5 }], kind: 'hidden', weight: 0.5 },
     ],
     exits: EXIT,
@@ -111,7 +111,7 @@ export const MAPS: Record<MapId, MapDef> = {
     spawners: [
       { id: 'north-1', name: '北入口 1', cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }], kind: 'edge', weight: 1 },
       { id: 'north-2', name: '北入口 2', cells: [{ x: 10, y: 0 }, { x: 11, y: 0 }], kind: 'edge', weight: 1 },
-      { id: 'west', name: '西入口', cells: [{ x: 0, y: 5 }, { x: 0, y: 6 }], kind: 'edge', weight: 0.6, openFromWave: 30, campaignOpen: 16 },
+      { id: 'west', name: '西入口', cells: [{ x: 0, y: 5 }, { x: 0, y: 6 }], kind: 'edge', weight: 0.4, openFromWave: 30, campaignOpen: 16 },
       { id: 'hidden-1', name: '暗门', cells: [{ x: 11, y: 5 }, { x: 11, y: 6 }], kind: 'hidden', weight: 0.5 },
     ],
     exits: EXIT,
