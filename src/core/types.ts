@@ -19,11 +19,11 @@ export const GRID_ROWS = 14;
 
 export type TowerId =
   | 'wall' | 'pencil' | 'stapler' | 'glue' | 'lamp' | 'compass'
-  | 'eraser' | 'ruler' | 'pen' | 'calculator' | 'piggy';
+  | 'eraser' | 'ruler' | 'pen' | 'calculator' | 'piggy' | 'swatter';
 
 export const TOWER_IDS: TowerId[] = [
   'wall', 'pencil', 'stapler', 'glue', 'lamp', 'compass',
-  'eraser', 'ruler', 'pen', 'calculator', 'piggy',
+  'eraser', 'ruler', 'pen', 'calculator', 'piggy', 'swatter',
 ];
 
 export type EnemyId =
@@ -223,7 +223,9 @@ export interface EnemyState {
   inkStacks: number;
   bleedStacks: number;
   burnUntil: number;
-  markedUntil: number;                  // 红笔标记 / 护眼灯照射 / 修正带易伤
+  markedUntil: number;
+  /** 苍蝇拍·捕虫网：飞行敌人被网到地面，截止时间之前 flying=false 并按迷宫行走 */
+  netUntil: number;                  // 红笔标记 / 护眼灯照射 / 修正带易伤
   /** 跳跃中（橡皮筋）——不可被选中 */
   jumping: boolean;
   /** 最近受击时间（渲染闪白） */
@@ -231,7 +233,7 @@ export interface EnemyState {
   spawnedAt: number;
 }
 
-export type ProjectileKind = 'graphite' | 'color' | 'glue' | 'ink' | 'brush' | 'ruler' | 'eraser'
+export type ProjectileKind = 'net' | 'graphite' | 'color' | 'glue' | 'ink' | 'brush' | 'ruler' | 'eraser'
   | 'nail';                 // 工业钉枪「连环钉」（直线穿透）
 
 export interface ProjectileState {
@@ -455,6 +457,9 @@ export type GameEvent =
   | { type: 'perkChosen'; id: string }
   | { type: 'gameOver'; won: boolean; wave: number; score: number }
   | { type: 'toast'; text: string; tone: 'info' | 'warn' | 'good' }
+  /** 苍蝇拍：拍击（x,y 为落点，r 为拍击半径） / 电蚊拍连锁闪电（points 依次连接） */
+  | { type: 'swat'; uid: number; x: number; y: number; r: number }
+  | { type: 'chain'; uid: number; points: { x: number; y: number }[] }
   // 文档 09
   | { type: 'randomEvent'; uid: number; id: RandomEventId; phase: 'warn' | 'start' | 'end'; name: string; desc: string; tone: 'bad' | 'good' | 'neutral'; area?: { x: number; y: number; w: number; h: number } }
   | { type: 'spawnerDrop'; id: string; x: number; y: number; phase: 'warn' | 'land' | 'close' | 'demolish' }
