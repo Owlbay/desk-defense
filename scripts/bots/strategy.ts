@@ -1,0 +1,614 @@
+/**
+ * 可配置的策略机器人。newbie / medium / expert 只是不同的参数组合（见同目录各文件）。
+ *
+ * 每个决策点（建造阶段每次开波前，以及波次进行中每 decisionTicks 步）依次：
+ *   选增益 → 维护迷宫 → 买塔 / 升级 → 放技能 → （高手）安全时提前开波
+ */
+import {
+  CellKind, generateWave, type Branch, type IWorld, type PerkCard, type SkillId, type TowerId, type TowerState,
+} from '../../src/core';
+import { COMBOS, TOWERS } from '../../src/config/towers';
+import { rawUpgradeCost } from '../../src/core/scaling';
+import {
+  airSamples, coverage, groundSamples, planMaze, targetCells, type MazePlan, type Sample,
+} from './maze';
+
+export interface BotParams {
+  name: string;
+  skills: SkillId[];
+  /** 有第 4 技能槽（天赋"大书包"）时带的技能 */
+  extraSkill?: SkillId;
+  /** 迷宫：允许建到第几段（随波数），0 = 不建 */
+  mazeSegments: (wave: number) => number;
+  /** 每波最多为迷宫花多少比例的现金（墙） */
+  wallShare: number;
+  /** 买塔轮换（锁定 / 达上限的会跳过） */
+  rotation: TowerId[];
+  /** 攻击塔数量上限（随波数） */
+  maxTowers: (wave: number) => number;
+  /** 'rare'：金币大量富余才随便升一座；'value'：按每金币收益比较买塔与升级 */
+  upgrade: 'rare' | 'value';
+  /** value 模式下升级相对买新塔的偏好（>1 更爱升级） */
+  upgradeBias: number;
+  /** 保留金币（不花） */
+  reserve: (wave: number) => number;
+  /** 'rare'：偶尔放；'cooldown'：冷却好且场上有怪就放；'smart'：挑时机 */
+  skillUse: 'rare' | 'cooldown' | 'smart';
+  /** 增益优先级（越靠前越优先），未列出的排最后 */
+  perkPriority: string[];
+  /** 传奇分支选择 */
+  branches: Partial<Record<TowerId, Branch>>;
+  /** 选位时考虑组合技与书本墙加成 */
+  combos: boolean;
+  /** 升级书本墙（相邻 2 座以上中高级塔时） */
+  wallUpgrades: boolean;
+  /** 安全时提前开波 */
+  earlyStart: boolean;
+  /** 随手堵几格（不按规划，只挑能让路线变长的单格）：允许的墙数（随波数） */
+  looseWalls?: (wave: number) => number;
+  /** 不在迷宫规划内也可以放塔（新手：沿路随手放） */
+  offPlan: boolean;
+  /** 选位随机扰动（新手不会算最优位置） */
+  placeNoise: number;
+  decisionTicks: number;
+  /** 开局先买的塔（全部买完才进入轮换） */
+  opening: TowerId[];
+  /** 保留一座只靠经验升级的铅笔（用于经验节奏测量） */
+  xpProbe: boolean;
+}
+
+/** 每种塔"单位覆盖"的大致价值（秒伤量级），只用于机器人的买/升比较 */
+const POWER: Record<TowerId, number> = {
+  wall: 0, pencil: 16, stapler: 26, glue: 12, lamp: 24, compass: 40, eraser: 10, ruler: 24, pen: 20, calculator: 0, piggy: 0,
+};
+/** 下一级的额外收益系数（形态跃迁） */
+function levelGain(id: TowerId, next: number): number {
+  let g = 0.186;
+  if (next === 4) g += ({ pencil: 0.15, compass: 0.25, lamp: 0.3, stapler: 0.1, eraser: 0.3, pen: 0.2 } as Partial<Record<TowerId, number>>)[id] ?? 0.1;
+  if (next === 7) g += ({ pencil: 1.0, lamp: 0.8, ruler: 1.6, compass: 0.4, stapler: 0.3, pen: 0.3, glue: 0.3, eraser: 0.3 } as Partial<Record<TowerId, number>>)[id] ?? 0.2;
+  if (next === 10) g += 0.5;
+  return g;
+}
+
+interface Slot { cx: number; cy: number; i: number; wallUid: number }
+
+export class StrategyBot {
+  readonly p: BotParams;
+  readonly w: IWorld;
+  readonly plan: MazePlan;
+  private scratch: Float32Array;
+  private rot = 0;
+  private samplesKey = '';
+  private gSamples: Sample[] = [];
+  /** 路线前 40%（破甲塔放这里，后面的塔都受益） */
+  private gEarly: Sample[] = [];
+  private aSamples: Sample[];
+  private probeUid = 0;
+  private waveSpawnEnd = 0;
+  private recentLeaks: number[] = [];
+  private leaksThisWave = 0;
+  private rngState = 1;
+  private wallSpent = 0;
+  private airLeaks = 0;
+  private otherSpent = 0;
+  /** 被金币升级过的塔（经验节奏测量排除） */
+  readonly goldUpgraded = new Set<number>();
+
+  constructor(w: IWorld, p: BotParams) {
+    this.w = w;
+    this.p = p;
+    this.plan = planMaze(w);
+    this.scratch = new Float32Array(w.state.grid.cols * w.state.grid.rows);
+    this.aSamples = airSamples(w);
+    let h = 7;
+    for (const c of w.state.seed) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    this.rngState = h || 1;
+  }
+
+  get probe(): number { return this.probeUid; }
+
+  private rand(): number {
+    this.rngState = (Math.imul(this.rngState, 1664525) + 1013904223) >>> 0;
+    return this.rngState / 4294967296;
+  }
+
+  // ───────────── 事件钩子（由 runner 调用） ─────────────
+  onWaveStart(wave: number): void {
+    const s = this.w.state;
+    const plan = generateWave({ seed: s.seed, mode: s.opts.mode, map: s.opts.map, params: s.params, entrances: s.grid.spawns.length / 2 }, wave);
+    const last = plan.entries.length ? plan.entries[plan.entries.length - 1].at : 0;
+    this.waveSpawnEnd = Math.max(this.waveSpawnEnd, s.time + last);
+    this.leaksThisWave = 0;
+  }
+  onLeak(enemy?: string): void {
+    this.leaksThisWave++;
+    if (enemy === 'plane' || enemy === 'moth') this.airLeaks++;
+  }
+  onWaveEnd(): void {
+    this.recentLeaks.push(this.leaksThisWave);
+    if (this.recentLeaks.length > 3) this.recentLeaks.shift();
+  }
+
+  // ───────────── 主决策 ─────────────
+  act(phase: 'build' | 'wave'): void {
+    const s = this.w.state;
+    if (s.phase === 'perk') { this.choosePerk(); return; }
+    this.spend();
+    if (phase === 'wave') {
+      this.useSkills();
+      if (this.p.earlyStart) this.maybeEarlyStart();
+    } else if (this.p.skillUse !== 'rare') {
+      // 开波前就能用的：奖学金、灵感
+      this.castEconomy();
+    }
+  }
+
+  private towers(): TowerState[] { return [...this.w.state.towers.values()]; }
+  private attackers(): TowerState[] { return this.towers().filter((t) => TOWERS[t.id].attacks); }
+
+  private currentSegments(): number {
+    return Math.min(this.plan.segments.length, Math.max(0, this.p.mazeSegments(Math.max(1, this.w.state.wave + 1))));
+  }
+
+  /** 已完整建成的段数 + 1（选位/造墙只看近期能建成的部分） */
+  private activeSegments(): number {
+    const g = this.w.state.grid;
+    const max = this.currentSegments();
+    let built = 0;
+    for (; built < max; built++) {
+      if (this.plan.segments[built].some((i) => g.cells[i] === CellKind.Empty)) break;
+    }
+    return Math.min(max, built + 1);
+  }
+
+  private refreshSamples(): void {
+    const g = this.w.state.grid;
+    const nSeg = this.activeSegments();
+    const key = `${g.version}|${nSeg}`;
+    if (key === this.samplesKey) return;
+    this.samplesKey = key;
+    const cells = targetCells(this.w, this.plan, nSeg, this.scratch);
+    this.gSamples = groundSamples(this.w, cells, this.scratch);
+    this.gEarly = this.gSamples.filter((x) => (x.f ?? 0) <= 0.4);
+  }
+
+  private cost(id: TowerId): number {
+    return this.w.getBuildOptions().find((o) => o.id === id)!.cost;
+  }
+
+  /** 迷宫规划内可用的格子（空格或可替换的墙） */
+  private planSlots(): Slot[] {
+    const g = this.w.state.grid;
+    const nSeg = this.activeSegments();
+    const out: Slot[] = [];
+    for (let k = 0; k < nSeg; k++) {
+      for (const i of this.plan.segments[k]) {
+        const cx = i % g.cols;
+        const cy = (i - cx) / g.cols;
+        if (g.cells[i] === CellKind.Empty) out.push({ cx, cy, i, wallUid: 0 });
+        else if (g.cells[i] === CellKind.Tower) {
+          const t = this.w.state.towers.get(g.towerAt[i]);
+          if (t && t.id === 'wall' && t.level === 1) out.push({ cx, cy, i, wallUid: t.uid });
+        }
+      }
+    }
+    return out;
+  }
+
+  /** 路边可放的空格（新手） */
+  private offPlanSlots(): Slot[] {
+    const g = this.w.state.grid;
+    const out: Slot[] = [];
+    for (let cy = 0; cy < g.rows; cy++) for (let cx = 0; cx < g.cols; cx++) {
+      const i = cy * g.cols + cx;
+      if (g.cells[i] === CellKind.Empty) out.push({ cx, cy, i, wallUid: 0 });
+    }
+    return out;
+  }
+
+  private ranges(id: TowerId): { r: number; inner: number } {
+    const d = TOWERS[id];
+    return { r: d.range + 0.3, inner: d.inner ?? 0 };
+  }
+
+  private slotValue(id: TowerId, sl: Slot): number {
+    const d = TOWERS[id];
+    const { r, inner } = this.ranges(id);
+    if (id === 'calculator') {
+      let v = 0;
+      for (const t of this.attackers()) {
+        const dx = t.cx - sl.cx;
+        const dy = t.cy - sl.cy;
+        if (dx * dx + dy * dy <= 4 + 1e-6) v += Math.pow(1.19, t.level - 1) * (POWER[t.id] || 10);
+      }
+      return v;
+    }
+    if (id === 'piggy') {
+      // 放在最没用的格子；高手放在计算器旁边（复利）
+      let v = 100 - coverage(sl.cx, sl.cy, 2.5, 0, this.gSamples);
+      if (this.p.combos && this.adjacent(sl, 'calculator')) v += 50;
+      return v;
+    }
+    let v = d.hitsGround ? coverage(sl.cx, sl.cy, r, inner, this.gSamples) : 0;
+    if (id === 'eraser' && this.p.combos) v = coverage(sl.cx, sl.cy, r, inner, this.gEarly) * 2;
+    if (d.hitsAir) v += this.airWeight() * coverage(sl.cx, sl.cy, r, 0, this.aSamples);
+    if (this.p.combos) {
+      for (const cb of COMBOS) {
+        const partner = cb.a === id ? cb.b : cb.b === id ? cb.a : null;
+        if (partner && this.adjacent(sl, partner)) v *= 1.15;
+      }
+    }
+    if (this.p.placeNoise > 0) v *= 1 - this.p.placeNoise + 2 * this.p.placeNoise * this.rand();
+    return v;
+  }
+
+  /** 飞行路线的权重：有过飞行漏怪就加重 */
+  private airWeight(): number {
+    return this.p.skillUse === 'rare' ? 0.3 : 1 + Math.min(1, this.airLeaks * 0.1);
+  }
+
+  private adjacent(sl: { cx: number; cy: number }, id: TowerId): boolean {
+    const g = this.w.state.grid;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const x = sl.cx + dx;
+      const y = sl.cy + dy;
+      if (x < 0 || y < 0 || x >= g.cols || y >= g.rows) continue;
+      const t = this.w.state.towers.get(g.towerAt[y * g.cols + x]);
+      if (t && t.id === id) return true;
+    }
+    return false;
+  }
+
+  private bestSlot(id: TowerId): { slot: Slot; v: number } | null {
+    this.refreshSamples();
+    let slots = this.planSlots();
+    if (this.p.offPlan) slots = slots.concat(this.offPlanSlots());
+    let best: Slot | null = null;
+    let bv = -Infinity;
+    for (const sl of slots) {
+      const v = this.slotValue(id, sl);
+      if (v <= bv) continue;
+      if (!sl.wallUid && !this.w.canPlace(id, sl.cx, sl.cy).ok) continue;
+      best = sl;
+      bv = v;
+    }
+    return best ? { slot: best, v: bv } : null;
+  }
+
+  private placeAt(id: TowerId, sl: Slot): boolean {
+    const w = this.w;
+    if (sl.wallUid) {
+      if (w.state.gold + 3 < this.cost(id)) return false;
+      w.command({ type: 'sell', uid: sl.wallUid });
+    }
+    const g0 = w.state.gold;
+    const r = w.command({ type: 'place', tower: id, cx: sl.cx, cy: sl.cy });
+    if (r.ok) this.otherSpent += g0 - w.state.gold;
+    if (!r.ok && sl.wallUid) w.command({ type: 'place', tower: 'wall', cx: sl.cx, cy: sl.cy });
+    if (r.ok && id === 'pencil' && this.p.xpProbe && !this.probeUid) this.probeUid = w.state.grid.towerAt[sl.i];
+    if (r.ok && id === 'lamp' && this.p.skillUse !== 'rare') w.command({ type: 'setTarget', uid: w.state.grid.towerAt[sl.i], mode: 'strong' });
+    return r.ok;
+  }
+
+  private nextRotation(): TowerId | null {
+    const s = this.w.state;
+    const atk = this.attackers();
+    for (let k = 0; k < this.p.opening.length; k++) {
+      const want = this.p.opening.slice(0, k + 1).filter((x) => x === this.p.opening[k]).length;
+      if (atk.filter((t) => t.id === this.p.opening[k]).length < want && s.unlockedTowers.includes(this.p.opening[k])) return this.p.opening[k];
+    }
+    for (let k = 0; k < this.p.rotation.length; k++) {
+      const id = this.p.rotation[(this.rot + k) % this.p.rotation.length];
+      if (!s.unlockedTowers.includes(id)) continue;
+      if (id === 'piggy' && this.towers().filter((t) => t.id === 'piggy').length >= 3) continue;
+      if (id === 'calculator' && this.attackers().length < 8) continue;
+      this.rot = (this.rot + k) % this.p.rotation.length;
+      return id;
+    }
+    return null;
+  }
+
+  // ───────────── 花钱 ─────────────
+  private spend(): void {
+    const s = this.w.state;
+    for (let guard = 0; guard < 60; guard++) {
+      const wave = s.wave + 1;
+      const budget = s.gold - this.p.reserve(wave);
+      if (budget <= 0) return;
+      const atk = this.attackers().length;
+      const minAtk = Math.min(2 + wave, 6);
+      if (this.p.looseWalls && atk >= 3 && this.looseWall(wave)) continue;
+      if (atk >= Math.min(minAtk, 3) && this.wallSpent < this.p.wallShare * (this.otherSpent + this.wallSpent) + 25 && this.buildWalls(budget)) continue;
+      const id = this.nextRotation();
+      if (!id) return;
+      const cost = this.cost(id);
+      const slot = atk < this.p.maxTowers(wave) ? this.bestSlot(id) : null;
+      const up = atk >= minAtk ? this.bestUpgrade() : null;
+      let buy = !!slot;
+      if (slot && up) {
+        const support = !(POWER[id] > 0);
+        const vNew = (slot.v * POWER[id]) / cost;
+        buy = support || id === 'glue' || id === 'eraser' || vNew >= up.eff * this.p.upgradeBias;
+      }
+      if (buy && slot) {
+        if (budget < cost) return; // 攒钱
+        const inOpening = this.attackers().length < this.p.opening.length;
+        if (this.placeAt(id, slot.slot)) {
+          if (!inOpening) this.rot = (this.rot + 1) % this.p.rotation.length;
+          continue;
+        }
+        return;
+      }
+      if (up) {
+        if (budget < up.cost) return;
+        if (this.doUpgrade(up.t, up.cost)) continue;
+        return;
+      }
+      if (this.p.wallUpgrades && this.upgradeWalls(budget)) continue;
+      return;
+    }
+  }
+
+  private looseWall(wave: number): boolean {
+    const s = this.w.state;
+    const walls = this.towers().filter((t) => t.id === 'wall').length;
+    if (walls >= this.p.looseWalls!(wave) || s.gold < this.cost('wall') + 20) return false;
+    const len = (paths: { x: number; y: number }[][] | null) => (paths ? paths.reduce((a, p) => a + p.length, 0) : -1);
+    const cur = len(this.w.currentPaths());
+    const g = s.grid;
+    let best: [number, number] | null = null;
+    let bv = cur;
+    for (const p of this.w.currentPaths()) for (const c of p) {
+      for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const x = c.x + dx;
+        const y = c.y + dy;
+        if (x < 0 || y < 0 || x >= g.cols || y >= g.rows || g.cells[y * g.cols + x] !== CellKind.Empty) continue;
+        const l = len(this.w.previewPath('wall', x, y));
+        if (l > bv) { bv = l; best = [x, y]; }
+      }
+    }
+    if (!best) return false;
+    return this.w.command({ type: 'place', tower: 'wall', cx: best[0], cy: best[1] }).ok;
+  }
+
+  private buildWalls(budget: number): boolean {
+    const s = this.w.state;
+    const g = s.grid;
+    const nSeg = this.currentSegments();
+    const wallCost = this.cost('wall');
+    let spent = 0;
+    const cap = Math.max(wallCost, Math.min(budget, this.p.wallShare * (this.otherSpent + this.wallSpent) + 25 - this.wallSpent));
+    for (let k = 0; k < nSeg; k++) {
+      for (const i of this.plan.segments[k]) {
+        if (g.cells[i] !== CellKind.Empty) continue;
+        if (spent + wallCost > cap || s.gold < wallCost) return spent > 0;
+        const cx = i % g.cols;
+        const cy = (i - cx) / g.cols;
+        if (this.w.command({ type: 'place', tower: 'wall', cx, cy }).ok) { spent += wallCost; this.wallSpent += wallCost; }
+      }
+    }
+    return spent > 0;
+  }
+
+  private upgradeWalls(budget: number): boolean {
+    const g = this.w.state.grid;
+    for (const t of this.towers()) {
+      if (t.id !== 'wall' || t.level >= 3) continue;
+      let n = 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const x = t.cx + dx;
+        const y = t.cy + dy;
+        if (x < 0 || y < 0 || x >= g.cols || y >= g.rows) continue;
+        const o = this.w.state.towers.get(g.towerAt[y * g.cols + x]);
+        if (o && TOWERS[o.id].attacks && o.level >= 6) n++;
+      }
+      if (n < 2) continue;
+      const info = this.w.getTowerInfo(t.uid)!;
+      if (info.upgradeCost !== null && info.upgradeCost <= budget) {
+        if (this.w.command({ type: 'upgrade', uid: t.uid }).ok) return true;
+      }
+    }
+    return false;
+  }
+
+  private bestUpgrade(): { t: TowerState; cost: number; eff: number } | null {
+    const s = this.w.state;
+    this.refreshSamples();
+    let best: { t: TowerState; cost: number; eff: number } | null = null;
+    if (this.p.upgrade === 'rare') {
+      // 新手：钱很多才升，随便挑一座最低级的
+      if (s.gold < 250) return null;
+      const list = this.attackers().filter((t) => t.level < 9).sort((a, b) => a.level - b.level);
+      const t = list[0];
+      if (!t) return null;
+      const info = this.w.getTowerInfo(t.uid)!;
+      return info.upgradeCost !== null ? { t, cost: info.upgradeCost, eff: 0 } : null;
+    }
+    for (const t of this.towers()) {
+      if (t.id === 'wall' || t.uid === this.probeUid) continue;
+      if (t.level >= 10) continue;
+      const info = this.w.getTowerInfo(t.uid)!;
+      if (info.upgradeCost === null) continue;
+      let eff: number;
+      if (t.id === 'piggy') {
+        eff = t.level < 9 ? 0.5 * 2 / info.upgradeCost * 10 : 0;
+      } else if (t.id === 'calculator') {
+        eff = (0.01 * this.slotValue('calculator', t as unknown as Slot)) / info.upgradeCost * 3;
+      } else {
+        const r = this.ranges(t.id);
+        let cov = TOWERS[t.id].hitsGround ? coverage(t.cx, t.cy, r.r, r.inner, this.gSamples) : 0;
+        if (TOWERS[t.id].hitsAir) cov += this.airWeight() * coverage(t.cx, t.cy, r.r, 0, this.aSamples);
+        const power = POWER[t.id] * Math.pow(1.186, t.level - 1);
+        eff = (cov * power * levelGain(t.id, t.level + 1)) / info.upgradeCost;
+      }
+      if (!best || eff > best.eff) best = { t, cost: info.upgradeCost, eff };
+    }
+    return best;
+  }
+
+  private doUpgrade(t: TowerState, cost: number): boolean {
+    if (this.w.state.gold < cost) return false;
+    const branch = t.level === 9 ? (this.p.branches[t.id] ?? 'A') : undefined;
+    const ok = this.w.command({ type: 'upgrade', uid: t.uid, branch }).ok;
+    if (ok) this.otherSpent += cost;
+    if (ok) this.goldUpgraded.add(t.uid);
+    return ok;
+  }
+
+  // ───────────── 增益 ─────────────
+  private choosePerk(): void {
+    const s = this.w.state;
+    const cards = s.perkChoices ?? [];
+    const rank = (c: PerkCard) => {
+      const i = this.p.perkPriority.indexOf(c.id);
+      return i < 0 ? 999 : i;
+    };
+    const sorted = cards.slice().sort((a, b) => rank(a) - rank(b));
+    for (const c of sorted) {
+      if (c.needsTower) {
+        const cand = this.towers().filter((t) => t.id !== 'wall' && t.level >= 7 && t.level < 10)
+          .sort((a, b) => b.level - a.level || b.damage - a.damage)[0];
+        if (!cand) continue;
+        const br = this.p.branches[cand.id] ?? 'A';
+        const halfCost = Math.round(rawUpgradeCost(TOWERS[cand.id].cost, 9) * 0.5 * (s.perks.includes('sale') ? 0.9 : 1));
+        // 高手（smart）直接选分支进 Lv10；其余只拿 Lv9 + 半价
+        const withBranch = this.p.skillUse === 'smart' && s.gold >= halfCost;
+        const r = this.w.command({ type: 'choosePerk', id: c.id, uid: cand.uid, branch: withBranch ? br : undefined });
+        if (r.ok) { this.goldUpgraded.add(cand.uid); return; }
+        continue;
+      }
+      if (this.w.command({ type: 'choosePerk', id: c.id }).ok) return;
+    }
+  }
+
+  // ───────────── 技能 ─────────────
+  private densest(r: number, air: boolean): { x: number; y: number; v: number; n: number } | null {
+    const en = this.w.state.enemies.filter((e) => air || !e.flying);
+    let best: { x: number; y: number; v: number; n: number } | null = null;
+    for (const a of en) {
+      let v = 0;
+      let n = 0;
+      for (const b of en) {
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        if (dx * dx + dy * dy <= r * r) { v += b.hp + b.shield; n++; }
+      }
+      if (!best || v > best.v) best = { x: a.x, y: a.y, v, n };
+    }
+    return best;
+  }
+
+  /** 场上生命最多的 Boss */
+  private bossTarget(): { x: number; y: number } | null {
+    let best: { x: number; y: number; hp: number } | null = null;
+    for (const e of this.w.state.enemies) if (e.boss && !e.hidden && (!best || e.hp > best.hp)) best = { x: e.x, y: e.y, hp: e.hp };
+    return best;
+  }
+
+  private castEconomy(): void {
+    const s = this.w.state;
+    for (const sk of s.skills) {
+      if (!sk.ready) continue;
+      if (sk.id === 'scholarship') this.w.command({ type: 'cast', skill: sk.id });
+      if (sk.id === 'inspiration') {
+        const t = this.attackers().filter((t) => t.level < 9).sort((a, b) => b.level - a.level || b.damage - a.damage)[0];
+        if (t) this.w.command({ type: 'cast', skill: sk.id, uid: t.uid });
+      }
+    }
+  }
+
+  private useSkills(): void {
+    const s = this.w.state;
+    const en = s.enemies;
+    if (en.length === 0) return;
+    const mode = this.p.skillUse;
+    if (mode === 'rare') {
+      // 新手：只有怪快到终点、而且很多时才想起来按
+      const close = en.filter((e) => e.y > 10).length;
+      if (close < 6) return;
+    }
+    const maxLife = s.maxLives;
+    const danger = en.some((e) => !e.flying && e.y > 9.5) || s.lives < maxLife * 0.6;
+    const boss = s.bossUids.length > 0;
+    const totalHp = en.reduce((a, e) => a + e.hp + e.shield, 0);
+    for (const sk of s.skills) {
+      if (!sk.ready) continue;
+      switch (sk.id) {
+        case 'scholarship':
+          this.w.command({ type: 'cast', skill: sk.id });
+          break;
+        case 'inspiration': {
+          const t = this.attackers().filter((t) => t.level < 9).sort((a, b) => b.level - a.level || b.damage - a.damage)[0];
+          if (t) this.w.command({ type: 'cast', skill: sk.id, uid: t.uid });
+          break;
+        }
+        case 'eraser_strike':
+        case 'magnifier': {
+          const bossE = this.bossTarget();
+          if (bossE && mode !== 'rare') {
+            this.w.command({ type: 'cast', skill: sk.id, x: bossE.x, y: bossE.y });
+            break;
+          }
+          const c = this.densest(sk.radius ?? 1.5, true);
+          if (!c) break;
+          if (mode === 'smart' && !(c.v >= totalHp * 0.3 || danger || boss || c.n >= 6)) break;
+          if (mode === 'cooldown' && c.n < 3 && !boss) break;
+          this.w.command({ type: 'cast', skill: sk.id, x: c.x, y: c.y });
+          break;
+        }
+        case 'whiteout_zone': {
+          const c = this.densest(1.2, false);
+          if (!c) break;
+          if (mode === 'smart' && !(c.n >= 5 || danger || boss)) break;
+          if (mode === 'cooldown' && c.n < 3) break;
+          // 放在敌群前方一点
+          this.w.command({ type: 'cast', skill: sk.id, x: c.x, y: c.y });
+          break;
+        }
+        case 'bell': {
+          const ground = en.filter((e) => !e.flying).length;
+          const bossE = this.bossTarget();
+          if (bossE && mode !== 'rare' && bossE.y > 6) { this.w.command({ type: 'cast', skill: sk.id }); break; }
+          if (mode === 'smart' && !(danger && ground >= 4) && !(boss && ground >= 6)) break;
+          if (mode !== 'smart' && ground < 8) break;
+          this.w.command({ type: 'cast', skill: sk.id });
+          break;
+        }
+        case 'caffeine': {
+          if (mode === 'smart' && !(en.length >= 12 || boss || danger)) break;
+          if (mode !== 'smart' && en.length < 8) break;
+          this.w.command({ type: 'cast', skill: sk.id });
+          break;
+        }
+        case 'ruler_sweep': {
+          // 选敌人生命最多的一行
+          const rows = new Map<number, number>();
+          for (const e of en) rows.set(Math.floor(e.y), (rows.get(Math.floor(e.y)) ?? 0) + e.hp);
+          let br = -1;
+          let bv = 0;
+          for (const [r, v] of rows) if (v > bv) { bv = v; br = r; }
+          if (br < 0) break;
+          if (mode === 'smart' && bv < totalHp * 0.25 && !danger) break;
+          this.w.command({ type: 'cast', skill: sk.id, cy: br, axis: 'row' });
+          break;
+        }
+        default:
+          break;
+      }
+    }
+  }
+
+  private maybeEarlyStart(): void {
+    const s = this.w.state;
+    if (s.phase !== 'wave') return;
+    if (s.time < this.waveSpawnEnd + 1.5) return;
+    if (s.bossUids.length > 0) return;
+    if (s.nextWave.tags.includes('boss')) return;
+    if (s.lives < s.maxLives) return;
+    if (this.recentLeaks.some((n) => n > 0) || this.leaksThisWave > 0) return;
+    if (s.enemies.length > 2) return;
+    // 剩下的怪都已经快死了 / 离终点还远
+    if (s.enemies.some((e) => e.y > 9)) return;
+    this.w.command({ type: 'startWave' });
+  }
+}

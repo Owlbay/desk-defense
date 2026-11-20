@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <radialGradient id="coffeeSheen" cx="0.42" cy="0.4" r="0.6">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.3"/>
+      <stop offset="0.6" stop-color="#FFFFFF" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="coffeeClip"><path d="M211.4 108.5 Q220.0 124.0 211.9 139.7 Q203.8 155.4 199.5 173.3 Q195.2 191.2 177.7 196.4 Q160.1 201.6 144.1 207.8 Q128.0 214.0 112.7 206.0 Q97.4 197.9 78.8 194.9 Q60.1 191.9 54.8 174.2 Q49.5 156.5 43.2 140.3 Q37.0 124.0 44.2 108.1 Q51.3 92.2 56.4 74.9 Q61.5 57.5 79.1 52.9 Q96.6 48.2 112.3 40.1 Q128.0 32.0 144.5 38.3 Q160.9 44.5 178.0 50.7 Q195.2 56.8 199.0 74.9 Q202.8 93.0 211.4 108.5 Z"/></clipPath>
+    <filter id="coffeeBlur" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="8"/></filter>
+  </defs>
+  <g id="shadow">
+    <ellipse cx="128" cy="214" rx="86" ry="16" fill="#3B2F2A" fill-opacity="0.18"/>
+  </g>
+  <g id="glow">
+    <circle cx="128" cy="124" r="100" fill="#6F4E37" fill-opacity="0.35" filter="url(#coffeeBlur)"/>
+  </g>
+  <g id="body">
+    <path d="M211.4 108.5 Q220.0 124.0 211.9 139.7 Q203.8 155.4 199.5 173.3 Q195.2 191.2 177.7 196.4 Q160.1 201.6 144.1 207.8 Q128.0 214.0 112.7 206.0 Q97.4 197.9 78.8 194.9 Q60.1 191.9 54.8 174.2 Q49.5 156.5 43.2 140.3 Q37.0 124.0 44.2 108.1 Q51.3 92.2 56.4 74.9 Q61.5 57.5 79.1 52.9 Q96.6 48.2 112.3 40.1 Q128.0 32.0 144.5 38.3 Q160.9 44.5 178.0 50.7 Q195.2 56.8 199.0 74.9 Q202.8 93.0 211.4 108.5 Z" fill="#6F4E37"/>
+    <path d="M211.4 108.5 Q220.0 124.0 211.9 139.7 Q203.8 155.4 199.5 173.3 Q195.2 191.2 177.7 196.4 Q160.1 201.6 144.1 207.8 Q128.0 214.0 112.7 206.0 Q97.4 197.9 78.8 194.9 Q60.1 191.9 54.8 174.2 Q49.5 156.5 43.2 140.3 Q37.0 124.0 44.2 108.1 Q51.3 92.2 56.4 74.9 Q61.5 57.5 79.1 52.9 Q96.6 48.2 112.3 40.1 Q128.0 32.0 144.5 38.3 Q160.9 44.5 178.0 50.7 Q195.2 56.8 199.0 74.9 Q202.8 93.0 211.4 108.5 Z" fill="url(#coffeeSheen)"/>
+    <g clip-path="url(#coffeeClip)">
+      <path d="M211.4 108.5 Q220.0 124.0 211.9 139.7 Q203.8 155.4 199.5 173.3 Q195.2 191.2 177.7 196.4 Q160.1 201.6 144.1 207.8 Q128.0 214.0 112.7 206.0 Q97.4 197.9 78.8 194.9 Q60.1 191.9 54.8 174.2 Q49.5 156.5 43.2 140.3 Q37.0 124.0 44.2 108.1 Q51.3 92.2 56.4 74.9 Q61.5 57.5 79.1 52.9 Q96.6 48.2 112.3 40.1 Q128.0 32.0 144.5 38.3 Q160.9 44.5 178.0 50.7 Q195.2 56.8 199.0 74.9 Q202.8 93.0 211.4 108.5 Z" fill="none" stroke="#3B2F2A" stroke-opacity="0.35" stroke-width="18"/>
+      <circle cx="160" cy="158" r="44" fill="none" stroke="#3B2F2A" stroke-opacity="0.18" stroke-width="7"/>
+      <ellipse cx="150" cy="200" rx="90" ry="34" fill="#3B2F2A" fill-opacity="0.15"/>
+    </g>
+    <path d="M70 92 Q78 70 100 62" fill="none" stroke="#FFFFFF" stroke-opacity="0.45" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="76" cy="160" r="6" fill="#FFFFFF" fill-opacity="0.35" stroke="#FFFFFF" stroke-opacity="0.5" stroke-width="2"/>
+    <circle cx="90" cy="176" r="3.5" fill="#FFFFFF" fill-opacity="0.35"/>
+    <circle cx="186" cy="138" r="4.5" fill="#FFFFFF" fill-opacity="0.35"/>
+    <path d="M211.4 108.5 Q220.0 124.0 211.9 139.7 Q203.8 155.4 199.5 173.3 Q195.2 191.2 177.7 196.4 Q160.1 201.6 144.1 207.8 Q128.0 214.0 112.7 206.0 Q97.4 197.9 78.8 194.9 Q60.1 191.9 54.8 174.2 Q49.5 156.5 43.2 140.3 Q37.0 124.0 44.2 108.1 Q51.3 92.2 56.4 74.9 Q61.5 57.5 79.1 52.9 Q96.6 48.2 112.3 40.1 Q128.0 32.0 144.5 38.3 Q160.9 44.5 178.0 50.7 Q195.2 56.8 199.0 74.9 Q202.8 93.0 211.4 108.5 Z" fill="none" stroke="#3B2F2A" stroke-width="6" stroke-linejoin="round"/>
+    <ellipse cx="102" cy="112" rx="17" ry="15" fill="#FBF8F1" stroke="#3B2F2A" stroke-width="4"/>
+    <ellipse cx="154" cy="112" rx="17" ry="15" fill="#FBF8F1" stroke="#3B2F2A" stroke-width="4"/>
+    <circle cx="106" cy="115" r="8" fill="#3B2F2A"/>
+    <circle cx="150" cy="115" r="8" fill="#3B2F2A"/>
+    <circle cx="108.5" cy="112" r="2.6" fill="#FFFFFF"/>
+    <circle cx="152.5" cy="112" r="2.6" fill="#FFFFFF"/>
+    <path d="M80 88 L120 102 M176 88 L136 102" fill="none" stroke="#3B2F2A" stroke-width="8" stroke-linecap="round"/>
+    <path d="M100 160 Q128 140 156 160 Q128 152 100 160 Z" fill="#3B2F2A" stroke="#3B2F2A" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M114 151 L118 158 L122 149 M134 149 L138 158 L142 151" fill="#FBF8F1" stroke="#FBF8F1" stroke-width="2" stroke-linejoin="round"/>
+  </g>
+  <g id="accent">
+    <circle cx="30" cy="62" r="9" fill="#6F4E37" stroke="#3B2F2A" stroke-width="4"/>
+    <circle cx="48" cy="38" r="5" fill="#6F4E37" stroke="#3B2F2A" stroke-width="3.5"/>
+    <circle cx="226" cy="72" r="7" fill="#6F4E37" stroke="#3B2F2A" stroke-width="4"/>
+    <circle cx="232" cy="178" r="10" fill="#6F4E37" stroke="#3B2F2A" stroke-width="4"/>
+    <circle cx="216" cy="206" r="5" fill="#6F4E37" stroke="#3B2F2A" stroke-width="3.5"/>
+    <circle cx="26" cy="186" r="7" fill="#6F4E37" stroke="#3B2F2A" stroke-width="4"/>
+    <circle cx="56" cy="226" r="5" fill="#6F4E37" stroke="#3B2F2A" stroke-width="3.5"/>
+    <circle cx="27.5" cy="59.5" r="2.5" fill="#FFFFFF" fill-opacity="0.5"/>
+    <circle cx="229.5" cy="175" r="3" fill="#FFFFFF" fill-opacity="0.5"/>
+  </g>
+</svg>

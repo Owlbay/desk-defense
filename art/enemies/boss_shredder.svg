@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="shredBody" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5C6B7A"/>
+      <stop offset="1" stop-color="#4A4A4A"/>
+    </linearGradient>
+    <linearGradient id="shredLid" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5C6B7A"/>
+      <stop offset="1" stop-color="#4A4A4A"/>
+    </linearGradient>
+    <clipPath id="shredBand"><path d="M36 186 H220 V190 Q220 204 206 204 H50 Q36 204 36 190 Z"/></clipPath>
+    <filter id="shredBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter>
+  </defs>
+  <g id="shadow">
+    <ellipse cx="128" cy="212" rx="100" ry="16" fill="#3B2F2A" fill-opacity="0.18"/>
+  </g>
+  <g id="body">
+    <path d="M70 196 V230 L76 226 L82 232 V196 Z M98 196 V238 L104 233 L110 239 V196 Z M126 196 V228 L132 223 L138 229 V196 Z M154 196 V236 L160 231 L166 237 V196 Z M182 196 V226 L188 221 L194 227 V196 Z" fill="#FBF8F1" stroke="#3B2F2A" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M40 228 L48 222 L50 232 Z M206 232 L216 228 L214 238 Z" fill="#F497B6" stroke="#3B2F2A" stroke-width="3.5" stroke-linejoin="round"/>
+    <path d="M40 44 L50 22 L60 44 L70 22 L80 44 L90 22 L100 44 L110 22 L120 44 L130 22 L140 44 L150 22 L160 44 L170 22 L180 44 L190 22 L200 44 L210 22 L218 44 Z" fill="#A0AEC0" stroke="#3B2F2A" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M47 38 L50 30 M67 38 L70 30 M87 38 L90 30 M107 38 L110 30 M127 38 L130 30 M147 38 L150 30 M167 38 L170 30 M187 38 L190 30 M207 38 L210 30" fill="none" stroke="#FFFFFF" stroke-opacity="0.7" stroke-width="2.5" stroke-linecap="round"/>
+    <rect x="36" y="60" width="184" height="144" rx="18" fill="url(#shredBody)" stroke="#3B2F2A" stroke-width="6" stroke-linejoin="round"/>
+    <rect x="48" y="150" width="160" height="42" rx="8" fill="#3B2F2A" fill-opacity="0.35"/>
+    <path d="M66 158 V184 M86 158 V184 M106 158 V184 M126 158 V184 M146 158 V184 M166 158 V184 M186 158 V184" fill="none" stroke="#3B2F2A" stroke-width="5" stroke-linecap="round"/>
+    <rect x="26" y="38" width="204" height="44" rx="12" fill="url(#shredLid)" stroke="#3B2F2A" stroke-width="6" stroke-linejoin="round"/>
+    <rect x="34" y="44" width="188" height="8" rx="4" fill="#FFFFFF" fill-opacity="0.18"/>
+    <rect x="46" y="56" width="164" height="16" rx="6" fill="#3B2F2A"/>
+    <path d="M56 70 L62 60 L68 70 M76 70 L82 60 L88 70 M96 70 L102 60 L108 70 M116 70 L122 60 L128 70 M136 70 L142 60 L148 70 M156 70 L162 60 L168 70 M176 70 L182 60 L188 70 M196 70 L202 60 L206 68" fill="#A0AEC0" stroke="#A0AEC0" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M42 96 H50 M42 136 H50 M206 96 H214 M206 136 H214" fill="none" stroke="#3B2F2A" stroke-opacity="0.5" stroke-width="4" stroke-linecap="round"/>
+    <polygon points="70,100 112,112 110,128 72,122" fill="#E63946" stroke="#3B2F2A" stroke-width="4" stroke-linejoin="round"/>
+    <polygon points="186,100 144,112 146,128 184,122" fill="#E63946" stroke="#3B2F2A" stroke-width="4" stroke-linejoin="round"/>
+    <circle cx="96" cy="114" r="4" fill="#FBF8F1"/>
+    <circle cx="160" cy="114" r="4" fill="#FBF8F1"/>
+  </g>
+  <g id="accent">
+    <g clip-path="url(#shredBand)">
+    <rect x="36" y="186" width="184" height="18" fill="#F2C14E"/>
+    <path d="M50 186 L36 200 M70 186 L52 204 M90 186 L72 204 M110 186 L92 204 M130 186 L112 204 M150 186 L132 204 M170 186 L152 204 M190 186 L172 204 M210 186 L192 204 M230 186 L212 204" fill="none" stroke="#3B2F2A" stroke-width="8" stroke-linecap="butt"/>
+    </g>
+    <path d="M36 186 H220 V190 Q220 204 206 204 H50 Q36 204 36 190 Z" fill="none" stroke="#3B2F2A" stroke-width="6" stroke-linejoin="round"/>
+    <circle cx="48" cy="92" r="5" fill="#A0AEC0" stroke="#3B2F2A" stroke-width="3"/>
+    <circle cx="208" cy="92" r="5" fill="#A0AEC0" stroke="#3B2F2A" stroke-width="3"/>
+    <circle cx="48" cy="140" r="5" fill="#A0AEC0" stroke="#3B2F2A" stroke-width="3"/>
+    <circle cx="208" cy="140" r="5" fill="#A0AEC0" stroke="#3B2F2A" stroke-width="3"/>
+  </g>
+  <g id="glow">
+    <ellipse cx="92" cy="114" rx="26" ry="16" fill="#E63946" fill-opacity="0.45" filter="url(#shredBlur)"/>
+    <ellipse cx="164" cy="114" rx="26" ry="16" fill="#E63946" fill-opacity="0.45" filter="url(#shredBlur)"/>
+  </g>
+</svg>

@@ -1,0 +1,326 @@
+import type { DifficultyId, MapId, ModeId, RunOptions, SkillId, TalentId } from '../core/types';
+import type { LeaderEntry, Profile } from './profile';
+
+/**
+ * 局外进度的纯函数（不依赖 DOM / core 运行时，便于测试）。
+ */
+
+export const MAPS: MapId[] = ['ch1', 'ch2', 'ch3'];
+export const DIFFS: DifficultyId[] = ['easy', 'normal', 'hard', 'nightmare', 'abyss'];
+export const CAMPAIGN_DIFFS: DifficultyId[] = ['normal', 'hard'];
+export const ABYSS_MAX = 10;
+
+export const DIFF_NAME: Record<DifficultyId, string> = {
+  easy: '简单',
+  normal: '普通',
+  hard: '困难',
+  nightmare: '噩梦',
+  abyss: '魔境',
+};
+
+/** 墨水系数（文档 05 §3.1） */
+export const INK_FACTOR: Record<DifficultyId, number> = {
+  easy: 0.5,
+  normal: 1,
+  hard: 1.5,
+  nightmare: 2,
+  abyss: 3,
+};
+
+const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+export const roman = (n: number): string => ROMAN[Math.max(0, Math.min(10, Math.round(n)))] ?? String(n);
+
+/** 难度键：easy / normal / hard / nightmare / abyss1..abyss10 */
+export function diffKey(d: DifficultyId, abyssLevel = 1): string {
+  return d === 'abyss' ? `abyss${Math.max(1, Math.min(ABYSS_MAX, abyssLevel))}` : d;
+}
+
+export function diffLabel(d: DifficultyId, abyssLevel = 1): string {
+  return d === 'abyss' ? `魔境 ${roman(abyssLevel)}` : DIFF_NAME[d];
+}
+
+export function keyLabel(key: string): string {
+  const m = /^abyss(\d+)$/.exec(key);
+  if (m) return `魔境 ${roman(Number(m[1]))}`;
+  return DIFF_NAME[key as DifficultyId] ?? key;
+}
+
+/** 所有排行榜难度键 */
+export function allDiffKeys(): string[] {
+  const out = ['easy', 'normal', 'hard', 'nightmare'];
+  for (let i = 1; i <= ABYSS_MAX; i++) out.push(`abyss${i}`);
+  return out;
+}
+
+export const leaderKey = (dk: string, pure: boolean): string => (pure ? `${dk}:pure` : dk);
+
+// ───────────── 战役 ─────────────
+
+export const campaignKey = (map: MapId, d: DifficultyId): string => `${map}:${d}`;
+
+/** 评星：剩余生命 ≥90% 3 星，≥50% 2 星，通关 1 星 */
+export function starsFor(lives: number, maxLives: number): number {
+  if (maxLives <= 0) return 1;
+  const r = lives / maxLives;
+  if (r >= 0.9) return 3;
+  if (r >= 0.5) return 2;
+  return 1;
+}
+
+export function campaignStars(p: Profile, map: MapId, d: DifficultyId): number {
+  return p.campaign[campaignKey(map, d)] ?? 0;
+}
+
+export function chapterCleared(p: Profile, map: MapId): boolean {
+  return CAMPAIGN_DIFFS.some((d) => campaignStars(p, map, d) > 0);
+}
+
+export function chapterUnlocked(p: Profile, map: MapId): boolean {
+  const i = MAPS.indexOf(map);
+  if (i <= 0) return true;
+  return chapterCleared(p, MAPS[i - 1]);
+}
+
+/** 战役困难：需先通关该章普通 */
+export function campaignDiffUnlocked(p: Profile, map: MapId, d: DifficultyId): boolean {
+  if (!chapterUnlocked(p, map)) return false;
+  if (d === 'hard') return campaignStars(p, map, 'normal') > 0;
+  return d === 'normal';
+}
+
+/** 记录战役通关，返回新获得的星星（只计提升的部分） */
+export function recordCampaignClear(p: Profile, map: MapId, d: DifficultyId, stars: number): number {
+  const k = campaignKey(map, d);
+  const prev = p.campaign[k] ?? 0;
+  if (stars <= prev) return 0;
+  p.campaign[k] = stars;
+  const gained = stars - prev;
+  p.currency.star += gained;
+  return gained;
+}
+
+export function totalStarsEarned(p: Profile): number {
+  return Object.values(p.campaign).reduce((a, b) => a + b, 0);
+}
+
+// ───────────── 无尽难度解锁（文档 04 §2.2） ─────────────
+
+export const endlessUnlocked = (p: Profile): boolean => chapterCleared(p, 'ch1');
+export const customUnlocked = endlessUnlocked;
+
+export const bestWave = (p: Profile, key: string): number => p.bestWave[key] ?? 0;
+
+/** 已解锁的最高魔境等级（0 = 未解锁） */
+export function maxAbyssLevel(p: Profile): number {
+  if (bestWave(p, 'nightmare') < 35) return 0;
+  let lvl = 1;
+  while (lvl < ABYSS_MAX && bestWave(p, `abyss${lvl}`) >= 30) lvl++;
+  return lvl;
+}
+
+export function difficultyUnlocked(p: Profile, d: DifficultyId, abyssLevel = 1): boolean {
+  if (!endlessUnlocked(p)) return false;
+  switch (d) {
+    case 'easy':
+    case 'normal':
+      return true;
+    case 'hard':
+      return bestWave(p, 'normal') >= 30;
+    case 'nightmare':
+      return bestWave(p, 'hard') >= 40;
+    case 'abyss':
+      return abyssLevel <= maxAbyssLevel(p);
+  }
+}
+
+export function unlockHint(d: DifficultyId, abyssLevel = 1): string {
+  switch (d) {
+    case 'easy':
+    case 'normal':
+      return '通关战役第一章';
+    case 'hard':
+      return '普通难度撑到第 30 波';
+    case 'nightmare':
+      return '困难难度撑到第 40 波';
+    case 'abyss':
+      return abyssLevel <= 1 ? '噩梦难度撑到第 35 波' : `魔境 ${roman(abyssLevel - 1)} 撑到第 30 波`;
+  }
+}
+
+/** 记录撑过的波数（每波结束调用），返回是否刷新了记录 */
+export function recordWave(p: Profile, opts: RunOptions, wavesSurvived: number): boolean {
+  if (opts.mode === 'campaign') {
+    const prev = p.campaignWave[opts.map] ?? 0;
+    if (wavesSurvived > prev) {
+      p.campaignWave[opts.map] = wavesSurvived;
+      return true;
+    }
+    return false;
+  }
+  if (opts.mode === 'endless') {
+    const k = diffKey(opts.difficulty, opts.abyssLevel ?? 1);
+    if (wavesSurvived > bestWave(p, k)) {
+      p.bestWave[k] = wavesSurvived;
+      return true;
+    }
+  }
+  return false;
+}
+
+// ───────────── 墨水 ─────────────
+
+export function inkFor(mode: ModeId, d: DifficultyId, wavesSurvived: number): number {
+  if (mode === 'campaign') return 0;
+  return Math.floor(Math.max(0, wavesSurvived) * INK_FACTOR[d]);
+}
+
+// ───────────── 技能 ─────────────
+
+/** 解析解锁条件字符串（如 '1-10'、'c1-10'、'战役 1-10'）；无法解析视为默认解锁 */
+export function parseUnlock(unlock: string | undefined): { chapter: number; wave: number } | null {
+  if (!unlock) return null;
+  const m = /(\d+)\s*-\s*(\d+)/.exec(unlock);
+  if (!m) return null;
+  return { chapter: Number(m[1]), wave: Number(m[2]) };
+}
+
+export function unlockReached(p: Profile, unlock: string | undefined): boolean {
+  const u = parseUnlock(unlock);
+  if (!u) return true;
+  const map = `ch${u.chapter}`;
+  const reached = p.campaignWave[map] ?? 0;
+  // 到达第 w 波视为解锁（撑过 w-1 波即开始第 w 波；以撑过 w 波为准更稳妥）
+  return reached >= u.wave || chapterCleared(p, map as MapId);
+}
+
+export function unlockText(unlock: string | undefined): string {
+  const u = parseUnlock(unlock);
+  return u ? `战役 ${u.chapter}-${u.wave} 解锁` : '默认解锁';
+}
+
+export const SKILL_MAX_LEVEL = 3;
+/** 技能升级价格（墨水）：Lv1→2 100，Lv2→3 250 */
+export function skillUpgradeCost(level: number): number | null {
+  if (level >= SKILL_MAX_LEVEL) return null;
+  return level <= 1 ? 100 : 250;
+}
+
+export const skillLevel = (p: Profile, id: SkillId): number => Math.max(1, Math.min(SKILL_MAX_LEVEL, p.skills.levels[id] ?? 1));
+
+export function upgradeSkill(p: Profile, id: SkillId): boolean {
+  const lv = skillLevel(p, id);
+  const cost = skillUpgradeCost(lv);
+  if (cost === null || p.currency.ink < cost) return false;
+  p.currency.ink -= cost;
+  p.skills.levels[id] = lv + 1;
+  return true;
+}
+
+export const skillSlots = (p: Profile): number => ((p.talents.bigbag ?? 0) > 0 ? 4 : 3);
+
+/** 整理带入的技能：去掉未解锁/重复，超出槽位截断，不足时用已解锁技能补齐 */
+export function resolveLoadout(p: Profile, unlocked: SkillId[], pure = false): SkillId[] {
+  // 纯净模式关闭天赋，大书包的第 4 槽也不生效
+  const slots = pure ? 3 : skillSlots(p);
+  const out: SkillId[] = [];
+  for (const s of p.skills.loadout) if (unlocked.includes(s) && !out.includes(s) && out.length < slots) out.push(s);
+  for (const s of unlocked) if (out.length < slots && !out.includes(s)) out.push(s);
+  return out;
+}
+
+// ───────────── 天赋 ─────────────
+
+export interface TalentPrice {
+  max: number;
+  star: number;
+  ink: number;
+}
+
+export const talentLevel = (p: Profile, id: TalentId): number => p.talents[id] ?? 0;
+
+export function buyTalent(p: Profile, id: TalentId, price: TalentPrice, with_: 'star' | 'ink'): boolean {
+  const lv = talentLevel(p, id);
+  if (lv >= price.max) return false;
+  const cost = with_ === 'star' ? price.star : price.ink;
+  if (p.currency[with_] < cost) return false;
+  p.currency[with_] -= cost;
+  p.talents[id] = lv + 1;
+  return true;
+}
+
+// ───────────── 排行榜 ─────────────
+
+export const LEADER_SIZE = 10;
+
+/** 插入排行榜，返回名次（1 起），未上榜返回 0 */
+export function insertLeader(p: Profile, key: string, e: LeaderEntry): number {
+  const list = (p.leaderboard[key] ?? []).slice();
+  list.push(e);
+  list.sort((a, b) => b.score - a.score || b.wave - a.wave);
+  const idx = list.indexOf(e);
+  p.leaderboard[key] = list.slice(0, LEADER_SIZE);
+  return idx < LEADER_SIZE ? idx + 1 : 0;
+}
+
+export function today(d = new Date()): string {
+  const z = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
+}
+
+// ───────────── 结算 ─────────────
+
+export interface RunResult {
+  won: boolean;
+  /** 撑过的波数 */
+  wavesSurvived: number;
+  score: number;
+  kills: number;
+  lives: number;
+  maxLives: number;
+  seed: string;
+  perks: string[];
+}
+
+export interface Rewards {
+  stars: number;
+  starsBest: number;
+  ink: number;
+  rank: number;
+  newRecord: boolean;
+}
+
+/** 对局结束时更新存档，返回获得的奖励 */
+export function settleRun(p: Profile, opts: RunOptions, r: RunResult, date = today()): Rewards {
+  const res: Rewards = { stars: 0, starsBest: 0, ink: 0, rank: 0, newRecord: false };
+  res.newRecord = recordWave(p, opts, r.wavesSurvived);
+  if (opts.mode === 'campaign') {
+    if (r.won) {
+      const s = starsFor(r.lives, r.maxLives);
+      res.starsBest = s;
+      res.stars = recordCampaignClear(p, opts.map, opts.difficulty, s);
+    }
+  } else {
+    res.ink = inkFor(opts.mode, opts.difficulty, r.wavesSurvived);
+    p.currency.ink += res.ink;
+    if (opts.mode === 'endless') {
+      const k = leaderKey(diffKey(opts.difficulty, opts.abyssLevel ?? 1), !!opts.pure);
+      res.rank = insertLeader(p, k, {
+        wave: r.wavesSurvived,
+        score: Math.round(r.score),
+        seed: r.seed,
+        date,
+        map: opts.map,
+        perks: r.perks.slice(),
+        kills: r.kills,
+      });
+    } else {
+      const b = p.customBest;
+      if (!b || r.score > b.score) {
+        p.customBest = { wave: r.wavesSurvived, score: Math.round(r.score), date };
+        res.newRecord = true;
+      }
+    }
+  }
+  p.midRun = null;
+  return res;
+}

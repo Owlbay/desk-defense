@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <g id="shadow"><ellipse cx="64" cy="100" rx="34" ry="8" fill="#3B2F2A" fill-opacity="0.18"/></g>
+  <g id="base"/>
+  <g id="body"><path d="M38 66 C34 52 46 42 58 45 C66 38 86 42 88 54 C96 62 92 80 82 82 C74 92 56 90 48 84 C38 84 33 74 38 66 Z" fill="#F4F1E8" stroke="#3B2F2A" stroke-width="4.00" stroke-linejoin="round" transform="translate(64 66) scale(1.0) translate(-64 -66)"/><ellipse cx="42" cy="60" rx="4" ry="2" fill="#FFFFFF"/></g>
+  <g id="turret"><path d="M48 90 L48 56 C48 46 54.0 40 58.0 40 L70.0 40 C74.0 40 80 46 80 56 L80 90 Q80 100 70 100 L58 100 Q48 100 48 90 Z" fill="#F4F1E8" stroke="#3B2F2A" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/><path d="M59 32 L62 16 Q64 13 66 16 L69 32 Z" fill="#6FA8DC" stroke="#3B2F2A" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/><rect x="55.0" y="30" width="18" height="13" rx="3.5" fill="#6FA8DC" stroke="#3B2F2A" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/><path d="M54 56 L54 88" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/></g>
+  <g id="accent"></g>
+</svg>

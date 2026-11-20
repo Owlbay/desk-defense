@@ -1,0 +1,25 @@
+<!doctype html>
+<!-- ⚠️ 渲染层独立调试页（开发用，不进入正式构建）。用 `npx vite` 后访问 /render-dev.html -->
+<html lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>Desk Defense · render dev</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #2b2522; color: #f2e8da; font: 12px/1.4 system-ui, sans-serif; }
+      #wrap { display: flex; height: 100%; }
+      #board { flex: 1; position: relative; min-width: 0; }
+      #side { width: 240px; padding: 8px; overflow: auto; box-sizing: border-box; }
+      #panel button { margin: 2px; padding: 4px 6px; font-size: 12px; }
+      #stat { margin-top: 8px; word-break: break-all; opacity: .8 }
+      @media (max-aspect-ratio: 1.1) { #wrap { flex-direction: column; } #side { width: 100%; height: 34%; } }
+    </style>
+  </head>
+  <body>
+    <div id="wrap">
+      <div id="board"></div>
+      <div id="side"><div id="info"></div><div id="panel"></div><div id="stat"></div></div>
+    </div>
+    <script type="module" src="/src/render/dev/main.ts"></script>
+  </body>
+</html>

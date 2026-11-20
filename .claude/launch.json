@@ -1,0 +1,16 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "render-dev",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "--port",
+        "5179",
+        "--strictPort"
+      ],
+      "port": 5179
+    }
+  ]
+}

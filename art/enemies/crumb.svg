@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <clipPath id="crumbClip"><path d="M42 44 Q46 30 62 31 Q78 30 88 42 Q97 54 93 70 Q89 86 72 91 Q55 95 43 86 Q31 76 33 61 Q34 51 42 44 Z"/></clipPath>
+  </defs>
+  <g id="shadow">
+    <ellipse cx="64" cy="96" rx="32" ry="8" fill="#3B2F2A" fill-opacity="0.18"/>
+  </g>
+  <g id="body">
+    <path d="M22 90 Q26 84 32 88 Q35 94 29 96 Q22 96 22 90 Z" fill="#F497B6" stroke="#3B2F2A" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M99 94 Q102 89 106 92 Q108 97 103 98 Q99 98 99 94 Z" fill="#F497B6" stroke="#3B2F2A" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M42 44 Q46 30 62 31 Q78 30 88 42 Q97 54 93 70 Q89 86 72 91 Q55 95 43 86 Q31 76 33 61 Q34 51 42 44 Z" fill="#F497B6"/>
+    <g clip-path="url(#crumbClip)">
+      <ellipse cx="80" cy="96" rx="48" ry="26" fill="#3B2F2A" fill-opacity="0.12"/>
+    </g>
+    <ellipse cx="50" cy="42" rx="9" ry="4.5" transform="rotate(-30 50 42)" fill="#FFFFFF" fill-opacity="0.65"/>
+    <circle cx="80" cy="74" r="2" fill="#F28AA0"/>
+    <circle cx="72" cy="81" r="1.6" fill="#F28AA0"/>
+    <circle cx="86" cy="62" r="1.6" fill="#F28AA0"/>
+    <path d="M42 44 Q46 30 62 31 Q78 30 88 42 Q97 54 93 70 Q89 86 72 91 Q55 95 43 86 Q31 76 33 61 Q34 51 42 44 Z" fill="none" stroke="#3B2F2A" stroke-width="4" stroke-linejoin="round"/>
+    <ellipse cx="46" cy="64" rx="4.5" ry="2.8" fill="#F28AA0"/>
+    <ellipse cx="82" cy="64" rx="4.5" ry="2.8" fill="#F28AA0"/>
+    <circle cx="55" cy="54" r="4.5" fill="#3B2F2A"/>
+    <circle cx="73" cy="54" r="4.5" fill="#3B2F2A"/>
+    <circle cx="56.5" cy="52.5" r="1.6" fill="#FFFFFF"/>
+    <circle cx="74.5" cy="52.5" r="1.6" fill="#FFFFFF"/>
+    <path d="M60 64 Q64 68 68 64" fill="none" stroke="#3B2F2A" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+</svg>

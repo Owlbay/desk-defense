@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <g id="shadow">
+    <ellipse cx="64" cy="114" rx="24" ry="5" fill="#3B2F2A" fill-opacity="0.18"/>
+  </g>
+  <g id="wing-l">
+    <path d="M64 18 L18 98 L58 86 Z" fill="#FFFFFF" stroke="#3B2F2A" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M60 30 L34 86" fill="none" stroke="#3B2F2A" stroke-opacity="0.3" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  <g id="wing-r">
+    <path d="M64 18 L110 98 L70 86 Z" fill="#FFFFFF" stroke="#3B2F2A" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M67 26 L106 94 L72 84 Z" fill="#3B2F2A" fill-opacity="0.08"/>
+    <path d="M68 30 L94 86" fill="none" stroke="#3B2F2A" stroke-opacity="0.3" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  <g id="body">
+    <path d="M64 18 L50 88 L64 104 L78 88 Z" fill="#FBF8F1" stroke="#3B2F2A" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M64 36 L64 98" fill="none" stroke="#3B2F2A" stroke-opacity="0.3" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="60" cy="58" r="2.6" fill="#3B2F2A"/>
+    <circle cx="68" cy="58" r="2.6" fill="#3B2F2A"/>
+    <circle cx="60.8" cy="57.2" r="0.9" fill="#FFFFFF"/>
+    <circle cx="68.8" cy="57.2" r="0.9" fill="#FFFFFF"/>
+    <path d="M61 66 Q64 68.5 67 66" fill="none" stroke="#3B2F2A" stroke-width="2" stroke-linecap="round"/>
+  </g>
+</svg>

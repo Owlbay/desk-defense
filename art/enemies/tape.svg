@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <clipPath id="tapeClip"><path clip-rule="evenodd" d="M22 62 a42 42 0 1 0 84 0 a42 42 0 1 0 -84 0 Z M40 62 a24 24 0 1 0 48 0 a24 24 0 1 0 -48 0 Z"/></clipPath>
+  </defs>
+  <g id="shadow">
+    <ellipse cx="64" cy="106" rx="42" ry="9" fill="#3B2F2A" fill-opacity="0.18"/>
+  </g>
+  <g id="body">
+    <path d="M94 60 H106 V104 L103 109 L100 104 L97 109 L94 104 Z" fill="#C8B68E" stroke="#3B2F2A" stroke-width="4" stroke-linejoin="round"/>
+    <path fill-rule="evenodd" d="M22 62 a42 42 0 1 0 84 0 a42 42 0 1 0 -84 0 Z M40 62 a24 24 0 1 0 48 0 a24 24 0 1 0 -48 0 Z" fill="#C8B68E"/>
+    <g clip-path="url(#tapeClip)">
+      <circle cx="64" cy="62" r="30" fill="none" stroke="#3B2F2A" stroke-opacity="0.2" stroke-width="1.5"/>
+      <circle cx="64" cy="62" r="36" fill="none" stroke="#3B2F2A" stroke-opacity="0.2" stroke-width="1.5"/>
+      <ellipse cx="80" cy="98" rx="50" ry="24" fill="#3B2F2A" fill-opacity="0.12"/>
+    </g>
+    <path d="M26 62 A38 38 0 0 1 37 35" fill="none" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="3.5" stroke-linecap="round"/>
+    <path fill-rule="evenodd" d="M40 62 a24 24 0 1 0 48 0 a24 24 0 1 0 -48 0 Z M47 62 a17 17 0 1 0 34 0 a17 17 0 1 0 -34 0 Z" fill="#D4BC94" stroke="#3B2F2A" stroke-width="3"/>
+    <path fill-rule="evenodd" d="M22 62 a42 42 0 1 0 84 0 a42 42 0 1 0 -84 0 Z M40 62 a24 24 0 1 0 48 0 a24 24 0 1 0 -48 0 Z" fill="none" stroke="#3B2F2A" stroke-width="4"/>
+    <circle cx="55" cy="31" r="4.2" fill="#3B2F2A"/>
+    <circle cx="73" cy="31" r="4.2" fill="#3B2F2A"/>
+    <circle cx="56.3" cy="29.8" r="1.4" fill="#FFFFFF"/>
+    <circle cx="74.3" cy="29.8" r="1.4" fill="#FFFFFF"/>
+    <path d="M47 24 L60 27 M81 24 L68 27" fill="none" stroke="#3B2F2A" stroke-width="3.5" stroke-linecap="round"/>
+  </g>
+</svg>
