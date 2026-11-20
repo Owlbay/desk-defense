@@ -120,6 +120,33 @@ export interface SubmitBody {
   result: ClaimedResult;
   gameVersion: string;
   turnstileToken?: string;
+  /** AI 对局标记（文档 10 §13）：带它的成绩只能进 `ai:` 榜，真人榜一律拒收 */
+  agent?: AgentMeta;
+}
+
+/** AI 对局随成绩上传的元数据（不含任何 Key） */
+export interface AgentMeta {
+  /** claude-native / pi:ollama / bridge / scripted / mcp … */
+  provider: string;
+  model: string;
+  /** 决策模式 */
+  mode: 'pause' | 'realtime';
+  /** 兜底机器人做的决策占比 0..1（内置策略 scripted 恒为 1） */
+  botShare: number;
+  /** 决策点总数 */
+  decisions: number;
+  tokens?: number;
+  costUsd?: number;
+}
+
+/** 榜单上展示的 AI 标记 */
+export interface AgentBadge {
+  provider: string;
+  model: string;
+  mode: 'pause' | 'realtime';
+  botShare: number;
+  /** 兜底机器人决策占比超过 AI_BOT_SHARE_FLAG：榜上标注「机器人代打」 */
+  botAssisted: boolean;
 }
 
 export type RunStatus = 'pending' | 'verified' | 'rejected';
@@ -147,6 +174,8 @@ export interface LeaderRow {
   status: RunStatus;
   /** 毫秒时间戳 */
   createdAt: number;
+  /** 仅 AI 榜 */
+  agent?: AgentBadge;
 }
 
 export interface LeaderboardResponse {
@@ -170,6 +199,8 @@ export interface RunDetail {
   gameVersion: string;
   status: RunStatus;
   createdAt: number;
+  /** 仅 AI 榜 */
+  agent?: AgentBadge;
 }
 
 export interface DailyInfo {
@@ -239,6 +270,61 @@ export function parseBoard(key: unknown): ParsedBoard | null {
   return { kind: 'endless', difficulty: m[1] as DifficultyId, pure, auto };
 }
 
+// ── AI 榜（文档 10 §13）：键 = `ai:` + 无尽榜键；与真人榜完全隔离（parseBoard 不认 `ai:`） ──
+
+export const AI_BOARD_PREFIX = 'ai:';
+/** 兜底机器人决策占比超过这个值的 AI 成绩会被标注 */
+export const AI_BOT_SHARE_FLAG = 0.2;
+
+export const isAiBoardKey = (key: unknown): key is string => typeof key === 'string' && key.startsWith(AI_BOARD_PREFIX);
+
+/** 解析 AI 榜键（只有无尽榜有 AI 版；每日挑战没有） */
+export function parseAiBoard(key: unknown): Extract<ParsedBoard, { kind: 'endless' }> | null {
+  if (!isAiBoardKey(key)) return null;
+  const b = parseBoard(key.slice(AI_BOARD_PREFIX.length));
+  return b && b.kind === 'endless' ? b : null;
+}
+
+export function aiEndlessBoardKey(d: DifficultyId, abyssLevel: number | undefined, pure: boolean, auto: boolean): string {
+  return AI_BOARD_PREFIX + endlessBoardKey(d, abyssLevel, pure, auto);
+}
+
+const AGENT_PROVIDER_RE = /^[a-z0-9][a-z0-9:_.-]{0,39}$/;
+const AGENT_MODEL_RE = /^[\x21-\x7e]{1,80}$/;
+
+/** 校验 / 规范化 AI 标记 */
+export function sanitizeAgentMeta(raw: unknown): Checked<AgentMeta> {
+  const bad = (message: string): Checked<AgentMeta> => ({ ok: false, message });
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return bad('AI 标记无效');
+  const a = raw as Record<string, unknown>;
+  if (typeof a.provider !== 'string' || !AGENT_PROVIDER_RE.test(a.provider)) return bad('AI 标记无效（服务商）');
+  if (typeof a.model !== 'string' || !AGENT_MODEL_RE.test(a.model)) return bad('AI 标记无效（模型）');
+  if (a.role !== undefined && a.role !== 'player') return bad('只有「AI 玩家」的对局可以进入 AI 榜');
+  if (a.mode !== 'pause' && a.mode !== 'realtime') return bad('AI 标记无效（决策模式）');
+  if (typeof a.botShare !== 'number' || !(a.botShare >= 0 && a.botShare <= 1)) return bad('AI 标记无效（兜底占比）');
+  if (!Number.isSafeInteger(a.decisions) || (a.decisions as number) < 0 || (a.decisions as number) > 200_000) return bad('AI 标记无效（决策数）');
+  if (a.tokens !== undefined && !(Number.isSafeInteger(a.tokens) && (a.tokens as number) >= 0)) return bad('AI 标记无效（token）');
+  if (a.costUsd !== undefined && !(typeof a.costUsd === 'number' && a.costUsd >= 0 && a.costUsd <= 1e6)) return bad('AI 标记无效（费用）');
+  // 内置策略本身就是机器人：占比恒为 1
+  const botShare = a.provider === 'scripted' ? 1 : Math.round((a.botShare as number) * 1000) / 1000;
+  return {
+    ok: true,
+    value: {
+      provider: a.provider,
+      model: a.model,
+      mode: a.mode,
+      botShare,
+      decisions: a.decisions as number,
+      ...(a.tokens !== undefined ? { tokens: a.tokens as number } : {}),
+      ...(a.costUsd !== undefined ? { costUsd: Math.round((a.costUsd as number) * 1e4) / 1e4 } : {}),
+    },
+  };
+}
+
+export function agentBadge(a: Pick<AgentMeta, 'provider' | 'model' | 'mode' | 'botShare'>): AgentBadge {
+  return { provider: a.provider, model: a.model, mode: a.mode, botShare: a.botShare, botAssisted: a.botShare > AI_BOT_SHARE_FLAG };
+}
+
 /** 某局（无尽）应进入的榜；dailyDay 非空表示这局是每日挑战 */
 export function boardForOpts(opts: RunOptions, dailyDay?: string | null): string {
   if (dailyDay) return dailyBoardKey(dailyDay);
@@ -246,6 +332,7 @@ export function boardForOpts(opts: RunOptions, dailyDay?: string | null): string
 }
 
 export function boardLabel(key: string): string {
+  if (isAiBoardKey(key)) return parseAiBoard(key) ? `AI 榜 · ${boardLabel(key.slice(AI_BOARD_PREFIX.length))}` : key;
   const b = parseBoard(key);
   if (!b) return key;
   if (b.kind === 'daily') return `每日挑战 ${b.day}`;
@@ -410,6 +497,8 @@ export interface CheckedSubmission {
   turnstileToken?: string;
   /** 每日挑战的日期（无尽榜为 null） */
   day: string | null;
+  /** AI 榜的成绩才有；真人榜恒为 null */
+  agent: AgentMeta | null;
 }
 
 export interface SubmitContext {
@@ -435,7 +524,18 @@ export function checkSubmission(body: unknown, ctx: SubmitContext): Checked<Chec
   if (!nick.ok) return bad(nick.message);
   if (!isDeviceId(body.deviceId)) return bad('设备标识无效');
 
-  const parsedBoard = parseBoard(body.board);
+  // AI 标记与 AI 榜必须成对出现：带标记的成绩进不了真人榜，没有标记的成绩也进不了 AI 榜
+  const hasAgent = body.agent !== undefined && body.agent !== null;
+  const aiBoard = isAiBoardKey(body.board);
+  if (hasAgent && !aiBoard) return bad('AI 对局的成绩只能提交到 AI 榜');
+  if (aiBoard && !hasAgent) return bad('AI 榜只接受带 AI 标记的成绩');
+  let agent: AgentMeta | null = null;
+  if (hasAgent) {
+    const a = sanitizeAgentMeta(body.agent);
+    if (!a.ok) return bad(a.message);
+    agent = a.value;
+  }
+  const parsedBoard: ParsedBoard | null = aiBoard ? parseAiBoard(body.board) : parseBoard(body.board);
   if (!parsedBoard) return bad('排行榜不存在');
 
   // ── opts ──
@@ -491,7 +591,7 @@ export function checkSubmission(body: unknown, ctx: SubmitContext): Checked<Chec
   } else {
     if (/^d\d{8}[0-9a-z]{7}$/.test(seed)) return bad('每日挑战的种子不能用于普通排行');
     const expect = endlessBoardKey(difficulty, o.abyssLevel as number | undefined, pure, effectiveAutoWave({ autoWave: o.autoWave as boolean | undefined, difficulty }));
-    if (expect !== body.board) return bad('排行榜与开局参数不一致');
+    if ((aiBoard ? AI_BOARD_PREFIX : '') + expect !== body.board) return bad('排行榜与开局参数不一致');
   }
 
   // ── 结果 ──
@@ -543,6 +643,7 @@ export function checkSubmission(body: unknown, ctx: SubmitContext): Checked<Chec
       gameVersion: body.gameVersion,
       ...(typeof body.turnstileToken === 'string' ? { turnstileToken: body.turnstileToken } : {}),
       day,
+      agent,
     },
   };
 }

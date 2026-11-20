@@ -205,7 +205,7 @@ export class Tutorial {
       a.ring.style.opacity = '0';
       delete a.ring.dataset.k;
       a.bubble.style.left = `${(root.width - bw) / 2}px`;
-      a.bubble.style.top = `${root.height * 0.3}px`;
+      a.bubble.style.top = `${Math.max(10, Math.min(root.height - bh - 10, root.height * 0.3))}px`;
       a.bubble.dataset.side = 'none';
       return;
     }
@@ -221,28 +221,66 @@ export class Tutorial {
       a.ring.style.height = `${r.height + 8}px`;
     }
     const cx = x + r.width / 2;
+    const cy = y + r.height / 2;
     const margin = 10;
-    let left = Math.max(margin, Math.min(root.width - bw - margin, cx - bw / 2));
+    const gap = 14;
+    const clampX = (v: number) => Math.max(margin, Math.min(root.width - bw - margin, v));
+    const clampY = (v: number) => Math.max(margin, Math.min(root.height - bh - margin, v));
+    // 横屏时目标在棋盘旁边的面板里：气泡要越过整块面板放到棋盘上，
+    // 否则会盖住同一面板里的其他按钮（塔栏、顶栏数值）
+    let edgeL = x;
+    let edgeR = x + r.width;
+    const board = this.ctx.landscape() ? this.t.board() : null;
+    if (board && board !== tgt) {
+      const br = board.getBoundingClientRect();
+      if (r.left >= br.right - 1) edgeL = br.right - root.left;
+      else if (r.right <= br.left + 1) edgeR = br.left - root.left;
+    }
+    // 竖屏时目标在底部操作区（塔栏 / 技能 / 开波）：气泡放到塔栏上方，不挡住这几排按钮
+    let edgeT = y;
+    if (!board) {
+      const build = this.ctx.root.querySelector<HTMLElement>('.g-build');
+      const bt = build && build.getClientRects().length > 0 ? build.getBoundingClientRect().top : null;
+      if (bt !== null && r.top >= bt - 1) edgeT = bt - root.top;
+    }
+    // 四个方向各剩多少空间（负数 = 放不下）
+    const room = {
+      top: edgeT - gap - bh - margin,
+      bottom: root.height - margin - (y + r.height + gap + bh),
+      left: edgeL - gap - bw - margin,
+      right: root.width - margin - (edgeR + gap + bw),
+    };
+    type Side = keyof typeof room;
+    // 横屏时界面在两侧，气泡优先放到棋盘一侧（不挡塔栏 / 开波按钮）；竖屏优先放上面
+    const order: Side[] = this.ctx.landscape() ? ['left', 'right', 'top', 'bottom'] : ['top', 'bottom', 'left', 'right'];
+    let left: number;
     let top: number;
     let side: string;
-    if (y - bh - 16 > margin) {
-      top = y - bh - 14;
-      side = 'top';
-    } else if (y + r.height + bh + 16 < root.height) {
-      top = y + r.height + 14;
-      side = 'bottom';
+    const big = r.width * r.height > root.width * root.height * 0.3;
+    // 大目标里只有棋盘（或四周都放不下时）才把气泡放进目标内部；
+    // 横置手机上的塔信息卡也很大，但气泡放进去会盖住「升级 / 出售」
+    if (big && (tgt === this.t.board() || !order.some((s) => room[s] >= 0))) {
+      // 目标是整块棋盘之类的大区域：放在它里面靠上，不带箭头
+      left = clampX(cx - bw / 2);
+      top = clampY(y + Math.min(72, r.height * 0.18));
+      side = 'none';
     } else {
-      // 横屏侧栏：放在目标左边
-      top = Math.max(margin, Math.min(root.height - bh - margin, y + r.height / 2 - bh / 2));
-      left = Math.max(margin, x - bw - 14);
-      side = 'left';
+      const pick: Side = order.find((s) => room[s] >= 0) ?? order.reduce((best, s) => (room[s] > room[best] ? s : best));
+      side = pick;
+      if (pick === 'top' || pick === 'bottom') {
+        left = clampX(cx - bw / 2);
+        top = clampY(pick === 'top' ? edgeT - gap - bh : y + r.height + gap);
+      } else {
+        top = clampY(cy - bh / 2);
+        left = clampX(pick === 'left' ? edgeL - gap - bw : edgeR + gap);
+      }
     }
     a.bubble.style.left = `${left}px`;
     a.bubble.style.top = `${top}px`;
     a.bubble.dataset.side = side;
     const arrowX = Math.max(14, Math.min(bw - 14, cx - left));
     a.bubble.style.setProperty('--ax', `${arrowX}px`);
-    a.bubble.style.setProperty('--ay', `${Math.max(14, Math.min(bh - 14, y + r.height / 2 - top))}px`);
+    a.bubble.style.setProperty('--ay', `${Math.max(14, Math.min(bh - 14, cy - top))}px`);
   }
 
   private done(): void {

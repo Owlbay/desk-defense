@@ -2,7 +2,7 @@
  * D1 访问层。只依赖一个最小的 D1 接口（D1Like），
  * 生产环境传 env.DB，测试里传基于 node:sqlite 的假 D1，跑的是同一份 SQL。
  */
-import type { LeaderRow, RunStatus } from '../../src/shared/leaderboard';
+import { agentBadge, type LeaderRow, type RunStatus } from '../../src/shared/leaderboard';
 
 export interface D1StmtLike {
   bind(...values: unknown[]): D1StmtLike;
@@ -40,16 +40,28 @@ export interface RunRow {
   status: RunStatus;
   created_at: number;
   ip_hash: string;
+  // ── AI 榜（migrations/0002_ai_board.sql）；真人成绩全部为 NULL ──
+  agent_provider?: string | null;
+  agent_model?: string | null;
+  agent_mode?: string | null;
+  /** 兜底机器人决策占比 0..1 */
+  agent_bot_share?: number | null;
+  /** 完整的 AgentMeta JSON（决策数 / token / 费用） */
+  agent_json?: string | null;
 }
 
-export type BestRow = Pick<RunRow, 'id' | 'nickname' | 'score' | 'wave' | 'kills' | 'lives' | 'map' | 'status' | 'created_at'>;
+export type BestRow = Pick<
+  RunRow,
+  'id' | 'nickname' | 'score' | 'wave' | 'kills' | 'lives' | 'map' | 'status' | 'created_at' | 'agent_provider' | 'agent_model' | 'agent_mode' | 'agent_bot_share'
+>;
 
 const RUN_COLUMNS: (keyof RunRow)[] = [
   'id', 'board', 'day', 'nickname', 'device_hash', 'score', 'wave', 'kills', 'lives', 'seed', 'map',
   'difficulty', 'abyss', 'pure', 'auto_wave', 'game_version', 'opts_json', 'result_json', 'log_gz',
   'log_bytes', 'status', 'created_at', 'ip_hash',
+  'agent_provider', 'agent_model', 'agent_mode', 'agent_bot_share', 'agent_json',
 ];
-const BEST_COLS = 'id, nickname, score, wave, kills, lives, map, status, created_at';
+const BEST_COLS = 'id, nickname, score, wave, kills, lives, map, status, created_at, agent_provider, agent_model, agent_mode, agent_bot_share';
 
 /** 「更好」的定义：分高者优先，同分波数高者优先，再同则先提交者优先（最后按 id 保证全序） */
 const BETTER_THAN =
@@ -72,7 +84,7 @@ export class RunStore {
       `ON CONFLICT(board, device_hash) DO UPDATE SET ${sets} ` +
       `WHERE excluded.score > runs.score OR (excluded.score = runs.score AND excluded.wave > runs.wave) OR runs.status = 'rejected' ` +
       `RETURNING id`;
-    const res = await this.db.prepare(sql).bind(...RUN_COLUMNS.map((c) => row[c])).first<{ id: string }>();
+    const res = await this.db.prepare(sql).bind(...RUN_COLUMNS.map((c) => row[c] ?? null)).first<{ id: string }>();
     if (res) return { improved: true };
     await this.db
       .prepare('UPDATE runs SET nickname = ? WHERE board = ? AND device_hash = ? AND nickname <> ?')
@@ -133,5 +145,15 @@ export function toLeaderRow(r: BestRow, rank: number): LeaderRow {
     map: r.map as LeaderRow['map'],
     status: r.status,
     createdAt: Number(r.created_at),
+    ...(r.agent_provider && r.agent_model
+      ? {
+          agent: agentBadge({
+            provider: r.agent_provider,
+            model: r.agent_model,
+            mode: r.agent_mode === 'realtime' ? 'realtime' : 'pause',
+            botShare: Number(r.agent_bot_share ?? 0),
+          }),
+        }
+      : {}),
   };
 }

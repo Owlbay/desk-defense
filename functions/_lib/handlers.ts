@@ -13,6 +13,9 @@ import {
   dailyInfo,
   dayOf,
   isDeviceId,
+  agentBadge,
+  isAiBoardKey,
+  parseAiBoard,
   parseBoard,
   type DailyInfo,
   type LeaderboardResponse,
@@ -59,6 +62,12 @@ export async function sha256Hex(s: string): Promise<string> {
 
 export const hashDevice = async (salt: string, deviceId: string): Promise<string> =>
   (await sha256Hex(`${salt}|dev|${deviceId.toLowerCase()}`)).slice(0, 32);
+/**
+ * AI 榜的去重键：同一台设备的每个「服务商 + 模型」各保留一条最佳成绩
+ * （复用 runs 表的 UNIQUE(board, device_hash)，不同模型不会互相覆盖）。
+ */
+export const hashAgentDevice = async (salt: string, deviceId: string, provider: string, model: string): Promise<string> =>
+  (await sha256Hex(`${salt}|dev|${deviceId.toLowerCase()}|ai|${provider}|${model}`)).slice(0, 32);
 export const hashIp = async (salt: string, ip: string): Promise<string> => (await sha256Hex(`${salt}|ip|${ip}`)).slice(0, 32);
 
 const ID_ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyz';
@@ -154,7 +163,7 @@ export async function handleSubmit(req: Request, deps: Deps): Promise<Response> 
     board: sub.board,
     day: sub.day,
     nickname: sub.nickname,
-    device_hash: deviceHash as string,
+    device_hash: sub.agent ? await hashAgentDevice(deps.salt, sub.deviceId, sub.agent.provider, sub.agent.model) : (deviceHash as string),
     score: sub.result.score,
     wave: sub.result.wave,
     kills: sub.result.kills,
@@ -173,6 +182,11 @@ export async function handleSubmit(req: Request, deps: Deps): Promise<Response> 
     status: 'pending',
     created_at: now,
     ip_hash: ipHash,
+    agent_provider: sub.agent?.provider ?? null,
+    agent_model: sub.agent?.model ?? null,
+    agent_mode: sub.agent?.mode ?? null,
+    agent_bot_share: sub.agent ? sub.agent.botShare : null,
+    agent_json: sub.agent ? JSON.stringify(sub.agent) : null,
   };
   const { improved } = await store.upsertBest(row);
   const best = await store.bestOf(sub.board, row.device_hash);
@@ -194,7 +208,8 @@ export async function handleLeaderboard(req: Request, deps: Deps): Promise<Respo
   if (!deps.db) return notConfigured();
   const url = new URL(req.url);
   const board = url.searchParams.get('board') ?? '';
-  if (!parseBoard(board)) return apiError('bad_request', '排行榜不存在');
+  const ai = isAiBoardKey(board);
+  if (!(ai ? parseAiBoard(board) : parseBoard(board))) return apiError('bad_request', '排行榜不存在');
   const limitRaw = Number(url.searchParams.get('limit') ?? '20');
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(LEADERBOARD_MAX_LIMIT, Math.floor(limitRaw))) : 20;
   const around = url.searchParams.get('around');
@@ -219,6 +234,8 @@ export async function handleLeaderboard(req: Request, deps: Deps): Promise<Respo
   if (base.rows.length > limit) base = { ...base, rows: base.rows.slice(0, limit) };
   if (around === null) return json(base, { cacheControl: `public, max-age=${LEADERBOARD_TTL}` });
 
+  // AI 榜按「设备 + 模型」去重，没有单一的「我的名次」
+  if (ai) return json({ ...base, me: null }, { cacheControl: 'private, max-age=10' });
   const best = await store.bestOf(board, await hashDevice(deps.salt, around));
   let me = null;
   if (best) {
@@ -247,6 +264,9 @@ export async function handleGetRun(req: Request, deps: Deps, id: string): Promis
     gameVersion: r.game_version,
     status: r.status,
     createdAt: Number(r.created_at),
+    ...(r.agent_provider && r.agent_model
+      ? { agent: agentBadge({ provider: r.agent_provider, model: r.agent_model, mode: r.agent_mode === 'realtime' ? 'realtime' : 'pause', botShare: Number(r.agent_bot_share ?? 0) }) }
+      : {}),
   };
   return json(detail, { cacheControl: 'public, max-age=300' });
 }

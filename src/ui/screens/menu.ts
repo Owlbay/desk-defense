@@ -6,6 +6,7 @@ import { audio } from '../audio';
 import { MAP_META } from '../coreMeta';
 import { h, img } from '../dom';
 import { G } from '../icons';
+import { AI_GLYPH } from '../ai/icon';
 
 const MODE_NAME = { campaign: '战役', endless: '无尽', custom: '自定义' } as const;
 
@@ -114,6 +115,7 @@ export function menuScreen(app: App): Screen {
       endlessOk ? btn('无尽', G.infinity, go({ name: 'endless' }), '撑得越久，墨水越多') : lockedBtn('无尽', G.infinity, '通关战役第一章解锁'),
       dailyBtn,
       customUnlocked(p) ? btn('自定义', G.sliders, go({ name: 'custom' }), '拖动滑块，自己定难度') : lockedBtn('自定义', G.sliders, '通关战役第一章解锁'),
+      btn('AI 参战', AI_GLYPH, go({ name: 'ai' }), '让大模型来玩，或者给你当军师', '.ai-entry'),
       h(
         'div.menu-grid',
         null,

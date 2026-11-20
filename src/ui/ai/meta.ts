@@ -1,0 +1,47 @@
+/**
+ * AI 对局结算用的纯函数（无 DOM、不引用渲染层，便于单测）：兜底占比、上传标记、能否进 AI 榜。
+ */
+import { usageTotal, type TokenUsage } from '../../agent/types';
+import type { RunOptions } from '../../core/types';
+import type { AgentMeta } from '../../shared/leaderboard';
+import { isEligibleRun } from '../online/util';
+
+/** 兜底机器人做的决策占比 */
+export function botShareOf(decisions: readonly { by: 'agent' | 'fallback' }[]): number {
+  if (!decisions.length) return 0;
+  return decisions.filter((d) => d.by === 'fallback').length / decisions.length;
+}
+
+export interface AgentMetaInput {
+  agent: { provider: string; model: string; role: string };
+  mode: 'pause' | 'realtime';
+  botShare: number;
+  decisions: number;
+  usage: TokenUsage;
+  costUsd: number;
+}
+
+/** 上传用的 AI 标记（服务端要求：服务商小写 ASCII、模型名可打印 ASCII ≤ 80） */
+export function agentMetaOf(s: AgentMetaInput): AgentMeta {
+  const provider = s.agent.provider.toLowerCase().replace(/[^a-z0-9:_.-]/g, '-').replace(/^[^a-z0-9]+/, '').slice(0, 40) || 'unknown';
+  const model = s.agent.model.replace(/[^\x21-\x7e]/g, '_').slice(0, 80) || 'unknown';
+  return {
+    provider,
+    model,
+    mode: s.mode,
+    botShare: Math.max(0, Math.min(1, Math.round(s.botShare * 1000) / 1000)),
+    decisions: s.decisions,
+    tokens: Math.round(usageTotal(s.usage)),
+    costUsd: Math.round(s.costUsd * 1e4) / 1e4,
+  };
+}
+
+/** 这局能不能进 AI 榜；不能时返回原因 */
+export function aiBoardBlocker(s: { agent: { role: string }; opts: RunOptions; takenOver: boolean; decisions: number }): string | null {
+  if (s.agent.role !== 'player') return '军师模式是你自己在玩，成绩不进 AI 榜';
+  if (s.takenOver) return '中途由你接管过，这局不进 AI 榜';
+  if (s.opts.mode !== 'endless') return '只有无尽模式的成绩可以进 AI 榜';
+  if (!isEligibleRun(s.opts)) return '这局的开局参数不参与排行';
+  if (s.decisions <= 0) return 'AI 还没做出任何决策';
+  return null;
+}

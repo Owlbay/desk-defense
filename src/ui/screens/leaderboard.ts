@@ -9,8 +9,11 @@ import { G } from '../icons';
 import { takeLeaderboardRequest, type LbTab } from '../online/nav';
 import { nicknameChip } from '../online/nickname';
 import { onlineBoard } from '../online/table';
+import { aiBoard } from '../ai/board';
 
-const TAB_NAME: Record<LbTab, string> = { local: '本地', global: '全服', daily: '每日挑战' };
+/** 'ai'：AI 榜（文档 10 §13），成绩来自「AI 参战」，与真人榜完全分开 */
+type Tab = LbTab | 'ai';
+const TAB_NAME: Record<Tab, string> = { local: '本地', global: '全服', daily: '每日挑战', ai: 'AI 榜' };
 
 export function leaderboardScreen(app: App): Screen {
   const p = app.store.get();
@@ -21,14 +24,16 @@ export function leaderboardScreen(app: App): Screen {
     [false, true].reduce((n, pure) => n + [false, true].reduce((m, auto) => m + (p.leaderboard[leaderKey(k, pure, auto)]?.length ?? 0), 0), 0);
   const firstKey = keys.find((k) => count(k) > 0) ?? 'normal';
   const state = {
-    tab: (req?.tab ?? 'local') as LbTab,
+    tab: (req?.tab ?? 'local') as Tab,
     key: firstKey,
     pure: false,
     // 默认显示有记录的开波方式（优先自动）
     auto: (p.leaderboard[leaderKey(firstKey, false, true)]?.length ?? 0) > 0 || (p.leaderboard[leaderKey(firstKey, false, false)]?.length ?? 0) === 0,
   };
   // 从结算面板跳过来：直接定位到那一局的榜
-  const parsed = req?.board ? parseBoard(req.board) : null;
+  const reqAi = !!req?.board?.startsWith('ai:');
+  if (reqAi) state.tab = 'ai';
+  const parsed = req?.board ? parseBoard(reqAi ? req.board.slice(3) : req.board) : null;
   if (parsed?.kind === 'endless') {
     state.key = parsed.difficulty === 'abyss' ? `abyss${parsed.abyssLevel ?? 1}` : parsed.difficulty;
     state.pure = parsed.pure;
@@ -43,6 +48,8 @@ export function leaderboardScreen(app: App): Screen {
   const table = h('div.board-table');
   const global = onlineBoard(app, { limit: 50 });
   const daily = onlineBoard(app, { limit: 50, emptyHint: '今天还没有人上榜，去挑战一下吧！' });
+  const aiView = aiBoard(app, { limit: 50 });
+  const aiNote = h('p.muted.small.ai-lb-note', null, '大模型在「AI 参战」里打出的成绩，每个模型各记一条最佳；真人成绩不在这里。');
   const dailyHead = h('div.online-bar');
   const customCard = h('section.card.section');
   const nickBar = h(
@@ -54,11 +61,12 @@ export function leaderboardScreen(app: App): Screen {
     }),
   );
 
-  const filterSection = h('section.card.section', null, tabs, filters, table, global.el);
+  const filterSection = h('section.card.section', null, tabs, filters, table, global.el, aiNote, aiView.el);
   const dailySection = h('section.card.section', null, dailyHead, daily.el);
 
   let dailyLoaded = false;
   let globalBoard = '';
+  let aiBoardShown = '';
   const showDaily = async () => {
     if (dailyLoaded) return;
     dailyLoaded = true;
@@ -101,7 +109,7 @@ export function leaderboardScreen(app: App): Screen {
 
   const render = () => {
     clear(modeTabs);
-    for (const t of ['local', 'global', 'daily'] as LbTab[]) {
+    for (const t of ['local', 'global', 'daily', 'ai'] as Tab[]) {
       modeTabs.appendChild(
         h(
           `button.seg${state.tab === t ? '.on' : ''}`,
@@ -122,9 +130,10 @@ export function leaderboardScreen(app: App): Screen {
     filterSection.hidden = state.tab === 'daily';
     dailySection.hidden = state.tab !== 'daily';
     customCard.hidden = !local;
-    nickBar.hidden = local;
+    nickBar.hidden = local || state.tab === 'ai';
     table.hidden = !local;
     global.el.hidden = state.tab !== 'global';
+    aiView.el.hidden = aiNote.hidden = state.tab !== 'ai';
     if (state.tab === 'daily') {
       void showDaily();
       return;
@@ -154,6 +163,13 @@ export function leaderboardScreen(app: App): Screen {
     for (const auto of [true, false]) autoSeg.appendChild(seg(state.auto === auto, auto ? '自动开波' : '手动开波', () => (state.auto = auto)));
 
     const board = leaderKey(state.key, state.pure, state.auto);
+    if (state.tab === 'ai') {
+      if (board !== aiBoardShown) {
+        aiBoardShown = board;
+        aiView.load(board);
+      }
+      return;
+    }
     if (!local) {
       if (board !== globalBoard) {
         globalBoard = board;

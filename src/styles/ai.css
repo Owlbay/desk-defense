@@ -1,0 +1,1083 @@
+/*
+ * AI 参战（文档 10）：设置页、对局里的 AI 面板、结算报告、AI 榜。
+ * 动画只用 transform / opacity，时长与缓动取 motion.css 的变量（减少动画时自动变为瞬时）。
+ */
+
+/* ───────────── 通用 ───────────── */
+.ai-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border: 2.5px solid var(--ink-faint);
+  border-top-color: var(--ink);
+  border-radius: 50%;
+  animation: ai-spin 0.9s linear infinite;
+}
+
+@keyframes ai-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ai-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 160px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.badge.ai-model-badge,
+.badge.ai-provider-badge {
+  background: #dcebf7;
+}
+
+.badge.ai-bot-badge {
+  background: #ffe2b8;
+}
+
+/* ───────────── 设置页 ───────────── */
+.ai-card {
+  display: grid;
+  gap: 12px;
+}
+
+.ai-card > h3 {
+  margin-bottom: 0;
+}
+
+.ai-field {
+  min-width: 0;
+}
+
+.ai-field > small,
+.ai-field .ai-list-msg {
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.ai-label {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.ai-roles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ai-role {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 72px;
+  padding: 12px;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform var(--dur-xs) var(--ease-out),
+    background-color var(--dur-s) var(--ease-out),
+    box-shadow var(--dur-s) var(--ease-out);
+}
+
+.ai-role:active {
+  transform: translateY(2px);
+}
+
+.ai-role.on {
+  background: #fff3c9;
+  box-shadow: var(--shadow);
+}
+
+.ai-role:focus-visible,
+.ai-chip:focus-visible,
+.ai-code pre:focus-visible {
+  outline: 3px solid rgba(79, 163, 224, 0.75);
+  outline-offset: 2px;
+}
+
+.ai-role > .gi {
+  flex: none;
+  width: 28px;
+  height: 28px;
+}
+
+.ai-role-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ai-role-text small {
+  color: var(--ink-soft);
+  line-height: 1.45;
+}
+
+.ai-seg.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ai-diffs {
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+}
+
+.ai-key-modes {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ai-os {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 8px;
+}
+
+.ai-tabs {
+  margin-bottom: 0;
+}
+
+.ai-direct,
+.ai-bridge,
+.ai-key {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ai-inline {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ai-inline > .input {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.ai-inline > .btn {
+  flex: none;
+  white-space: nowrap;
+}
+
+.ai-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+  align-items: start;
+}
+
+.ai-note {
+  padding: 10px 12px;
+  border: 1.5px dashed var(--ink-faint);
+  border-radius: var(--radius-s);
+  background: var(--paper-2);
+}
+
+.ai-note p {
+  margin: 4px 0 0;
+  line-height: 1.5;
+}
+
+.ai-warn {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-s);
+  background: #fff3c9;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ai-warn > .gi {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+}
+
+.ai-warn-strong {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1.5px solid var(--red);
+  border-radius: var(--radius-s);
+  background: #fde3e5;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.ai-step {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.ai-step > p {
+  margin: 0 0 4px;
+}
+
+.ai-code {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ai-code pre {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  padding: 8px 10px;
+  overflow-x: auto;
+  border: 1.5px solid var(--ink);
+  border-radius: var(--radius-s);
+  background: #2f2622;
+  color: #f7efe0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.ai-code .ai-copy {
+  flex: none;
+  align-self: flex-start;
+}
+
+.ai-guide,
+.ai-guide-item {
+  border: 1.5px solid var(--ink-faint);
+  border-radius: var(--radius-s);
+  background: var(--paper);
+}
+
+.ai-guide > summary,
+.ai-guide-item > summary,
+.ai-feed > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 12px;
+  font-weight: 800;
+  cursor: pointer;
+  list-style: none;
+}
+
+.ai-guide > summary::-webkit-details-marker,
+.ai-guide-item > summary::-webkit-details-marker,
+.ai-feed > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ai-guide > summary::after,
+.ai-guide-item > summary::after,
+.ai-feed > summary::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  margin-left: auto;
+  border-right: 2.5px solid var(--ink);
+  border-bottom: 2.5px solid var(--ink);
+  transform: rotate(-45deg);
+  transition: transform var(--dur-s) var(--ease-out);
+}
+
+.ai-guide[open] > summary::after,
+.ai-guide-item[open] > summary::after,
+.ai-feed[open] > summary::after {
+  transform: rotate(45deg);
+}
+
+.ai-guide > summary > .gi {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+
+.ai-guide-body {
+  display: grid;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+.ai-guide-item {
+  background: var(--paper-2);
+}
+
+.ai-guide-item > .ai-step {
+  padding: 0 12px 10px;
+}
+
+.ai-test-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.ai-diag:empty,
+.ai-errors:empty {
+  display: none;
+}
+
+.ai-diag-card {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--radius-s);
+  background: var(--paper-2);
+  line-height: 1.5;
+  animation: ai-pop var(--dur-m) var(--ease-out) both;
+}
+
+.ai-diag-card.pending {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ai-diag-card.good {
+  background: #d9f1ec;
+}
+
+.ai-diag-card.warn {
+  background: #fff3c9;
+}
+
+.ai-diag-card.bad {
+  background: #fde3e5;
+}
+
+.ai-diag-card p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.ai-diag-err {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px !important;
+}
+
+.ai-diag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ai-diag-list li,
+.ai-feed-acts li {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.ai-diag-list .gi,
+.ai-feed-acts .gi {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+}
+
+.ai-diag-list .info {
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+@keyframes ai-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.ai-bridge-form {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.ai-bridge-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ai-code-input {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.12em;
+}
+
+.ai-bridge-msg {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.ai-bridge-msg > .gi {
+  width: 16px;
+  height: 16px;
+}
+
+.ai-bridge-msg.good {
+  color: #1d7065;
+}
+
+.ai-bridge-msg.bad,
+.ai-bridge-msg.warn {
+  color: #b3202c;
+}
+
+.ai-bridge-msg small {
+  flex-basis: 100%;
+  font-weight: 400;
+}
+
+.ai-errors ul {
+  margin: 0;
+  padding: 10px 12px 10px 28px;
+  border: var(--bw) solid var(--red);
+  border-radius: var(--radius-s);
+  background: #fde3e5;
+  font-weight: 700;
+}
+
+.ai-summary {
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.ai-run-note {
+  margin: 0;
+}
+
+/* 菜单卡片上的小标 */
+.menu-btn .badge.ai-new {
+  margin-left: auto;
+  background: #dcebf7;
+}
+
+@media (max-width: 560px) {
+  .ai-roles,
+  .ai-grid,
+  .ai-key-modes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ai-bridge-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ai-inline {
+    flex-wrap: wrap;
+  }
+
+  .ai-inline > .input {
+    flex-basis: 100%;
+  }
+
+  .ai-code {
+    flex-direction: column;
+  }
+
+  .ai-code .ai-copy {
+    align-self: flex-end;
+  }
+}
+
+/* ───────────── 对局：AI 操作时屏蔽玩家输入 ───────────── */
+.game.ai-driving .g-board > :not(.ai-hud),
+.game.ai-driving .g-board > :not(.ai-hud) *,
+.game.ai-driving .g-build,
+.game.ai-driving .g-build *,
+.game.ai-driving .g-info,
+.game.ai-driving .g-info *,
+.game.ai-driving .g-skills,
+.game.ai-driving .g-skills *,
+.game.ai-driving .perk-overlay,
+.game.ai-driving .perk-overlay *,
+.game.ai-driving .g-wave .wave-actions > :first-child,
+.game.ai-driving .g-wave .wave-actions > :first-child * {
+  pointer-events: none !important;
+}
+
+.game.ai-driving .g-build,
+.game.ai-driving .g-skills,
+.game.ai-driving .g-wave .wave-actions > :first-child {
+  opacity: 0.6;
+}
+
+/* ───────────── 对局：AI 面板 ───────────── */
+.ai-hud {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  width: min(330px, calc(100% - 16px));
+  pointer-events: none;
+}
+
+.ai-hud > * {
+  pointer-events: auto;
+}
+
+.ai-hud[hidden] {
+  display: none;
+}
+
+.ai-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  min-height: 36px;
+  padding: 4px 12px 4px 10px;
+  border: var(--bw) solid var(--ink);
+  border-radius: 999px;
+  background: var(--paper);
+  box-shadow: 0 2px 0 var(--ink);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform var(--dur-xs) var(--ease-out);
+}
+
+/* 触屏上把可点范围补到 44px */
+.ai-chip::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+}
+
+.ai-chip {
+  position: relative;
+}
+
+.ai-chip:active {
+  transform: translateY(2px);
+}
+
+.ai-chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-chip-usage {
+  flex: none;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+}
+
+.ai-chip-usage:empty {
+  display: none;
+}
+
+.ai-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--ink);
+  border-radius: 50%;
+  background: var(--teal);
+}
+
+.ai-hud[data-status='thinking'] .ai-dot,
+.ai-hud[data-status='loading'] .ai-dot {
+  background: var(--blue);
+  animation: ai-pulse 1s var(--ease-in-out) infinite alternate;
+}
+
+.ai-hud[data-status='acting'] .ai-dot {
+  background: var(--gold-l);
+}
+
+.ai-hud[data-status='paused'] .ai-dot,
+.ai-hud[data-status='stopped'] .ai-dot,
+.ai-hud[data-status='over'] .ai-dot {
+  background: #b8aea0;
+}
+
+.ai-hud[data-status='fallback'] .ai-dot {
+  background: var(--orange);
+}
+
+.ai-hud[data-status='error'] .ai-dot {
+  background: var(--red);
+}
+
+@keyframes ai-pulse {
+  from {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+.ai-panel {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  max-height: min(64vh, 520px);
+  padding: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--radius);
+  background: var(--paper);
+  box-shadow: var(--shadow-soft);
+  animation: ai-pop var(--dur-m) var(--ease-out) both;
+}
+
+.ai-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ai-panel-title {
+  display: grid;
+  min-width: 0;
+}
+
+.ai-panel-title small {
+  overflow-wrap: anywhere;
+}
+
+.ai-close {
+  flex: none;
+}
+
+.ai-status-line {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.ai-usage {
+  display: grid;
+  gap: 6px;
+}
+
+.ai-usage-nums {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-budget {
+  height: 10px;
+  overflow: hidden;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  background: var(--paper-2);
+}
+
+.ai-budget-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--teal);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--dur-l) var(--ease-out);
+}
+
+.ai-budget[data-level='high'] .ai-budget-fill {
+  background: var(--orange);
+}
+
+.ai-budget[data-level='out'] .ai-budget-fill {
+  background: var(--red);
+}
+
+.ai-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ai-controls .btn {
+  flex: 1 1 auto;
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+.ai-error {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: var(--bw) solid var(--red);
+  border-radius: var(--radius-s);
+  background: #fde3e5;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ai-error p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.ai-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ai-feed {
+  border-top: 1.5px solid var(--ink-faint);
+}
+
+.ai-feed > summary {
+  padding: 4px 0;
+}
+
+.ai-feed-count {
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--paper-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-feed-count:empty {
+  display: none;
+}
+
+.ai-feed-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ai-feed-list:empty::after {
+  content: '还没有决策';
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.ai-feed-item {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  border-radius: var(--radius-s);
+  background: var(--paper-2);
+  font-size: 13px;
+  line-height: 1.45;
+  animation: ai-pop var(--dur-m) var(--ease-out) both;
+}
+
+.ai-feed-item.by-bot {
+  background: #fff0d9;
+}
+
+.ai-feed-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.ai-feed-item p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.ai-feed-note {
+  font-style: italic;
+}
+
+.ai-feed-why {
+  color: #9a4b00;
+}
+
+.ai-feed-acts {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ai-feed-acts .bad {
+  color: #b3202c;
+}
+
+/* 军师建议卡片：始终可见，不用打开面板 */
+.ai-suggest {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+
+.ai-suggest:empty {
+  display: none;
+}
+
+.ai-suggest-card {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--radius);
+  background: #eef6fc;
+  box-shadow: 0 2px 0 var(--ink);
+  font-size: 13px;
+  line-height: 1.45;
+  animation: ai-pop var(--dur-m) var(--ease-spring) both;
+  transition:
+    opacity var(--dur-s) var(--ease-in),
+    transform var(--dur-s) var(--ease-in);
+}
+
+.ai-suggest-card.out {
+  opacity: 0;
+  transform: translateX(-12px);
+}
+
+.ai-suggest-card p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.ai-suggest-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ai-suggest-head .gi {
+  width: 18px;
+  height: 18px;
+}
+
+.ai-suggest-acts {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ai-suggest-acts li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.ai-suggest-acts li.done > span,
+.ai-suggest-acts li.unparsed > span {
+  color: var(--ink-soft);
+}
+
+.ai-suggest-acts .btn,
+.ai-suggest-dismiss {
+  position: relative;
+  flex: none;
+  min-height: 36px;
+}
+
+/* 视觉上是小按钮，可点范围补到 44px */
+.ai-suggest-acts .btn::after,
+.ai-suggest-dismiss::after {
+  content: '';
+  position: absolute;
+  inset: -4px 0;
+}
+
+.ai-suggest-dismiss {
+  margin-left: auto;
+}
+
+.game[data-layout='portrait'] .ai-suggest-card {
+  padding: 8px 10px;
+  gap: 4px;
+}
+
+.game[data-layout='portrait'] .ai-suggest-card > p {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  font-size: 12px;
+}
+
+/* 手机 / 紧凑横屏：面板变成底部抽屉 */
+.game[data-layout='portrait'] .ai-panel,
+.game[data-compact] .ai-panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  width: auto;
+  max-height: min(62dvh, 560px);
+  padding: 14px 14px calc(14px + var(--sab));
+  padding-left: calc(14px + var(--sal));
+  padding-right: calc(14px + var(--sar));
+  border-width: var(--bw) 0 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: 0 -6px 18px rgba(59, 47, 42, 0.22);
+  animation-name: ai-drawer;
+}
+
+.game[data-compact] .ai-panel {
+  left: auto;
+  width: min(360px, 60vw);
+  max-height: 100dvh;
+  top: 0;
+  border-width: 0 0 0 var(--bw);
+  border-radius: 0;
+  padding-top: calc(12px + var(--sat));
+  animation-name: ai-pop;
+}
+
+@keyframes ai-drawer {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+
+.game[data-layout='portrait'] .ai-hud {
+  width: min(300px, calc(100% - 16px));
+}
+
+/* ───────────── 结算报告 ───────────── */
+.ai-report-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.ai-report-badges .badge {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-report .go-stat b {
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-submit p {
+  margin: 4px 0 0;
+}
+
+.ai-replay {
+  z-index: 60;
+}
+
+/* ───────────── AI 榜 ───────────── */
+.olb-row.ai-olb-row {
+  min-height: 56px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.olb-row .name.ai-name {
+  flex-wrap: wrap;
+  gap: 2px 6px;
+}
+
+.ai-name .ai-model {
+  max-width: 100%;
+  font-weight: 800;
+}
+
+.ai-row-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ai-row-badges .badge {
+  padding: 0 6px;
+  font-size: 11px;
+}
+
+.ai-name .ai-owner {
+  flex-basis: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 400;
+}
+
+.ai-lb-note {
+  margin: 0 0 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-spinner,
+  .ai-hud[data-status] .ai-dot {
+    animation: none;
+  }
+}
+
+html.reduce-motion .ai-spinner,
+html.reduce-motion .ai-hud[data-status] .ai-dot,
+html.tab-hidden .ai-spinner,
+html.tab-hidden .ai-hud[data-status] .ai-dot {
+  animation: none;
+}
+
+/* 排行榜顶部多了「AI 榜」一页：四等分；设置页的接入方式是两等分 */
+.leaderboard-screen .lb-mode-tabs {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.lb-mode-tabs.ai-tabs {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.leaderboard-screen .lb-mode-tabs .seg {
+  padding-left: 4px;
+  padding-right: 4px;
+}

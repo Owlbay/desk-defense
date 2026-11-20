@@ -1,8 +1,9 @@
 /**
  * 基于 node:sqlite 的假 D1：实现 functions/_lib/db.ts 用到的 D1Like 子集，
- * 并执行真实的 migrations/0001_init.sql，所以测试覆盖的是线上同一份 SQL。
+ * 并执行真实的 migrations/*.sql，所以测试覆盖的是线上同一份 SQL。
  */
 import migration from '../../migrations/0001_init.sql?raw';
+import migrationAi from '../../migrations/0002_ai_board.sql?raw';
 import type { D1Like, D1StmtLike } from '../../functions/_lib/db';
 
 interface SqliteStmt {
@@ -27,6 +28,7 @@ export async function createFakeD1(): Promise<FakeD1> {
   const mod = (await import(/* @vite-ignore */ name)) as { DatabaseSync: new (path: string) => SqliteDb };
   const sqlite = new mod.DatabaseSync(':memory:');
   sqlite.exec(migration);
+  sqlite.exec(migrationAi);
   const queries: string[] = [];
   const stmt = (sql: string, args: unknown[]): D1StmtLike => ({
     bind: (...values: unknown[]) => {

@@ -3,6 +3,8 @@ import './styles/main.css';
 import './styles/screens-motion.css';
 import './styles/hud-motion.css';
 import './styles/online.css';
+import './styles/responsive.css';
+import './styles/ai.css';
 import { ui } from './game/UiStore';
 import { ProfileStore } from './meta/profile';
 import { App, applySettings } from './ui/App';
@@ -18,6 +20,7 @@ import { settingsScreen } from './ui/screens/settings';
 import { skillsScreen } from './ui/screens/skills';
 import { talentsScreen } from './ui/screens/talents';
 import { gameScreen } from './ui/hud/GameScreen';
+import { aiScreen } from './ui/screens/ai';
 
 function boot(): void {
   const root = document.getElementById('app');
@@ -59,6 +62,8 @@ function boot(): void {
   app.register('daily', (a) => dailyScreen(a));
   app.register('settings', (a) => settingsScreen(a));
   app.register('game', (a, r) => gameScreen(a, r));
+  // AI 参战（文档 10）：页面外壳很小，表单与 Agent 代码进入页面时才动态加载
+  app.register('ai', (a) => aiScreen(a));
   app.go({ name: 'menu' });
 
   // 调试入口（仅开发环境）

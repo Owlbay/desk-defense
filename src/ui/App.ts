@@ -23,6 +23,7 @@ export type Route =
   | { name: 'leaderboard' }
   | { name: 'settings' }
   | { name: 'daily' }
+  | { name: 'ai' }
   | { name: 'game'; opts: RunOptions; resume?: MidRun; userSeed?: boolean };
 
 export type ScreenFactory = (app: App, route: Route) => Screen;

@@ -19,6 +19,7 @@ import { SkillBar } from './SkillBar';
 import { TopBar } from './TopBar';
 import { Tutorial } from './Tutorial';
 import { WavePanel } from './WavePanel';
+import { attachAi } from '../ai/launch';
 
 export function gameScreen(app: App, route: Route): Screen {
   if (route.name !== 'game') throw new Error('bad route');
@@ -111,6 +112,9 @@ export function gameScreen(app: App, route: Route): Screen {
   // 金币飞入顶栏的特效层（不接收输入）
   const goldFx = new GoldFx(boardHost, () => topBar.goldIcon, (n) => topBar.goldArrive(n));
   game.append(boardWrap, side, goldFx.el, modals);
+  // AI 参战（文档 10）：从「AI 参战」页面开的局才有；普通对局返回 null
+  const ai = attachAi({ app, session, opts, game, modals });
+  if (ai) cleanups.push(() => ai.destroy());
 
   // 横竖屏切换
   const applyLayout = () => {
@@ -118,6 +122,12 @@ export function gameScreen(app: App, route: Route): Screen {
     if (r.width === 0 || r.height === 0) return;
     const lay = r.width / r.height > 1.1 ? 'landscape' : 'portrait';
     if (game.dataset.layout !== lay) game.dataset.layout = lay;
+    // 矮 / 窄的横屏（横置手机、小平板、放大后的小窗口）：紧凑三栏布局，见 responsive.css「紧凑横屏」
+    const compact = lay === 'landscape' && (r.height <= 680 || r.width < 900);
+    if (compact !== (game.dataset.compact !== undefined)) {
+      if (compact) game.dataset.compact = '';
+      else delete game.dataset.compact;
+    }
   };
   const ro = new ResizeObserver(() => {
     applyLayout();
@@ -232,7 +242,7 @@ export function gameScreen(app: App, route: Route): Screen {
         if (gain > 0) parts.push(`+${Math.round(gain)} 金`);
         if (ev.interest > 0) parts.push(`（利息 ${Math.round(ev.interest)}）`);
         overlay.toast(parts.join(' '), 'good');
-        if (!ended && world.state.phase !== 'won' && world.state.phase !== 'lost') {
+        if (!ai && !ended && world.state.phase !== 'won' && world.state.phase !== 'lost') {
           app.store.update((p) => {
             recordWave(p, opts, ev.wave);
             p.midRun = makeMidRun(world);
@@ -346,7 +356,7 @@ export function gameScreen(app: App, route: Route): Screen {
     const st = world.state;
     const wavesSurvived = won ? wave : Math.max(0, wave - 1);
     let rewards: Rewards = { stars: 0, starsBest: 0, ink: 0, rank: 0, newRecord: false };
-    app.store.update((p) => {
+    if (!ai?.noSettle) app.store.update((p) => {
       rewards = settleRun(p, opts, {
         won,
         wavesSurvived,
@@ -366,6 +376,15 @@ export function gameScreen(app: App, route: Route): Screen {
       if (destroyed) return;
       pauseEl?.remove();
       pauseEl = null;
+      if (ai) {
+        // AI 对局：换成 AI 报告卡片（没有「提交到全服榜」，只能进 AI 榜）
+        gameOverEl = ai.gameOver(
+          { won, wave, wavesSurvived, score },
+          { again: () => (audio.play('select'), app.go({ name: 'game', opts: restartOpts(), userSeed })), menu: () => (audio.play('click'), app.go({ name: 'menu' })) },
+        );
+        modals.appendChild(gameOverEl);
+        return;
+      }
       gameOverEl = gameOverView(ctx, { won, wave, wavesSurvived, score, st, rewards }, {
         again: () => {
           audio.play('select');
@@ -554,7 +573,7 @@ export function gameScreen(app: App, route: Route): Screen {
       });
   } else {
     // 开新局即放弃旧的中途存档
-    if (app.store.get().midRun) app.store.update((p) => (p.midRun = null));
+    if (!ai && app.store.get().midRun) app.store.update((p) => (p.midRun = null));
     requestAnimationFrame(begin);
   }
 

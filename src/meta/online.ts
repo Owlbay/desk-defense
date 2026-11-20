@@ -12,12 +12,14 @@
 import type { RunOptions, WorldState } from '../core/types';
 import { decodeLogPayload, encodeLog } from '../shared/codec';
 import {
+  AI_BOARD_PREFIX,
   GAME_VERSION,
   boardForOpts,
   dailyInfo,
   dayOf,
   isDeviceId,
   sanitizeNickname,
+  type AgentMeta,
   type ApiError,
   type Checked,
   type ClaimedResult,
@@ -327,6 +329,8 @@ export interface SubmitInput {
   dailyDay?: string | null;
   /** 缺省用 getNickname() */
   nickname?: string;
+  /** AI 对局：成绩进 `ai:` 榜（真人榜拒收带标记的成绩） */
+  agent?: AgentMeta;
 }
 
 const RETRYABLE_CODES = new Set(['rate_limited', 'turnstile', 'internal', 'not_configured']);
@@ -361,12 +365,13 @@ export async function buildSubmitBody(input: SubmitInput): Promise<Checked<Omit<
     value: {
       nickname: nick.value,
       deviceId: getDeviceId(),
-      board: boardForOpts(input.opts, input.dailyDay ?? null),
+      board: input.agent ? AI_BOARD_PREFIX + boardForOpts(input.opts, null) : boardForOpts(input.opts, input.dailyDay ?? null),
       opts: JSON.parse(JSON.stringify(input.opts)) as RunOptions,
       seed,
       log: await encodeLog(input.log),
       result: input.result,
       gameVersion: GAME_VERSION,
+      ...(input.agent ? { agent: input.agent } : {}),
     },
   };
 }
@@ -414,7 +419,7 @@ export function resultFromWorld(
 /** 结算时的便捷入口：world 结束后直接调用 */
 export function submitWorldRun(
   world: { readonly log: readonly LogEntry[]; readonly state: Pick<WorldState, 'score' | 'lives' | 'gold' | 'tick' | 'stats' | 'opts' | 'seed'> },
-  o: { wavesSurvived: number; dailyDay?: string | null; nickname?: string },
+  o: { wavesSurvived: number; dailyDay?: string | null; nickname?: string; agent?: AgentMeta },
 ): Promise<SubmitOutcome> {
   const st = world.state;
   const opts: RunOptions = { ...st.opts, seed: st.opts.seed ?? st.seed };
@@ -424,6 +429,7 @@ export function submitWorldRun(
     result: resultFromWorld(st, o.wavesSurvived),
     dailyDay: o.dailyDay ?? null,
     nickname: o.nickname,
+    ...(o.agent ? { agent: o.agent } : {}),
   });
 }
 

@@ -78,6 +78,13 @@ export class InfoPanel {
 
   /** 选中塔信息（null 时根据 build / 提示显示） */
   update(info: TowerInfo | null, buildOpt: BuildOption | null): void {
+    this.render(info, buildOpt);
+    // 给样式用：hint（空）/ build / tower / spawner / aim / abil / perk
+    const kind = this.mode.split(':')[0] || 'hint';
+    if (this.el.dataset.kind !== kind) this.el.dataset.kind = kind;
+  }
+
+  private render(info: TowerInfo | null, buildOpt: BuildOption | null): void {
     this.info = info;
     // 空降出生点（文档 09 §2.2）
     const spId = ui.state.spawnerSelected;

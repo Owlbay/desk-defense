@@ -1,0 +1,1614 @@
+/*
+ * 全设备适配（最后加载，覆盖 main.css / hud-motion.css 里的布局）
+ *
+ *   对局界面
+ *   ├─ 竖屏（宽高比 ≤ 1.1）
+ *   │   ├─ 矮竖屏（高 ≤ 700）：信息栏压成一条；选中塔时信息卡盖住塔栏（棋盘不缩放）
+ *   │   └─ 宽竖屏（宽 ≥ 700，平板竖放）：底部分两栏——左信息、右 塔栏 / 技能 / 波次
+ *   └─ 横屏（宽高比 > 1.1）
+ *       ├─ 紧凑横屏（高 ≤ 680 或宽 < 900，[data-compact]）：技能竖条 | 棋盘 | 侧栏（顶栏 / 图标塔栏 / 固定操作行）
+ *       └─ 常规横屏：棋盘 | 侧栏；侧栏不滚动，技能 + 波次固定在底部，只有塔栏在放不下时内部滚动
+ *
+ *   布局切换的 data-layout / data-compact 由 GameScreen.ts 根据对局容器尺寸设置；
+ *   其余全部用容器查询（.game-screen 是 size 容器，已扣掉安全区）。
+ */
+
+/* ───────────── 0. 全局：不滚动、不回弹、不误缩放 ───────────── */
+html,
+body {
+  width: 100%;
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+.game-screen {
+  container: gamescreen / size;
+}
+
+.game {
+  isolation: isolate;
+  -webkit-touch-callout: none;
+}
+
+/*
+ * 覆盖层：内容比屏幕高时从顶部开始排并可滚动（place-items: center 会把顶部裁掉够不着），
+ * 放得下时靠 auto 外边距居中；全屏覆盖层避开刘海 / Home 条。
+ */
+.overlay {
+  place-items: start center;
+  overscroll-behavior: contain;
+}
+
+.overlay > * {
+  margin-block: auto;
+}
+
+.app > .overlay,
+.screen > .overlay {
+  padding: max(16px, var(--sat)) max(16px, var(--sar)) max(16px, var(--sab)) max(16px, var(--sal));
+}
+
+/* 魔境配色铺满整屏（超宽屏时对局容器会居中，两侧不能露出浅色桌面） */
+.game-screen:has(> .game[data-difficulty='abyss']) {
+  background: linear-gradient(180deg, #2a1f36, #1c1424);
+}
+
+/* 新手提示气泡：永远装得进屏幕 */
+.coach {
+  max-height: calc(100% - 20px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.coach[data-side='right'] {
+  transform-origin: 0 var(--ay, 50%);
+}
+
+.coach[data-side='right'] .coach-arrow {
+  left: -8px;
+  top: calc(var(--ay) - 7px);
+  border-top: 0;
+  border-right: 0;
+}
+
+/* ═════════════════════════════ 1. 常规横屏 ═════════════════════════════ */
+.game[data-layout='landscape']:not([data-compact]) {
+  --side-w: clamp(264px, 31vw, 420px);
+  --side-w: clamp(264px, 31cqw, 420px);
+  grid-template-columns: minmax(0, 1fr) var(--side-w);
+  /* 超宽屏：棋盘 + 侧栏作为一组居中，不让侧栏离棋盘太远 */
+  max-width: calc(100vh * 1.2 + var(--side-w));
+  max-width: calc(100cqh * 1.2 + var(--side-w));
+  margin-inline: auto;
+}
+
+.game[data-layout='landscape']:not([data-compact]) .side {
+  overflow: hidden;
+  border-right: var(--bw) solid transparent;
+}
+
+/* 塔栏：放不下时只在塔栏内部滚动（留出选中描边 / 角标的位置） */
+.game[data-layout='landscape']:not([data-compact]) .g-build {
+  flex: 0 1 auto;
+  min-height: 112px;
+  margin: -8px -7px -6px;
+  padding: 8px 7px 6px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.game[data-layout='landscape']:not([data-compact]) .side > .g-info {
+  flex: 1 1 0;
+  min-height: 120px;
+}
+
+/* 窄侧栏（接近方形的窗口，侧栏 ≈ 264px）：塔栏按钮改成上图标下名字，名字不再被截断 */
+.game[data-layout='landscape']:not([data-compact]) .g-build {
+  container: gbuild / inline-size;
+}
+
+@container gbuild (max-width: 290px) {
+  .game[data-layout='landscape']:not([data-compact]) .build-list {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .game[data-layout='landscape']:not([data-compact]) .build-btn {
+    flex-direction: column;
+    justify-content: center;
+    gap: 0;
+    min-height: 62px;
+    padding: 3px 2px 2px;
+  }
+  .game[data-layout='landscape']:not([data-compact]) .build-btn .b-ico {
+    width: 28px;
+    height: 28px;
+  }
+  .game[data-layout='landscape']:not([data-compact]) .build-btn .b-text {
+    align-items: center;
+    max-width: 100%;
+  }
+  .game[data-layout='landscape']:not([data-compact]) .build-btn .b-name {
+    font-size: 11px;
+    max-width: 100%;
+  }
+  .game[data-layout='landscape']:not([data-compact]) .build-btn .b-cost {
+    font-size: 11px;
+  }
+  .game[data-layout='landscape']:not([data-compact]) .build-btn .b-air {
+    right: 50%;
+    top: -5px;
+    transform: translateX(50%);
+  }
+}
+
+/* 信息卡内容不撑破侧栏（窄侧栏时「升级 / 出售」「目标」两行会溢出） */
+.game[data-layout='landscape'] .build-info,
+.game[data-layout='landscape'] .tower-info {
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+
+.game[data-layout='landscape'] .actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.game[data-layout='landscape'] .btn.act {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.game[data-layout='landscape'] .btn.act .act-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.game[data-layout='landscape'] .seg-mini {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+.game[data-layout='landscape'] .mini {
+  flex: 1 0 44px;
+  padding: 0 4px;
+}
+
+.game[data-layout='landscape'] .target-row {
+  align-items: flex-start;
+}
+
+.game[data-layout='landscape'] .target-row > :first-child:not(.seg-mini) {
+  flex: none;
+  line-height: 36px;
+}
+
+@container gamescreen (min-aspect-ratio: 8 / 5) {
+  .game[data-layout='landscape']:not([data-compact]) .side {
+    border-right-color: var(--ink);
+  }
+  .game[data-difficulty='abyss'][data-layout='landscape']:not([data-compact]) .side {
+    border-right-color: var(--abyss-line);
+  }
+}
+
+/* 中等高度（平板横放的浏览器、13 寸笔记本缩放后）：收紧间距 */
+@container gamescreen (max-height: 720px) {
+  .game[data-layout='landscape']:not([data-compact]) .side {
+    gap: 8px;
+    padding: 8px 10px 10px;
+  }
+  .game[data-layout='landscape']:not([data-compact]) .build-btn {
+    min-height: 44px;
+  }
+  .game[data-layout='landscape']:not([data-compact]) .g-wave {
+    padding: 8px;
+    gap: 6px;
+  }
+  .game[data-layout='landscape']:not([data-compact]) .skill-btn {
+    width: 48px;
+    height: 48px;
+  }
+  .game[data-layout='landscape']:not([data-compact]) .side > .g-info {
+    min-height: 104px;
+    padding: 8px;
+  }
+}
+
+/* 大屏（桌面 / 大平板横放）：侧栏更宽、字更大 */
+@container gamescreen (min-width: 1200px) and (min-height: 800px) {
+  .game[data-layout='landscape']:not([data-compact]) {
+    --side-w: clamp(380px, 28cqw, 460px);
+  }
+  .game[data-layout='landscape']:not([data-compact]) .side {
+    gap: 12px;
+    padding: 14px 16px 16px;
+  }
+  .game[data-layout='landscape']:not([data-compact]) .build-list {
+    gap: 8px;
+  }
+  .game[data-layout='landscape']:not([data-compact]) .build-btn {
+    min-height: 56px;
+    padding: 4px 6px 4px 4px;
+    gap: 6px;
+  }
+  .game[data-layout='landscape']:not([data-compact]) .build-btn .b-ico {
+    width: 38px;
+    height: 38px;
+  }
+  .game[data-layout='landscape']:not([data-compact]) .build-btn .b-name {
+    font-size: 14px;
+  }
+  .game[data-layout='landscape']:not([data-compact]) .build-btn .b-cost {
+    font-size: 13px;
+  }
+  .game[data-layout='landscape']:not([data-compact]) .stat {
+    font-size: 19px;
+  }
+  .game[data-layout='landscape']:not([data-compact]) .side > .g-info {
+    padding: 14px;
+    font-size: 16px;
+  }
+  .game[data-layout='landscape']:not([data-compact]) .info-hint,
+  .game[data-layout='landscape']:not([data-compact]) .info-desc {
+    font-size: 15px;
+  }
+  .game[data-layout='landscape']:not([data-compact]) .skill-btn:not(.ability-btn) {
+    width: 62px;
+    height: 62px;
+  }
+  .game[data-layout='landscape']:not([data-compact]) .skill-name {
+    font-size: 12px;
+  }
+  .game[data-layout='landscape']:not([data-compact]) .start-btn,
+  .game[data-layout='landscape']:not([data-compact]) .speed-btn {
+    min-height: 54px;
+  }
+}
+
+/* ═════════════════════════════ 2. 紧凑横屏（横置手机） ═════════════════════════════ */
+.game[data-layout='landscape'][data-compact] {
+  --strip-w: 58px;
+  --side-w: clamp(236px, calc(100vw - 100vh * 0.857 - var(--strip-w)), 460px);
+  --side-w: clamp(236px, calc(100cqw - 100cqh * 0.857 - var(--strip-w)), 460px);
+  grid-template-columns: var(--strip-w) minmax(0, 1fr) var(--side-w);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'skills board top'
+    'skills board build'
+    'skills board wave';
+  /* 放大后的桌面窗口（很宽很矮）：整组居中 */
+  max-width: calc(100vh * 0.857 + var(--strip-w) + 460px + 48px);
+  max-width: calc(100cqh * 0.857 + var(--strip-w) + 460px + 48px);
+  margin-inline: auto;
+}
+
+.game[data-layout='landscape'][data-compact] .side {
+  display: contents;
+}
+
+.game[data-layout='landscape'][data-compact] .side::after {
+  display: none;
+}
+
+.game[data-layout='landscape'][data-compact] .g-top,
+.game[data-layout='landscape'][data-compact] .g-build,
+.game[data-layout='landscape'][data-compact] .g-wave {
+  background: var(--paper-2);
+  border-left: var(--bw) solid var(--ink);
+  min-width: 0;
+}
+
+/* —— 顶栏：一行（放不下时两行），暂停键始终在右上 —— */
+.game[data-layout='landscape'][data-compact] .g-top {
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 2px 10px;
+}
+
+.game[data-layout='landscape'][data-compact] .g-top .stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 10px;
+}
+
+.game[data-layout='landscape'][data-compact] .stat {
+  min-height: 22px;
+  font-size: 15px;
+  gap: 3px;
+}
+
+.game[data-layout='landscape'][data-compact] .stat .gi {
+  width: 18px;
+  height: 18px;
+}
+
+.game[data-layout='landscape'][data-compact] .stat.score {
+  font-size: 13px;
+}
+
+.game[data-layout='landscape'][data-compact] .diff-chip {
+  font-size: 11px;
+  padding: 1px 6px;
+}
+
+/* —— 塔栏：图标 + 价格的网格，放不下时只在这里滚动 —— */
+.game[data-layout='landscape'][data-compact] .g-build {
+  min-height: 0;
+  padding: 6px 8px 6px 10px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  touch-action: pan-y;
+}
+
+.game[data-layout='landscape'][data-compact] .g-build::-webkit-scrollbar {
+  display: none;
+}
+
+.game[data-layout='landscape'][data-compact] .build-list {
+  display: grid;
+  /* 最多 6 列，每格不小于 48px */
+  grid-template-columns: repeat(auto-fill, minmax(max(48px, (100% - 30px) / 6), 1fr));
+  gap: 6px;
+}
+
+.game[data-layout='landscape'][data-compact] .build-btn {
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
+  min-height: 50px;
+  padding: 3px 2px 2px;
+}
+
+.game[data-layout='landscape'][data-compact] .build-btn .b-ico {
+  width: 28px;
+  height: 28px;
+}
+
+.game[data-layout='landscape'][data-compact] .build-btn .b-text {
+  align-items: center;
+}
+
+/* 名字在紧凑布局里不显示（title / aria-label / 选中后的信息卡里有） */
+.game[data-layout='landscape'][data-compact] .build-btn .b-name {
+  display: none;
+}
+
+.game[data-layout='landscape'][data-compact] .build-btn .b-air {
+  right: 50%;
+  top: -5px;
+  transform: translateX(50%);
+}
+
+.game[data-layout='landscape'][data-compact] .build-btn .b-lock {
+  right: 2px;
+  top: 2px;
+  width: 14px;
+  height: 14px;
+}
+
+/* —— 信息卡：叠在塔栏那一格里（贴底），不挤走任何控件 —— */
+.game[data-layout='landscape'][data-compact] .g-info {
+  grid-area: build;
+  align-self: end;
+  z-index: 4;
+  flex: none;
+  min-width: 0;
+  min-height: 0;
+  max-height: calc(100% - 8px);
+  margin: 0 6px 4px 8px;
+  padding: 6px 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: var(--bw) solid var(--ink);
+  border-radius: 12px;
+  background: var(--paper);
+  box-shadow: 0 -4px 14px rgba(59, 47, 42, 0.22);
+  color: var(--ink);
+}
+
+.game[data-layout='landscape'][data-compact] .g-info[data-kind='hint'],
+.game[data-layout='landscape'][data-compact] .g-info:not([data-kind]) {
+  display: none;
+}
+
+.game[data-layout='landscape'][data-compact] .g-info .info-body {
+  height: auto;
+}
+
+.game[data-layout='landscape'][data-compact] .info-hint {
+  min-height: 0;
+  height: auto;
+  font-size: 13px;
+  justify-content: flex-start;
+  text-align: left;
+  padding: 2px 0;
+}
+
+.game[data-layout='landscape'][data-compact] .info-hint .gi {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+
+.game[data-layout='landscape'][data-compact] .build-info,
+.game[data-layout='landscape'][data-compact] .tower-info {
+  gap: 4px 8px;
+}
+
+.game[data-layout='landscape'][data-compact] .info-ico {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
+
+.game[data-layout='landscape'][data-compact] .info-title h3,
+.game[data-layout='landscape'][data-compact] .build-info h3 {
+  font-size: 14px;
+}
+
+.game[data-layout='landscape'][data-compact] .build-info .info-desc {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+/* 操作提示在小屏上省掉（第一次玩有新手气泡） */
+.game[data-layout='landscape'][data-compact] .build-info > .muted.small {
+  display: none;
+}
+
+.game[data-layout='landscape'][data-compact] .actions {
+  gap: 6px;
+}
+
+.game[data-layout='landscape'][data-compact] .btn.act {
+  min-height: 44px;
+  padding: 0 8px;
+}
+
+.game[data-layout='landscape'][data-compact] .target-row {
+  gap: 6px;
+}
+
+/* —— 技能：棋盘左侧的竖条 —— */
+.game[data-layout='landscape'][data-compact] .g-skills {
+  grid-area: skills;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: safe center;
+  gap: 8px;
+  min-height: 0;
+  padding: 10px 0 6px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  background: var(--paper-2);
+  border-right: var(--bw) solid var(--ink);
+}
+
+.game[data-layout='landscape'][data-compact] .g-skills::-webkit-scrollbar {
+  display: none;
+}
+
+.game[data-layout='landscape'][data-compact] .skill-name {
+  display: none;
+}
+
+.game[data-layout='landscape'][data-compact] .skill-btn {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+}
+
+.game[data-layout='landscape'][data-compact] .skill-btn.ability-btn {
+  width: 44px;
+  height: 44px;
+}
+
+.game[data-layout='landscape'][data-compact] .axis-btn {
+  top: -8px;
+  right: -5px;
+  width: 26px;
+  height: 26px;
+}
+
+.game[data-layout='landscape'][data-compact] .ability-strip {
+  flex: none;
+  flex-direction: column;
+  flex-basis: auto;
+  padding: 4px 3px;
+  gap: 4px;
+}
+
+.game[data-layout='landscape'][data-compact] .ability-list {
+  flex-direction: column;
+}
+
+.game[data-layout='landscape'][data-compact] .strip-title {
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+/* —— 操作行：波次预览 + 开波 + 倍速，固定在右下 —— */
+.game[data-layout='landscape'][data-compact] .g-wave {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px 6px 10px;
+  border-top: 1.5px solid var(--ink-faint);
+  border-right: 0;
+  border-bottom: 0;
+  border-radius: 0;
+}
+
+.game[data-layout='landscape'][data-compact] .preview {
+  min-width: 0;
+  gap: 1px;
+}
+
+.game[data-layout='landscape'][data-compact] .preview-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.game[data-layout='landscape'][data-compact] .preview-list,
+.game[data-layout='landscape'][data-compact] .upcoming {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  touch-action: pan-x;
+}
+
+.game[data-layout='landscape'][data-compact] .preview-list::-webkit-scrollbar,
+.game[data-layout='landscape'][data-compact] .upcoming::-webkit-scrollbar {
+  display: none;
+}
+
+.game[data-layout='landscape'][data-compact] .pv-group > .ico {
+  width: 22px;
+  height: 22px;
+}
+
+.game[data-layout='landscape'][data-compact] .wave-actions {
+  gap: 6px;
+}
+
+.game[data-layout='landscape'][data-compact] .start-btn {
+  min-width: 0;
+  min-height: 46px;
+  padding: 0 8px;
+}
+
+.game[data-layout='landscape'][data-compact] .speed-btn {
+  min-width: 52px;
+  min-height: 46px;
+  padding: 0 6px;
+}
+
+/*
+ * 侧栏宽度 = 屏宽 − 棋盘 − 技能条，不是屏宽的简单函数，
+ * 所以这里按侧栏三格自己的宽度做容器查询（gtop / gbuild / ginfo / gwave）。
+ */
+.game[data-layout='landscape'][data-compact] .g-top {
+  container: gtop / inline-size;
+}
+
+.game[data-layout='landscape'][data-compact] .g-build {
+  container: gbuild / inline-size;
+}
+
+.game[data-layout='landscape'][data-compact] .g-info {
+  container: ginfo / inline-size;
+}
+
+.game[data-layout='landscape'][data-compact] .g-wave {
+  container: gwave / inline-size;
+  flex-wrap: wrap;
+}
+
+.game[data-layout='landscape'][data-compact] .preview {
+  flex: 1 1 150px;
+}
+
+.game[data-layout='landscape'][data-compact] .wave-actions {
+  flex: 1 1 170px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+/* 窄侧栏（小手机横放）：难度标签省掉 */
+@container gtop (max-width: 330px) {
+  .game[data-layout='landscape'][data-compact] .diff-chip {
+    display: none;
+  }
+}
+
+/* 窄侧栏：波次预览压成一行（开波按钮自动换到下一行并占满） */
+@container gwave (max-width: 330px) {
+  .game[data-layout='landscape'][data-compact] .preview {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 26px;
+    flex-basis: 100%;
+  }
+  .game[data-layout='landscape'][data-compact] .preview-title {
+    flex: 0 1 auto;
+    min-width: 3em;
+  }
+  .game[data-layout='landscape'][data-compact] .preview-list {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .game[data-layout='landscape'][data-compact] .upcoming {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 50%;
+    margin-top: 0;
+  }
+  .game[data-layout='landscape'][data-compact] .upcoming .up-title {
+    display: none;
+  }
+}
+
+/* 窄侧栏：建造说明压成两行；塔栏底部留出它的高度，最后一排还能滚出来 */
+@container gbuild (max-width: 330px) {
+  .game[data-layout='landscape'][data-compact]:has(.g-info[data-kind='build']) .build-list {
+    padding-bottom: 60px;
+  }
+}
+
+@container ginfo (max-width: 330px) {
+  .game[data-layout='landscape'][data-compact] .build-info {
+    gap: 2px;
+  }
+  .game[data-layout='landscape'][data-compact] .build-info .info-ico {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+  }
+  .game[data-layout='landscape'][data-compact] .build-info .info-head {
+    gap: 6px;
+  }
+  .game[data-layout='landscape'][data-compact] .build-info .info-head > div {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .game[data-layout='landscape'][data-compact] .build-info h3 {
+    white-space: nowrap;
+  }
+  .game[data-layout='landscape'][data-compact] .build-info .tags {
+    margin-top: 0;
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+  .game[data-layout='landscape'][data-compact] .build-info .info-desc {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .game[data-layout='landscape'][data-compact] .build-info > .muted.small {
+    display: none;
+  }
+}
+
+/* 宽侧栏（≥ 400px）：塔栏带名字 */
+@container gbuild (min-width: 400px) {
+  .game[data-layout='landscape'][data-compact] .build-btn {
+    min-height: 64px;
+  }
+  .game[data-layout='landscape'][data-compact] .build-btn .b-ico {
+    width: 30px;
+    height: 30px;
+  }
+  .game[data-layout='landscape'][data-compact] .build-btn .b-text {
+    max-width: 100%;
+  }
+  .game[data-layout='landscape'][data-compact] .build-btn .b-name {
+    display: block;
+    max-width: 100%;
+    font-size: 11px;
+  }
+}
+
+/* 较高的紧凑横屏（小平板横放、缩放后的桌面窗口）：控件放大一档 */
+@container gamescreen (min-height: 500px) {
+  .game[data-layout='landscape'][data-compact] {
+    --strip-w: 70px;
+  }
+  .game[data-layout='landscape'][data-compact] .skill-btn:not(.ability-btn) {
+    width: 54px;
+    height: 54px;
+    border-radius: 14px;
+  }
+  .game[data-layout='landscape'][data-compact] .g-skills {
+    gap: 12px;
+  }
+  .game[data-layout='landscape'][data-compact] .g-top {
+    padding: 8px 10px 4px 12px;
+  }
+  .game[data-layout='landscape'][data-compact] .stat {
+    font-size: 17px;
+    min-height: 26px;
+  }
+  .game[data-layout='landscape'][data-compact] .stat .gi {
+    width: 21px;
+    height: 21px;
+  }
+  .game[data-layout='landscape'][data-compact] .g-build {
+    padding: 8px 10px 8px 12px;
+  }
+  .game[data-layout='landscape'][data-compact] .build-list {
+    gap: 8px;
+  }
+  .game[data-layout='landscape'][data-compact] .build-btn {
+    min-height: 62px;
+  }
+  .game[data-layout='landscape'][data-compact] .build-btn .b-ico {
+    width: 36px;
+    height: 36px;
+  }
+  @container gbuild (min-width: 400px) {
+    .game[data-layout='landscape'][data-compact] .build-btn {
+      min-height: 74px;
+    }
+  }
+  .game[data-layout='landscape'][data-compact] .build-btn .b-cost {
+    font-size: 13px;
+  }
+  .game[data-layout='landscape'][data-compact] .g-info {
+    margin: 0 8px 6px 10px;
+    padding: 10px 12px;
+  }
+  .game[data-layout='landscape'][data-compact] .g-wave {
+    padding: 8px 10px 10px 12px;
+  }
+  .game[data-layout='landscape'][data-compact] .start-btn,
+  .game[data-layout='landscape'][data-compact] .speed-btn {
+    min-height: 52px;
+  }
+  .game[data-layout='landscape'][data-compact] .build-info > .muted.small {
+    display: block;
+  }
+}
+
+/* —— 魔境配色 —— */
+.game[data-difficulty='abyss'][data-layout='landscape'][data-compact] .g-top,
+.game[data-difficulty='abyss'][data-layout='landscape'][data-compact] .g-build,
+.game[data-difficulty='abyss'][data-layout='landscape'][data-compact] .g-skills,
+.game[data-difficulty='abyss'][data-layout='landscape'][data-compact] .g-wave {
+  background: var(--abyss-bg);
+  color: var(--abyss-text);
+  border-color: var(--abyss-line);
+}
+
+.game[data-difficulty='abyss'][data-layout='landscape'][data-compact] .g-info {
+  color: var(--ink);
+  border-color: var(--abyss-line);
+}
+
+/* 新手气泡在小屏上收窄 */
+.game[data-compact] .coach {
+  width: min(250px, calc(100% - 20px));
+  padding: 8px 10px;
+}
+
+.game[data-compact] .coach-body {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+/* ═════════════════════════════ 3. 竖屏 ═════════════════════════════ */
+/* 塔栏 / 波次预览横向滚动时不带动页面 */
+.game[data-layout='portrait'] .build-list,
+.game[data-layout='portrait'] .preview-list,
+.game[data-layout='portrait'] .upcoming {
+  overscroll-behavior: contain;
+}
+
+.game[data-layout='portrait'] .g-skills {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.game[data-layout='portrait'] .g-skills::-webkit-scrollbar {
+  display: none;
+}
+
+.game[data-layout='portrait'] .g-wave {
+  min-width: 0;
+}
+
+/* —— 3a. 矮竖屏（小手机）：信息栏压成一条；选中塔 / 出生点时信息卡向下盖住塔栏 —— */
+@container gamescreen (max-height: 700px) {
+  .game[data-layout='portrait'] .g-top {
+    padding: 3px 8px;
+  }
+  .game[data-layout='portrait'] {
+    grid-template-rows: auto minmax(0, 1fr) 60px auto auto auto;
+  }
+  .game[data-layout='portrait'] .g-info {
+    height: auto;
+    min-height: 0;
+    padding: 5px 10px;
+  }
+  /* contain: size —— 跨两行时内容高度不参与行高计算，棋盘大小不变 */
+  .game[data-layout='portrait'] .g-info[data-kind='tower'],
+  .game[data-layout='portrait'] .g-info[data-kind='spawner'] {
+    grid-row: info-start / build-end;
+    contain: size;
+    z-index: 4;
+  }
+  .game[data-layout='portrait']:has(.g-info[data-kind='tower']) .g-build,
+  .game[data-layout='portrait']:has(.g-info[data-kind='spawner']) .g-build {
+    visibility: hidden;
+  }
+  .game[data-layout='portrait'] .tower-info .close-info {
+    display: inline-flex;
+  }
+  .game[data-layout='portrait'] .info-hint {
+    min-height: 0;
+    font-size: 13px;
+  }
+  .game[data-layout='portrait'] .build-info {
+    gap: 2px;
+  }
+  .game[data-layout='portrait'] .build-info .info-head {
+    gap: 8px;
+  }
+  .game[data-layout='portrait'] .build-info .info-ico {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+  }
+  .game[data-layout='portrait'] .build-info .info-head > div {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .game[data-layout='portrait'] .build-info h3 {
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  .game[data-layout='portrait'] .build-info .tags {
+    margin-top: 0;
+    flex-wrap: nowrap;
+  }
+  .game[data-layout='portrait'] .build-info .info-desc {
+    font-size: 12px;
+    line-height: 1.3;
+  }
+  .game[data-layout='portrait'] .build-info > .muted.small {
+    display: none;
+  }
+  .game[data-layout='portrait'] .g-skills {
+    padding-top: 4px;
+  }
+  .game[data-layout='portrait'] .skill-btn:not(.ability-btn) {
+    width: 46px;
+    height: 46px;
+  }
+  .game[data-layout='portrait'] .g-wave {
+    padding: 5px 10px 6px;
+  }
+  .game[data-layout='portrait'] .start-btn,
+  .game[data-layout='portrait'] .speed-btn {
+    min-height: 46px;
+  }
+}
+
+/* 很窄的手机（≤ 380）：操作行再省一点 */
+@container gamescreen (max-width: 380px) {
+  .game[data-layout='portrait'] .start-btn {
+    min-width: 100px;
+    padding: 0 8px;
+  }
+  .game[data-layout='portrait'] .speed-btn {
+    min-width: 52px;
+    padding: 0 6px;
+  }
+  .game[data-layout='portrait'] .skillbar {
+    gap: 8px;
+  }
+}
+
+/* —— 3b. 宽竖屏（平板竖放）：底部两栏 —— */
+@container gamescreen (min-width: 700px) {
+  .game[data-layout='portrait'] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+    grid-template-areas:
+      'top top'
+      'board board'
+      'info build'
+      'info skills'
+      'info wave';
+  }
+  .game[data-layout='portrait'] .g-top {
+    padding: 8px 16px;
+  }
+  .game[data-layout='portrait'] .stats {
+    gap: 4px 18px;
+  }
+  .game[data-layout='portrait'] .stat {
+    font-size: 19px;
+  }
+  .game[data-layout='portrait'] .g-info {
+    height: auto;
+    min-height: 0;
+    /* 高度由右栏决定，内容多了在卡片内滚动 */
+    contain: size;
+    margin: 10px 0 10px 12px;
+    padding: 12px;
+    border: var(--bw) solid var(--ink);
+    border-radius: var(--radius);
+  }
+  .game[data-layout='portrait'] .g-build,
+  .game[data-layout='portrait'] .g-skills,
+  .game[data-layout='portrait'] .g-wave {
+    background: none;
+    border: 0;
+  }
+  .game[data-layout='portrait'] .g-build {
+    padding-top: 6px;
+  }
+  .game[data-layout='portrait'] .build-list {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 6px;
+    overflow: visible;
+    padding: 6px 12px;
+    touch-action: auto;
+  }
+  .game[data-layout='portrait'] .build-btn {
+    width: auto;
+    min-height: 64px;
+  }
+  .game[data-layout='portrait'] .g-skills {
+    padding: 6px 12px 0;
+  }
+  .game[data-layout='portrait'] .skill-btn:not(.ability-btn) {
+    width: 54px;
+    height: 54px;
+  }
+  .game[data-layout='portrait'] .g-wave {
+    padding: 8px 12px 12px;
+  }
+  .game[data-layout='portrait'] .tower-info {
+    grid-template-columns: 1fr;
+  }
+  .game[data-layout='portrait'] .tower-info .actions {
+    grid-template-columns: 1fr 1fr;
+  }
+  .game[data-layout='portrait'] .btn.act > .gi {
+    display: inline-block;
+  }
+  /* 桌面色铺在底部整块后面 */
+  .game[data-layout='portrait']::after {
+    content: '';
+    grid-area: info / 1 / wave / -1;
+    z-index: -1;
+    background: var(--paper-2);
+    border-top: var(--bw) solid var(--ink);
+  }
+  .game[data-difficulty='abyss'][data-layout='portrait']::after {
+    background: var(--abyss-bg);
+    border-color: var(--abyss-line);
+  }
+}
+
+/* ═════════════════════════════ 4. 触屏：44px 触控目标 ═════════════════════════════ */
+@media (pointer: coarse) {
+  .close-info {
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .axis-btn::before {
+    inset: -9px;
+  }
+  .mini {
+    min-height: 44px;
+  }
+  .tab,
+  .seed-btn {
+    min-height: 44px;
+  }
+}
+
+/* ═════════════════════════════ 5. 矮屏上的对话框（横置手机） ═════════════════════════════ */
+@media (max-height: 480px) and (orientation: landscape) {
+  .g-modals > .overlay {
+    padding: 8px 12px;
+  }
+  .dialog {
+    padding: 14px 16px;
+    gap: 10px;
+  }
+  /* 暂停：按钮排两列，一屏放完 */
+  .pause-dialog {
+    width: min(100%, 560px);
+  }
+  .pause-main {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 10px;
+  }
+  .pause-main > :not(.btn) {
+    grid-column: 1 / -1;
+  }
+  .pause-title {
+    font-size: 20px;
+  }
+  .pause-main .btn.big {
+    min-height: 46px;
+    font-size: 16px;
+    padding: 0 12px;
+  }
+  .seed-row {
+    margin-top: 0;
+  }
+  /* 增益三选一 */
+  .perk-dialog {
+    gap: 8px;
+  }
+  .perk-title {
+    font-size: 20px;
+  }
+  .perk-dialog > .muted {
+    display: none;
+  }
+  .perk-card {
+    min-height: 0;
+    padding: 16px 12px 10px;
+    gap: 6px;
+  }
+  /* 分支二选一 */
+  .branch-dialog {
+    width: min(100%, 620px);
+  }
+  .branch-card {
+    padding: 10px;
+    gap: 4px;
+  }
+  .branch-ico {
+    width: 48px;
+    height: 48px;
+  }
+  /* 结算：加宽，头部压扁 */
+  .gameover {
+    width: min(100%, 640px);
+  }
+  .go-ico {
+    width: 44px;
+    height: 44px;
+  }
+  .event-log {
+    max-height: 44vh;
+  }
+}
+
+/* ═════════════════════════════ 6. 菜单页 ═════════════════════════════ */
+/* 横置手机的主菜单：标题在左、按钮在右，不用先滚过大标题 */
+@media (max-height: 520px) and (orientation: landscape) and (min-width: 560px) {
+  .menu-screen {
+    display: grid;
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr);
+    grid-template-areas:
+      'hero top'
+      'hero card'
+      'foot card';
+    grid-template-rows: auto auto 1fr;
+    align-items: start;
+    gap: 8px 20px;
+    padding: 8px 20px 16px;
+  }
+  .menu-top {
+    grid-area: top;
+    max-width: none;
+  }
+  .menu-hero {
+    grid-area: hero;
+    margin-top: 0;
+    padding-top: clamp(8px, 10vh, 48px);
+  }
+  .menu-card {
+    grid-area: card;
+    max-width: none;
+    padding: 10px;
+    gap: 8px;
+  }
+  .menu-foot {
+    grid-area: foot;
+    text-align: center;
+  }
+  .logo-zh {
+    font-size: clamp(34px, 7vw, 56px);
+  }
+  .parade {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .parade-item {
+    width: clamp(28px, 4.6vw, 44px);
+    height: clamp(28px, 4.6vw, 44px);
+  }
+  .menu-btn {
+    min-height: 52px;
+  }
+  .screen-head {
+    padding: 6px 16px;
+  }
+}
+
+/* ═════════════════════════════ 7. 对话框补充 ═════════════════════════════ */
+/* 所有对话框：再窄也不超出覆盖层；长标题 / 长文案换行而不是撑宽 */
+.dialog,
+.perk-dialog,
+.crate-card {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.dialog h2,
+.dialog p {
+  overflow-wrap: anywhere;
+}
+
+.dialog .row.end {
+  flex-wrap: wrap;
+}
+
+/* 结算 / 暂停：卡片内部滚动时不带动页面 */
+.gameover,
+.pause-dialog {
+  overscroll-behavior: contain;
+}
+
+/*
+ * 结算：卡片比屏幕高时（小手机、横置手机），「再来一局 / 换难度 / 返回菜单」
+ * 钉在卡片底部，不用先滚过伤害排行才够得着。
+ */
+@media (max-height: 760px) {
+  /* order: 1 —— 排到「种子」那行后面，成为卡片的最后一行，钉住时下面不漏内容 */
+  .gameover .go-actions {
+    order: 1;
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin: 0 -20px;
+    padding: 10px 20px 16px;
+    background: var(--paper);
+    box-shadow: 0 -10px 10px -10px rgba(59, 47, 42, 0.35);
+  }
+  /* 粘性元素出不了父级的内容盒：卡片自己的下内边距去掉，改由按钮行提供 */
+  .gameover {
+    padding-bottom: 0;
+  }
+}
+
+/* 结算（横置手机）：头部横排，三个按钮一行 */
+@media (max-height: 480px) and (orientation: landscape) {
+  .go-head {
+    grid-template-columns: auto auto;
+    justify-content: center;
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 0;
+    justify-items: start;
+  }
+  .go-head .go-ico {
+    grid-row: 1 / span 2;
+  }
+  .gameover .go-actions {
+    grid-template-columns: 1.3fr 1fr 1fr;
+    margin: 0 -16px;
+    padding: 8px 16px 12px;
+  }
+  .gameover .go-actions .btn.primary {
+    grid-column: auto;
+  }
+  .gameover .go-actions .btn.big {
+    min-height: 46px;
+    padding: 0 8px;
+    font-size: 15px;
+  }
+}
+
+/*
+ * 暂停里的「设置 / 事件记录」：标题和「返回」固定，中间的列表自己滚动
+ * （原来整张卡片滚动，矮屏上要滚到最底才找得到「返回」）。
+ */
+.pause-dialog {
+  display: flex;
+  flex-direction: column;
+}
+
+.pause-dialog > * {
+  flex: 0 0 auto;
+}
+
+.pause-dialog > .pause-settings,
+.pause-dialog > .pause-history {
+  flex: 0 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.pause-settings > *,
+.pause-history > * {
+  flex: none;
+}
+
+.pause-settings > .settings-panel,
+.pause-history > .event-log {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* 给卡片投影 / 描边留位置，不被滚动容器裁掉 */
+  margin: 0 -4px;
+  padding: 2px 4px 6px;
+}
+
+/* 分支二选一（窄竖屏）：卡片横排成「图标 | 文字」，两张 + 按钮一屏放完 */
+@media (max-width: 420px) {
+  .branch-card {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      'ico tag'
+      'ico name'
+      'ico desc';
+    justify-items: start;
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 2px;
+    padding: 12px;
+    text-align: left;
+  }
+  .branch-card .branch-ico {
+    grid-area: ico;
+    width: 64px;
+    height: 64px;
+  }
+  .branch-card .branch-tag {
+    grid-area: tag;
+  }
+  .branch-card h3 {
+    grid-area: name;
+  }
+  .branch-card p {
+    grid-area: desc;
+  }
+}
+
+/* 在线提交区：窄屏上按钮各占一行的一半，不挤出卡片 */
+.online-submit .os-line > * {
+  min-width: 0;
+}
+
+.online-submit .online-nick {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.online-submit .nick-name {
+  max-width: 12em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 回放：操作条在横置手机上保持一行；避开刘海已由 .replay-view 的内边距处理 */
+@media (max-height: 480px) and (orientation: landscape) {
+  .replay-view {
+    gap: 4px;
+    padding-top: calc(4px + var(--sat, 0px));
+    padding-bottom: calc(4px + var(--sab, 0px));
+  }
+  .replay-bar {
+    flex-wrap: nowrap;
+  }
+  .replay-title {
+    flex: 1 1 0;
+  }
+}
+
+@media (pointer: coarse) {
+  .replay-speed .seg,
+  .replay-bar .btn.small {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* ═════════════════════════════ 8. 菜单页补充 ═════════════════════════════ */
+/* —— 页头：标题不换行（窄屏上「无尽模式」「每日挑战」会折成两行），货币标签不被挤压 —— */
+.screen-title {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.head-right {
+  flex: none;
+  min-width: 0;
+}
+
+/* 超宽屏：返回键 / 货币不贴到屏幕两端，跟内容区对齐一些 */
+.screen-head {
+  padding-inline: max(16px, calc((100% - 1280px) / 2));
+}
+
+@media (max-width: 400px) {
+  .screen-head {
+    gap: 8px;
+    padding-inline: 12px;
+  }
+  .screen-title {
+    font-size: 20px;
+    letter-spacing: 0;
+  }
+  .screen-head .chips {
+    gap: 4px;
+  }
+  .screen-head .chip {
+    padding: 0 8px;
+  }
+  .screen-body {
+    padding-inline: 12px;
+  }
+}
+
+/* —— 主菜单 —— */
+/* 小手机竖屏：收紧标题区，卡片尽量一屏放完 */
+@media (orientation: portrait) and (max-height: 700px) {
+  .menu-screen {
+    gap: 10px;
+    padding-top: 8px;
+    padding-bottom: 16px;
+  }
+  .menu-hero {
+    margin-top: 0;
+    gap: 4px;
+  }
+  .logo-zh {
+    font-size: clamp(38px, 11vw, 48px);
+  }
+  .parade {
+    margin-top: 4px;
+  }
+  .parade-item {
+    width: 34px;
+    height: 34px;
+  }
+  .menu-card {
+    padding: 10px;
+    gap: 8px;
+  }
+  .menu-btn {
+    min-height: 54px;
+    padding-block: 6px;
+  }
+  .menu-grid {
+    gap: 8px;
+  }
+  .menu-grid .menu-btn {
+    min-height: 50px;
+  }
+}
+
+/*
+ * 横置手机（高 ≤ 520）：卡片里四个模式排 2×2，四个小入口排成一行图标，
+ * 连同「继续游戏」一屏放完，不用滚动。（两栏骨架见第 6 节）
+ */
+@media (max-height: 520px) and (orientation: landscape) and (min-width: 560px) {
+  .menu-screen {
+    grid-template-areas:
+      'top card'
+      'hero card'
+      'foot card';
+    grid-template-rows: auto 1fr auto;
+    padding: 8px 16px 10px;
+  }
+  .menu-top {
+    justify-content: center;
+  }
+  .menu-hero {
+    align-self: center;
+    padding-top: 0;
+  }
+  .menu-card {
+    align-self: center;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 8px;
+    gap: 6px 8px;
+  }
+  .menu-card > .menu-btn.continue,
+  .menu-card > .menu-grid {
+    grid-column: 1 / -1;
+  }
+  .menu-card > .menu-btn {
+    min-height: 50px;
+    padding: 4px 10px;
+    gap: 8px;
+  }
+  .menu-card > .menu-btn > .gi {
+    width: 24px;
+    height: 24px;
+    flex: none;
+  }
+  .menu-card > .menu-btn .menu-label {
+    font-size: 16px;
+  }
+  .menu-card > .menu-btn .menu-label small {
+    font-size: 11px;
+  }
+  .menu-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .menu-grid .menu-btn {
+    flex-direction: column;
+    justify-content: center;
+    gap: 0;
+    min-height: 50px;
+    padding: 3px 2px;
+  }
+  .menu-grid .menu-btn > .gi {
+    width: 22px;
+    height: 22px;
+  }
+  .menu-grid .menu-label {
+    flex: none;
+    font-size: 13px;
+    text-align: center;
+  }
+  .menu-grid .menu-label small {
+    display: none;
+  }
+  .menu-foot {
+    align-self: end;
+    margin-top: 0;
+  }
+  /* 「今日」角标挂在按钮右上角，不占一行里的宽度 */
+  .menu-card > .menu-btn {
+    position: relative;
+  }
+  .menu-card > .menu-btn .menu-label {
+    white-space: nowrap;
+  }
+  .menu-card > .menu-btn > .badge.today {
+    position: absolute;
+    top: -7px;
+    right: -5px;
+    padding: 0 6px;
+    font-size: 11px;
+  }
+}
+
+/* 小手机横放（宽 < 720）：2×2 里的副标题放不下，省掉 */
+@media (max-height: 520px) and (orientation: landscape) and (min-width: 560px) and (max-width: 719px) {
+  .menu-card > .menu-btn:not(.continue) .menu-label small {
+    display: none;
+  }
+  .menu-card > .menu-btn {
+    min-height: 48px;
+  }
+}
+
+/*
+ * 平板横放 / 笔记本（高 521–860，宽 ≥ 900）：标题在左、菜单在右，整组垂直居中。
+ * 上下两条 1fr 空行在内容放不下时收成 0，页面从顶部开始滚动，不会裁掉顶部。
+ */
+@media (orientation: landscape) and (min-width: 900px) and (min-height: 521px) and (max-height: 860px) {
+  .menu-screen {
+    display: grid;
+    grid-template-columns: minmax(280px, 460px) minmax(0, 520px);
+    grid-template-rows: minmax(0, 1fr) auto auto minmax(0, 1fr);
+    grid-template-areas:
+      '. .'
+      'hero top'
+      'hero card'
+      'foot foot';
+    justify-content: center;
+    align-items: start;
+    gap: 10px clamp(24px, 5vw, 72px);
+    padding: 12px 24px 16px;
+  }
+  .menu-top {
+    grid-area: top;
+    max-width: none;
+  }
+  .menu-hero {
+    grid-area: hero;
+    align-self: center;
+    margin-top: 0;
+  }
+  .menu-card {
+    grid-area: card;
+    max-width: none;
+  }
+  .menu-foot {
+    grid-area: foot;
+    align-self: end;
+    justify-self: center;
+    margin-top: 0;
+  }
+  .parade {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .menu-btn {
+    min-height: 56px;
+  }
+}
+
+/* —— 排行榜（本地）：波数列放得下「60 波 + 自动」标签，不折行 —— */
+.lb-row {
+  grid-template-columns: 36px minmax(0, 1fr) 104px 90px 100px 90px;
+}
+
+.lb-row > * {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wave-mode {
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .lb-row {
+    grid-template-columns: 26px minmax(0, 1fr) 92px 76px;
+    gap: 6px;
+    padding: 0 6px;
+  }
+  .lb-row .score {
+    font-size: 15px;
+  }
+}
+
+/* —— 触屏 44px —— */
+@media (pointer: coarse) {
+  .event-toggle {
+    min-height: 44px;
+  }
+}
+
+/* —— 横置手机：页头 + 底部「开始」条压扁，给内容多留点高度 —— */
+@media (max-height: 480px) and (orientation: landscape) {
+  .screen-head {
+    padding-block: 6px;
+  }
+  .screen-title {
+    font-size: 20px;
+  }
+  .start-bar {
+    padding-top: 4px;
+  }
+  .start-bar .btn {
+    min-height: 46px;
+  }
+  .screen-body {
+    gap: 10px;
+    padding-bottom: 16px;
+  }
+}
