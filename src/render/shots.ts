@@ -87,6 +87,12 @@ export class ShotLayer {
             g.lineBetween(hx + 1, hy + 1, hx + 17, hy + 17);
             break;
           }
+          case 'coffee':
+          case 'lava':
+          case 'inkcross':
+          case 'fullcorrect':
+            drawSpecialZone(g, z, a, t);
+            break;
           default: {
             g.fillStyle(0xf7f7f7, 0.7 * a);
             g.fillCircle(x, y, r);
@@ -100,7 +106,9 @@ export class ShotLayer {
           w = (z.w ?? 1) * CELL,
           h = (z.h ?? 1) * CELL;
         const ang = z.angle ?? 0;
-        if (z.kind === 'whiteout') {
+        if (z.kind === 'coffee' || z.kind === 'lava' || z.kind === 'inkcross' || z.kind === 'fullcorrect') {
+          drawSpecialZone(g, z, a, t);
+        } else if (z.kind === 'whiteout') {
           rotRect(g, x, y, w, h, ang, 0xf7f7f7, 0.82 * a, C.whiteoutBlue, 3, a);
           // 刷痕
           g.lineStyle(2, C.whiteoutBlue, 0.25 * a);
@@ -131,6 +139,96 @@ export class ShotLayer {
   destroy(): void {
     this.pg.destroy();
     this.zg.destroy();
+  }
+}
+
+/**
+ * 文档 09 / 11 新增区域：
+ *  coffee 咖啡渍（瘫痪区）、lava 熔胶海、inkcross 十字墨迹、fullcorrect 全面修改的修正带。
+ *  圆形与矩形两种形状都支持（以 core 实际给出的为准）。
+ */
+function drawSpecialZone(g: Phaser.GameObjects.Graphics, z: ZoneState, a: number, t: number): void {
+  const circle = z.shape === 'circle';
+  const cx = circle ? z.x * CELL : (z.x + (z.w ?? 1) / 2) * CELL;
+  const cy = circle ? z.y * CELL : (z.y + (z.h ?? 1) / 2) * CELL;
+  const rw = circle ? (z.r ?? 1) * CELL : ((z.w ?? 1) * CELL) / 2;
+  const rh = circle ? (z.r ?? 1) * CELL : ((z.h ?? 1) * CELL) / 2;
+  const rr = Math.min(rw, rh);
+  switch (z.kind) {
+    case 'coffee': {
+      // 不规则的棕色泼溅 + 几滴外溅
+      if (circle) blob(g, cx, cy, rr, z.uid, C.coffee, 0.5 * a, t);
+      else {
+        g.fillStyle(C.coffee, 0.42 * a);
+        g.fillRoundedRect(cx - rw + 3, cy - rh + 3, rw * 2 - 6, rh * 2 - 6, 14);
+        g.lineStyle(2, C.coffee, 0.7 * a);
+        g.strokeRoundedRect(cx - rw + 3, cy - rh + 3, rw * 2 - 6, rh * 2 - 6, 14);
+      }
+      g.fillStyle(C.coffee, 0.6 * a);
+      for (let i = 0; i < 5; i++) {
+        const ang = i * 1.3 + z.uid;
+        g.fillCircle(cx + Math.cos(ang) * (rw + 4), cy + Math.sin(ang) * (rh + 3), 2 + (i % 3));
+      }
+      g.fillStyle(0xffffff, 0.18 * a);
+      g.fillEllipse(cx - rw * 0.3, cy - rh * 0.35, rw * 0.5, rh * 0.18);
+      break;
+    }
+    case 'lava': {
+      // 熔胶海：橙红色、表面翻滚的气泡
+      if (circle) blob(g, cx, cy, rr, z.uid, C.lamp, 0.6 * a, t);
+      else {
+        g.fillStyle(C.lamp, 0.55 * a);
+        g.fillRoundedRect(cx - rw + 2, cy - rh + 2, rw * 2 - 4, rh * 2 - 4, 12);
+        g.fillStyle(C.alarmRed, 0.25 * a);
+        g.fillRoundedRect(cx - rw + 8, cy - rh + 8, rw * 2 - 16, rh * 2 - 16, 10);
+        g.lineStyle(2.5, C.alarmRed, 0.7 * a);
+        g.strokeRoundedRect(cx - rw + 2, cy - rh + 2, rw * 2 - 4, rh * 2 - 4, 12);
+      }
+      for (let i = 0; i < 7; i++) {
+        const ph = (t * 1.1 + i / 7 + z.uid * 0.17) % 1;
+        const bx = cx + Math.cos(i * 2.3 + z.uid) * rw * 0.6;
+        const by = cy + Math.sin(i * 1.7 + z.uid) * rh * 0.6;
+        g.lineStyle(1.8, C.goldLight, a * (1 - ph) * 0.8);
+        g.strokeCircle(bx, by, 2 + ph * 6);
+      }
+      break;
+    }
+    case 'inkcross': {
+      // 十字墨迹：横竖两道笔画
+      const L = circle ? rr : Math.max(rw, rh);
+      const W = circle ? CELL * 0.9 : Math.min(rw, rh) * 2;
+      const wob = Math.sin(t * 3 + z.uid) * 1.5;
+      g.fillStyle(C.inkBlue, 0.45 * a);
+      if (circle) {
+        g.fillRoundedRect(cx - L, cy - W / 2 + wob, L * 2, W, W / 2);
+        g.fillRoundedRect(cx - W / 2 - wob, cy - L, W, L * 2, W / 2);
+      } else g.fillRoundedRect(cx - rw, cy - rh, rw * 2, rh * 2, Math.min(rw, rh));
+      g.fillStyle(C.inkBlue, 0.75 * a);
+      for (let i = 0; i < 6; i++) {
+        const ang = i * 1.05 + z.uid;
+        g.fillCircle(cx + Math.cos(ang) * L * 0.55, cy + Math.sin(ang) * L * 0.55, 2.5 + (i % 2) * 1.5);
+      }
+      break;
+    }
+    case 'fullcorrect': {
+      // 修正带：白色带子 + 青色描边 + 流动的虚线
+      if (circle) {
+        g.fillStyle(C.paper, 0.85 * a);
+        g.fillCircle(cx, cy, rr);
+        g.lineStyle(2, C.cyan, 0.8 * a);
+        g.strokeCircle(cx, cy, rr);
+      } else {
+        rotRect(g, z.x * CELL, z.y * CELL, (z.w ?? 1) * CELL, (z.h ?? 1) * CELL, z.angle ?? 0, C.paper, 0.85 * a, C.cyan, 2, 0.8 * a);
+        if (!z.angle) {
+          const hor = rw >= rh;
+          const off = (t * 30) % 12;
+          g.lineStyle(1.5, C.cyan, 0.6 * a);
+          if (hor) for (let x = cx - rw + 4 + off; x < cx + rw - 8; x += 12) g.lineBetween(x, cy, x + 6, cy);
+          else for (let y = cy - rh + 4 + off; y < cy + rh - 8; y += 12) g.lineBetween(cx, y, cx, y + 6);
+        }
+      }
+      break;
+    }
   }
 }
 

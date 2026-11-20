@@ -8,18 +8,24 @@ export function leaderboardScreen(app: App): Screen {
   const p = app.store.get();
   // 默认选中有记录的第一个难度
   const keys = allDiffKeys();
+  const count = (k: string) =>
+    [false, true].reduce((n, pure) => n + [false, true].reduce((m, auto) => m + (p.leaderboard[leaderKey(k, pure, auto)]?.length ?? 0), 0), 0);
+  const firstKey = keys.find((k) => count(k) > 0) ?? 'normal';
   const state = {
-    key: keys.find((k) => (p.leaderboard[k]?.length ?? 0) > 0) ?? 'normal',
+    key: firstKey,
     pure: false,
+    // 默认显示有记录的开波方式（优先自动）
+    auto: (p.leaderboard[leaderKey(firstKey, false, true)]?.length ?? 0) > 0 || (p.leaderboard[leaderKey(firstKey, false, false)]?.length ?? 0) === 0,
   };
   const tabs = h('div.tabs.scroll-x', { attrs: { role: 'tablist' } });
   const pureSeg = h('div.seg-grid.two');
+  const autoSeg = h('div.seg-grid.two');
   const table = h('div.board-table');
 
   const render = () => {
     clear(tabs);
     for (const k of keys) {
-      const has = (p.leaderboard[k]?.length ?? 0) + (p.leaderboard[`${k}:pure`]?.length ?? 0) > 0;
+      const has = count(k) > 0;
       tabs.appendChild(
         h(
           `button.tab${state.key === k ? '.on' : ''}${k.startsWith('abyss') ? '.abyss' : ''}${has ? '' : '.empty'}`,
@@ -51,8 +57,24 @@ export function leaderboardScreen(app: App): Screen {
         ),
       );
     }
+    clear(autoSeg);
+    for (const auto of [true, false]) {
+      autoSeg.appendChild(
+        h(
+          `button.seg${state.auto === auto ? '.on' : ''}`,
+          {
+            onclick: () => {
+              audio.play('click');
+              state.auto = auto;
+              render();
+            },
+          },
+          auto ? '自动开波' : '手动开波',
+        ),
+      );
+    }
     clear(table);
-    const list = p.leaderboard[leaderKey(state.key, state.pure)] ?? [];
+    const list = p.leaderboard[leaderKey(state.key, state.pure, state.auto)] ?? [];
     if (list.length === 0) {
       table.appendChild(h('div.empty-state', null, h('p', null, '还没有记录'), h('small.muted', null, '在无尽模式里撑过几波，成绩就会出现在这里。')));
     } else {
@@ -75,7 +97,7 @@ export function leaderboardScreen(app: App): Screen {
             null,
             h('span.rank', null, String(i + 1)),
             h('span.score', null, fmtNum(e.score)),
-            h('span', null, `${e.wave} 波`),
+            h('span', null, `${e.wave} 波`, h(`small.wave-mode${e.auto ? '.auto' : ''}`, null, e.auto ? '自动' : '手动')),
             h('span.hide-narrow', null, MAP_META[e.map]?.name ?? e.map),
             h('span.hide-narrow.muted', null, e.date),
             h(
@@ -103,7 +125,7 @@ export function leaderboardScreen(app: App): Screen {
     h(
       'div.screen-body',
       null,
-      h('section.card.section', null, tabs, pureSeg, table),
+      h('section.card.section', null, tabs, h('div.lb-filters', null, pureSeg, autoSeg), table),
       h(
         'section.card.section',
         null,

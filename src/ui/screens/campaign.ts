@@ -1,12 +1,12 @@
 import type { DifficultyId, MapId, TowerId } from '../../core/types';
-import { campaignDiffUnlocked, campaignStars, chapterCleared, chapterUnlocked, MAPS } from '../../meta/progress';
+import { campaignDiffUnlocked, campaignStars, chapterCleared, chapterUnlocked, effectiveAutoWave, MAPS } from '../../meta/progress';
 import { screenHeader, type App, type Screen } from '../App';
 import { towerIcon } from '../assets';
 import { audio } from '../audio';
 import { MAP_META, TOWER_META } from '../coreMeta';
 import { h, img } from '../dom';
 import { G } from '../icons';
-import { buildRunOptions, loadoutStrip, starRow } from './common';
+import { buildRunOptions, loadoutStrip, starRow, switchRow } from './common';
 
 const NEW_TOWERS: Record<MapId, TowerId[]> = {
   ch1: ['wall', 'pencil', 'glue', 'stapler', 'lamp'],
@@ -71,11 +71,19 @@ export function campaignScreen(app: App): Screen {
     );
   });
 
+  const autoSw = switchRow(
+    '自动开波',
+    p.settings.autoWave === null ? '第一波由你开始，之后按倒计时自动开波（未通关第一章时默认手动）' : '第一波由你开始，之后按倒计时自动开波',
+    p.settings.autoWave ?? effectiveAutoWave(p, 'campaign', 'ch2', 'normal'),
+    (v) => app.store.update((pp) => (pp.settings.autoWave = v)),
+  );
+  const fixedSw = switchRow('固定布局', '桌上的杂物每局都摆在同一个位置', p.settings.fixedLayout, (v) => app.store.update((pp) => (pp.settings.fixedLayout = v)));
+
   const el = h(
     'div.screen.campaign-screen',
     null,
     screenHeader(app, '战役'),
-    h('div.screen-body', null, h('div.chapter-list', null, cards), h('p.muted.center', null, '剩余生命 ≥90% 得 3 星，≥50% 得 2 星，通关得 1 星。星星可以在书包里兑换天赋。'), loadoutStrip(app, { name: 'campaign' })),
+    h('div.screen-body', null, h('div.chapter-list', null, cards), h('section.card.section.run-options', null, autoSw.el, fixedSw.el), h('p.muted.center', null, '剩余生命 ≥90% 得 3 星，≥50% 得 2 星，通关得 1 星。星星可以在书包里兑换天赋。'), loadoutStrip(app, { name: 'campaign' })),
   );
   return { el };
 }

@@ -1,11 +1,14 @@
 import Phaser from 'phaser';
-import type { Command, PlaceCheck, SkillState, TowerId } from '../core/types';
+import type { Command, EnemyState, PlaceCheck, SkillState, TowerId, TowerInfo, TowerState } from '../core/types';
 import { ui } from '../game/UiStore';
 import type { RenderCtx } from './ctx';
+import type { FieldLayer } from './field';
 import { BOARD_H, BOARD_W, CELL, DEPTH } from './layout';
 import { C } from './palette';
 import { PartSet } from './parts';
-import { dashed, towerAsset } from './towers';
+import { branchColor, dashed, towerAsset } from './towers';
+
+type Ability = NonNullable<TowerInfo['ability']>;
 
 type Cell = { cx: number; cy: number };
 type Path = { x: number; y: number }[];
@@ -34,12 +37,15 @@ export class BoardInput {
     current: [] as Path[],
   };
   private off: (() => void)[] = [];
+  /** 触摸：能力选敌第一次点中的敌人 */
+  private pendingEnemy: number | null = null;
 
   constructor(
     private ctx: RenderCtx,
     private canvas: HTMLCanvasElement,
     /** 客户端坐标 → 逻辑像素 */
     private toWorld: (clientX: number, clientY: number) => { x: number; y: number },
+    private field: FieldLayer,
   ) {
     const sc = ctx.scene;
     this.under = sc.add.graphics().setDepth(DEPTH.inputUnder);
@@ -64,7 +70,7 @@ export class BoardInput {
     on('pointerleave', (e) => {
       if (e.pointerType === 'mouse') {
         this.hoverPos = null;
-        ui.set({ hover: null });
+        ui.set({ hover: null, hoverPickup: null });
       }
     });
     // iOS：阻止双击缩放与长按菜单
@@ -114,6 +120,9 @@ export class BoardInput {
     if (ui.state.touch) ui.set({ touch: false });
     const { cell, pos } = this.cellAt(e.clientX, e.clientY);
     this.hoverPos = cell ? pos : null;
+    const pk = cell ? this.field.pickupAt(pos, 0.5) : null;
+    const hp = pk ? pk.uid : null;
+    if (ui.state.hoverPickup !== hp) ui.set({ hoverPickup: hp });
     const h = ui.state.hover;
     if (!cell) {
       if (h) ui.set({ hover: null });
@@ -133,7 +142,10 @@ export class BoardInput {
   /** 右键 / 取消 */
   private cancel(): void {
     const s = ui.state;
-    if (s.aiming) ui.set({ aiming: null, pending: null, relocateFrom: null });
+    this.pendingEnemy = null;
+    if (s.abilityAiming !== null) ui.set({ abilityAiming: null, abilityAngle: null, pending: null });
+    else if (s.aiming) ui.set({ aiming: null, pending: null, relocateFrom: null });
+    else if (s.spawnerSelected !== null) ui.set({ spawnerSelected: null });
     else if (s.build) ui.set({ build: null, pending: null });
     else if (s.perkTargeting) ui.set({ perkTargeting: null });
     else if (s.selected !== null) ui.set({ selected: null });
@@ -147,9 +159,23 @@ export class BoardInput {
   private click(cell: Cell | null, pos: { x: number; y: number }, touch: boolean): void {
     const s = ui.state;
     const session = this.ctx.session;
+    if (s.abilityAiming !== null) {
+      this.clickAbility(cell, pos, touch);
+      return;
+    }
     if (s.aiming) {
       this.clickAim(cell, pos, touch);
       return;
+    }
+    // 掉落物优先于建造 / 选塔
+    if (cell) {
+      const pk = this.field.pickupAt(pos, touch ? 0.62 : 0.48);
+      if (pk) {
+        const r = session.command({ type: 'collect', uid: pk.uid });
+        if (!r.ok) this.fail(cell, r.reason);
+        else if (touch) ui.set({ pending: null });
+        return;
+      }
     }
     if (s.perkTargeting) {
       const uid = this.towerAt(cell);
@@ -182,9 +208,152 @@ export class BoardInput {
       }
       return;
     }
-    // 普通：选塔 / 取消选择
+    // 普通：选塔 / 选空降纸箱（UI 显示拆除按钮）/ 取消选择
     const uid = this.towerAt(cell);
-    ui.set({ selected: uid || null, pending: null });
+    const drop = !uid && cell ? this.field.dropAt(cell.cx, cell.cy) : null;
+    if (drop) {
+      ui.set({ spawnerSelected: s.spawnerSelected === drop.id ? null : drop.id, selected: null, pending: null });
+      return;
+    }
+    ui.set({ selected: uid || null, spawnerSelected: null, pending: null });
+  }
+
+  // ───────────── 神话塔主动能力（文档 11 §1.4） ─────────────
+
+  private ability(): { tower: TowerState; info: TowerInfo; ab: Ability } | null {
+    const uid = ui.state.abilityAiming;
+    if (uid === null) return null;
+    const world = this.ctx.session.world;
+    const tower = world.state.towers.get(uid);
+    const info = tower ? world.getTowerInfo(uid) : null;
+    if (!tower || !info || !info.ability) return null;
+    return { tower, info, ab: info.ability };
+  }
+
+  /** 方形 3×3 的中心格（保证整块在棋盘内） */
+  private rect3Center(c: Cell): Cell {
+    const g = this.ctx.session.world.state.grid;
+    return { cx: Phaser.Math.Clamp(c.cx, 1, g.cols - 2), cy: Phaser.Math.Clamp(c.cy, 1, g.rows - 2) };
+  }
+
+  /** 指针附近可选中的敌人 */
+  private enemyNear(pos: { x: number; y: number }, r: number): EnemyState | null {
+    let best: EnemyState | null = null,
+      bd = r;
+    for (const e of this.ctx.session.world.state.enemies) {
+      if (e.hidden || e.jumping) continue;
+      const d = Math.hypot(e.x - pos.x, e.y - pos.y) - e.radius * (e.scale || 1) * 0.5;
+      if (d < bd) {
+        bd = d;
+        best = e;
+      }
+    }
+    return best;
+  }
+
+  private abilityAngleTo(tower: TowerState, p: { x: number; y: number }): number {
+    return Math.atan2(p.y - (tower.cy + 0.5), p.x - (tower.cx + 0.5));
+  }
+
+  private clickAbility(cell: Cell | null, pos: { x: number; y: number }, touch: boolean): void {
+    const s = ui.state;
+    const a = this.ability();
+    if (!a) {
+      ui.set({ abilityAiming: null, abilityAngle: null, pending: null });
+      return;
+    }
+    const { tower, ab } = a;
+    const g = this.ctx.session.world.state.grid;
+    const cast = (extra: Partial<Extract<Command, { type: 'towerAbility' }>>, at: Cell | null) => {
+      const r = this.ctx.session.command({ type: 'towerAbility', uid: tower.uid, ...extra });
+      this.pendingEnemy = null;
+      if (r.ok) ui.set({ abilityAiming: null, abilityAngle: null, pending: null });
+      else {
+        if (at) this.fail(at, r.reason);
+        else this.toastCenter(r.reason);
+        ui.set({ pending: null });
+      }
+    };
+    const needConfirm = (c: Cell) => {
+      if (!touch) return false;
+      if (this.same(s.pending, c)) return false;
+      ui.set({ pending: c, hover: c });
+      return true;
+    };
+    const outside = () => {
+      if (touch) {
+        this.pendingEnemy = null;
+        ui.set({ abilityAiming: null, abilityAngle: null, pending: null });
+      }
+    };
+    switch (ab.target) {
+      case 'none':
+        cast({}, cell);
+        return;
+      case 'circle': {
+        if (!cell) return outside();
+        if (needConfirm(cell)) return;
+        const x = touch ? cell.cx + 0.5 : Phaser.Math.Clamp(pos.x, 0, g.cols);
+        const y = touch ? cell.cy + 0.5 : Phaser.Math.Clamp(pos.y, 0, g.rows);
+        cast({ x, y }, cell);
+        return;
+      }
+      case 'rect3': {
+        if (!cell) return outside();
+        if (needConfirm(cell)) return;
+        const c = this.rect3Center(cell);
+        cast({ x: c.cx + 0.5, y: c.cy + 0.5 }, cell);
+        return;
+      }
+      case 'direction': {
+        if (!cell) return outside();
+        if (cell.cx === tower.cx && cell.cy === tower.cy) {
+          this.fail(cell, '请点击要射击的方向');
+          return;
+        }
+        if (needConfirm(cell)) {
+          ui.set({ abilityAngle: this.abilityAngleTo(tower, { x: cell.cx + 0.5, y: cell.cy + 0.5 }) });
+          return;
+        }
+        const p = touch ? { x: cell.cx + 0.5, y: cell.cy + 0.5 } : pos;
+        cast({ angle: this.abilityAngleTo(tower, p), x: p.x, y: p.y }, cell);
+        return;
+      }
+      case 'axis': {
+        if (!cell) return outside();
+        if (needConfirm(cell)) return;
+        const axis = s.aimAxis;
+        cast({ axis, index: axis === 'row' ? cell.cy : cell.cx, x: cell.cx + 0.5, y: cell.cy + 0.5 }, cell);
+        return;
+      }
+      case 'enemy': {
+        if (!cell) return outside();
+        const e = this.enemyNear(pos, touch ? 0.9 : 0.7);
+        if (!e) {
+          this.fail(cell, '请选择一个敌人');
+          this.pendingEnemy = null;
+          return;
+        }
+        if (touch && this.pendingEnemy !== e.uid) {
+          this.pendingEnemy = e.uid;
+          ui.set({ pending: cell, hover: cell });
+          return;
+        }
+        cast({ targetUid: e.uid, x: e.x, y: e.y }, cell);
+        return;
+      }
+      case 'tower': {
+        const uid = this.towerAt(cell);
+        if (!uid) {
+          if (cell) this.fail(cell, '请选择一座塔');
+          else outside();
+          return;
+        }
+        if (needConfirm(cell!)) return;
+        cast({ targetUid: uid, x: cell!.cx + 0.5, y: cell!.cy + 0.5 }, cell);
+        return;
+      }
+    }
   }
 
   private skill(): SkillState | undefined {
@@ -261,6 +430,18 @@ export class BoardInput {
         cast({ uid }, cell);
         return;
       }
+      case 'spawner': {
+        // 封箱胶带：点一个已落地的空降纸箱
+        const sp = cell ? this.field.dropAt(cell.cx, cell.cy, true) : null;
+        if (!sp) {
+          if (cell) this.fail(cell, '请选择一个空降纸箱');
+          else if (touch) ui.set({ aiming: null, pending: null });
+          return;
+        }
+        if (needConfirm(cell!)) return;
+        cast({ spawner: sp.id, cx: cell!.cx, cy: cell!.cy, x: cell!.cx + 0.5, y: cell!.cy + 0.5 }, cell);
+        return;
+      }
       case 'tower+cell': {
         const uid = this.towerAt(cell);
         if (s.relocateFrom === null) {
@@ -334,7 +515,7 @@ export class BoardInput {
     let ghostOk = true;
 
     // 选中塔的射程
-    if (s.selected !== null && !s.build && !s.aiming) {
+    if (s.selected !== null && !s.build && !s.aiming && s.abilityAiming === null) {
       const tw = st.towers.get(s.selected);
       const info = tw ? world.getTowerInfo(s.selected) : null;
       if (tw && info) {
@@ -346,7 +527,12 @@ export class BoardInput {
 
     const focus: Cell | null = s.touch ? s.pending : s.hover;
 
-    if (s.aiming) {
+    if (s.abilityAiming === null) this.pendingEnemy = null;
+    if (s.abilityAiming !== null) {
+      const a = this.ability();
+      if (a) this.drawAbilityAim(ug, og, a, focus, rt);
+      else ui.set({ abilityAiming: null, abilityAngle: null, pending: null });
+    } else if (s.aiming) {
       const sk = this.skill();
       if (sk) this.drawAim(ug, og, sk, focus, rt);
       if (sk?.target === 'tower+cell' && s.relocateFrom !== null && focus && !this.towerAt(focus)) {
@@ -564,6 +750,29 @@ export class BoardInput {
         }
         return;
       }
+      case 'spawner': {
+        for (const sp of st.spawners ?? []) {
+          if (sp.kind !== 'drop' || (sp.warnUntil !== undefined && sp.warnUntil > st.time)) continue;
+          let x0 = Infinity,
+            y0 = Infinity,
+            x1 = -Infinity,
+            y1 = -Infinity;
+          for (const c of sp.cells) {
+            x0 = Math.min(x0, c.x);
+            y0 = Math.min(y0, c.y);
+            x1 = Math.max(x1, c.x + 1);
+            y1 = Math.max(y1, c.y + 1);
+          }
+          const hot = !!focus && sp.cells.some((c) => c.x === focus.cx && c.y === focus.cy);
+          og.lineStyle(hot ? 3.5 : 2.5, hot ? C.white : C.tapeTan, hot ? 1 : 0.45 + 0.45 * pulse);
+          og.strokeRoundedRect(x0 * CELL - 2, y0 * CELL - 2, (x1 - x0) * CELL + 4, (y1 - y0) * CELL + 4, 8);
+          if (hot && confirm) {
+            og.lineStyle(2, C.white, 0.6 + 0.4 * pulse);
+            og.strokeRoundedRect(x0 * CELL - 6, y0 * CELL - 6, (x1 - x0) * CELL + 12, (y1 - y0) * CELL + 12, 10);
+          }
+        }
+        return;
+      }
       case 'tower':
       case 'tower+cell': {
         const from = s.relocateFrom;
@@ -588,6 +797,140 @@ export class BoardInput {
             ug.fillStyle(ok ? C.screen : C.bad, 0.4);
             ug.fillRoundedRect(focus.cx * CELL + 1, focus.cy * CELL + 1, CELL - 2, CELL - 2, 6);
           }
+        }
+        return;
+      }
+    }
+  }
+
+  private drawAbilityAim(
+    ug: Phaser.GameObjects.Graphics,
+    og: Phaser.GameObjects.Graphics,
+    a: { tower: TowerState; info: TowerInfo; ab: Ability },
+    focus: Cell | null,
+    rt: number,
+  ): void {
+    const s = ui.state;
+    const st = this.ctx.session.world.state;
+    const g = st.grid;
+    const { tower, info, ab } = a;
+    const col = branchColor(tower.branch);
+    const pulse = 0.5 + 0.5 * Math.sin(rt * 6);
+    const confirm = s.touch && !!s.pending;
+    const tx = (tower.cx + 0.5) * CELL,
+      ty = (tower.cy + 0.5) * CELL;
+    // 施放者
+    og.lineStyle(3, C.goldLight, 0.7 + 0.3 * pulse);
+    og.strokeRoundedRect(tower.cx * CELL + 1, tower.cy * CELL + 1, CELL - 2, CELL - 2, 9);
+    const hp = !s.touch && this.hoverPos ? this.hoverPos : focus ? { x: focus.cx + 0.5, y: focus.cy + 0.5 } : null;
+    switch (ab.target) {
+      case 'none':
+        return;
+      case 'circle': {
+        if (!hp) return;
+        const x = hp.x * CELL,
+          y = hp.y * CELL,
+          r = (ab.radius ?? 1.5) * CELL;
+        ug.fillStyle(col, 0.16 + 0.06 * pulse);
+        ug.fillCircle(x, y, r);
+        og.lineStyle(2.5, col, 0.95);
+        og.strokeCircle(x, y, r);
+        dashCircle(og, x, y, r + 4, C.white, 1.5, 0.6, rt * 0.8);
+        if (confirm) og.strokeCircle(x, y, r + 8 + pulse * 3);
+        return;
+      }
+      case 'rect3': {
+        if (!focus) return;
+        const c = this.rect3Center(focus);
+        const x = (c.cx - 1) * CELL,
+          y = (c.cy - 1) * CELL;
+        ug.fillStyle(col, 0.18 + 0.08 * pulse);
+        ug.fillRect(x, y, CELL * 3, CELL * 3);
+        og.lineStyle(2.5, col, 0.95);
+        og.strokeRect(x + 1, y + 1, CELL * 3 - 2, CELL * 3 - 2);
+        og.lineStyle(1, C.white, 0.4);
+        for (let i = 1; i < 3; i++) {
+          og.lineBetween(x + i * CELL, y + 2, x + i * CELL, y + CELL * 3 - 2);
+          og.lineBetween(x + 2, y + i * CELL, x + CELL * 3 - 2, y + i * CELL);
+        }
+        if (confirm) {
+          og.lineStyle(2, C.white, 0.6 + 0.4 * pulse);
+          og.strokeRect(x - 3, y - 3, CELL * 3 + 6, CELL * 3 + 6);
+        }
+        return;
+      }
+      case 'direction': {
+        let ang: number | null = null;
+        if (s.touch) ang = s.pending ? this.abilityAngleTo(tower, { x: s.pending.cx + 0.5, y: s.pending.cy + 0.5 }) : null;
+        else if (hp && (Math.floor(hp.x) !== tower.cx || Math.floor(hp.y) !== tower.cy)) ang = this.abilityAngleTo(tower, hp);
+        if (ang === null) {
+          dashCircle(og, tx, ty, CELL * 0.8, col, 2, 0.6, rt);
+          return;
+        }
+        if (s.abilityAngle === null || Math.abs(s.abilityAngle - ang) > 0.02) ui.set({ abilityAngle: ang });
+        const L = Math.hypot(BOARD_W, BOARD_H);
+        const ex = tx + Math.cos(ang) * L,
+          ey = ty + Math.sin(ang) * L;
+        // 宽一点的半透明条 + 虚线中心 + 箭头
+        ug.lineStyle(CELL * 0.6, col, 0.14 + 0.06 * pulse);
+        ug.lineBetween(tx, ty, ex, ey);
+        dashed(og, tx, ty, ex, ey, col, 3, 10, 6, (rt * 40) % 16, 0.95);
+        const hx = tx + Math.cos(ang) * CELL * 1.4,
+          hy = ty + Math.sin(ang) * CELL * 1.4;
+        const px = -Math.sin(ang),
+          py = Math.cos(ang);
+        og.fillStyle(col, 0.95);
+        og.fillTriangle(hx + Math.cos(ang) * 12, hy + Math.sin(ang) * 12, hx + px * 8, hy + py * 8, hx - px * 8, hy - py * 8);
+        og.lineStyle(1.5, C.ink, 0.9);
+        og.strokeTriangle(hx + Math.cos(ang) * 12, hy + Math.sin(ang) * 12, hx + px * 8, hy + py * 8, hx - px * 8, hy - py * 8);
+        return;
+      }
+      case 'axis': {
+        if (!focus) return;
+        const row = s.aimAxis === 'row';
+        const x = row ? 0 : focus.cx * CELL,
+          y = row ? focus.cy * CELL : 0;
+        const w = row ? g.cols * CELL : CELL,
+          h = row ? CELL : g.rows * CELL;
+        ug.fillStyle(col, 0.18 + 0.1 * pulse);
+        ug.fillRect(x, y, w, h);
+        og.lineStyle(2.5, col, 0.9);
+        og.strokeRect(x + 1, y + 1, w - 2, h - 2);
+        if (confirm) {
+          og.lineStyle(2, C.white, 0.6 + 0.4 * pulse);
+          og.strokeRect(x - 2, y - 2, w + 4, h + 4);
+        }
+        return;
+      }
+      case 'enemy': {
+        const pe = this.pendingEnemy !== null ? st.enemies.find((e) => e.uid === this.pendingEnemy) : undefined;
+        const cand = pe ?? (hp && !s.touch ? this.enemyNear(hp, 0.7) : null);
+        if (!cand) return;
+        const x = cand.x * CELL,
+          y = cand.y * CELL;
+        const r = Math.max(10, cand.radius * CELL * (cand.scale || 1)) + 6;
+        og.lineStyle(2.5, col, 0.95);
+        og.strokeCircle(x, y, r);
+        og.lineStyle(2, C.white, 0.9);
+        for (let k = 0; k < 4; k++) {
+          const aa = (k * Math.PI) / 2 + rt;
+          og.lineBetween(x + Math.cos(aa) * (r + 2), y + Math.sin(aa) * (r + 2), x + Math.cos(aa) * (r + 8), y + Math.sin(aa) * (r + 8));
+        }
+        if (pe) dashCircle(og, x, y, r + 10 + pulse * 3, C.white, 1.5, 0.8, rt);
+        return;
+      }
+      case 'tower': {
+        const aura = info.auraRange ?? 0;
+        if (aura > 0) this.rangeRings(ug, tx, ty, 0, undefined, aura, rt, 0.8);
+        for (const tw of st.towers.values()) {
+          if (tw.uid === tower.uid || tw.id === 'wall') continue;
+          if (aura > 0 && Math.hypot(tw.cx - tower.cx, tw.cy - tower.cy) > aura + 0.01) continue;
+          og.lineStyle(2, C.goldLight, 0.35 + 0.4 * pulse);
+          og.strokeRoundedRect(tw.cx * CELL + 3, tw.cy * CELL + 3, CELL - 6, CELL - 6, 8);
+        }
+        if (focus && this.towerAt(focus)) {
+          og.lineStyle(3, C.white, 1);
+          og.strokeRoundedRect(focus.cx * CELL + 1, focus.cy * CELL + 1, CELL - 2, CELL - 2, 9);
         }
         return;
       }

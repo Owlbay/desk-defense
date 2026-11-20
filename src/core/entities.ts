@@ -17,6 +17,8 @@ export const F_SHIELD3 = 16;
 export const F_SKILL = 32;
 export const F_CRIT = 64;
 export const F_TRUE = 128;
+/** 起钉器 ★2：对护盾 ×2 */
+export const F_SHIELD2 = 256;
 
 export interface Tower extends TowerState {
   def: TowerDef;
@@ -50,6 +52,23 @@ export interface Tower extends TowerState {
   colorGold: number;
   halfLegend: boolean;
   lastTape: number;
+  // 文档 11：进化派生 / 运行时
+  /** 无视护甲点数（铅笔 A ★2） */
+  pierce: number;
+  /** ★3 主动能力效果截止时间 */
+  abilityUntil: number;
+  /** 攻击计数（电动订书机 ★2 每第 5 次） */
+  atkCount: number;
+  /** 存钱罐 A ★3：剩余不产出的波数 */
+  piggyMute: number;
+  /** 存钱罐 A ★3：充能进度（波） */
+  piggyCharge: number;
+  /** 保险箱 ★2 的一次性生命已发放 */
+  safeLives: boolean;
+  /** 计算器 A ★3「精算」截止（光环内必定暴击） */
+  calcCritUntil: number;
+  /** 被光环覆盖的计算器中，是否有心算（★2 算盘：升级费用 −10%） */
+  abacusDiscount: boolean;
 }
 
 export interface Enemy extends EnemyState {
@@ -95,6 +114,17 @@ export interface Enemy extends EnemyState {
   reflect: boolean;
   /** 同波橡皮屑生命（纸团分裂用） */
   crumbHp: number;
+  // 文档 11
+  poisonDps: number; poisonUntil: number; poisonOwner: number;
+  purpleUntil: number;
+  measuredUntil: number;
+  /** 红笔标记 / 护眼灯照射的易伤值（★1 提高） */
+  redVuln: number;
+  litVuln: number;
+  /** 被 502 ★2 定身时的易伤截止 */
+  rootVulnUntil: number;
+  /** 被红笔 ★2 标记：死亡 +1 金币 */
+  redGold: boolean;
 }
 
 export interface Proj extends ProjectileState {
@@ -110,6 +140,8 @@ export interface Proj extends ProjectileState {
   hits: number[];
   bounce: number;
   dead: boolean;
+  /** 弹幕：额外穿透目标数 */
+  pierce: number;
 }
 
 export interface Zone extends ZoneState {
@@ -120,6 +152,8 @@ export interface Zone extends ZoneState {
   reveal: boolean;
   air: boolean;
   tick: number;
+  /** 墨迹十字：每 0.5 秒叠的墨迹层数 */
+  ink: number;
   cos: number;
   sin: number;
   /** 包围圆（查询用） */

@@ -3,11 +3,11 @@
  * - 若 src/core/index.ts 已存在则用真实 core（URL 加 ?mock=1 强制使用假 World）。
  * - 自带一个与 Session 接口一致的 DevSession，避免依赖 core 是否就绪。
  */
-import { DT, TOWER_IDS, type Command, type CommandResult, type GameEvent, type IWorld, type RunOptions, type SkillId } from '../../core/types';
+import { DT, RANDOM_EVENT_IDS, TOWER_IDS, type Command, type CommandResult, type GameEvent, type IWorld, type RunOptions, type SkillId } from '../../core/types';
 import type { Session } from '../../game/Session';
 import { ui } from '../../game/UiStore';
 import { mountBoard, setRenderQuality, getRenderQuality } from '../index';
-import { createMockWorld } from './mockWorld';
+import { createMockWorld, type MockDev } from './mockWorld';
 
 type Listener = (ev: GameEvent) => void;
 
@@ -60,14 +60,16 @@ const wantMock = new URLSearchParams(location.search).has('mock');
 const loader = Object.values(coreLoaders)[0];
 const real = !wantMock && loader ? (await loader()).createWorld : undefined;
 const useMock = !real;
-const world: IWorld = useMock
-  ? createMockWorld()
+const mock = useMock ? createMockWorld() : null;
+const world: IWorld = mock
+  ? mock
   : real!({
       mode: 'endless',
       map: 'ch1',
       difficulty: 'normal',
       skills: ['eraser_strike', 'bell', 'whiteout_zone', 'ruler_sweep', 'relocate', 'inspiration', 'magnifier', 'caffeine', 'scholarship'] as SkillId[],
     });
+const dev: MockDev | null = mock ? mock.dev : null;
 if (!useMock) (world.state as { gold: number }).gold = 99999;
 
 const session = new DevSession(world);
@@ -98,6 +100,41 @@ for (const s of world.state.skills) btn(`技能 ${s.id}`, () => {
 });
 btn('轴向 R', () => ui.set({ aimAxis: ui.state.aimAxis === 'row' ? 'col' : 'row' }));
 sep();
+// 文档 11：进化 / 主动能力
+function abilityKey(): void {
+  const uid = ui.state.selected;
+  if (uid === null) return;
+  const info = world.getTowerInfo(uid);
+  if (!info?.ability) return console.warn('不是神话塔');
+  if (info.ability.target === 'none') {
+    const r = session.command({ type: 'towerAbility', uid });
+    if (!r.ok) console.warn(r.reason);
+  } else ui.set({ abilityAiming: ui.state.abilityAiming === uid ? null : uid, aiming: null, build: null, pending: null });
+}
+btn('传奇 L', () => ui.state.selected !== null && dev?.makeLegend(ui.state.selected, Math.random() < 0.5 ? 'A' : 'B'));
+btn('进化 E', () => {
+  if (ui.state.selected === null) return;
+  const r = session.command({ type: 'evolve', uid: ui.state.selected });
+  if (!r.ok) console.warn(r.reason);
+});
+btn('能力 A', abilityKey);
+btn('拆除纸箱', () => {
+  const id = ui.state.spawnerSelected;
+  if (!id) return console.warn('先点一个纸箱');
+  const r = session.command({ type: 'demolishSpawner', id });
+  if (!r.ok) console.warn(r.reason);
+  else ui.set({ spawnerSelected: null });
+});
+btn('自动波', () => {
+  const aw = world.state.autoWave;
+  aw.enabled = !aw.enabled;
+  aw.started = aw.enabled && world.state.wave > 0;
+  aw.nextAt = null;
+});
+sep();
+// 文档 09：随机事件
+if (dev) for (const id of RANDOM_EVENT_IDS) btn(`事件 ${id}`, () => dev.triggerEvent(id));
+sep();
 btn('开波 ␣', () => session.command({ type: 'startWave' }));
 btn('速度 F', () => (session.speed = (((session.speed % 3) + 1) as 1 | 2 | 3)));
 btn('暂停 P', () => (session.paused = !session.paused));
@@ -123,6 +160,8 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === ' ') session.command({ type: 'startWave' });
   else if (e.key === 'p') session.paused = !session.paused;
   else if (e.key === 'f') session.speed = (((session.speed % 3) + 1) as 1 | 2 | 3);
+  else if (e.key === 'a') abilityKey();
+  else if (e.key === 'e' && ui.state.selected !== null) session.command({ type: 'evolve', uid: ui.state.selected });
   else if (e.key === 'u' && ui.state.selected !== null) session.command({ type: 'upgrade', uid: ui.state.selected, branch: 'B' });
   else if (e.key === 's' && ui.state.selected !== null) session.command({ type: 'sell', uid: ui.state.selected });
   else {

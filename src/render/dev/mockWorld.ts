@@ -16,7 +16,11 @@ import {
   type EnemyState,
   type GameEvent,
   type IWorld,
+  type PickupState,
   type PlaceCheck,
+  type RandomEventId,
+  type RandomEventState,
+  type SpawnerState,
   type ProjectileKind,
   type ProjectileState,
   type SkillState,
@@ -46,13 +50,32 @@ interface Proj extends ProjectileState {
   life: number;
 }
 
-export function createMockWorld(): IWorld {
+export interface MockDev {
+  triggerEvent(id: RandomEventId): void;
+  dropSpawner(): boolean;
+  /** 选中塔直接变成 Lv10（★2），再进化一次即成神话 */
+  makeLegend(uid: number, branch: 'A' | 'B'): void;
+}
+
+export function createMockWorld(): IWorld & { dev: MockDev } {
   const cols = GRID_COLS,
     rows = GRID_ROWS;
   const cells = new Uint8Array(cols * rows);
   const towerAt = new Int32Array(cols * rows);
   const dist = new Float32Array(cols * rows);
-  const spawns = [{ x: 5, y: 0 }, { x: 6, y: 0 }];
+  // 出生点：上边入口、左侧入口（侧边）、一个隐藏暗门
+  const spawners: SpawnerState[] = [
+    { id: 'north', kind: 'edge', cells: [{ x: 5, y: 0 }, { x: 6, y: 0 }], active: true },
+    { id: 'west', kind: 'edge', cells: [{ x: 0, y: 5 }, { x: 0, y: 6 }], active: true },
+    { id: 'east', kind: 'edge', cells: [{ x: 11, y: 9 }], active: false },
+    { id: 'hidden-1', kind: 'hidden', cells: [{ x: 8, y: 8 }], active: false },
+  ];
+  const spawns: { x: number; y: number }[] = [];
+  const refreshSpawns = () => {
+    spawns.length = 0;
+    for (const sp of spawners) if (sp.active) for (const c of sp.cells) spawns.push({ x: c.x, y: c.y });
+  };
+  refreshSpawns();
   const exits = [{ x: 5, y: 13 }, { x: 6, y: 13 }];
   const obstacles: WorldState['grid']['obstacles'] = [
     { kind: 'cup', x: 1, y: 2, w: 2, h: 2 },
@@ -61,9 +84,18 @@ export function createMockWorld(): IWorld {
     { kind: 'mouse', x: 10, y: 10, w: 1, h: 2 },
     { kind: 'palette', x: 8, y: 0, w: 3, h: 2 },
     { kind: 'paint', x: 3, y: 11, w: 2, h: 1 },
+    // 随机杂物（文档 09 §5）
+    { kind: 'eraser', x: 3, y: 4, w: 2, h: 1 },
+    { kind: 'pencilcup', x: 7, y: 10, w: 1, h: 1 },
+    { kind: 'sticky', x: 2, y: 6, w: 1, h: 1 },
+    { kind: 'phone', x: 7, y: 5, w: 1, h: 2 },
+    { kind: 'ruler', x: 7, y: 12, w: 3, h: 1 },
+    { kind: 'tape', x: 11, y: 6, w: 1, h: 1 },
+    { kind: 'stapler', x: 0, y: 12, w: 2, h: 1 },
+    { kind: 'clip', x: 11, y: 3, w: 1, h: 1 },
   ];
   for (const o of obstacles) for (let x = o.x; x < o.x + o.w; x++) for (let y = o.y; y < o.y + o.h; y++) cells[y * cols + x] = CellKind.Obstacle;
-  for (const s of spawns) cells[s.y * cols + s.x] = CellKind.Spawn;
+  for (const sp of spawners) for (const c of sp.cells) cells[c.y * cols + c.x] = CellKind.Spawn;
   for (const e of exits) cells[e.y * cols + e.x] = CellKind.Exit;
 
   const skills: SkillState[] = [
@@ -76,6 +108,7 @@ export function createMockWorld(): IWorld {
     { id: 'inspiration', level: 1, cd: 0, cdMax: 5, target: 'tower', ready: true },
     { id: 'magnifier', level: 1, cd: 0, cdMax: 5, target: 'circle', radius: 2, ready: true },
     { id: 'scholarship', level: 1, cd: 0, cdMax: 5, target: 'none', ready: true },
+    { id: 'seal_tape', level: 1, cd: 0, cdMax: 5, target: 'spawner', ready: true },
   ];
 
   const state: WorldState = {
@@ -100,9 +133,15 @@ export function createMockWorld(): IWorld {
     perks: [],
     perkChoices: null,
     perkRerollCost: 0,
-    nextWave: { wave: 1, tags: [], groups: [], earlyBonus: 0 },
+    nextWave: { wave: 1, tags: [], groups: [], earlyBonus: 0 },  // 由 makePreview() 填充
     unlockedTowers: ['wall', 'pencil', 'stapler', 'glue', 'lamp', 'compass', 'eraser', 'ruler', 'pen', 'calculator', 'piggy'],
     caffeineUntil: 0,
+    spawners,
+    events: [],
+    eventLog: [],
+    pickups: [],
+    crateChoice: null,
+    autoWave: { enabled: false, started: false, nextAt: null, deadline: null, blocked: false },
     bossUids: [],
     stats: { kills: 0, leaks: 0, goldEarned: 0, goldSpent: 0, towersBuilt: 0, skillsCast: 0 },
   };
@@ -111,7 +150,7 @@ export function createMockWorld(): IWorld {
   let uid = 1;
   const projs: Proj[] = [];
   const cool = new Map<number, number>();
-  const spawnQueue: { id: EnemyId; at: number; elite?: boolean; affixes?: AffixId[]; group?: number }[] = [];
+  const spawnQueue: { id: EnemyId; at: number; elite?: boolean; affixes?: AffixId[]; group?: number; spawner?: string }[] = [];
   const target = new Map<number, { x: number; y: number }>();
 
   const blocked = (k: number, extra = -1) => k === extra || cells[k] === CellKind.Obstacle || cells[k] === CellKind.Tower;
@@ -193,12 +232,13 @@ export function createMockWorld(): IWorld {
     return { ok: true };
   }
 
-  function tierOf(level: number): 1 | 2 | 3 | 4 {
+  function tierOf(level: number): 1 | 2 | 3 | 4 | 5 {
     return level >= 10 ? 4 : level >= 7 ? 3 : level >= 4 ? 2 : 1;
   }
 
-  function spawnEnemy(id: EnemyId, opt: { elite?: boolean; affixes?: AffixId[]; group?: number; x?: number; y?: number } = {}): EnemyState {
-    const s = spawns[Math.floor(Math.random() * spawns.length)];
+  function spawnEnemy(id: EnemyId, opt: { elite?: boolean; affixes?: AffixId[]; group?: number; x?: number; y?: number; spawner?: string } = {}): EnemyState {
+    const from = spawners.find((q) => q.id === opt.spawner && q.active) ?? spawners.filter((q) => q.active)[Math.floor(Math.random() * spawners.filter((q) => q.active).length)];
+    const s = from ? from.cells[Math.floor(Math.random() * from.cells.length)] : { x: 5, y: 0 };
     const boss = id.startsWith('boss');
     const flying = id === 'plane' || id === 'moth';
     const hp = boss ? 800 : 30 * (opt.elite ? 2.5 : 1) * (opt.group ?? 1);
@@ -266,9 +306,11 @@ export function createMockWorld(): IWorld {
     for (let i = 0; i < n; i++) {
       const id = roster[(i + state.wave) % roster.length];
       const elite = i % 7 === 3;
+      const act = spawners.filter((q) => q.active && !(q.warnUntil !== undefined && q.warnUntil > state.time));
       spawnQueue.push({
         id,
         at: t,
+        spawner: act.length ? act[i % act.length].id : undefined,
         elite,
         affixes: elite ? (['hard', 'swift', 'regen', 'shield', 'rally'] as AffixId[]).slice(0, 1 + (i % 3)) : [],
         group: i % 11 === 5 ? 4 : 1,
@@ -277,12 +319,405 @@ export function createMockWorld(): IWorld {
     }
     const bosses: EnemyId[] = ['boss_coffee', 'boss_shredder', 'boss_inkbottle', 'boss_alarm'];
     spawnQueue.push({ id: bosses[(state.wave - 1) % 4], at: t + 1 });
+    makePreview();
   }
+
+  /** 下一波预告：每个开放出生点一两组 */
+  function makePreview(): void {
+    const roster: EnemyId[] = ['crumb', 'inkdot', 'plane', 'ant', 'sticky', 'moth', 'paperclip'];
+    const groups: WorldState['nextWave']['groups'] = [];
+    let k = state.wave;
+    for (const sp of spawners) {
+      if (!sp.active && sp.kind !== 'drop') continue;
+      const n = sp.kind === 'drop' ? 1 : 2;
+      for (let i = 0; i < n; i++) {
+        const enemy = sp.kind === 'drop' && sp.icon ? sp.icon : roster[k++ % roster.length];
+        groups.push({ enemy, count: 3 + ((k * 3) % 7), elite: i === 1 ? 1 : 0, affixes: [], spawner: sp.id });
+      }
+    }
+    state.nextWave = { wave: state.wave + 1, tags: [], groups, earlyBonus: 10 };
+  }
+
+  // ───────── 文档 09：空降出生点 / 随机事件 / 掉落物 / 自动波次 ─────────
+
+  let dropN = 0;
+  function emptyCell(minDistExit = 5): { x: number; y: number } | null {
+    for (let tries = 0; tries < 200; tries++) {
+      const x = 1 + Math.floor(Math.random() * (cols - 2)),
+        y = 2 + Math.floor(Math.random() * (rows - 5));
+      const k = y * cols + x;
+      if (cells[k] !== CellKind.Empty) continue;
+      if (exits.some((e) => Math.abs(e.x - x) + Math.abs(e.y - y) < minDistExit)) continue;
+      let nearTower = false;
+      for (const t of state.towers.values()) if (Math.abs(t.cx - x) <= 1 && Math.abs(t.cy - y) <= 1) nearTower = true;
+      if (nearTower) continue;
+      const tmp = new Float32Array(cols * rows);
+      if (!flow(k, tmp)) continue;
+      return { x, y };
+    }
+    return null;
+  }
+
+  function dropSpawner(): boolean {
+    const c = emptyCell();
+    if (!c) return false;
+    const icons: EnemyId[] = ['ant', 'crumb', 'inkdot', 'sticky', 'paperclip'];
+    const sp: SpawnerState = {
+      id: `drop-${++dropN}`,
+      kind: 'drop',
+      cells: [c],
+      active: false,
+      warnUntil: state.time + 5,
+      expiresAfterWave: state.wave + 2,
+      demolishCost: 40 + 5 * state.wave,
+      icon: icons[dropN % icons.length],
+    };
+    spawners.push(sp);
+    cells[c.y * cols + c.x] = CellKind.Spawn;
+    state.grid.version++;
+    events.push({ type: 'spawnerDrop', id: sp.id, x: c.x, y: c.y, phase: 'warn' });
+    return true;
+  }
+
+  function closeSpawner(id: string, phase: 'close' | 'demolish'): boolean {
+    const i = spawners.findIndex((q) => q.id === id && q.kind === 'drop');
+    if (i < 0) return false;
+    const sp = spawners[i];
+    spawners.splice(i, 1);
+    for (const c of sp.cells) cells[c.y * cols + c.x] = CellKind.Empty;
+    refreshSpawns();
+    state.grid.version++;
+    flow();
+    events.push({ type: 'spawnerDrop', id: sp.id, x: sp.cells[0].x, y: sp.cells[0].y, phase });
+    makePreview();
+    return true;
+  }
+
+  const EVENT_INFO: Record<RandomEventId, { name: string; tone: RandomEventState['tone']; warn: number; dur: number }> = {
+    drop_box: { name: '空降纸箱', tone: 'bad', warn: 0, dur: 0 },
+    lamp_outage: { name: '台灯跳闸', tone: 'bad', warn: 3, dur: 8 },
+    fan: { name: '风扇转起来', tone: 'bad', warn: 3, dur: 12 },
+    books_fall: { name: '书本倒下', tone: 'bad', warn: 4, dur: 0 },
+    homework_check: { name: '作业检查', tone: 'bad', warn: 0, dur: 20 },
+    coffee_spill: { name: '咖啡打翻', tone: 'bad', warn: 3, dur: 6 },
+    reinforce: { name: '敌军增援', tone: 'bad', warn: 0, dur: 0 },
+    coins: { name: '掉落零花钱', tone: 'good', warn: 0, dur: 0 },
+    inspiration: { name: '灵感闪现', tone: 'good', warn: 0, dur: 0 },
+    nap: { name: '午休铃', tone: 'good', warn: 0, dur: 4 },
+    praise: { name: '老师表扬', tone: 'good', warn: 0, dur: 15 },
+    supply_crate: { name: '补给箱', tone: 'good', warn: 0, dur: 0 },
+    tidy: { name: '桌面整理', tone: 'neutral', warn: 0, dur: 0 },
+    wind: { name: '窗外起风', tone: 'neutral', warn: 0, dur: 15 },
+    secret_door: { name: '暗门', tone: 'neutral', warn: 0, dur: 0 },
+  };
+  let evUid = 1;
+
+  function triggerEvent(id: RandomEventId): void {
+    if (id === 'drop_box') {
+      dropSpawner();
+      return;
+    }
+    const info = EVENT_INFO[id];
+    const now = state.time;
+    let area: RandomEventState['area'];
+    if (id === 'books_fall') {
+      for (let tries = 0; tries < 100 && !area; tries++) {
+        const x = 1 + Math.floor(Math.random() * (cols - 4)),
+          y = 2 + Math.floor(Math.random() * (rows - 5));
+        let ok = true;
+        for (let i = 0; i < 3; i++) if (cells[y * cols + x + i] !== CellKind.Empty && cells[y * cols + x + i] !== CellKind.Tower) ok = false;
+        if (ok) area = { x, y, w: 3, h: 1 };
+      }
+    } else if (id === 'coffee_spill') {
+      area = { x: 1 + Math.floor(Math.random() * (cols - 4)), y: 2 + Math.floor(Math.random() * (rows - 6)), w: 3, h: 3 };
+    } else if (id === 'inspiration') {
+      const ts = [...state.towers.values()].filter((t) => t.id !== 'wall');
+      const t = ts[Math.floor(Math.random() * ts.length)];
+      if (t) area = { x: t.cx, y: t.cy, w: 1, h: 1 };
+    }
+    const e: RandomEventState = {
+      uid: evUid++,
+      id,
+      name: info.name,
+      desc: id === 'wind' ? '风向左吹，弹道偏移' : info.name,
+      tone: info.tone,
+      phase: info.warn > 0 ? 'warn' : 'active',
+      startsAt: now + info.warn,
+      endsAt: now + info.warn + info.dur,
+      area,
+    };
+    state.events.push(e);
+    events.push({ type: 'randomEvent', uid: e.uid, id, phase: info.warn > 0 ? 'warn' : 'start', name: e.name, desc: e.desc, tone: e.tone, area });
+    if (info.warn <= 0) startEvent(e);
+  }
+
+  function startEvent(e: RandomEventState): void {
+    const now = state.time;
+    if (e.phase === 'warn') {
+      e.phase = 'active';
+      events.push({ type: 'randomEvent', uid: e.uid, id: e.id, phase: 'start', name: e.name, desc: e.desc, tone: e.tone, area: e.area });
+    }
+    state.eventLog.push({ wave: state.wave, id: e.id, name: e.name });
+    switch (e.id) {
+      case 'books_fall': {
+        const a = e.area;
+        if (!a) break;
+        obstacles.push({ kind: 'books', x: a.x, y: a.y, w: 3, h: 1 });
+        for (let i = 0; i < 3; i++) {
+          const k = a.y * cols + a.x + i;
+          const tu = towerAt[k];
+          cells[k] = CellKind.Obstacle;
+          towerAt[k] = 0;
+          if (tu) {
+            const t = state.towers.get(tu)!;
+            let dest: { x: number; y: number } | null = null;
+            for (let r = 1; r < 4 && !dest; r++)
+              for (let dy = -r; dy <= r && !dest; dy++)
+                for (let dx = -r; dx <= r && !dest; dx++) {
+                  const nx = t.cx + dx,
+                    ny = t.cy + dy;
+                  if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+                  if (cells[ny * cols + nx] === CellKind.Empty) dest = { x: nx, y: ny };
+                }
+            if (dest) {
+              const fx0 = t.cx,
+                fy0 = t.cy;
+              t.cx = dest.x;
+              t.cy = dest.y;
+              cells[dest.y * cols + dest.x] = CellKind.Tower;
+              towerAt[dest.y * cols + dest.x] = t.uid;
+              events.push({ type: 'towerMoved', uid: t.uid, fromX: fx0, fromY: fy0, cx: t.cx, cy: t.cy });
+            } else state.towers.delete(tu);
+          }
+        }
+        state.grid.version++;
+        flow();
+        updateCombos();
+        events.push({ type: 'terrainChanged', reason: 'event' });
+        break;
+      }
+      case 'coffee_spill': {
+        const a = e.area!;
+        state.zones.push({ uid: uid++, kind: 'coffee', shape: 'rect', x: a.x, y: a.y, w: a.w, h: a.h, until: now + 6, createdAt: now });
+        for (const t of state.towers.values())
+          if (t.cx >= a.x && t.cx < a.x + a.w && t.cy >= a.y && t.cy < a.y + a.h) {
+            t.disabledUntil = now + 6;
+            events.push({ type: 'towerDisabled', uid: t.uid, until: t.disabledUntil });
+          }
+        break;
+      }
+      case 'nap':
+        for (const en of state.enemies) if (!en.flying) en.stunUntil = now + 4;
+        break;
+      case 'homework_check':
+        for (const en of state.enemies) en.armor += 3;
+        break;
+      case 'coins':
+        for (let i = 0; i < 4; i++) {
+          const c = emptyCell(2);
+          if (!c) continue;
+          const p: PickupState = { uid: uid++, kind: 'coin', x: c.x + 0.5, y: c.y + 0.5, until: now + 12, value: 8 };
+          state.pickups.push(p);
+          events.push({ type: 'pickup', uid: p.uid, kind: 'coin', x: p.x, y: p.y, phase: 'spawn', value: p.value });
+        }
+        break;
+      case 'supply_crate': {
+        const c = emptyCell(2);
+        if (!c) break;
+        const p: PickupState = { uid: uid++, kind: 'crate', x: c.x + 0.5, y: c.y + 0.5, until: now + 15, value: 0 };
+        state.pickups.push(p);
+        events.push({ type: 'pickup', uid: p.uid, kind: 'crate', x: p.x, y: p.y, phase: 'spawn' });
+        break;
+      }
+      case 'inspiration': {
+        const a = e.area;
+        const t = a ? state.towers.get(towerAt[a.y * cols + a.x]) : undefined;
+        if (t && t.level < 9) levelUp(t, true);
+        break;
+      }
+      case 'tidy': {
+        const movable = obstacles.filter((o) => o.w * o.h === 1);
+        const o = movable[Math.floor(Math.random() * movable.length)];
+        if (!o) break;
+        cells[o.y * cols + o.x] = CellKind.Empty;
+        const c = emptyCell(2);
+        if (!c) {
+          cells[o.y * cols + o.x] = CellKind.Obstacle;
+          break;
+        }
+        o.x = c.x;
+        o.y = c.y;
+        cells[c.y * cols + c.x] = CellKind.Obstacle;
+        state.grid.version++;
+        flow();
+        events.push({ type: 'terrainChanged', reason: 'tidy' });
+        break;
+      }
+      case 'secret_door': {
+        const h = spawners.find((q) => q.kind === 'hidden');
+        if (!h) break;
+        h.active = true;
+        h.expiresAfterWave = state.wave + 3;
+        refreshSpawns();
+        state.grid.version++;
+        makePreview();
+        break;
+      }
+      case 'reinforce':
+        for (let i = 0; i < 6; i++) spawnQueue.push({ id: 'crumb', at: now + i * 0.3 });
+        break;
+      default:
+        break;
+    }
+    if (e.endsAt <= now) endEvent(e);
+  }
+
+  function endEvent(e: RandomEventState): void {
+    if (e.phase === 'done') return;
+    e.phase = 'done';
+    events.push({ type: 'randomEvent', uid: e.uid, id: e.id, phase: 'end', name: e.name, desc: e.desc, tone: e.tone, area: e.area });
+    if (e.id === 'homework_check') for (const en of state.enemies) en.armor = Math.max(0, en.armor - 3);
+  }
+
+  function tickDynamic(): void {
+    const now = state.time;
+    // 空降落地
+    for (const sp of spawners) {
+      if (sp.kind !== 'drop' || sp.active || sp.warnUntil === undefined || sp.warnUntil > now) continue;
+      sp.active = true;
+      refreshSpawns();
+      state.grid.version++;
+      flow();
+      events.push({ type: 'spawnerDrop', id: sp.id, x: sp.cells[0].x, y: sp.cells[0].y, phase: 'land' });
+      events.push({ type: 'terrainChanged', reason: 'drop' });
+      // 推开附近敌人
+      for (const en of state.enemies) {
+        const dx = en.x - (sp.cells[0].x + 0.5),
+          dy = en.y - (sp.cells[0].y + 0.5);
+        const d = Math.hypot(dx, dy);
+        if (d < 1.5 && d > 0.01) {
+          en.x += (dx / d) * 0.8;
+          en.y += (dy / d) * 0.8;
+        }
+      }
+      makePreview();
+    }
+    // 事件阶段
+    for (const e of state.events) {
+      if (e.phase === 'warn' && e.startsAt <= now) startEvent(e);
+      else if (e.phase === 'active' && e.endsAt <= now) endEvent(e);
+    }
+    state.events = state.events.filter((e) => e.phase !== 'done' || now - e.endsAt < 30);
+    // 掉落物过期
+    for (let i = state.pickups.length - 1; i >= 0; i--) {
+      const p = state.pickups[i];
+      if (p.until > now) continue;
+      state.pickups.splice(i, 1);
+      events.push({ type: 'pickup', uid: p.uid, kind: p.kind, x: p.x, y: p.y, phase: 'expire' });
+    }
+    // 自动波次
+    const aw = state.autoWave;
+    if (aw.enabled && aw.started && state.phase === 'build') {
+      if (aw.nextAt === null) aw.nextAt = now + 6;
+      const left = aw.nextAt - now;
+      for (const s of [3, 2, 1]) if (left <= s && left + DT > s) events.push({ type: 'autoWave', secondsLeft: s });
+      if (left <= 0) {
+        aw.nextAt = null;
+        startWave();
+      }
+    }
+    // 能力冷却
+    for (const t of state.towers.values()) if (t.abilityCd > 0) t.abilityCd = Math.max(0, t.abilityCd - DT);
+  }
+
+  // ───────── 文档 11：进化 / 主动能力 ─────────
+
+  type AbTarget = NonNullable<TowerInfo['ability']>['target'];
+  const AB_TARGET: Record<string, AbTarget> = {
+    pencil_A: 'none', pencil_B: 'none', stapler_A: 'direction', stapler_B: 'none', glue_A: 'none', glue_B: 'rect3',
+    lamp_A: 'none', lamp_B: 'none', compass_A: 'none', compass_B: 'enemy', eraser_A: 'none', eraser_B: 'enemy',
+    ruler_A: 'axis', ruler_B: 'enemy', pen_A: 'circle', pen_B: 'none', calculator_A: 'none', calculator_B: 'tower',
+    piggy_A: 'none', piggy_B: 'none',
+  };
+
+  function evolve(t: TowerState): CommandResult {
+    if (t.id === 'wall') return { ok: false, reason: '书本墙不能进化' };
+    if (t.level < 10) return { ok: false, reason: '需要先升到 Lv10' };
+    if (t.stars >= 3) return { ok: false, reason: '已满星' };
+    t.stars = (t.stars + 1) as 0 | 1 | 2 | 3;
+    const mythic = t.stars === 3;
+    if (mythic) t.tier = 5;
+    t.evoXp = 0;
+    t.evoXpNext = t.stars >= 3 ? 0 : [2000, 4000, 7000][t.stars];
+    events.push({ type: 'evolve', uid: t.uid, stars: t.stars, mythic });
+    return { ok: true };
+  }
+
+  function towerAbility(cmd: Extract<Command, { type: 'towerAbility' }>): CommandResult {
+    const t = state.towers.get(cmd.uid);
+    if (!t || t.stars < 3) return { ok: false, reason: '只有神话塔有主动能力' };
+    if (t.abilityCd > 0) return { ok: false, reason: '能力冷却中' };
+    const key = `${t.id}_${t.branch ?? 'A'}`;
+    const now = state.time;
+    t.abilityCd = 8;
+    const x = cmd.x,
+      y = cmd.y;
+    switch (key) {
+      case 'glue_B':
+        state.zones.push({ uid: uid++, kind: 'lava', shape: 'rect', x: (x ?? 0) - 1.5, y: (y ?? 0) - 1.5, w: 3, h: 3, until: now + 8, createdAt: now });
+        break;
+      case 'pen_A':
+        state.zones.push({ uid: uid++, kind: 'inkcross', shape: 'circle', x: x ?? 0, y: y ?? 0, r: 1.5, until: now + 6, createdAt: now });
+        break;
+      case 'eraser_A': {
+        const p = pathsWith(dist)[0] ?? [];
+        for (const c of p) state.zones.push({ uid: uid++, kind: 'fullcorrect', shape: 'rect', x: c.x + 0.1, y: c.y + 0.1, w: 0.8, h: 0.8, until: now + 6, createdAt: now });
+        break;
+      }
+      case 'compass_B':
+      case 'eraser_B':
+      case 'ruler_B': {
+        const e = state.enemies.find((q) => q.uid === cmd.targetUid);
+        if (!e) return { ok: false, reason: '目标不见了' };
+        if (key === 'compass_B') damage(e, (e.maxHp - e.hp) * 0.2 + 10, false, 'true');
+        if (key === 'eraser_B') e.affixes = [];
+        if (key === 'ruler_B') e.markedUntil = now + 10;
+        break;
+      }
+      case 'ruler_A':
+        for (const e of state.enemies)
+          if (!e.flying && (cmd.axis === 'row' ? Math.floor(e.y) === cmd.index : Math.floor(e.x) === cmd.index)) e.y = Math.max(0.5, e.y - 2);
+        break;
+      case 'pen_B':
+        for (const e of state.enemies) if (e.markedUntil > now) damage(e, e.maxHp * 0.1, false, 'true');
+        break;
+      case 'glue_A':
+        for (const e of state.enemies) if (!e.flying) e.rootUntil = now + 2;
+        break;
+      case 'calculator_B': {
+        const o = state.towers.get(cmd.targetUid ?? -1);
+        if (!o) return { ok: false, reason: '请选择一座塔' };
+        if (o.level < 9) levelUp(o, false);
+        break;
+      }
+      case 'piggy_A':
+        state.gold += 60;
+        events.push({ type: 'gold', amount: 60, x: t.cx + 0.5, y: t.cy + 0.5, reason: 'piggy' });
+        break;
+      default:
+        break;
+    }
+    events.push({ type: 'towerAbility', uid: t.uid, ability: key, x, y, r: key === 'stapler_B' ? 2 : 1.5, angle: cmd.angle, axis: cmd.axis, index: cmd.index, targetUid: cmd.targetUid });
+    return { ok: true };
+  }
+
+  makePreview();
 
   function step(): void {
     state.tick++;
     state.time += DT;
     const now = state.time;
+    tickDynamic();
     // 生成
     for (let i = spawnQueue.length - 1; i >= 0; i--) {
       if (spawnQueue[i].at <= now) {
@@ -479,6 +914,7 @@ export function createMockWorld(): IWorld {
     if (state.phase === 'wave' && spawnQueue.length === 0 && state.enemies.length === 0) {
       state.phase = 'build';
       events.push({ type: 'waveEnd', wave: state.wave, bonus: 10, interest: 0, piggy: 0 });
+      for (const sp of [...spawners]) if (sp.kind === 'drop' && sp.expiresAfterWave !== undefined && sp.expiresAfterWave <= state.wave) closeSpawner(sp.id, 'close');
     }
   }
 
@@ -500,7 +936,7 @@ export function createMockWorld(): IWorld {
         if (!chk.ok) return chk;
         const k = cmd.cy * cols + cmd.cx;
         const t: TowerState = {
-          uid: uid++, id: cmd.tower, cx: cmd.cx, cy: cmd.cy, level: 1, tier: 1, branch: null, xp: 0, xpNext: 30, mastery: 0,
+          uid: uid++, id: cmd.tower, cx: cmd.cx, cy: cmd.cy, level: 1, tier: 1, branch: null, xp: 0, xpNext: 30, stars: 0, evoXp: 0, evoXpNext: 0, abilityCd: 0,
           invested: COST[cmd.tower], targetMode: 'first', angle: -Math.PI / 2, lastFire: -1, disabledUntil: 0, placedAt: now,
           undoUntil: now + 5, kills: 0, damage: 0, comboWith: [],
         };
@@ -537,8 +973,38 @@ export function createMockWorld(): IWorld {
         return { ok: true };
       }
       case 'startWave':
+        if (state.autoWave.enabled) {
+          state.autoWave.started = true;
+          state.autoWave.nextAt = null;
+        }
         startWave();
         return { ok: true };
+      case 'collect': {
+        const i = state.pickups.findIndex((p) => p.uid === cmd.uid);
+        if (i < 0) return { ok: false, reason: '已经不见了' };
+        const p = state.pickups.splice(i, 1)[0];
+        if (p.kind === 'coin') {
+          state.gold += p.value;
+          events.push({ type: 'gold', amount: p.value, reason: 'perk' });
+        } else state.crateChoice = { uid: p.uid, options: [{ id: 'gold', name: '金币', desc: '+50' }] };
+        events.push({ type: 'pickup', uid: p.uid, kind: p.kind, x: p.x, y: p.y, phase: 'collect', value: p.value });
+        return { ok: true };
+      }
+      case 'demolishSpawner': {
+        const sp = spawners.find((q) => q.id === cmd.id);
+        if (!sp || sp.kind !== 'drop') return { ok: false, reason: '只能拆除空降纸箱' };
+        const cost = sp.demolishCost ?? 0;
+        if (state.gold < cost) return { ok: false, reason: '金币不够' };
+        state.gold -= cost;
+        closeSpawner(sp.id, 'demolish');
+        return { ok: true };
+      }
+      case 'evolve': {
+        const t = state.towers.get(cmd.uid);
+        return t ? evolve(t) : { ok: false, reason: '没有这座塔' };
+      }
+      case 'towerAbility':
+        return towerAbility(cmd);
       case 'cast': {
         const s = skills.find((q) => q.id === cmd.skill);
         if (!s) return { ok: false, reason: '没有这个技能' };
@@ -554,6 +1020,12 @@ export function createMockWorld(): IWorld {
         if (cmd.skill === 'magnifier') state.zones.push({ uid: uid++, kind: 'magnifier', shape: 'circle', x: cmd.x ?? 0, y: cmd.y ?? 0, r: 2, until: now + 6, createdAt: now });
         if (cmd.skill === 'ruler_sweep')
           for (const e of state.enemies) if (cmd.axis === 'row' ? Math.floor(e.y) === cmd.cy : Math.floor(e.x) === cmd.cx) damage(e, 40);
+        if (cmd.skill === 'seal_tape') {
+          if (!cmd.spawner || !closeSpawner(cmd.spawner, 'close')) {
+            s.cd = 0;
+            return { ok: false, reason: '请选择一个空降纸箱' };
+          }
+        }
         if (cmd.skill === 'scholarship') {
           state.gold += 50;
           events.push({ type: 'gold', amount: 50, x: 6, y: 7, reason: 'skill' });
@@ -600,6 +1072,16 @@ export function createMockWorld(): IWorld {
       }
   }
 
+  function makeLegend(id: number, branch: 'A' | 'B'): void {
+    const t = state.towers.get(id);
+    if (!t || t.id === 'wall') return;
+    t.level = 10;
+    t.branch = branch;
+    t.tier = 4;
+    t.stars = 2;
+    events.push({ type: 'levelUp', uid: t.uid, level: 10, tier: 4, tierChanged: true, byXp: false });
+  }
+
   return {
     state,
     log: [],
@@ -628,7 +1110,16 @@ export function createMockWorld(): IWorld {
       if (!t) return null;
       return {
         uid: t.uid, id: t.id, name: t.id, level: t.level, maxLevel: 10, tier: t.tier, tierName: '', branch: t.branch,
-        xp: t.xp, xpNext: t.xpNext, xpCapped: false, mastery: 0, stats: [], traits: [],
+        xp: t.xp, xpNext: t.xpNext, xpCapped: false, stats: [], traits: [],
+        stars: t.stars, evoXp: t.evoXp, evoXpNext: t.evoXpNext, evolveCost: t.level >= 10 && t.stars < 3 && t.id !== 'wall' ? 200 : null,
+        evolveDiscount: 0, canAffordEvolve: true, evoTraits: [],
+        ability:
+          t.stars >= 3
+            ? {
+                id: `${t.id}_${t.branch}`, name: '能力', desc: '', cd: t.abilityCd, cdMax: 8, ready: t.abilityCd <= 0,
+                target: AB_TARGET[`${t.id}_${t.branch ?? 'A'}`] ?? 'none', radius: 1.5,
+              }
+            : undefined,
         range: RANGE[t.id] + t.level * 0.06, innerRange: t.id === 'compass' ? 0.8 : undefined, auraRange: t.id === 'calculator' ? 2 : undefined,
         upgradeCost: 10, upgradeDiscount: 0, needsBranch: t.level === 9, canAffordUpgrade: true, sellValue: 10, refundRate: 0.7,
         canUndo: false, undoRemaining: 0, targetMode: 'first', targetModes: ['first'], kills: 0, damage: 0,
@@ -640,5 +1131,6 @@ export function createMockWorld(): IWorld {
     enemyName(id) {
       return id;
     },
+    dev: { triggerEvent, dropSpawner, makeLegend },
   };
 }

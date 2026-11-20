@@ -1,11 +1,26 @@
-import type { SkillId, SkillState, WorldState } from '../../core/types';
+import type { SkillId, SkillState, TowerState, WorldState } from '../../core/types';
 import { ui } from '../../game/UiStore';
-import { skillIcon } from '../assets';
+import { abilityIcon, skillIcon } from '../assets';
 import { audio } from '../audio';
-import { SKILL_META } from '../coreMeta';
+import { SKILL_META, TOWER_META } from '../coreMeta';
 import { h, img, setText, toggle } from '../dom';
 import { G } from '../icons';
+import { castTowerAbility } from './abilities';
 import { fmtSec, SKILL_KEYS, type GameCtx } from './context';
+
+interface AbilityBtn {
+  uid: number;
+  el: HTMLButtonElement;
+  sweep: HTMLElement;
+  secs: HTMLElement;
+  charges: HTMLElement | null;
+  cdMax: number;
+  maxCharges: number | undefined;
+  lastPct: number;
+}
+
+/** 技能栏右侧「塔能力」区最多显示的神话塔数（文档 11 §1.4） */
+const MAX_TOWER_ABILITIES = 4;
 
 interface Btn {
   wrap: HTMLElement;
@@ -23,9 +38,18 @@ export class SkillBar {
   private btns = new Map<SkillId, Btn>();
   private order: SkillId[] = [];
   private sig = '';
+  private list: HTMLElement;
+  private strip: HTMLElement;
+  private stripList: HTMLElement;
+  private abil: AbilityBtn[] = [];
+  private abilSig = '';
 
   constructor(private ctx: GameCtx) {
-    this.el = h('div.skillbar', { attrs: { role: 'toolbar', 'aria-label': '技能' } });
+    this.list = h('div.skill-list');
+    this.stripList = h('div.ability-list');
+    this.strip = h('div.ability-strip', { attrs: { 'aria-label': '塔能力' } }, h('span.strip-title', null, '塔能力'), this.stripList);
+    this.strip.hidden = true;
+    this.el = h('div.skillbar', { attrs: { role: 'toolbar', 'aria-label': '技能' } }, this.list, this.strip);
   }
 
   buttonFor(id: SkillId): HTMLElement | null {
@@ -63,8 +87,30 @@ export class SkillBar {
       ui.set({ aiming: null, relocateFrom: null });
       return;
     }
+    if (s.target === 'spawner') {
+      // 封箱胶带：已点选空降点 / 场上只有一个时直接释放
+      const drops = this.ctx.world.state.spawners.filter((sp) => sp.kind === 'drop');
+      const chosen = ui.state.spawnerSelected !== null && drops.some((d) => d.id === ui.state.spawnerSelected) ? ui.state.spawnerSelected : drops.length === 1 ? drops[0].id : null;
+      if (drops.length === 0) {
+        audio.play('error');
+        this.ctx.toast('场上没有空降出生点', 'warn');
+        return;
+      }
+      if (chosen !== null) {
+        const r = this.ctx.cmd({ type: 'cast', skill: id, spawner: chosen });
+        if (r.ok) ui.set({ aiming: null, spawnerSelected: null });
+        return;
+      }
+    }
     audio.play('select');
-    ui.set({ aiming: id, build: null, relocateFrom: null, pending: null, selected: s.target === 'tower' || s.target === 'tower+cell' ? ui.state.selected : null });
+    ui.set({
+      aiming: id,
+      build: null,
+      relocateFrom: null,
+      pending: null,
+      abilityAiming: null,
+      selected: s.target === 'tower' || s.target === 'tower+cell' ? ui.state.selected : null,
+    });
   }
 
   update(st: WorldState): void {
@@ -92,6 +138,67 @@ export class SkillBar {
       }
       b.wasReady = s.ready;
     }
+    this.updateAbilities(st);
+  }
+
+  // ───────────── 塔能力 ─────────────
+
+  private updateAbilities(st: WorldState): void {
+    const mythic: TowerState[] = [];
+    for (const t of st.towers.values()) if (t.stars === 3) mythic.push(t);
+    mythic.sort((a, b) => a.uid - b.uid);
+    const shown = mythic.slice(0, MAX_TOWER_ABILITIES);
+    const sig = shown.map((t) => t.uid).join(',');
+    if (sig !== this.abilSig) this.rebuildAbilities(shown, sig);
+    for (const b of this.abil) {
+      const t = st.towers.get(b.uid);
+      if (!t) continue;
+      const cd = Math.max(0, t.abilityCd ?? 0);
+      const charges = t.abilityCharges;
+      const charged = b.maxCharges !== undefined;
+      const ready = charged ? (charges ?? 0) > 0 : cd <= 0;
+      let pct = 0;
+      if (!ready && !charged && b.cdMax > 0) pct = Math.max(0, Math.min(1, cd / b.cdMax));
+      if (Math.abs(pct - b.lastPct) > 0.002) {
+        b.lastPct = pct;
+        b.sweep.style.setProperty('--cd', `${(pct * 360).toFixed(1)}deg`);
+      }
+      setText(b.secs, !ready && !charged && cd > 0 ? fmtSec(cd) : '');
+      if (b.charges) setText(b.charges, `${charges ?? 0}/${b.maxCharges ?? 0}`);
+      toggle(b.el, 'ready', ready);
+      toggle(b.el, 'cooling', !ready);
+      toggle(b.el, 'aiming', ui.state.abilityAiming === b.uid);
+    }
+  }
+
+  private rebuildAbilities(towers: TowerState[], sig: string): void {
+    this.abil = [];
+    this.stripList.replaceChildren();
+    for (const t of towers) {
+      const info = this.ctx.world.getTowerInfo(t.uid);
+      const ab = info?.ability;
+      if (!info || !ab) continue;
+      const sweep = h('span.cd-sweep');
+      const secs = h('span.cd-secs');
+      const charges = ab.maxCharges !== undefined ? h('span.charges') : null;
+      const el = h<HTMLButtonElement>(
+        'button.skill-btn.ability-btn',
+        {
+          title: `${ab.name} · ${TOWER_META[t.id]?.name ?? t.id}（${info.tierName}）\n${ab.desc}`,
+          attrs: { 'aria-label': ab.name },
+          onclick: () => castTowerAbility(this.ctx, t.uid),
+        },
+        img(abilityIcon(t.id, t.branch), 'ico'),
+        sweep,
+        secs,
+        charges,
+      );
+      this.stripList.appendChild(el);
+      this.abil.push({ uid: t.uid, el, sweep, secs, charges, cdMax: ab.cdMax, maxCharges: ab.maxCharges, lastPct: -1 });
+    }
+    // 能力信息还没就绪时下次重试
+    this.abilSig = this.abil.length === towers.length ? sig : '';
+    this.strip.hidden = this.abil.length === 0;
   }
 
   syncAiming(): void {
@@ -110,7 +217,7 @@ export class SkillBar {
 
   private rebuild(skills: SkillState[]): void {
     this.sig = skills.map((s) => s.id).join(',');
-    this.el.replaceChildren();
+    this.list.replaceChildren();
     this.btns.clear();
     this.order = skills.map((s) => s.id);
     skills.forEach((s, i) => {
@@ -143,7 +250,7 @@ export class SkillBar {
             })
           : null;
       const wrap = h('div.skill-wrap', null, el, axis, h('span.skill-name', null, meta?.name ?? s.id));
-      this.el.appendChild(wrap);
+      this.list.appendChild(wrap);
       this.btns.set(s.id, { wrap, el, sweep, secs, charges, axis, lastPct: -1, wasReady: s.ready });
     });
     this.syncAiming();

@@ -12,7 +12,7 @@ const MODE_NAME = { campaign: '战役', endless: '无尽', custom: '自定义' }
 export function runSummary(opts: RunOptions): string {
   const map = MAP_META[opts.map]?.name ?? opts.map;
   const diff = opts.mode === 'custom' ? '自定义' : diffLabel(opts.difficulty, opts.abyssLevel ?? 1);
-  return `${MODE_NAME[opts.mode]} · ${map} · ${diff}`;
+  return `${MODE_NAME[opts.mode]} · ${map} · ${diff}${opts.autoWave === true ? ' · 自动开波' : opts.autoWave === false ? ' · 手动开波' : ''}`;
 }
 
 export function menuScreen(app: App): Screen {

@@ -1,12 +1,14 @@
-import type { DifficultyId, DifficultyParams, MapId } from '../../core/types';
-import { CUSTOM_FIELDS, decodeShare, encodeShare, paramValue, sliderValue } from '../../meta/custom';
-import { DIFF_NAME, MAPS } from '../../meta/progress';
+import type { DifficultyId, DifficultyParams, MapId, RandomEventId } from '../../core/types';
+import { CUSTOM_FIELDS, decodeShare, encodeShare, paramValue, sliderValue, SPAWN_MODES, type CustomField, type NumParamKey } from '../../meta/custom';
+import { DIFF_NAME, effectiveAutoWave, MAPS } from '../../meta/progress';
 import { screenHeader, type App, type Screen } from '../App';
 import { audio } from '../audio';
-import { DIFFICULTY_PRESETS, MAP_META, resolveParams } from '../coreMeta';
+import { DIFFICULTY_PRESETS, eventMeta, MAP_META, RANDOM_EVENT_IDS, resolveParams } from '../coreMeta';
 import { clear, copyText, h } from '../dom';
 import { G } from '../icons';
-import { buildRunOptions, loadoutStrip } from './common';
+import { buildRunOptions, layoutPicker, loadoutStrip, randomSeed, switchRow } from './common';
+
+const TONE_GLYPH = { bad: G.warn, good: G.gift, neutral: G.swirl } as const;
 
 type PresetId = DifficultyId;
 const PRESETS: PresetId[] = ['easy', 'normal', 'hard', 'nightmare', 'abyss'];
@@ -23,25 +25,82 @@ export function customScreen(app: App): Screen {
     map: (last?.map ?? 'ch1') as MapId,
     base: (last?.base ?? 'normal') as PresetId,
     params: last?.params ? { ...presetParams(last.base, last.map), ...last.params } : presetParams('normal', 'ch1'),
+    events: { ...(last?.events ?? {}) } as Partial<Record<RandomEventId, boolean>>,
+    autoWave: last?.autoWave ?? effectiveAutoWave(p, 'custom', last?.map ?? 'ch1', last?.base ?? 'normal'),
+    layoutSeed: randomSeed(),
+    rerolled: false,
   };
 
   const persist = () =>
     app.store.update((pp) => {
-      pp.lastCustom = { map: state.map, base: state.base, params: { ...state.params } };
+      pp.lastCustom = { map: state.map, base: state.base, params: { ...state.params }, events: { ...state.events }, autoWave: state.autoWave };
     });
 
   const presetBox = h('div.seg-grid.presets');
   const mapBox = h('div.seg-grid.maps');
   const sliderBox = h('div.slider-list');
+  const dynBox = h('div.slider-list');
+  const spawnModeBox = h('div.seg-grid.spawn-modes');
+  const eventBox = h('div.event-toggles');
   const codeOut = h<HTMLTextAreaElement>('textarea.input.code', { attrs: { readonly: true, rows: 2, 'aria-label': '分享码' } });
   const codeIn = h<HTMLTextAreaElement>('textarea.input.code', { attrs: { rows: 2, placeholder: '粘贴朋友发来的分享码', 'aria-label': '导入分享码' } });
   const importMsg = h('small.form-msg');
 
   const updateCode = () => {
-    codeOut.value = encodeShare({ params: state.params, map: state.map, base: state.base });
+    codeOut.value = encodeShare({ params: state.params, map: state.map, base: state.base, events: state.events, autoWave: state.autoWave });
   };
 
-  const sliderRows = new Map<keyof DifficultyParams, { input: HTMLInputElement; out: HTMLElement }>();
+  const sliderRows = new Map<NumParamKey, { input: HTMLInputElement; out: HTMLElement }>();
+
+  const renderSpawnModes = () => {
+    clear(spawnModeBox);
+    for (const m of SPAWN_MODES) {
+      spawnModeBox.appendChild(
+        h(
+          `button.seg${state.params.spawnMode === m.id ? '.on' : ''}`,
+          {
+            title: m.hint,
+            onclick: () => {
+              audio.play('click');
+              state.params = { ...state.params, spawnMode: m.id };
+              renderSpawnModes();
+              updateCode();
+              persist();
+            },
+          },
+          m.name,
+        ),
+      );
+    }
+  };
+
+  const renderEvents = () => {
+    clear(eventBox);
+    for (const id of RANDOM_EVENT_IDS) {
+      const meta = eventMeta(id);
+      const on = state.events[id] !== false;
+      eventBox.appendChild(
+        h(
+          `button.event-toggle.tone-${meta.tone}${on ? '.on' : ''}`,
+          {
+            title: meta.desc,
+            attrs: { 'aria-pressed': on ? 'true' : 'false' },
+            onclick: () => {
+              audio.play('click');
+              if (on) state.events[id] = false;
+              else delete state.events[id];
+              renderEvents();
+              updateCode();
+              persist();
+            },
+          },
+          h('span.gi', { html: TONE_GLYPH[meta.tone] }),
+          h('span', null, meta.name),
+          on ? h('span.gi.ev-check', { html: G.check }) : null,
+        ),
+      );
+    }
+  };
 
   const renderPresets = () => {
     clear(presetBox);
@@ -55,6 +114,7 @@ export function customScreen(app: App): Screen {
               state.base = id;
               state.params = presetParams(id, state.map);
               syncSliders();
+              renderSpawnModes();
               renderPresets();
               updateCode();
               persist();
@@ -77,6 +137,7 @@ export function customScreen(app: App): Screen {
               audio.play('click');
               state.map = m;
               renderMaps();
+              layout.refresh();
               updateCode();
               persist();
             },
@@ -98,7 +159,7 @@ export function customScreen(app: App): Screen {
     }
   };
 
-  for (const f of CUSTOM_FIELDS) {
+  const addSlider = (f: CustomField, box: HTMLElement) => {
     const input = h<HTMLInputElement>('input.range', {
       attrs: { type: 'range', min: f.min, max: f.max, step: f.step, 'aria-label': f.label },
     });
@@ -112,13 +173,34 @@ export function customScreen(app: App): Screen {
     });
     input.addEventListener('change', persist);
     sliderRows.set(f.key, { input, out });
-    sliderBox.appendChild(
+    box.appendChild(
       h('label.slider-row', null, h('span.slider-label', null, h('b', null, f.label), h('small.muted', null, f.hint)), out, input),
     );
-  }
+  };
+  for (const f of CUSTOM_FIELDS) addSlider(f, f.group === 'dyn' ? dynBox : sliderBox);
 
   const seedInput = h<HTMLInputElement>('input.input', {
     attrs: { type: 'text', placeholder: '留空随机', maxlength: 24, autocomplete: 'off', spellcheck: 'false' },
+  });
+  const runSeed = () => seedInput.value.trim() || state.layoutSeed;
+  const layout = layoutPicker({
+    map: () => state.map,
+    seed: runSeed,
+    onReroll: () => {
+      state.layoutSeed = randomSeed();
+      state.rerolled = true;
+      seedInput.value = '';
+    },
+  });
+  let seedTimer = 0;
+  seedInput.addEventListener('input', () => {
+    clearTimeout(seedTimer);
+    seedTimer = window.setTimeout(() => layout.refresh(), 250);
+  });
+  const autoSw = switchRow('自动开波', '第一波由你开始，之后按倒计时自动开波', state.autoWave, (v) => {
+    state.autoWave = v;
+    updateCode();
+    persist();
   });
 
   const el = h(
@@ -128,8 +210,20 @@ export function customScreen(app: App): Screen {
     h(
       'div.screen-body',
       null,
-      h('section.card.section', null, h('h3', null, '从预设开始'), presetBox, h('h3', null, '地图'), mapBox),
+      h('section.card.section', null, h('h3', null, '从预设开始'), presetBox, h('h3', null, '地图'), mapBox, layout.el),
       h('section.card.section', null, h('h3', null, '成长比例'), sliderBox),
+      h(
+        'section.card.section',
+        null,
+        h('h3', null, '动态战场'),
+        h('div.field-label', null, h('b', null, '出怪方式'), h('small.muted', null, '每组敌人从哪个出生点出来')),
+        spawnModeBox,
+        dynBox,
+        autoSw.el,
+        h('h3', null, '随机事件'),
+        h('p.muted.small', null, '点一下关闭 / 开启单个事件。事件频率为 0 时全部关闭。'),
+        eventBox,
+      ),
       h(
         'section.card.section',
         null,
@@ -162,9 +256,17 @@ export function customScreen(app: App): Screen {
               state.params = r.value.params;
               if (r.value.map) state.map = r.value.map;
               if (r.value.base && PRESETS.includes(r.value.base)) state.base = r.value.base;
+              state.events = { ...(r.value.events ?? {}) };
+              if (r.value.autoWave !== undefined) {
+                state.autoWave = r.value.autoWave;
+                autoSw.input.checked = state.autoWave;
+              }
               syncSliders();
               renderPresets();
               renderMaps();
+              renderSpawnModes();
+              renderEvents();
+              layout.refresh();
               updateCode();
               persist();
               importMsg.textContent = '已导入';
@@ -186,10 +288,11 @@ export function customScreen(app: App): Screen {
             onclick: () => {
               audio.play('select');
               persist();
-              const seed = seedInput.value.trim();
+              const typed = seedInput.value.trim();
+              const seed = runSeed();
               app.go({
                 name: 'game',
-                userSeed: !!seed,
+                userSeed: !!typed || state.rerolled,
                 opts: buildRunOptions(app.store.get(), {
                   mode: 'custom',
                   map: state.map,
@@ -197,6 +300,8 @@ export function customScreen(app: App): Screen {
                   abyssLevel: 1,
                   custom: { ...state.params },
                   seed,
+                  autoWave: state.autoWave,
+                  events: { ...state.events },
                 }),
               });
             },
@@ -210,6 +315,8 @@ export function customScreen(app: App): Screen {
   renderPresets();
   renderMaps();
   syncSliders();
+  renderSpawnModes();
+  renderEvents();
   updateCode();
   return { el };
 }

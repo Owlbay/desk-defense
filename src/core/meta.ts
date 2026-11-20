@@ -1,4 +1,6 @@
-import type { AffixId, DifficultyId, DifficultyParams, EnemyId, MapId, SkillId, SkillState, TalentId, TowerId } from './types';
+import type { AffixId, DifficultyId, DifficultyParams, EnemyId, MapId, RandomEventId, SkillId, SkillState, TalentId, TowerId } from './types';
+import { RANDOM_EVENTS } from '../config/events';
+import { ABILITIES } from '../config/evolution';
 import { TOWERS } from '../config/towers';
 import { ENEMIES, AFFIXES } from '../config/enemies';
 import { SKILLS } from '../config/skills';
@@ -39,3 +41,15 @@ export const MAP_META: Record<MapId, { name: string; chapter: number; desc: stri
 export const PERK_META: { id: string; name: string; desc: string; rarity: Rarity; needsTower: boolean }[] = PERKS.map((p) => ({
   id: p.id, name: p.name, desc: p.desc, rarity: p.rarity, needsTower: !!p.needsTower,
 }));
+
+/** 随机事件元数据（文档 09 §3.2） */
+export const RANDOM_EVENT_META: Record<RandomEventId, { name: string; desc: string; tone: 'bad' | 'good' | 'neutral'; warn: number | 'drop'; duration: number; minWave: number }> =
+  Object.fromEntries(
+    Object.values(RANDOM_EVENTS).map((e) => [e.id, { name: e.name, desc: e.desc, tone: e.tone, warn: e.warn, duration: e.duration, minWave: e.minWave }]),
+  ) as Record<RandomEventId, { name: string; desc: string; tone: 'bad' | 'good' | 'neutral'; warn: number | 'drop'; duration: number; minWave: number }>;
+
+/** 神话塔主动能力元数据（文档 11），键为 `${塔id}_a` / `${塔id}_b`；图标 art/abilities/{键}.svg */
+export const ABILITY_META: Record<string, { name: string; desc: string; cd: number; target: string; form: string; radius?: number; chargeWaves?: number; duration: number }> =
+  Object.fromEntries(
+    Object.values(ABILITIES).map((a) => [a.id, { name: a.name, desc: a.desc, cd: a.cd, target: a.target, form: a.form, radius: a.radius, chargeWaves: a.chargeWaves, duration: a.duration }]),
+  );

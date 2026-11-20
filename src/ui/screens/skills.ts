@@ -15,6 +15,7 @@ const TARGET_TEXT: Record<string, string> = {
   line: '一行或一列',
   tower: '选一座塔',
   'tower+cell': '选塔 → 选空格',
+  spawner: '选一个空降出生点',
 };
 
 export function skillsScreen(app: App, route: Route): Screen {
@@ -74,14 +75,14 @@ export function skillsScreen(app: App, route: Route): Screen {
       const inLoadout = loadout.includes(id);
       const pips = h('span.pips');
       for (let i = 1; i <= SKILL_MAX_LEVEL; i++) pips.appendChild(h(`span.pip${i <= lv ? '.on' : ''}`));
-      const cdText = id === 'relocate' ? `充能 ${[2, 3, 4][lv - 1]} 次` : `冷却 ${Math.round((meta?.cd ?? 0) * (1 - 0.08 * (lv - 1)))} 秒`;
+      const cdText = !meta ? '' : id === 'relocate' ? `充能 ${[2, 3, 4][lv - 1]} 次` : `冷却 ${Math.round((meta?.cd ?? 0) * (1 - 0.08 * (lv - 1)))} 秒`;
       grid.appendChild(
         h(
           `article.skill-card.card${ok ? '' : '.locked'}${inLoadout ? '.picked' : ''}`,
           null,
           h('div.skill-card-head', null, img(skillIcon(id), 'ico skill-ico'), h('div', null, h('h3', null, meta?.name ?? id), pips)),
-          h('p.skill-desc', null, meta?.desc ?? ''),
-          h('div.skill-tags', null, h('span.tag', null, TARGET_TEXT[meta?.target ?? 'none'] ?? ''), h('span.tag', null, cdText)),
+          h('p.skill-desc', null, meta?.desc ?? (id === 'seal_tape' ? '封掉一个空降出生点，立即关闭它。' : '')),
+          h('div.skill-tags', null, h('span.tag', null, TARGET_TEXT[meta?.target ?? (id === 'seal_tape' ? 'spawner' : 'none')] ?? ''), cdText ? h('span.tag', null, cdText) : null),
           ok
             ? h(
                 'div.row',

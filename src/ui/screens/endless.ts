@@ -6,6 +6,7 @@ import {
   diffKey,
   DIFF_NAME,
   difficultyUnlocked,
+  effectiveAutoWave,
   INK_FACTOR,
   MAPS,
   maxAbyssLevel,
@@ -17,7 +18,7 @@ import { audio } from '../audio';
 import { DIFFICULTY_PRESETS, MAP_META, resolveParams } from '../coreMeta';
 import { clear, h } from '../dom';
 import { G } from '../icons';
-import { buildRunOptions, loadoutStrip } from './common';
+import { buildRunOptions, layoutPicker, loadoutStrip, randomSeed, switchRow } from './common';
 
 const DIFF_ORDER: DifficultyId[] = ['easy', 'normal', 'hard', 'nightmare', 'abyss'];
 const DIFF_BLURB: Record<DifficultyId, string> = {
@@ -38,7 +39,11 @@ export function endlessScreen(app: App): Screen {
     diff: (last && difficultyUnlocked(p, last.difficulty, last.abyssLevel) ? last.difficulty : 'normal') as DifficultyId,
     abyss: Math.max(1, Math.min(abyssMax || 1, last?.abyssLevel ?? abyssMax ?? 1)),
     pure: last?.pure ?? false,
+    /** 布局缩略图使用的种子（未手动填写种子时） */
+    layoutSeed: randomSeed(),
+    rerolled: false,
   };
+  const autoWaveNow = () => effectiveAutoWave(app.store.get(), 'endless', state.map, state.diff);
 
   const mapBox = h('div.seg-grid.maps');
   const diffBox = h('div.diff-grid');
@@ -58,6 +63,7 @@ export function endlessScreen(app: App): Screen {
               audio.play('click');
               state.map = m;
               renderAll();
+              layout.refresh();
             },
           },
           ok ? null : h('span.gi', { html: G.lock }),
@@ -129,10 +135,29 @@ export function endlessScreen(app: App): Screen {
       /* core 未就绪时不显示 */
     }
     el.dataset.difficulty = state.diff;
+    autoSw.input.checked = autoWaveNow();
   };
 
   const seedInput = h<HTMLInputElement>('input.input', {
     attrs: { type: 'text', placeholder: '留空随机', maxlength: 24, inputmode: 'text', autocomplete: 'off', spellcheck: 'false' },
+  });
+  const runSeed = () => seedInput.value.trim() || state.layoutSeed;
+  const layout = layoutPicker({
+    map: () => state.map,
+    seed: runSeed,
+    onReroll: () => {
+      state.layoutSeed = randomSeed();
+      state.rerolled = true;
+      seedInput.value = '';
+    },
+  });
+  let seedTimer = 0;
+  seedInput.addEventListener('input', () => {
+    clearTimeout(seedTimer);
+    seedTimer = window.setTimeout(() => layout.refresh(), 250);
+  });
+  const autoSw = switchRow('自动开波', '第一波由你开始，之后按倒计时自动开波；排行榜按开波方式分开记录', true, (v) => {
+    app.store.update((pp) => (pp.settings.autoWave = v));
   });
   const pureToggle = h<HTMLInputElement>('input', { attrs: { type: 'checkbox' } });
   pureToggle.checked = state.pure;
@@ -149,10 +174,11 @@ export function endlessScreen(app: App): Screen {
         app.store.update((pp) => {
           pp.lastEndless = { map: state.map, difficulty: state.diff, abyssLevel: state.abyss, pure: state.pure };
         });
-        const seed = seedInput.value.trim();
+        const typed = seedInput.value.trim();
+        const seed = runSeed();
         app.go({
           name: 'game',
-          userSeed: !!seed,
+          userSeed: !!typed || state.rerolled,
           opts: buildRunOptions(app.store.get(), {
             mode: 'endless',
             map: state.map,
@@ -160,6 +186,7 @@ export function endlessScreen(app: App): Screen {
             abyssLevel: state.abyss,
             seed,
             pure: state.pure,
+            autoWave: autoSw.input.checked,
           }),
         });
       },
@@ -175,7 +202,7 @@ export function endlessScreen(app: App): Screen {
     h(
       'div.screen-body',
       null,
-      h('section.card.section', null, h('h3', null, '地图'), mapBox),
+      h('section.card.section', null, h('h3', null, '地图'), mapBox, layout.el),
       h('section.card.section', null, h('h3', null, '难度'), diffBox, abyssBox, infoBox),
       h(
         'section.card.section',
@@ -188,6 +215,7 @@ export function endlessScreen(app: App): Screen {
           h('span', null, h('b', null, '纯净模式'), h('small.muted', null, '关闭所有永久天赋，成绩进入纯净排行榜')),
           h('span.switch', null, pureToggle, h('span.knob')),
         ),
+        autoSw.el,
       ),
       loadoutStrip(app, { name: 'endless' }),
       h('div.start-bar', null, startBtn),

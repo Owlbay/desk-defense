@@ -3,7 +3,7 @@ import { ui } from '../../game/UiStore';
 import type { Rewards } from '../../meta/progress';
 import { towerIcon } from '../assets';
 import { audio } from '../audio';
-import { TOWER_META } from '../coreMeta';
+import { eventMeta, TOWER_META } from '../coreMeta';
 import { TOWERS } from '../../config/towers';
 import { copyText, fmtNum, h, img, setText } from '../dom';
 import { G } from '../icons';
@@ -170,6 +170,10 @@ export function pauseMenu(ctx: GameCtx, hd: PauseHandlers): HTMLElement {
   confirmBox.hidden = true;
   const settingsBox = h('div.pause-settings');
   settingsBox.hidden = true;
+  const historyBox = h('div.pause-history');
+  historyBox.hidden = true;
+  const TONE_GLYPH = { bad: G.warn, good: G.gift, neutral: G.swirl } as const;
+  const log = st.eventLog ?? [];
 
   const ask = (title: string, text: string, okText: string, fn: () => void) => {
     main.hidden = true;
@@ -215,6 +219,20 @@ export function pauseMenu(ctx: GameCtx, hd: PauseHandlers): HTMLElement {
       h('span.gi', { html: G.gear }),
       '设置',
     ),
+    ...(log.length > 0
+      ? [h(
+          'button.btn.big',
+          {
+            onclick: () => {
+              audio.play('click');
+              main.hidden = true;
+              historyBox.hidden = false;
+            },
+          },
+          h('span.gi', { html: G.list }),
+          `事件记录（${log.length}）`,
+        )]
+      : []),
     h(
       'button.btn.big',
       {
@@ -245,13 +263,29 @@ export function pauseMenu(ctx: GameCtx, hd: PauseHandlers): HTMLElement {
     ),
   );
 
+  historyBox.append(
+    h('h2', null, '本局事件'),
+    h(
+      'ol.event-log',
+      null,
+      log
+        .slice()
+        .reverse()
+        .map((e) => {
+          const m = eventMeta(e.id);
+          return h(`li.tone-${m.tone}`, { title: m.desc }, h('span.ev-wave', null, `第 ${e.wave} 波`), h('span.gi', { html: TONE_GLYPH[m.tone] }), h('b', null, e.name || m.name), h('small.muted', null, m.desc));
+        }),
+    ),
+    h('button.btn.big', { onclick: () => ((historyBox.hidden = true), (main.hidden = false), audio.play('click')) }, '返回'),
+  );
+
   settingsBox.append(
     h('h2', null, '设置'),
     settingsPanel(ctx.app, { inGame: true, host: ctx.root }),
     h('button.btn.big', { onclick: () => ((settingsBox.hidden = true), (main.hidden = false), audio.play('click')) }, '返回'),
   );
 
-  return overlay('pause-overlay', h('div.dialog.card.pause-dialog', { attrs: { role: 'dialog', 'aria-modal': 'true' } }, main, confirmBox, settingsBox));
+  return overlay('pause-overlay', h('div.dialog.card.pause-dialog', { attrs: { role: 'dialog', 'aria-modal': 'true' } }, main, confirmBox, settingsBox, historyBox));
 }
 
 // ───────────── 结算 ─────────────
@@ -311,7 +345,7 @@ export function gameOverView(ctx: GameCtx, d: GameOverData, hd: GameOverHandlers
               h(
                 'div.mvp-main',
                 null,
-                h('div.mvp-name', null, TOWER_META[t.id]?.name ?? t.id, h('small.muted', null, ` Lv${t.level}`)),
+                h('div.mvp-name', null, TOWER_META[t.id]?.name ?? t.id, h('small.muted', null, ` Lv${t.level}${t.stars ? ` ${'★'.repeat(t.stars)}` : ''}`)),
                 h('div.mvp-bar', null, h('span', { style: `width:${((t.damage / top) * 100).toFixed(1)}%` })),
               ),
               h('div.mvp-num', null, fmtNum(t.damage), h('small.muted', null, `${fmtNum(t.kills)} 击杀`)),

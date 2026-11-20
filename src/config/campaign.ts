@@ -1,4 +1,4 @@
-import type { EnemyId, MapId } from '../core/types';
+import type { EnemyId, MapId, SpawnMode } from '../core/types';
 
 export interface CampaignGroup {
   enemy: EnemyId;
@@ -7,6 +7,10 @@ export interface CampaignGroup {
   interval?: number;
   /** 额外生命倍率（小 Boss 0.6） */
   hpMul?: number;
+  /** 出怪策略（文档 09 §1.2）：fixed 需配合 from；split = 包夹 */
+  spawn?: SpawnMode;
+  /** fixed：出生点 id */
+  from?: string;
 }
 
 export interface CampaignWave {
@@ -24,6 +28,10 @@ export interface CampaignChapter {
 }
 
 const g = (enemy: EnemyId, count: number, interval?: number, hpMul?: number): CampaignGroup => ({ enemy, count, interval, hpMul });
+/** 指定出生点的组 */
+const gf = (from: string, enemy: EnemyId, count: number, interval?: number): CampaignGroup => ({ enemy, count, interval, spawn: 'fixed', from });
+/** 包夹组 */
+const gs = (enemy: EnemyId, count: number, interval?: number): CampaignGroup => ({ enemy, count, interval, spawn: 'split' });
 
 export const CAMPAIGN_WAVES = 20;
 export const CAMPAIGN_MINI_BOSS_HP = 0.6;
@@ -61,7 +69,7 @@ export const CAMPAIGN: Record<MapId, CampaignChapter> = {
       { groups: [g('paperclip', 4), g('crumb', 8)] },
       { groups: [g('sticky', 4), g('crumb', 8)] },
       { groups: [g('plane', 6), g('inkdot', 6)], tags: ['air'] },
-      { groups: [g('rubberband', 4), g('paperclip', 4)] },
+      { groups: [gf('north-1', 'rubberband', 4), gf('north-2', 'paperclip', 4)] },
       { groups: [g('paperball', 4), g('sticky', 4)] },
       { groups: [g('ant', 8, 0.2), g('inkdot', 8)], tags: ['rush'] },
       { groups: [g('rubberband', 6), g('crumb', 12)] },
@@ -71,7 +79,7 @@ export const CAMPAIGN: Record<MapId, CampaignChapter> = {
       { groups: [g('plane', 12), g('inkdot', 6)], tags: ['air'] },
       { groups: [g('paperclip', 8), g('paperball', 6)] },
       { groups: [g('sticky', 8), g('rubberband', 6), g('ant', 8, 0.2)] },
-      { groups: [g('inkdot', 18, 0.35), g('ant', 10, 0.2)], tags: ['rush'] },
+      { groups: [gs('inkdot', 18, 0.35), g('ant', 10, 0.2)], tags: ['rush'] },
       { groups: [g('paperclip', 10), g('sticky', 8)] },
       { groups: [g('rubberband', 10), g('plane', 8)] },
       { groups: [g('paperball', 10), g('ant', 12, 0.2), g('sticky', 6)] },
@@ -90,11 +98,11 @@ export const CAMPAIGN: Record<MapId, CampaignChapter> = {
       { groups: [g('moth', 5), g('plane', 4)], tags: ['air'] },
       { groups: [g('whiteout', 3), g('paperclip', 6), g('rubberband', 4)] },
       { groups: [g('invisink', 6), g('ant', 8, 0.2)] },
-      { groups: [g('tape', 3), g('whiteout', 3), g('inkdot', 8)] },
+      { groups: [gf('north-1', 'tape', 3), gf('north-1', 'whiteout', 3), gf('north-2', 'inkdot', 8)] },
       { groups: [g('boss_shredder', 1, 3, 0.6), g('invisink', 4), g('crumb', 8)], tags: ['boss'] },
       { groups: [g('moth', 8), g('plane', 6)], tags: ['air'] },
       { groups: [g('tape', 4), g('sticky', 6), g('whiteout', 3)] },
-      { groups: [g('inkdot', 16, 0.35), g('ant', 10, 0.2), g('invisink', 4)], tags: ['rush'] },
+      { groups: [gs('inkdot', 16, 0.35), g('ant', 10, 0.2), gf('north-2', 'invisink', 4)], tags: ['rush'] },
       { groups: [g('paperball', 8), g('whiteout', 4), g('paperclip', 6)] },
       { groups: [g('moth', 10), g('invisink', 6)] },
       { groups: [g('tape', 5), g('rubberband', 8), g('whiteout', 4)] },

@@ -3,6 +3,7 @@ import type {
   DifficultyId,
   DifficultyParams,
   MapId,
+  RandomEventId,
   RunOptions,
   SkillId,
   TalentId,
@@ -20,6 +21,10 @@ export interface Settings {
   sfx: number; // 0..1
   music: number; // 0..1
   lang: 'zh';
+  /** 自动开波偏好（文档 09 §4）：null = 按难度默认（简单 / 新手引导为手动） */
+  autoWave: boolean | null;
+  /** 战役使用固定杂物布局 */
+  fixedLayout: boolean;
 }
 
 export interface LeaderEntry {
@@ -30,6 +35,8 @@ export interface LeaderEntry {
   map: MapId;
   perks: string[];
   kills: number;
+  /** 自动开波成绩（排行榜按开波方式分开） */
+  auto?: boolean;
 }
 
 export interface MidRun {
@@ -54,6 +61,9 @@ export interface LastCustom {
   map: MapId;
   base: DifficultyId;
   params: DifficultyParams | null;
+  /** 被关闭的随机事件 */
+  events?: Partial<Record<RandomEventId, boolean>>;
+  autoWave?: boolean;
 }
 
 export interface Profile {
@@ -81,7 +91,7 @@ export interface Profile {
 export const DEFAULT_LOADOUT: SkillId[] = ['eraser_strike', 'bell', 'whiteout_zone'];
 
 export function defaultSettings(): Settings {
-  return { quality: 'high', sfx: 0.8, music: 0.5, lang: 'zh' };
+  return { quality: 'high', sfx: 0.8, music: 0.5, lang: 'zh', autoWave: null, fixedLayout: false };
 }
 
 export function defaultProfile(): Profile {
@@ -136,6 +146,7 @@ function leaderEntries(x: unknown): LeaderEntry[] {
       map: (typeof e.map === 'string' ? e.map : 'ch1') as MapId,
       perks: Array.isArray(e.perks) ? e.perks.filter((p): p is string => typeof p === 'string') : [],
       kills: num(e.kills, 0),
+      ...(typeof e.auto === 'boolean' ? { auto: e.auto } : {}),
     });
   }
   return out.slice(0, 10);
@@ -188,6 +199,8 @@ export function normalizeProfile(raw: unknown): Profile {
     p.settings.quality = s.quality === 'low' ? 'low' : 'high';
     p.settings.sfx = clamp01(num(s.sfx, d.settings.sfx));
     p.settings.music = clamp01(num(s.music, d.settings.music));
+    p.settings.autoWave = typeof s.autoWave === 'boolean' ? s.autoWave : null;
+    p.settings.fixedLayout = s.fixedLayout === true;
   }
   if (isObj(raw.lastEndless)) {
     const l = raw.lastEndless;
@@ -205,6 +218,12 @@ export function normalizeProfile(raw: unknown): Profile {
       base: (typeof l.base === 'string' ? l.base : 'normal') as DifficultyId,
       params: isObj(l.params) ? (l.params as unknown as DifficultyParams) : null,
     };
+    if (isObj(l.events)) {
+      const ev: Partial<Record<RandomEventId, boolean>> = {};
+      for (const [k, v] of Object.entries(l.events)) if (v === false) ev[k as RandomEventId] = false;
+      p.lastCustom.events = ev;
+    }
+    if (typeof l.autoWave === 'boolean') p.lastCustom.autoWave = l.autoWave;
   }
   p.midRun = midRunOf(raw.midRun);
   return p;

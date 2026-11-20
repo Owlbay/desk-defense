@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "sim": "vite-node scripts/simulate.ts",
-    "gallery": "node scripts/build-gallery.mjs"
+    "gallery": "node scripts/build-gallery.mjs",
+    "deploy": "npm run build && npx wrangler@4 pages deploy dist --project-name desk-defense"
   },
   "dependencies": {
     "phaser": "^3.90.0"

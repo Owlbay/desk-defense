@@ -6,6 +6,9 @@ import { defaultProfile, loadProfile, normalizeProfile, PROFILE_KEY, ProfileStor
 import {
   buyTalent,
   campaignDiffUnlocked,
+  defaultAutoWave,
+  effectiveAutoWave,
+  leaderKey,
   chapterUnlocked,
   difficultyUnlocked,
   endlessUnlocked,
@@ -25,6 +28,7 @@ import { memoryStorage, type KV } from '../../src/meta/storage';
 const NORMAL: DifficultyParams = {
   startGold: 150, lives: 20, hpMul: 1, hpLinear: 0.18, hpExp: 1.04, countMul: 1, countGrowth: 0.08, speedMul: 1, armorStep: 12,
   rewardMul: 1, xpMul: 1, eliteStart: 30, eliteRate: 0.004, eliteCap: 0.15, maxAffix: 1, bossHpMul: 1, skillCdMul: 1, interestCap: 20, scoreMul: 1,
+  spawnMode: 'roundRobin', maxActiveSpawners: 2, maxDrops: 1, dropWarn: 5, eventRate: 1, eventHostile: 0.5, waveGap: 15, waveMax: 60,
 };
 
 const endlessOpts = (over: Partial<RunOptions> = {}): RunOptions => ({ mode: 'endless', map: 'ch1', difficulty: 'normal', skills: ['bell'], ...over });
@@ -236,12 +240,85 @@ describe('custom share code', () => {
   });
 
   it('slider <-> param mapping covers every DifficultyParams field', () => {
-    expect(new Set(CUSTOM_FIELDS.map((f) => f.key)).size).toBe(Object.keys(NORMAL).length);
+    // 数值字段都有滑块，spawnMode 单独用分段按钮
+    expect(new Set(CUSTOM_FIELDS.map((f) => f.key)).size).toBe(Object.keys(NORMAL).length - 1);
     const elite = CUSTOM_FIELDS.find((f) => f.key === 'eliteStart')!;
     expect(sliderValue(elite, ELITE_OFF)).toBe(101);
     expect(paramValue(elite, 101)).toBe(ELITE_OFF);
     expect(paramValue(elite, 30)).toBe(30);
     expect(sanitizeParams({}, NORMAL)).toEqual(NORMAL);
+  });
+});
+
+describe('custom share code · dynamic battlefield (doc 09)', () => {
+  it('round-trips new params, spawn mode, disabled events and auto-wave', () => {
+    const params = { ...NORMAL, spawnMode: 'focus' as const, maxDrops: 3, dropWarn: 3.5, eventRate: 2.2, eventHostile: 0.8, waveGap: 9, waveMax: 45 };
+    const code = encodeShare({ params, map: 'ch2', base: 'nightmare', events: { fan: false, coins: false, nap: true }, autoWave: false });
+    const r = decodeShare(code, NORMAL);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.params).toEqual(params);
+    expect(r.value.events).toEqual({ fan: false, coins: false });
+    expect(r.value.autoWave).toBe(false);
+  });
+
+  it('old codes without new fields fall back to base values; bad values are clamped / ignored', () => {
+    const old = { hpMul: 2, lives: 5 };
+    const r = decodeShare(btoa(JSON.stringify({ v: 1, p: old })), NORMAL);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.params.waveGap).toBe(15);
+    expect(r.value.params.spawnMode).toBe('roundRobin');
+    expect(r.value.events).toBeUndefined();
+    expect(r.value.autoWave).toBeUndefined();
+    const bad = decodeShare(btoa(JSON.stringify({ v: 1, p: { ...old, spawnMode: 'teleport', waveGap: 999, eventHostile: -1 }, e: ['fan', 'nope', 3] })), NORMAL);
+    expect(bad.ok).toBe(true);
+    if (!bad.ok) return;
+    expect(bad.value.params.spawnMode).toBe('roundRobin');
+    expect(bad.value.params.waveGap).toBe(30);
+    expect(bad.value.params.eventHostile).toBe(0);
+    expect(bad.value.events).toEqual({ fan: false });
+  });
+});
+
+describe('auto-wave leaderboard split (doc 09 §4)', () => {
+  const res = { won: false, wavesSurvived: 10, score: 900, kills: 50, lives: 0, maxLives: 20, seed: 's', perks: [] };
+
+  it('separate keys for auto and manual, flag stored on entries', () => {
+    const p = defaultProfile();
+    settleRun(p, endlessOpts({ autoWave: true }), res, '2026-11-19');
+    settleRun(p, endlessOpts({ autoWave: false }), { ...res, score: 100 }, '2026-11-19');
+    settleRun(p, endlessOpts({ pure: true }), { ...res, autoWave: true }, '2026-11-19');
+    expect(p.leaderboard['normal:auto']).toHaveLength(1);
+    expect(p.leaderboard['normal:auto'][0].auto).toBe(true);
+    expect(p.leaderboard.normal).toHaveLength(1);
+    expect(p.leaderboard.normal[0].auto).toBe(false);
+    expect(p.leaderboard['normal:pure:auto']).toHaveLength(1);
+    expect(leaderKey('hard', false, true)).toBe('hard:auto');
+    expect(leaderKey('hard', true)).toBe('hard:pure');
+  });
+
+  it('auto flag survives save/load; default auto-wave per difficulty', () => {
+    const kv = memoryStorage();
+    const p = defaultProfile();
+    settleRun(p, endlessOpts({ autoWave: true }), res);
+    p.settings.autoWave = false;
+    p.settings.fixedLayout = true;
+    saveProfile(kv, p);
+    const q = loadProfile(kv);
+    expect(q.leaderboard['normal:auto'][0].auto).toBe(true);
+    expect(q.settings.autoWave).toBe(false);
+    expect(q.settings.fixedLayout).toBe(true);
+    expect(normalizeProfile({ settings: { autoWave: 'x' } }).settings.autoWave).toBeNull();
+
+    const d = defaultProfile();
+    expect(defaultAutoWave(d, 'endless', 'ch1', 'easy')).toBe(false);
+    expect(defaultAutoWave(d, 'endless', 'ch1', 'normal')).toBe(true);
+    expect(defaultAutoWave(d, 'campaign', 'ch1', 'normal')).toBe(false); // 新手引导
+    recordCampaignClear(d, 'ch1', 'normal', 1);
+    expect(defaultAutoWave(d, 'campaign', 'ch1', 'normal')).toBe(true);
+    d.settings.autoWave = false;
+    expect(effectiveAutoWave(d, 'endless', 'ch2', 'hard')).toBe(false);
   });
 });
 
@@ -315,6 +392,56 @@ describe('mid-run replay with real core', () => {
     const b = core.createWorld(run.opts);
     replaySync(b, run);
     expect(b.state.tick).toBe(a.state.tick);
+    expect(core.stateHash(b)).toBe(core.stateHash(a));
+  });
+});
+
+describe('mid-run replay with auto waves, events and pickups (doc 09)', () => {
+  it('auto waves are not logged but replay reproduces them; collect / chooseCrate are logged', async () => {
+    const core = await import('../../src/core');
+    const opts: RunOptions = {
+      mode: 'custom',
+      map: 'ch1',
+      difficulty: 'normal',
+      custom: { eventRate: 3, eventHostile: 0.3, waveGap: 4, waveMax: 25 },
+      skills: ['eraser_strike', 'bell', 'whiteout_zone'],
+      seed: 'auto-replay',
+      autoWave: true,
+    };
+    const a = core.createWorld(opts);
+    let placed = 0;
+    for (let t = 0; t < 60 * 150; t++) {
+      if (t === 10) {
+        for (let cy = 4; cy < 12 && placed < 4; cy++) {
+          for (let cx = 0; cx < 12 && placed < 4; cx++) {
+            if (a.canPlace('pencil', cx, cy).ok) {
+              a.command({ type: 'place', tower: 'pencil', cx, cy });
+              placed++;
+            }
+          }
+        }
+      }
+      if (t === 60) a.command({ type: 'startWave' });
+      const st = a.state;
+      if (st.phase === 'won' || st.phase === 'lost') break;
+      if (st.phase === 'perk' && st.perkChoices?.length) {
+        const card = st.perkChoices.find((c) => !c.needsTower) ?? st.perkChoices[0];
+        a.command({ type: 'choosePerk', id: card.id });
+      }
+      if (t % 30 === 0 && st.pickups?.length) a.command({ type: 'collect', uid: st.pickups[0].uid });
+      if (st.crateChoice?.options.length) a.command({ type: 'chooseCrate', option: st.crateChoice.options[0].id });
+      if (a.state.phase !== 'perk') a.step();
+      a.drainEvents();
+    }
+    expect(a.state.wave).toBeGreaterThan(1);
+    // 自动开波不进指令记录：只有第一次 startWave
+    expect(a.log.filter((e) => e.cmd.type === 'startWave')).toHaveLength(1);
+    const run = makeMidRun(a);
+    expect(run.opts.autoWave).toBe(true);
+    const b = core.createWorld(run.opts);
+    replaySync(b, run);
+    expect(b.state.tick).toBe(a.state.tick);
+    expect(b.state.wave).toBe(a.state.wave);
     expect(core.stateHash(b)).toBe(core.stateHash(a));
   });
 });

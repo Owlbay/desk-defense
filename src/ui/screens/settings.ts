@@ -32,6 +32,38 @@ export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLEle
   };
   renderQuality();
 
+  const waveSeg = h('div.seg-grid.three');
+  const renderWave = () => {
+    const cur = app.store.get().settings.autoWave;
+    const opts: [boolean | null, string][] = [
+      [null, '按难度'],
+      [true, '自动'],
+      [false, '手动'],
+    ];
+    waveSeg.replaceChildren(
+      ...opts.map(([v, label]) =>
+        h(
+          `button.seg${cur === v ? '.on' : ''}`,
+          {
+            onclick: () => {
+              audio.play('click');
+              save(() => (app.store.get().settings.autoWave = v));
+              renderWave();
+            },
+          },
+          label,
+        ),
+      ),
+    );
+  };
+  renderWave();
+  const fixedInput = h<HTMLInputElement>('input', { attrs: { type: 'checkbox' } });
+  fixedInput.checked = s.fixedLayout;
+  fixedInput.onchange = () => {
+    audio.play('click');
+    save(() => (app.store.get().settings.fixedLayout = fixedInput.checked));
+  };
+
   const volume = (label: string, glyph: string, key: 'sfx' | 'music') => {
     const out = h('output.slider-val', null, `${Math.round(s[key] * 100)}%`);
     const input = h<HTMLInputElement>('input.range', { attrs: { type: 'range', min: 0, max: 100, step: 5, 'aria-label': label } });
@@ -58,6 +90,19 @@ export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLEle
     null,
     h('section.card.section', null, h('h3', null, '画质'), qualitySeg, h('p.muted', null, '低画质关闭发光层和光环粒子，适合老手机。')),
     h('section.card.section', null, h('h3', null, '声音'), volume('音效', G.sound, 'sfx'), volume('音乐', G.music, 'music')),
+    h(
+      'section.card.section',
+      null,
+      h('h3', null, '对局'),
+      h('div.field-label', null, h('b', null, '开波方式'), h('small.muted', null, opts.inGame ? '下一局生效' : '按难度：简单和新手引导为手动，其余为自动')),
+      waveSeg,
+      h(
+        'label.switch-row',
+        null,
+        h('span', null, h('b', null, '战役固定布局'), h('small.muted', null, '战役里的杂物每局摆在同一个位置')),
+        h('span.switch', null, fixedInput, h('span.knob')),
+      ),
+    ),
     h(
       'section.card.section',
       null,

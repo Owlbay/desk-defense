@@ -16,7 +16,8 @@
  *   --save-baseline                               把本次结果另存为 baseline.json，之后的报告会叠加对比
  *   --quiet                                       不打印每局一行
  *   --patch '{"enemies.boss_coffee.hp":300,"presets.hard.hpMul":1.2}'
- *                                                 运行时临时改配置做对比（enemies/towers/presets/abyss/abyssPer），不写文件
+ *                                                 运行时临时改配置做对比（enemies/towers/presets/abyss/abyssPer/maps/events/drop/evo），不写文件
+ *   环境变量 SIM_OPTS='{"autoWave":false,"fixedLayout":true}'  覆盖每局的 RunOptions（调试用）
  *
  * 输出：
  *   runs.csv      每局一行汇总
@@ -32,6 +33,9 @@ import { BOTS, StrategyBot } from './bots';
 import { ENEMIES } from '../src/config/enemies';
 import { TOWERS } from '../src/config/towers';
 import { PRESETS, ABYSS_BASE, ABYSS_PER_LEVEL } from '../src/config/difficulty';
+import { MAPS as MAP_DEFS } from '../src/config/maps';
+import { RANDOM_EVENTS, DROP } from '../src/config/events';
+import { EVO } from '../src/config/evolution';
 
 // ───────────────────────── 参数 ─────────────────────────
 
@@ -112,7 +116,10 @@ function scenarios(): Scenario[] {
 }
 
 // 运行时配置补丁（只影响本进程）
-const PATCH_ROOTS: Record<string, unknown> = { enemies: ENEMIES, towers: TOWERS, presets: PRESETS, abyss: ABYSS_BASE, abyssPer: ABYSS_PER_LEVEL };
+const PATCH_ROOTS: Record<string, unknown> = {
+  enemies: ENEMIES, towers: TOWERS, presets: PRESETS, abyss: ABYSS_BASE, abyssPer: ABYSS_PER_LEVEL,
+  maps: MAP_DEFS, events: RANDOM_EVENTS, drop: DROP, evo: EVO,
+};
 const patch = arg('patch');
 if (patch && patch !== 'true') {
   for (const [path, v] of Object.entries(JSON.parse(patch) as Record<string, number>)) {
@@ -150,6 +157,7 @@ function runOne(sc: Scenario, map: MapId, seed: string): RunResult {
     talents: maxT ? { wallet: 5, bandaid: 3, alarm: 5, study: 5, secondhand: 3, bigbag: 1, luckydraw: 1, collector: 1 } : undefined,
     skillLevels: maxT ? Object.fromEntries(skills.map((k) => [k, 2])) : undefined,
   };
+  if (process.env.SIM_OPTS) Object.assign(opts, JSON.parse(process.env.SIM_OPTS));
   const w = createWorld(opts);
   const bot = new StrategyBot(w, params);
   const s = w.state;
@@ -174,11 +182,14 @@ function runOne(sc: Scenario, map: MapId, seed: string): RunResult {
       }
       continue;
     }
-    if (s.phase === 'build') {
-      if (sc.mode !== 'campaign' && s.wave >= MAX_WAVE) { result = 'cap'; break; }
+    const auto = s.autoWave.enabled && s.autoWave.started;
+    if (sc.mode !== 'campaign' && s.wave >= MAX_WAVE && (s.phase === 'build' || auto)) { result = 'cap'; break; }
+    if (s.phase === 'build' && !auto) {
+      // 手动开波（简单难度 / 第一波）：建造完立即开波
       bot.act('build');
       w.command({ type: 'startWave' });
-    } else if (tick % params.decisionTicks === 0) bot.act('wave');
+    } else if (tick % params.decisionTicks === 0) bot.act(s.phase === 'wave' ? 'wave' : 'build');
+    bot.tick();
     w.step();
     if (s.enemies.length > peak) peak = s.enemies.length;
     for (const ev of w.drainEvents()) {

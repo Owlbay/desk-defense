@@ -149,7 +149,17 @@ export function gameScreen(app: App, route: Route): Screen {
     board: () => boardWrap,
     skill: (id) => skillBar.buttonFor(id),
     skills: () => skillBar.el,
+    events: () => overlay.eventsEl() ?? wavePanel.el,
   });
+
+  // 补给箱三选一（不暂停）
+  overlay.onCrate = (option, name) => {
+    const r = ctx.cmd({ type: 'chooseCrate', option });
+    if (r.ok) {
+      audio.play('crateOpen');
+      overlay.toast(`补给箱：${name}`, 'good');
+    }
+  };
 
   // ───────────── 暂停 / 生命周期 ─────────────
   function openPause(): void {
@@ -222,10 +232,32 @@ export function gameScreen(app: App, route: Route): Screen {
         break;
       }
       case 'leak':
-        boardWrap.classList.remove('shake');
-        void boardWrap.offsetWidth;
-        boardWrap.classList.add('shake');
+        shake();
         break;
+      // ── 文档 09：动态战场 ──
+      case 'randomEvent':
+        overlay.randomEvent(ev);
+        break;
+      case 'spawnerDrop':
+        if (ev.phase === 'land') shake();
+        else if (ev.phase === 'demolish' || ev.phase === 'close') {
+          if (ui.state.spawnerSelected === ev.id) ui.set({ spawnerSelected: null });
+          if (ev.phase === 'demolish') overlay.toast('空降点已拆除', 'good');
+        }
+        break;
+      case 'terrainChanged':
+        overlay.toast('桌面变了，路线已更新', 'info');
+        break;
+      case 'autoWave':
+        wavePanel.onCountdown(ev.secondsLeft);
+        break;
+      // ── 文档 11：传奇进化 ──
+      case 'evolve': {
+        const ti = world.getTowerInfo(ev.uid);
+        const name = ti?.name ?? '塔';
+        overlay.toast(ev.mythic ? `${name} 成为神话「${ti?.tierName ?? ''}」！` : `${name} 进化到 ★${ev.stars}`, 'good');
+        break;
+      }
       case 'sell':
         if (ui.state.selected === ev.uid) ui.set({ selected: null });
         break;
@@ -262,6 +294,12 @@ export function gameScreen(app: App, route: Route): Screen {
       dirty = true;
     }),
   );
+
+  function shake(): void {
+    boardWrap.classList.remove('shake');
+    void boardWrap.offsetWidth;
+    boardWrap.classList.add('shake');
+  }
 
   function pickPerkTower(perkId: string, uid: number): void {
     const t = world.state.towers.get(uid);
@@ -303,6 +341,7 @@ export function gameScreen(app: App, route: Route): Screen {
         maxLives: st.maxLives,
         seed: st.seed,
         perks: st.perks.slice(),
+        autoWave: st.autoWave ? !!st.autoWave.enabled : undefined,
       });
     });
     ui.clear();
@@ -370,7 +409,16 @@ export function gameScreen(app: App, route: Route): Screen {
     switch (k) {
       case ' ':
         e.preventDefault();
-        if (!e.repeat) wavePanel.start();
+        if (e.repeat) break;
+        // 电脑：悬停在掉落物上按空格收集（文档 09 §3.3）
+        if (ui.state.hoverPickup !== null && world.state.pickups.some((pk) => pk.uid === ui.state.hoverPickup)) {
+          ctx.cmd({ type: 'collect', uid: ui.state.hoverPickup });
+          break;
+        }
+        wavePanel.start();
+        break;
+      case 'a':
+        if (ui.state.selected !== null) info.castAbility();
         break;
       case 'f':
         wavePanel.cycleSpeed();

@@ -1,0 +1,4 @@
+# Cloudflare Pages 配置（静态站点，无服务端代码）
+name = "desk-defense"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-11-01"

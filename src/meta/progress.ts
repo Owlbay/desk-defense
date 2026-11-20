@@ -52,7 +52,27 @@ export function allDiffKeys(): string[] {
   return out;
 }
 
-export const leaderKey = (dk: string, pure: boolean): string => (pure ? `${dk}:pure` : dk);
+/**
+ * 排行榜键：难度键 + ':pure'（纯净）+ ':auto'（自动开波）。
+ * 旧版本没有自动开波，所以不带后缀的旧记录都是手动开波成绩。
+ */
+export const leaderKey = (dk: string, pure: boolean, auto = false): string => `${dk}${pure ? ':pure' : ''}${auto ? ':auto' : ''}`;
+
+/** 自动开波的默认值（文档 09 §4）：简单难度和新手引导（未通关的第一章）为手动，其余为自动 */
+export function defaultAutoWave(p: Profile, mode: ModeId, map: MapId, d: DifficultyId): boolean {
+  if (d === 'easy') return false;
+  if (mode === 'campaign' && map === 'ch1' && !chapterCleared(p, 'ch1')) return false;
+  return true;
+}
+
+/** 玩家偏好优先，否则按难度默认 */
+export function effectiveAutoWave(p: Profile, mode: ModeId, map: MapId, d: DifficultyId): boolean {
+  const pref = p.settings.autoWave;
+  return typeof pref === 'boolean' ? pref : defaultAutoWave(p, mode, map, d);
+}
+
+/** 这一局是否为自动开波（opts 未明确时视为手动，兼容旧存档） */
+export const runAutoWave = (opts: RunOptions): boolean => opts.autoWave === true;
 
 // ───────────── 战役 ─────────────
 
@@ -279,6 +299,8 @@ export interface RunResult {
   maxLives: number;
   seed: string;
   perks: string[];
+  /** 实际是否为自动开波（缺省按 opts.autoWave） */
+  autoWave?: boolean;
 }
 
 export interface Rewards {
@@ -303,8 +325,10 @@ export function settleRun(p: Profile, opts: RunOptions, r: RunResult, date = tod
     res.ink = inkFor(opts.mode, opts.difficulty, r.wavesSurvived);
     p.currency.ink += res.ink;
     if (opts.mode === 'endless') {
-      const k = leaderKey(diffKey(opts.difficulty, opts.abyssLevel ?? 1), !!opts.pure);
+      const auto = r.autoWave ?? runAutoWave(opts);
+      const k = leaderKey(diffKey(opts.difficulty, opts.abyssLevel ?? 1), !!opts.pure, auto);
       res.rank = insertLeader(p, k, {
+        auto,
         wave: r.wavesSurvived,
         score: Math.round(r.score),
         seed: r.seed,

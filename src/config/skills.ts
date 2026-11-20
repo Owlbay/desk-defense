@@ -21,11 +21,12 @@ export const SKILLS: Record<SkillId, SkillDef> = {
   relocate: { id: 'relocate', name: '搬家', desc: '免费把塔挪到新位置，保留等级和经验（充能制，每 3 波恢复 1 次）', cd: 0, unlock: '1-15', target: 'tower+cell' },
   inspiration: { id: 'inspiration', name: '灵感闪现', desc: '一座塔立即获得下一级所需经验的 50%', cd: 120, unlock: '3-5', target: 'tower' },
   magnifier: { id: 'magnifier', name: '放大镜', desc: '半径 2 内持续 6 秒：暴露隐形，受到伤害 +25%', cd: 70, unlock: '3-10', target: 'circle', radius: 2 },
+  seal_tape: { id: 'seal_tape', name: '封箱胶带', desc: '立即封掉一个空降出生点（预警中的也可以）', cd: 60, unlock: '2-1', target: 'spawner' },
 };
 
 export const SKILL_IDS: SkillId[] = [
   'eraser_strike', 'bell', 'whiteout_zone', 'caffeine', 'ruler_sweep',
-  'scholarship', 'relocate', 'inspiration', 'magnifier',
+  'scholarship', 'relocate', 'inspiration', 'magnifier', 'seal_tape',
 ];
 
 export const SKILL_LEVEL = { cdPerLevel: 0.08, effectPerLevel: 0.15, maxLevel: 3 };

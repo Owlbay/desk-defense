@@ -7,7 +7,17 @@ import type { GameCtx } from './context';
  * 第一章新手引导（文档 01 §6）：不阻塞操作的气泡提示，指向相关按钮，每条只出现一次。
  */
 
-export type TutorialStep = 'ch1-place' | 'ch1-start' | 'ch1-wall' | 'ch1-upgrade' | 'ch1-sell' | 'ch1-boss';
+export type TutorialStep =
+  | 'ch1-place'
+  | 'ch1-start'
+  | 'ch1-wall'
+  | 'ch1-upgrade'
+  | 'ch1-sell'
+  | 'ch1-boss'
+  // 所有模式通用的一次性提示（文档 09 / 11）
+  | 'tip-event'
+  | 'tip-drop'
+  | 'tip-evolve';
 
 interface Targets {
   build(id: 'pencil' | 'wall'): HTMLElement | null;
@@ -16,6 +26,8 @@ interface Targets {
   board(): HTMLElement | null;
   skill(id: 'eraser_strike'): HTMLElement | null;
   skills(): HTMLElement | null;
+  /** 随机事件横幅 / 即将发生时间轴 */
+  events(): HTMLElement | null;
 }
 
 interface Active {
@@ -32,6 +44,9 @@ const TEXT: Record<TutorialStep, { title: string; body: string }> = {
   'ch1-upgrade': { title: '让塔成长', body: '点选一座塔：经验条会随击杀上涨，也可以直接花金币升级，攒的经验越多，升级越便宜。' },
   'ch1-sell': { title: '出售与撤销', body: '不需要的塔可以出售。等级越高，返还比例越低（70% → 25%）；刚放下 5 秒内可以全额撤销。' },
   'ch1-boss': { title: 'Boss 来了！', body: '点「大橡皮」，再点棋盘上的位置释放，对范围内的敌人造成大量伤害。' },
+  'tip-event': { title: '随机事件', body: '书桌上会突然发生事件：红色是坏事，绿色是好事。顶部横幅会提前预警并倒计时；硬币和补给箱要点一下才能收集。' },
+  'tip-drop': { title: '空降纸箱！', body: '虚线圈里很快会落下一个纸箱，变成新的出生点，路线也会跟着改变。点纸箱可以花金币拆除，技能「封箱胶带」也能直接封掉。' },
+  'tip-evolve': { title: '传奇进化', body: '传奇塔之后获得的经验会计入进化。攒经验或花金币升星：★1、★2 解锁分支特性，★3 成为神话并获得主动能力（选中后按 A 释放）。' },
 };
 
 export class Tutorial {
@@ -68,8 +83,24 @@ export class Tutorial {
   }
 
   onEvent(ev: GameEvent): void {
-    if (!this.enabled) return;
     const cur = this.active?.step;
+    // 通用提示：任何模式下第一次遇到时出现
+    switch (ev.type) {
+      case 'randomEvent':
+        if (ev.phase !== 'end' && ev.id !== 'drop_box') this.show('tip-event');
+        break;
+      case 'spawnerDrop':
+        if (ev.phase === 'warn') this.show('tip-drop');
+        else if (cur === 'tip-drop' && (ev.phase === 'demolish' || ev.phase === 'close')) this.done();
+        break;
+      case 'levelUp':
+        if (ev.level >= 10) this.show('tip-evolve');
+        break;
+      case 'evolve':
+        if (cur === 'tip-evolve') this.done();
+        break;
+    }
+    if (!this.enabled) return;
     switch (ev.type) {
       case 'place':
         if (cur === 'ch1-place') {
@@ -114,6 +145,12 @@ export class Tutorial {
         return () => this.t.info() ?? this.t.board();
       case 'ch1-boss':
         return () => this.t.skill('eraser_strike') ?? this.t.skills();
+      case 'tip-event':
+        return () => this.t.events() ?? this.t.board();
+      case 'tip-drop':
+        return () => this.t.board();
+      case 'tip-evolve':
+        return () => this.t.info() ?? this.t.board();
     }
   }
 

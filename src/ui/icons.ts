@@ -41,6 +41,17 @@ export const G = {
   eye: wrap(`<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" fill="#FBF8F1"/><circle cx="12" cy="12" r="3.2" fill="#2E4A7D"/>`),
   axisRow: wrap(`<rect x="3" y="9" width="18" height="6" rx="1.5" fill="#9BD1E5"/><path d="M6 9v2.5M9 9v2M12 9v2.5M15 9v2M18 9v2.5" stroke-width="1.4"/>`),
   axisCol: wrap(`<rect x="9" y="3" width="6" height="18" rx="1.5" fill="#9BD1E5"/><path d="M9 6h2.5M9 9h2M9 12h2.5M9 15h2M9 18h2.5" stroke-width="1.4"/>`),
+  // 文档 09 / 11
+  warn: wrap(`<path d="M12 3.2 21.5 19.5h-19Z" fill="#F2C14E"/><path d="M12 9.5v4.5" stroke-width="2.6"/><circle cx="12" cy="16.9" r="1.2" fill="${O}" stroke="none"/>`),
+  gift: wrap(`<rect x="3.5" y="9" width="17" height="11.5" rx="2" fill="#F28AA0"/><rect x="2.5" y="6.5" width="19" height="4" rx="1.5" fill="#F5D76E"/><path d="M12 6.5v14M12 6.5C10 3 6.5 3.5 7.5 5.5 8.3 6.8 12 6.5 12 6.5Zm0 0c2-3.5 5.5-3 4.5-1-.8 1.3-4.5 1-4.5 1Z"/>`),
+  swirl: wrap(`<path d="M3 9h11a3 3 0 1 0-3-3M3 14h15a3 3 0 1 1-3 3M3 19h7" stroke="#4FA3E0" stroke-width="2.4"/>`),
+  crate: wrap(`<path d="M3.5 8 12 4l8.5 4v9.5L12 21.5l-8.5-4Z" fill="#D4A373"/><path d="M3.5 8 12 12l8.5-4M12 12v9.5"/><path d="m7.5 6 8.5 4" stroke-width="1.5"/>`),
+  hammer: wrap(`<path d="m13.5 10.5-8.6 8.6a1.6 1.6 0 0 0 2.3 2.3l8.6-8.6" fill="#D4A373"/><path d="M11 6.5 14.5 3l6.5 6.5-3.5 3.5Z" fill="#A0AEC0"/>`),
+  tape: wrap(`<circle cx="10" cy="12" r="7.5" fill="#D4A373"/><circle cx="10" cy="12" r="3" fill="#FBF8F1"/><path d="M17.5 12H22v4.5h-6" fill="#E9C99A"/>`),
+  hourglass: wrap(`<path d="M6 3h12M6 21h12M7 3c0 5 10 5 10 9s-10 4-10 9M17 3c0 5-10 5-10 9s10 4 10 9"/><path d="M9 19.5c1-1.8 5-1.8 6 0Z" fill="#F2C14E"/>`),
+  list: wrap(`<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.4" fill="${O}"/><circle cx="4.5" cy="12" r="1.4" fill="${O}"/><circle cx="4.5" cy="18" r="1.4" fill="${O}"/>`),
+  sparkle: wrap(`<path d="M12 2.5c.8 5.2 2.3 6.7 7.5 7.5-5.2.8-6.7 2.3-7.5 7.5-.8-5.2-2.3-6.7-7.5-7.5 5.2-.8 6.7-2.3 7.5-7.5Z" fill="#F5D76E"/><path d="M19 15.5c.3 2 .9 2.6 3 3-2.1.3-2.7.9-3 3-.3-2.1-.9-2.7-3-3 2.1-.4 2.7-1 3-3Z" fill="#F5D76E" stroke-width="1.4"/>`),
+  parachute: wrap(`<path d="M3 11a9 9 0 0 1 18 0Z" fill="#F28AA0"/><path d="M3 11l7 7M21 11l-7 7M12 11v7"/><rect x="9.5" y="17.5" width="5" height="4" rx="1" fill="#D4A373"/>`),
 };
 
 export type GlyphName = keyof typeof G;

@@ -24,7 +24,11 @@ const MAPS = arg('maps', 'ch1,ch2,ch3').split(',') as MapId[];
 const ATTACKERS: TowerId[] = ['pencil', 'stapler', 'glue', 'lamp', 'compass', 'eraser', 'ruler', 'pen'];
 
 function world(map: MapId, seed: string): IWorld {
-  return createWorld({ mode: 'custom', map, difficulty: 'normal', seed, skills: [], pure: true, custom: { lives: 1e6, startGold: 1e6, interestCap: 0 } });
+  // 对比塔的输出：手动开波、关闭随机事件、固定杂物布局（文档 09 的动态因素会干扰对比）
+  return createWorld({
+    mode: 'custom', map, difficulty: 'normal', seed, skills: [], pure: true, autoWave: false, fixedLayout: true,
+    custom: { lives: 1e6, startGold: 1e6, interestCap: 0, eventRate: 0 },
+  });
 }
 
 function buildMaze(w: IWorld): void {

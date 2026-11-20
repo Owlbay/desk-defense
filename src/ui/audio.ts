@@ -27,7 +27,18 @@ export type Sfx =
   | 'perk'
   | 'win'
   | 'lose'
-  | 'skill';
+  | 'skill'
+  // 文档 09 / 11
+  | 'eventWarn'
+  | 'eventStart'
+  | 'dropWarn'
+  | 'dropLand'
+  | 'coin'
+  | 'crateOpen'
+  | 'countdown'
+  | 'evolveStar'
+  | 'mythic'
+  | 'ability';
 
 const MIN_GAP: Partial<Record<Sfx, number>> = {
   fire: 0.07,
@@ -36,6 +47,9 @@ const MIN_GAP: Partial<Record<Sfx, number>> = {
   coins: 0.08,
   click: 0.03,
   levelXp: 0.12,
+  coin: 0.04,
+  eventWarn: 0.4,
+  eventStart: 0.4,
 };
 
 const PENTA = [0, 2, 4, 7, 9];
@@ -297,6 +311,67 @@ class AudioEngine {
       case 'skill':
         this.skill(variant as SkillId | undefined);
         break;
+      case 'eventWarn':
+        // variant = tone：bad 低沉双音 / good 明亮上行 / neutral 中性铃
+        if (variant === 'bad') {
+          this.tone(midi(62), 0.18, { type: 'square', gain: 0.07 });
+          this.tone(midi(61), 0.26, { type: 'square', gain: 0.07, delay: 0.2 });
+        } else if (variant === 'good') {
+          this.arp([79, 84, 88], 0.06, { type: 'sine', gain: 0.14, len: 0.25 });
+        } else {
+          this.tone(midi(76), 0.3, { type: 'triangle', gain: 0.12 });
+          this.tone(midi(81), 0.3, { type: 'triangle', gain: 0.08, delay: 0.12 });
+        }
+        break;
+      case 'eventStart':
+        if (variant === 'bad') {
+          this.tone(150, 0.4, { type: 'sawtooth', gain: 0.12, slide: 90 });
+          this.noise(0.25, { freq: 500, q: 0.8, gain: 0.12, type: 'lowpass' });
+        } else if (variant === 'good') {
+          this.arp([72, 76, 79, 84, 88], 0.05, { gain: 0.16, len: 0.3 });
+          this.noise(0.3, { freq: 7000, q: 0.5, gain: 0.05, type: 'highpass', delay: 0.1 });
+        } else {
+          this.noise(0.45, { freq: 600, q: 0.7, gain: 0.12, sweep: 2400 });
+        }
+        break;
+      case 'dropWarn':
+        // 纸箱下坠的哨声
+        this.tone(1400, 0.7, { type: 'sine', gain: 0.07, slide: 500 });
+        break;
+      case 'dropLand':
+        this.noise(0.4, { freq: 300, q: 0.6, gain: 0.45, sweep: 80, type: 'lowpass' });
+        this.tone(90, 0.35, { type: 'sine', gain: 0.45, slide: 40 });
+        this.noise(0.25, { freq: 2500, q: 0.6, gain: 0.06, delay: 0.08 });
+        break;
+      case 'coin':
+        this.tone(midi(91) * r, 0.06, { type: 'square', gain: 0.05 });
+        this.tone(midi(96) * r, 0.14, { type: 'square', gain: 0.05, delay: 0.05 });
+        break;
+      case 'crateOpen':
+        this.noise(0.12, { freq: 900, q: 1.2, gain: 0.18 });
+        this.arp([76, 80, 83, 88], 0.05, { type: 'triangle', gain: 0.15, len: 0.3 });
+        break;
+      case 'countdown': {
+        // variant = 剩余秒数；最后一下更高
+        const last = variant === '1';
+        this.tone(last ? midi(88) : midi(81), last ? 0.16 : 0.09, { type: 'square', gain: 0.06 });
+        break;
+      }
+      case 'evolveStar':
+        this.arp([79, 83, 86, 91, 95], 0.06, { type: 'sine', gain: 0.18, len: 0.4 });
+        this.tone(midi(103), 0.5, { type: 'sine', gain: 0.05, delay: 0.3 });
+        break;
+      case 'mythic':
+        this.tone(midi(48), 0.25, { type: 'sine', gain: 0.3, slide: midi(36) });
+        this.noise(0.5, { freq: 5000, q: 0.4, gain: 0.12, type: 'highpass', delay: 0.25 });
+        this.arp([60, 67, 72, 76, 79, 84, 88, 91], 0.06, { gain: 0.2, len: 0.45 });
+        this.tone(midi(96), 1.1, { type: 'sine', gain: 0.08, delay: 0.5 });
+        break;
+      case 'ability':
+        this.tone(midi(69), 0.3, { type: 'sawtooth', gain: 0.07, slide: midi(93) });
+        this.arp([81, 88, 93], 0.05, { type: 'triangle', gain: 0.14, len: 0.3 });
+        this.noise(0.3, { freq: 3000, q: 0.6, gain: 0.08, sweep: 8000 });
+        break;
     }
   }
 
@@ -367,6 +442,11 @@ class AudioEngine {
         this.tone(midi(81), 0.5, { type: 'sine', gain: 0.12, slide: midi(88) });
         this.noise(0.3, { freq: 5000, q: 0.5, gain: 0.05, type: 'highpass' });
         break;
+      case 'seal_tape':
+        // 撕胶带
+        this.noise(0.35, { freq: 1800, q: 2.5, gain: 0.16, sweep: 3800 });
+        this.noise(0.08, { freq: 600, q: 1, gain: 0.15, delay: 0.34 });
+        break;
       default:
         this.arp([72, 79], 0.06, { gain: 0.15 });
     }
@@ -407,6 +487,24 @@ class AudioEngine {
       case 'gold':
         if (ev.reason === 'interest' || ev.reason === 'piggy' || ev.reason === 'early') this.play('coins');
         return;
+      case 'randomEvent':
+        if (ev.phase === 'warn') return this.play('eventWarn', ev.tone);
+        if (ev.phase === 'start') return this.play('eventStart', ev.tone);
+        return;
+      case 'spawnerDrop':
+        if (ev.phase === 'warn') return this.play('dropWarn');
+        if (ev.phase === 'land') return this.play('dropLand');
+        if (ev.phase === 'demolish') return this.play('sell');
+        return;
+      case 'pickup':
+        if (ev.phase === 'collect') return this.play(ev.kind === 'coin' ? 'coin' : 'crateOpen');
+        return;
+      case 'autoWave':
+        return this.play('countdown', String(ev.secondsLeft));
+      case 'evolve':
+        return this.play(ev.mythic ? 'mythic' : 'evolveStar');
+      case 'towerAbility':
+        return this.play('ability');
       default:
         return;
     }

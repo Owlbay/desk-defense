@@ -26,6 +26,14 @@ export interface UiState {
   touch: boolean;
   /** 电脑：按住 Shift 连续放置 */
   shift: boolean;
+  /** 文档 11：正在瞄准主动能力的神话塔 uid（null = 未瞄准） */
+  abilityAiming: number | null;
+  /** 方向型能力的当前瞄准角度（弧度，由棋盘写入，仅供显示） */
+  abilityAngle: number | null;
+  /** 文档 09：玩家点选的空降出生点 id（UI 据此显示拆除按钮） */
+  spawnerSelected: string | null;
+  /** 鼠标悬停中的掉落物 uid（电脑：悬停 + 空格收集） */
+  hoverPickup: number | null;
 }
 
 type Fn = (s: UiState) => void;
@@ -42,6 +50,10 @@ class Store {
     pending: null,
     touch: false,
     shift: false,
+    abilityAiming: null,
+    abilityAngle: null,
+    spawnerSelected: null,
+    hoverPickup: null,
   };
   private subs = new Set<Fn>();
 
@@ -60,7 +72,17 @@ class Store {
 
   /** 清除所有交互模式（Esc / 取消） */
   clear(): void {
-    this.set({ build: null, selected: null, aiming: null, relocateFrom: null, perkTargeting: null, pending: null });
+    this.set({
+      build: null,
+      selected: null,
+      aiming: null,
+      relocateFrom: null,
+      perkTargeting: null,
+      pending: null,
+      abilityAiming: null,
+      abilityAngle: null,
+      spawnerSelected: null,
+    });
   }
 
   subscribe(fn: Fn): () => void {

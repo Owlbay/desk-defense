@@ -1,8 +1,13 @@
-import type { DifficultyId, DifficultyParams, MapId } from '../core/types';
+import { RANDOM_EVENT_IDS, type DifficultyId, type DifficultyParams, type MapId, type RandomEventId, type SpawnMode } from '../core/types';
+
+/** DifficultyParams 里数值型的字段 */
+export type NumParamKey = { [K in keyof DifficultyParams]: DifficultyParams[K] extends number ? K : never }[keyof DifficultyParams];
 
 /** 自定义模式的滑块定义（文档 04 §6） */
 export interface CustomField {
-  key: keyof DifficultyParams;
+  key: NumParamKey;
+  /** 分组：基础成长 / 动态战场（文档 09） */
+  group?: 'dyn';
   label: string;
   hint: string;
   min: number;
@@ -49,7 +54,25 @@ export const CUSTOM_FIELDS: CustomField[] = [
   { key: 'skillCdMul', label: '技能冷却倍率', hint: '主动技能的冷却时间', min: 0.4, max: 2.5, step: 0.02, fmt: x(2) },
   { key: 'interestCap', label: '利息上限', hint: '每波利息最多多少金币', min: 0, max: 80, step: 1, fmt: int },
   { key: 'scoreMul', label: '得分倍率', hint: '仅影响个人最佳', min: 0, max: 6, step: 0.1, fmt: x(1) },
+  // ── 文档 09：动态战场 ──
+  { key: 'maxActiveSpawners', group: 'dyn', label: '出生点上限', hint: '同时开放的出生点（含空降）', min: 1, max: 4, step: 1, fmt: int },
+  { key: 'maxDrops', group: 'dyn', label: '空降点上限', hint: '同时存在的空降出生点，0 为不空降', min: 0, max: 3, step: 1, fmt: (v) => (v <= 0 ? '无' : int(v)) },
+  { key: 'dropWarn', group: 'dyn', label: '空降预警', hint: '空降落地前的预警时间', min: 2, max: 8, step: 0.5, fmt: (v) => `${v.toFixed(1)} 秒` },
+  { key: 'eventRate', group: 'dyn', label: '事件频率', hint: '随机事件的频率倍率，0 为关闭', min: 0, max: 3, step: 0.1, fmt: (v) => (v <= 0 ? '关闭' : `×${v.toFixed(1)}`) },
+  { key: 'eventHostile', group: 'dyn', label: '坏事件比例', hint: '负面事件所占的比例', min: 0, max: 1, step: 0.05, fmt: pct(0) },
+  { key: 'waveGap', group: 'dyn', label: '开波倒计时', hint: '自动开波：本波刷完到下一波', min: 3, max: 30, step: 1, fmt: (v) => `${Math.round(v)} 秒` },
+  { key: 'waveMax', group: 'dyn', label: '每波上限时间', hint: '自动开波：超时强制开下一波', min: 20, max: 120, step: 5, fmt: (v) => `${Math.round(v)} 秒` },
 ];
+
+/** 出怪策略（自定义模式可选；fixed 只用于战役编排） */
+export const SPAWN_MODES: { id: SpawnMode; name: string; hint: string }[] = [
+  { id: 'roundRobin', name: '轮流', hint: '在开放的出生点之间轮流' },
+  { id: 'random', name: '随机', hint: '每个敌人随机挑一个出生点' },
+  { id: 'split', name: '包夹', hint: '同一组平均分到各出生点' },
+  { id: 'focus', name: '突袭', hint: '整组从同一个随机出生点出来' },
+];
+const SPAWN_MODE_IDS: SpawnMode[] = ['fixed', 'roundRobin', 'random', 'split', 'focus'];
+export const isSpawnMode = (v: unknown): v is SpawnMode => typeof v === 'string' && (SPAWN_MODE_IDS as string[]).includes(v);
 
 const roundTo = (v: number, step: number) => {
   const decimals = Math.max(0, -Math.floor(Math.log10(step)));
@@ -76,6 +99,18 @@ export function sanitizeParams(raw: Partial<Record<string, unknown>>, base: Diff
     if (typeof v !== 'number' || !Number.isFinite(v)) continue;
     out[f.key] = paramValue(f, sliderValue(f, v));
   }
+  if (isSpawnMode(raw.spawnMode)) out.spawnMode = raw.spawnMode;
+  return out;
+}
+
+/** 只保留合法的事件 id，并只记录被关闭（false）的事件 */
+export function sanitizeEvents(raw: unknown): Partial<Record<RandomEventId, boolean>> {
+  const out: Partial<Record<RandomEventId, boolean>> = {};
+  if (Array.isArray(raw)) {
+    for (const id of raw) if ((RANDOM_EVENT_IDS as unknown[]).includes(id)) out[id as RandomEventId] = false;
+  } else if (raw && typeof raw === 'object') {
+    for (const [k, v] of Object.entries(raw)) if ((RANDOM_EVENT_IDS as string[]).includes(k) && v === false) out[k as RandomEventId] = false;
+  }
   return out;
 }
 
@@ -85,6 +120,10 @@ export interface SharePayload {
   params: DifficultyParams;
   map?: MapId;
   base?: DifficultyId;
+  /** 被关闭的随机事件（值为 false） */
+  events?: Partial<Record<RandomEventId, boolean>>;
+  /** 自动开波 */
+  autoWave?: boolean;
 }
 
 function toBase64(s: string): string {
@@ -107,6 +146,9 @@ export function encodeShare(p: SharePayload): string {
   const body: Record<string, unknown> = { v: 1, p: p.params };
   if (p.map) body.m = p.map;
   if (p.base) body.b = p.base;
+  const off = p.events ? RANDOM_EVENT_IDS.filter((id) => p.events?.[id] === false) : [];
+  if (off.length) body.e = off;
+  if (typeof p.autoWave === 'boolean') body.a = p.autoWave ? 1 : 0;
   return SHARE_PREFIX + toBase64(JSON.stringify(body));
 }
 
@@ -131,5 +173,7 @@ export function decodeShare(code: string, base: DifficultyParams): DecodeResult 
   const value: SharePayload = { params: sanitizeParams(rawParams, base) };
   if (typeof o.m === 'string' && /^ch[123]$/.test(o.m)) value.map = o.m as MapId;
   if (typeof o.b === 'string') value.base = o.b as DifficultyId;
+  if (o.e !== undefined) value.events = sanitizeEvents(o.e);
+  if (o.a === 0 || o.a === 1 || typeof o.a === 'boolean') value.autoWave = !!o.a;
   return { ok: true, value };
 }

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { GridState, Obstacle } from '../core/types';
+import type { GridState, Obstacle, SpawnerState } from '../core/types';
 import { C } from './palette';
 import { BOARD_H, BOARD_W, CELL } from './layout';
 
@@ -16,8 +16,40 @@ function rng(seed: number): () => number {
 
 const OUT = 2.5;
 
-/** 画整张桌面：底色、木纹、网格、入口、出口、障碍物 */
-export function drawBoard(g: Phaser.GameObjects.Graphics, grid: GridState): void {
+/** 障碍物的稳定键（用于差异比较 / 暂时隐藏正在落下的书） */
+export function obstacleKey(o: Obstacle): string {
+  return `${o.kind}@${o.x},${o.y},${o.w},${o.h}`;
+}
+
+/** 背景缓存键：障碍物 + 固定出生点（边缘 / 隐藏，含开放状态）+ 出口 */
+export function boardKey(grid: GridState, spawners: SpawnerState[] | undefined, hidden?: Set<string>): string {
+  let k = '';
+  for (const o of grid.obstacles) k += obstacleKey(o) + (hidden?.has(obstacleKey(o)) ? '~' : '') + ';';
+  k += '|';
+  if (spawners && spawners.length) {
+    for (const sp of spawners) {
+      if (sp.kind === 'drop') continue;
+      k += `${sp.id}:${sp.kind}:${sp.active ? 1 : 0}:`;
+      for (const c of sp.cells) k += `${c.x},${c.y} `;
+      k += ';';
+    }
+  } else for (const c of grid.spawns) k += `${c.x},${c.y};`;
+  k += '|';
+  for (const c of grid.exits) k += `${c.x},${c.y};`;
+  return k;
+}
+
+/**
+ * 画整张桌面：底色、木纹、网格、入口、出口、障碍物。
+ * spawners 为空时退回旧字段 grid.spawns（全部按边缘入口画）。
+ * hidden 中的障碍物暂不画（例如正在播放下落动画的书）。
+ */
+export function drawBoard(
+  g: Phaser.GameObjects.Graphics,
+  grid: GridState,
+  spawners?: SpawnerState[],
+  hidden?: Set<string>,
+): void {
   g.clear();
   // 投影与桌面
   g.fillStyle(C.ink, 0.18);
@@ -58,9 +90,14 @@ export function drawBoard(g: Phaser.GameObjects.Graphics, grid: GridState): void
   g.fillStyle(C.deskDark, 0.9);
   for (let x = 1; x < grid.cols; x++) for (let y = 1; y < grid.rows; y++) g.fillRect(x * CELL - 1.5, y * CELL - 1.5, 3, 3);
 
-  drawEntrances(g, grid);
+  if (spawners && spawners.length) {
+    for (const sp of spawners) {
+      if (sp.kind === 'edge') drawEntrances(g, grid, sp.cells, sp.active);
+      else if (sp.kind === 'hidden') drawHiddenSpawner(g, sp.cells, sp.active);
+    }
+  } else drawEntrances(g, grid, grid.spawns, true);
   drawExit(g, grid);
-  for (const o of grid.obstacles) drawObstacle(g, o);
+  for (const o of grid.obstacles) if (!hidden || !hidden.has(obstacleKey(o))) drawObstacle(g, o);
 
   // 桌沿描边
   g.lineStyle(3, C.ink, 0.85);
@@ -94,8 +131,77 @@ function edgeOf(b: { x: number; y: number; w: number; h: number }, grid: GridSta
   return 'top';
 }
 
-function drawEntrances(g: Phaser.GameObjects.Graphics, grid: GridState): void {
-  for (const b of groupCells(grid.spawns)) {
+/** 包围盒（格） */
+export function cellBounds(cells: { x: number; y: number }[]): { x: number; y: number; w: number; h: number } {
+  if (!cells.length) return { x: 0, y: 0, w: 1, h: 1 };
+  let x0 = Infinity,
+    y0 = Infinity,
+    x1 = -Infinity,
+    y1 = -Infinity;
+  for (const c of cells) {
+    x0 = Math.min(x0, c.x);
+    y0 = Math.min(y0, c.y);
+    x1 = Math.max(x1, c.x);
+    y1 = Math.max(y1, c.y);
+  }
+  return { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+}
+
+/** 隐藏出生点：关闭时只是一块淡淡的"暗门"缝；开启时是一个黑洞口加两扇翻开的门 */
+function drawHiddenSpawner(g: Phaser.GameObjects.Graphics, cells: { x: number; y: number }[], active: boolean): void {
+  for (const b of groupCells(cells)) {
+    const X = b.x * CELL,
+      Y = b.y * CELL,
+      W = b.w * CELL,
+      H = b.h * CELL;
+    if (!active) {
+      // 若隐若现的方形接缝 + 两颗小铰链
+      g.lineStyle(1.5, C.deskDark, 0.9);
+      g.strokeRoundedRect(X + 6, Y + 6, W - 12, H - 12, 4);
+      g.lineStyle(1, C.ink, 0.12);
+      g.strokeRoundedRect(X + 7.5, Y + 7.5, W - 15, H - 15, 3);
+      g.fillStyle(C.ink, 0.18);
+      g.fillCircle(X + 10, Y + H / 2 - 6, 1.6);
+      g.fillCircle(X + 10, Y + H / 2 + 6, 1.6);
+      g.lineStyle(1, C.deskDark, 0.7);
+      g.lineBetween(X + W / 2, Y + 8, X + W / 2, Y + H - 8);
+      continue;
+    }
+    // 开启：深色洞口
+    g.fillStyle(C.ink, 0.18);
+    g.fillRoundedRect(X + 3, Y + 4, W - 4, H - 4, 6);
+    g.fillStyle(C.ink, 0.9);
+    g.fillRoundedRect(X + 6, Y + 6, W - 12, H - 12, 5);
+    g.fillStyle(0x000000, 0.3);
+    g.fillRoundedRect(X + 9, Y + 9, W - 18, (H - 18) * 0.5, 4);
+    // 两扇翻开的门板（左右）
+    g.fillStyle(C.deskDark, 1);
+    g.lineStyle(OUT, C.ink, 1);
+    g.fillRoundedRect(X + 1, Y + 6, 7, H - 12, 2);
+    g.strokeRoundedRect(X + 1, Y + 6, 7, H - 12, 2);
+    g.fillRoundedRect(X + W - 8, Y + 6, 7, H - 12, 2);
+    g.strokeRoundedRect(X + W - 8, Y + 6, 7, H - 12, 2);
+    // 紫色危险描边 + 向外的小箭头（敌人从这里出来）
+    g.lineStyle(2, C.magenta, 0.7);
+    g.strokeRoundedRect(X + 6, Y + 6, W - 12, H - 12, 5);
+    const cx = X + W / 2,
+      cy = Y + H / 2;
+    g.lineStyle(2.5, C.paper, 0.75);
+    for (const [dx, dy] of [
+      [0, -1],
+      [0, 1],
+    ]) {
+      g.beginPath();
+      g.moveTo(cx - 6, cy + dy * 3);
+      g.lineTo(cx, cy + dy * 9 + dx);
+      g.lineTo(cx + 6, cy + dy * 3);
+      g.strokePath();
+    }
+  }
+}
+
+function drawEntrances(g: Phaser.GameObjects.Graphics, grid: GridState, cells: { x: number; y: number }[], active: boolean): void {
+  for (const b of groupCells(cells)) {
     const edge = edgeOf(b, grid);
     const X = b.x * CELL,
       Y = b.y * CELL,
@@ -122,10 +228,17 @@ function drawEntrances(g: Phaser.GameObjects.Graphics, grid: GridState): void {
     }
     g.fillStyle(C.ink, 0.12);
     g.fillRoundedRect(X + 2, Y + 2, W - 4, H - 4, 8);
-    g.fillStyle(C.ink, 0.85);
+    g.fillStyle(C.ink, active ? 0.85 : 0.4);
     g.fillRoundedRect(rx, ry - (edge === 'top' ? 8 : 0), rw, rh + (edge === 'top' || edge === 'bottom' ? 8 : 0), 8);
     g.fillStyle(0x000000, 0.25);
     g.fillRoundedRect(rx + 4, ry + (edge === 'top' ? -4 : 4), rw - 8, rh * 0.6, 6);
+    if (!active) {
+      // 尚未开放：两条交叉的封箱胶带
+      g.lineStyle(5, C.tapeTan, 0.9);
+      g.lineBetween(X + 6, Y + 6, X + W - 6, Y + H - 6);
+      g.lineBetween(X + W - 6, Y + 6, X + 6, Y + H - 6);
+      continue;
+    }
     // 向内的箭头
     const cx = X + W / 2,
       cy = Y + H / 2;
@@ -354,6 +467,237 @@ export function drawObstacle(g: Phaser.GameObjects.Graphics, o: Obstacle): void 
         g.fillStyle(cols[i % cols.length], 1);
         g.fillCircle(tx + (tw - 4) / 2, ty + th + 2, 3);
       }
+      break;
+    }
+    case 'eraser': {
+      // 粉蓝两色橡皮，沿长边摆放
+      const hor = W >= H;
+      const rx = X + m + 2,
+        ry = Y + m + 4,
+        rw = W - 2 * m - 4,
+        rh = H - 2 * m - 8;
+      shadowRect(g, rx, ry, rw, rh, 6);
+      g.fillStyle(C.pink, 1);
+      g.fillRoundedRect(rx, ry, rw, rh, 6);
+      g.fillStyle(C.blueCap, 1);
+      if (hor) g.fillRect(rx + rw * 0.58, ry, rw * 0.42 - 4, rh);
+      else g.fillRect(rx, ry + rh * 0.58, rw, rh * 0.42 - 4);
+      g.fillStyle(C.white, 0.35);
+      g.fillRoundedRect(rx + 4, ry + 3, (hor ? rw * 0.5 : rw - 8), 3, 1.5);
+      g.lineStyle(OUT, C.ink, 1);
+      g.strokeRoundedRect(rx, ry, rw, rh, 6);
+      g.lineStyle(1.5, C.ink, 0.6);
+      if (hor) g.lineBetween(rx + rw * 0.58, ry + 1, rx + rw * 0.58, ry + rh - 1);
+      else g.lineBetween(rx + 1, ry + rh * 0.58, rx + rw - 1, ry + rh * 0.58);
+      // 擦过的碎屑
+      g.fillStyle(C.pink, 0.8);
+      g.fillCircle(rx - 2, ry + rh + 3, 1.6);
+      g.fillCircle(rx + 6, ry + rh + 5, 1.2);
+      break;
+    }
+    case 'pencilcup': {
+      // 俯视：深色笔筒 + 几支笔的笔尾
+      const r = Math.min(W, H) / 2 - m;
+      g.fillStyle(C.ink, 0.18);
+      g.fillCircle(cx + 3, cy + 5, r + 1);
+      g.fillStyle(C.slate, 1);
+      g.fillCircle(cx, cy, r);
+      g.lineStyle(OUT, C.ink, 1);
+      g.strokeCircle(cx, cy, r);
+      g.fillStyle(C.ink, 0.85);
+      g.fillCircle(cx, cy, r * 0.8);
+      const tips = [C.pencil, C.alarmRed, C.blueCap, C.teal, C.pink, C.penBlue];
+      for (let i = 0; i < tips.length; i++) {
+        const a = i * 1.1 + 0.3;
+        const d = r * (i % 2 ? 0.45 : 0.2);
+        const px = cx + Math.cos(a) * d,
+          py = cy + Math.sin(a) * d;
+        const pr = r * 0.2;
+        g.fillStyle(tips[i], 1);
+        g.fillCircle(px, py, pr);
+        g.lineStyle(1.5, C.ink, 1);
+        g.strokeCircle(px, py, pr);
+        g.fillStyle(C.white, 0.45);
+        g.fillCircle(px - pr * 0.3, py - pr * 0.3, pr * 0.3);
+      }
+      g.lineStyle(2, C.white, 0.25);
+      g.beginPath();
+      g.arc(cx, cy, r * 0.9, Math.PI * 1.1, Math.PI * 1.5, false);
+      g.strokePath();
+      break;
+    }
+    case 'sticky': {
+      // 一叠便利贴：底下两张错开，顶上一张翘角
+      const s0 = Math.min(W, H) - 2 * m - 4;
+      const cols2 = [C.pink, C.screen, 0xfce38a];
+      for (let i = 0; i < 3; i++) {
+        const ox = cx + (i - 1) * 3 - s0 / 2 + (W > H ? (i - 1) * (W - H) * 0.3 : 0);
+        const oy = cy + (1 - i) * 2 - s0 / 2 + (H > W ? (i - 1) * (H - W) * 0.3 : 0);
+        if (i === 0) shadowRect(g, ox, oy, s0, s0, 2);
+        g.fillStyle(cols2[i], 1);
+        g.fillRect(ox, oy, s0, s0);
+        g.lineStyle(OUT, C.ink, 1);
+        if (i < 2) g.strokeRect(ox, oy, s0, s0);
+        else {
+          const k = s0 * 0.28;
+          const pts = [
+            { x: ox, y: oy },
+            { x: ox + s0, y: oy },
+            { x: ox + s0, y: oy + s0 - k },
+            { x: ox + s0 - k, y: oy + s0 },
+            { x: ox, y: oy + s0 },
+          ];
+          g.fillStyle(cols2[i], 1);
+          g.fillPoints(pts, true);
+          g.strokePoints(pts, true);
+          g.fillStyle(0xe8c95a, 1);
+          g.fillTriangle(ox + s0, oy + s0 - k, ox + s0 - k, oy + s0, ox + s0 - k, oy + s0 - k);
+          g.lineStyle(1.5, C.ink, 1);
+          g.strokeTriangle(ox + s0, oy + s0 - k, ox + s0 - k, oy + s0, ox + s0 - k, oy + s0 - k);
+          // 手写线
+          g.lineStyle(1.5, C.ink, 0.45);
+          for (let l = 0; l < 3; l++) g.lineBetween(ox + 5, oy + 8 + l * 7, ox + s0 - 8 - l * 4, oy + 8 + l * 7);
+        }
+      }
+      break;
+    }
+    case 'phone': {
+      const hor = W > H;
+      const rw = W - 2 * m - (hor ? 0 : 6),
+        rh = H - 2 * m - (hor ? 6 : 0);
+      const rx = cx - rw / 2,
+        ry = cy - rh / 2;
+      shadowRect(g, rx, ry, rw, rh, 8);
+      g.fillStyle(C.ink, 1);
+      g.fillRoundedRect(rx, ry, rw, rh, 8);
+      g.fillStyle(0x2c3e50, 1);
+      g.fillRoundedRect(rx + 4, ry + 4, rw - 8, rh - 8, 5);
+      // 屏幕反光
+      g.fillStyle(C.blueCap, 0.35);
+      g.fillTriangle(rx + 4, ry + 4, rx + rw * 0.6, ry + 4, rx + 4, ry + rh * 0.55);
+      // 听筒 / 摄像头
+      g.fillStyle(C.slate, 1);
+      if (hor) g.fillRoundedRect(rx + 1.5, cy - 6, 2, 12, 1);
+      else g.fillRoundedRect(cx - 6, ry + 1.5, 12, 2, 1);
+      g.lineStyle(OUT, C.ink, 1);
+      g.strokeRoundedRect(rx, ry, rw, rh, 8);
+      // 一条通知
+      g.fillStyle(C.paper, 0.85);
+      if (hor) g.fillRoundedRect(rx + rw * 0.55, ry + 8, rw * 0.35, 8, 3);
+      else g.fillRoundedRect(rx + 8, ry + rh * 0.35, rw - 16, 8, 3);
+      break;
+    }
+    case 'ruler': {
+      const hor = W >= H;
+      const t = Math.min(W, H) - 2 * m - 10;
+      const rx = hor ? X + m : cx - t / 2,
+        ry = hor ? cy - t / 2 : Y + m;
+      const rw = hor ? W - 2 * m : t,
+        rh = hor ? t : H - 2 * m;
+      shadowRect(g, rx, ry, rw, rh, 3);
+      g.fillStyle(C.ruler, 0.95);
+      g.fillRoundedRect(rx, ry, rw, rh, 3);
+      g.fillStyle(C.white, 0.35);
+      if (hor) g.fillRect(rx + 2, ry + rh - 6, rw - 4, 3);
+      else g.fillRect(rx + rw - 6, ry + 2, 3, rh - 4);
+      g.lineStyle(1.2, C.ink, 0.8);
+      const L = hor ? rw : rh;
+      for (let i = 1; i * 6 < L - 2; i++) {
+        const tl = i % 5 === 0 ? 9 : 5;
+        if (hor) g.lineBetween(rx + i * 6, ry, rx + i * 6, ry + tl);
+        else g.lineBetween(rx, ry + i * 6, rx + tl, ry + i * 6);
+      }
+      g.lineStyle(OUT, C.ink, 1);
+      g.strokeRoundedRect(rx, ry, rw, rh, 3);
+      break;
+    }
+    case 'tape': {
+      // 胶带卷：米色圆环 + 露出桌面的中心孔
+      const r = Math.min(W, H) / 2 - m;
+      g.fillStyle(C.ink, 0.18);
+      g.fillCircle(cx + 3, cy + 5, r);
+      g.fillStyle(C.tapeTan, 1);
+      g.fillCircle(cx, cy, r);
+      g.lineStyle(OUT, C.ink, 1);
+      g.strokeCircle(cx, cy, r);
+      g.lineStyle(1, C.ink, 0.25);
+      g.strokeCircle(cx, cy, r * 0.82);
+      g.strokeCircle(cx, cy, r * 0.68);
+      g.fillStyle(C.paper, 1);
+      g.fillCircle(cx, cy, r * 0.52);
+      g.lineStyle(OUT, C.ink, 1);
+      g.strokeCircle(cx, cy, r * 0.52);
+      g.fillStyle(C.desk, 1);
+      g.fillCircle(cx, cy, r * 0.42);
+      g.lineStyle(1.5, C.ink, 0.6);
+      g.strokeCircle(cx, cy, r * 0.42);
+      // 拉出来的一截
+      g.fillStyle(C.tapeTan, 0.85);
+      g.fillRect(cx + r * 0.6, cy + r * 0.55, r * 0.7, r * 0.3);
+      g.lineStyle(1.5, C.ink, 0.7);
+      g.strokeRect(cx + r * 0.6, cy + r * 0.55, r * 0.7, r * 0.3);
+      break;
+    }
+    case 'stapler': {
+      // 桌上的大订书机（俯视）：底座 + 上盖 + 金属压板
+      const hor = W >= H;
+      const t = Math.min(W, H) - 2 * m - 6;
+      const rx = hor ? X + m : cx - t / 2,
+        ry = hor ? cy - t / 2 : Y + m;
+      const rw = hor ? W - 2 * m : t,
+        rh = hor ? t : H - 2 * m;
+      shadowRect(g, rx, ry, rw, rh, t / 2);
+      g.fillStyle(C.slate, 1);
+      g.fillRoundedRect(rx, ry, rw, rh, Math.min(t / 2, 10));
+      g.lineStyle(OUT, C.ink, 1);
+      g.strokeRoundedRect(rx, ry, rw, rh, Math.min(t / 2, 10));
+      g.fillStyle(C.bookRed, 1);
+      const ix = hor ? rx + 4 : rx + 3,
+        iy = hor ? ry + 3 : ry + 4;
+      const iw = hor ? rw * 0.78 : rw - 6,
+        ih = hor ? rh - 6 : rh * 0.78;
+      g.fillRoundedRect(ix, iy, iw, ih, Math.min(t / 2 - 3, 8));
+      g.strokeRoundedRect(ix, iy, iw, ih, Math.min(t / 2 - 3, 8));
+      g.fillStyle(C.metal, 1);
+      if (hor) g.fillRect(ix + iw - 10, iy + 3, 6, ih - 6);
+      else g.fillRect(ix + 3, iy + ih - 10, iw - 6, 6);
+      g.fillStyle(C.white, 0.3);
+      if (hor) g.fillRect(ix + 6, iy + 3, iw * 0.6, 3);
+      else g.fillRect(ix + 3, iy + 6, 3, ih * 0.6);
+      break;
+    }
+    case 'clip': {
+      // 长尾夹：黑色梯形夹身 + 两个银色把手
+      const s0 = Math.min(W, H) - 2 * m - 8;
+      const bx = cx - s0 / 2,
+        by = cy - s0 * 0.25;
+      g.fillStyle(C.ink, 0.18);
+      g.fillRect(bx + 3, by + 5, s0, s0 * 0.55);
+      g.lineStyle(3, C.metal, 1);
+      g.beginPath();
+      g.moveTo(bx + s0 * 0.2, by);
+      g.lineTo(bx + s0 * 0.1, by - s0 * 0.4);
+      g.lineTo(bx + s0 * 0.45, by - s0 * 0.4);
+      g.lineTo(bx + s0 * 0.4, by);
+      g.strokePath();
+      g.beginPath();
+      g.moveTo(bx + s0 * 0.8, by);
+      g.lineTo(bx + s0 * 0.9, by - s0 * 0.4);
+      g.lineTo(bx + s0 * 0.55, by - s0 * 0.4);
+      g.lineTo(bx + s0 * 0.6, by);
+      g.strokePath();
+      const pts = [
+        { x: bx + s0 * 0.12, y: by },
+        { x: bx + s0 * 0.88, y: by },
+        { x: bx + s0, y: by + s0 * 0.55 },
+        { x: bx, y: by + s0 * 0.55 },
+      ];
+      g.fillStyle(0x2d2d2d, 1);
+      g.fillPoints(pts, true);
+      g.lineStyle(OUT, C.ink, 1);
+      g.strokePoints(pts, true);
+      g.fillStyle(C.white, 0.25);
+      g.fillRect(bx + s0 * 0.2, by + 3, s0 * 0.5, 2.5);
       break;
     }
   }

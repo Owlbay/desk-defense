@@ -1,4 +1,6 @@
-import type { DifficultyParams, RunOptions } from './types';
+import type { DifficultyParams, RunOptions, SpawnMode } from './types';
+
+const SPAWN_MODES: SpawnMode[] = ['fixed', 'roundRobin', 'random', 'split', 'focus'];
 import { PRESETS, abyssParams } from '../config/difficulty';
 
 /** 文档 04 §3 成长公式 */
@@ -37,9 +39,11 @@ export function resolveParams(opts: RunOptions): DifficultyParams {
     base = opts.difficulty === 'hard' ? { ...PRESETS.hard } : { ...PRESETS.normal };
   }
   if (opts.mode === 'custom' && opts.custom) {
+    const out = base as unknown as Record<string, unknown>;
     for (const k of Object.keys(opts.custom) as (keyof DifficultyParams)[]) {
       const v = opts.custom[k];
-      if (typeof v === 'number' && Number.isFinite(v)) base[k] = v;
+      if (typeof v === 'number' && Number.isFinite(v)) out[k] = v;
+      else if (k === 'spawnMode' && typeof v === 'string' && SPAWN_MODES.includes(v as SpawnMode)) out[k] = v;
     }
   }
   return base;

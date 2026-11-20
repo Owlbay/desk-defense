@@ -20,7 +20,8 @@ type FxKind =
   | 'plus' // 治疗十字
   | 'line' // 横扫尺的扫线
   | 'eraser' // 大橡皮落下
-  | 'rect2'; // 矩形区域闪光
+  | 'rect2' // 矩形区域闪光
+  | 'bolt'; // 沿直线飞行的一小段（钉子、射线）
 
 interface FxItem {
   k: FxKind;
@@ -283,6 +284,22 @@ export class Fx {
     it.a0 = horizontal ? 1 : 0;
   }
 
+  /** 一小段沿直线飞行的亮条（钉子、射线等），len 为长度（像素） */
+  bolt(x: number, y: number, tx: number, ty: number, color: number, width: number, len = 12, dur = 0.3, delay = 0): void {
+    const it = this.alloc('bolt', x, y, dur, color);
+    if (!it) return;
+    it.x2 = tx;
+    it.y2 = ty;
+    it.w = width;
+    it.size = len;
+    it.delay = delay;
+  }
+
+  /** 延迟出现的扩散圆环（已有 ring 的 delay 参数）/ 延迟的碎片：通用延迟包装 */
+  later(sec: number, fn: () => void): void {
+    this.scene.time.delayedCall(sec * 1000, fn);
+  }
+
   /** 大橡皮从上方砸下 */
   eraserDrop(x: number, y: number, r: number): void {
     const it = this.alloc('eraser', x, y, 0.5, C.pink);
@@ -536,6 +553,23 @@ export class Fx {
             if (hor) g.lineBetween(rx, ry + i * 8, rx + tl, ry + i * 8);
             else g.lineBetween(rx + i * 8, ry, rx + i * 8, ry + tl);
           }
+          break;
+        }
+        case 'bolt': {
+          const e = p;
+          const dx = it.x2 - it.x,
+            dy = it.y2 - it.y;
+          const L = Math.hypot(dx, dy) || 1;
+          const ux = dx / L,
+            uy = dy / L;
+          const hx = it.x + dx * e,
+            hy = it.y + dy * e;
+          const tl = Math.min(it.size, L * e);
+          const a = p > 0.85 ? (1 - p) / 0.15 : 1;
+          g.lineStyle(it.w + 2, C.ink, 0.8 * a);
+          g.lineBetween(hx - ux * tl, hy - uy * tl, hx, hy);
+          g.lineStyle(it.w, it.color, a);
+          g.lineBetween(hx - ux * tl, hy - uy * tl, hx, hy);
           break;
         }
         case 'eraser': {

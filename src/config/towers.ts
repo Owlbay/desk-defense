@@ -148,4 +148,4 @@ export const COMBOS: { a: TowerId; b: TowerId; name: string; desc: string }[] = 
   { a: 'calculator', b: 'piggy', name: '复利', desc: '存钱罐每波产出 +25%' },
 ];
 
-export const TIER_NAMES = ['草稿', '精良', '镀金', '传奇'];
+export const TIER_NAMES = ['草稿', '精良', '镀金', '传奇', '神话'];

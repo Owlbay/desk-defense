@@ -1,5 +1,7 @@
 import type { GameEvent } from '../core/types';
+import { abilityFx } from './abilities';
 import type { RenderCtx } from './ctx';
+import type { FieldLayer } from './field';
 import { BOARD_H, BOARD_W, CELL } from './layout';
 import { C, ENEMY_COLOR } from './palette';
 import type { TowerLayer } from './towers';
@@ -18,6 +20,7 @@ export class EventFx {
   constructor(
     private ctx: RenderCtx,
     private towers: TowerLayer,
+    private field: FieldLayer,
   ) {}
 
   private shake(ms: number, k: number): void {
@@ -194,6 +197,29 @@ export class EventFx {
       case 'skill':
         this.skill(ev);
         break;
+      // ── 文档 09 ──
+      case 'spawnerDrop':
+      case 'pickup':
+      case 'autoWave':
+      case 'randomEvent':
+        this.field.handle(ev);
+        break;
+      case 'terrainChanged':
+        // 背景按地形键自动重画；这里只给一点反馈
+        if (ev.reason !== 'drop') this.shake(100, 0.04);
+        break;
+      case 'towerMoved': {
+        this.towers.onMoved(ev.uid, ev.fromX, ev.fromY);
+        fx.ring(P(ev.cx + 0.5), P(ev.cy + 0.5), 4, 26, C.paper, 0.35, 3);
+        break;
+      }
+      // ── 文档 11 ──
+      case 'evolve':
+        this.towers.onEvolve(ev.uid, ev.stars, ev.mythic);
+        break;
+      case 'towerAbility':
+        abilityFx(this.ctx, this.towers, this.field, ev, (ms, k) => this.shake(ms, k));
+        break;
       default:
         break;
     }
@@ -283,6 +309,20 @@ export class EventFx {
           fx.ring(x, y, 30, 6, C.goldLight, 0.4, 4);
           fx.sparkle(x, y - 6, C.goldLight, 10, 30);
           fx.text(x, y - 24, '灵感!', 'level');
+        }
+        break;
+      }
+      case 'seal_tape': {
+        // 封箱胶带：在纸箱上贴一个大叉
+        const sp = st.spawners?.find((q) => q.kind === 'drop' && q.cells.some((c) => c.x === ev.cx && c.y === ev.cy));
+        const cells = sp?.cells ?? (ev.cx !== undefined && ev.cy !== undefined ? [{ x: ev.cx, y: ev.cy }] : []);
+        if (!cells.length && ev.x !== undefined && ev.y !== undefined) cells.push({ x: Math.floor(ev.x), y: Math.floor(ev.y) });
+        for (const c of cells) {
+          const x = P(c.x + 0.5),
+            y = P(c.y + 0.5);
+          fx.stroke(x - 18, y - 18, x + 18, y + 18, C.tapeTan, 10, 0.6);
+          fx.stroke(x + 18, y - 18, x - 18, y + 18, C.tapeTan, 10, 0.6);
+          fx.dust(x, y, 18, C.tapeTan);
         }
         break;
       }

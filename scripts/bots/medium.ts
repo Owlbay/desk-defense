@@ -30,6 +30,8 @@ export function medium(ctx: { mode: ModeId; map: MapId }): BotParams {
     offPlan: false,
     placeNoise: 0.1,
     opening: ['pencil', 'pencil', 'pencil'],
+    demolishAt: 2.5,
+    abilities: 'ready',
     decisionTicks: 30,
     xpProbe: true,
   };

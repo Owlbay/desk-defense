@@ -231,15 +231,16 @@ export interface EnemyState {
   spawnedAt: number;
 }
 
-export type ProjectileKind = 'graphite' | 'color' | 'glue' | 'ink' | 'brush' | 'ruler' | 'eraser';
+export type ProjectileKind = 'graphite' | 'color' | 'glue' | 'ink' | 'brush' | 'ruler' | 'eraser'
+  | 'nail';                 // 工业钉枪「连环钉」（直线穿透）
 
 export interface ProjectileState {
   uid: number;
   kind: ProjectileKind;
   x: number; y: number;
   angle: number;
-  /** 'color' 弹的颜色：red / blue / yellow */
-  color?: 'red' | 'blue' | 'yellow';
+  /** 'color' 弹的颜色：red / blue / yellow（彩色铅笔 ★2 增加 green 中毒 / purple 易伤） */
+  color?: 'red' | 'blue' | 'yellow' | 'green' | 'purple';
   towerUid: number;
 }
 
@@ -250,6 +251,8 @@ export type ZoneKind = 'glue' | 'hotglue' | 'whiteout' | 'tape' | 'magnifier'
 
 export interface SpawnerState {
   id: string;                         // 'north' | 'west' | 'drop-3' | 'hidden-1' …
+  /** 显示名（北入口 / 西入口 / 空降点 / 暗门） */
+  name?: string;
   kind: 'edge' | 'hidden' | 'drop';
   cells: { x: number; y: number }[];
   /** 开放中（可出怪） */
@@ -445,7 +448,7 @@ export type GameEvent =
   | { type: 'bossSkill'; enemyUid: number; skill: 'spill' | 'shred' | 'inkShield' | 'inkCloud' | 'ring'; x: number; y: number; r: number }
   | { type: 'towerDisabled'; uid: number; until: number }
   | { type: 'skill'; skill: SkillId; x?: number; y?: number; r?: number; cx?: number; cy?: number; axis?: 'row' | 'col'; uid?: number }
-  | { type: 'gold'; amount: number; x?: number; y?: number; reason: 'kill' | 'wave' | 'interest' | 'early' | 'piggy' | 'skill' | 'perk' | 'refund' | 'stolen' | 'color' }
+  | { type: 'gold'; amount: number; x?: number; y?: number; reason: 'kill' | 'wave' | 'interest' | 'early' | 'piggy' | 'skill' | 'perk' | 'refund' | 'stolen' | 'color' | 'pickup' }
   | { type: 'waveStart'; wave: number; tags: WavePreview['tags'] }
   | { type: 'waveEnd'; wave: number; bonus: number; interest: number; piggy: number }
   | { type: 'perkOffer'; cards: PerkCard[] }

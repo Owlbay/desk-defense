@@ -10,7 +10,7 @@ import {
 import { COMBOS, TOWERS } from '../../src/config/towers';
 import { rawUpgradeCost } from '../../src/core/scaling';
 import {
-  airSamples, coverage, groundSamples, planMaze, targetCells, type MazePlan, type Sample,
+  airSamples, coverage, groundSamples, planMaze, spawnerKey, targetCells, type MazePlan, type Sample,
 } from './maze';
 
 export interface BotParams {
@@ -55,6 +55,10 @@ export interface BotParams {
   opening: TowerId[];
   /** 保留一座只靠经验升级的铅笔（用于经验节奏测量） */
   xpProbe: boolean;
+  /** 空降点：金币是拆除费用的多少倍以上才拆（0 = 不拆） */
+  demolishAt?: number;
+  /** 神话能力：'none' 不用；'ready' 冷却好且场上有怪就用 */
+  abilities?: 'none' | 'ready';
 }
 
 /** 每种塔"单位覆盖"的大致价值（秒伤量级），只用于机器人的买/升比较 */
@@ -115,7 +119,7 @@ export class StrategyBot {
   // ───────────── 事件钩子（由 runner 调用） ─────────────
   onWaveStart(wave: number): void {
     const s = this.w.state;
-    const plan = generateWave({ seed: s.seed, mode: s.opts.mode, map: s.opts.map, params: s.params, entrances: s.grid.spawns.length / 2 }, wave);
+    const plan = generateWave({ seed: s.seed, mode: s.opts.mode, map: s.opts.map, params: s.params }, wave);
     const last = plan.entries.length ? plan.entries[plan.entries.length - 1].at : 0;
     this.waveSpawnEnd = Math.max(this.waveSpawnEnd, s.time + last);
     this.leaksThisWave = 0;
@@ -134,12 +138,86 @@ export class StrategyBot {
     const s = this.w.state;
     if (s.phase === 'perk') { this.choosePerk(); return; }
     this.spend();
+    this.maybeDemolish();
     if (phase === 'wave') {
       this.useSkills();
+      this.useAbilities();
       if (this.p.earlyStart) this.maybeEarlyStart();
     } else if (this.p.skillUse !== 'rare') {
       // 开波前就能用的：奖学金、灵感
       this.castEconomy();
+    }
+    if (this.p.earlyStart && phase === 'build' && s.autoWave.enabled && s.autoWave.started) this.maybeEarlyStart();
+  }
+
+  /** 每步调用：捡掉落物、选补给（真人点一下就行，机器人每步都跟得上） */
+  tick(): void {
+    const s = this.w.state;
+    if (s.pickups.length) {
+      for (const p of s.pickups.slice()) {
+        if (p.kind === 'crate' && s.crateChoice) continue;
+        this.w.command({ type: 'collect', uid: p.uid });
+      }
+    }
+    if (s.crateChoice) {
+      const pref = ['gold', 'xp', 'lives', 'caffeine', 'cooldown', 'charge'];
+      const opts = s.crateChoice.options.slice().sort((a, b) => pref.indexOf(a.id) - pref.indexOf(b.id));
+      this.w.command({ type: 'chooseCrate', option: opts[0].id });
+    }
+  }
+
+  private maybeDemolish(): void {
+    const k = this.p.demolishAt ?? 0;
+    if (k <= 0) return;
+    const s = this.w.state;
+    for (const sp of s.spawners) {
+      if (sp.kind !== 'drop' || !sp.active) continue;
+      const cost = sp.demolishCost ?? 0;
+      if (cost > 0 && s.gold >= cost * k) this.w.command({ type: 'demolishSpawner', id: sp.id });
+    }
+  }
+
+  /** 神话能力：冷却好且场上有怪就放 */
+  private useAbilities(): void {
+    if ((this.p.abilities ?? 'none') === 'none') return;
+    const s = this.w.state;
+    const en = s.enemies.filter((e) => !e.hidden);
+    if (en.length < 3 && s.bossUids.length === 0) return;
+    for (const t of this.towers()) {
+      if (t.stars < 3) continue;
+      const info = this.w.getTowerInfo(t.uid);
+      const ab = info?.ability;
+      if (!ab || !ab.ready) continue;
+      const strong = en.reduce((a, b) => (b.hp > a.hp ? b : a), en[0]);
+      const dense = this.densest(1.5, false) ?? { x: strong.x, y: strong.y, v: 0, n: 0 };
+      switch (ab.target) {
+        case 'none':
+          this.w.command({ type: 'towerAbility', uid: t.uid });
+          break;
+        case 'circle':
+        case 'rect3':
+          this.w.command({ type: 'towerAbility', uid: t.uid, x: dense.x, y: dense.y });
+          break;
+        case 'direction':
+          this.w.command({ type: 'towerAbility', uid: t.uid, angle: Math.atan2(dense.y - (t.cy + 0.5), dense.x - (t.cx + 0.5)) });
+          break;
+        case 'axis':
+          this.w.command({ type: 'towerAbility', uid: t.uid, axis: 'row', index: Math.floor(dense.y) });
+          break;
+        case 'enemy': {
+          const elite = en.find((e) => e.elite && !e.boss && e.affixes.length > 0);
+          const tgt = ab.id === 'eraser_b' ? elite : strong;
+          if (tgt) this.w.command({ type: 'towerAbility', uid: t.uid, targetUid: tgt.uid });
+          break;
+        }
+        case 'tower': {
+          const cand = this.towers().filter((o) => o.id !== 'wall' && o.uid !== t.uid && o.level < 9
+            && (o.cx - t.cx) ** 2 + (o.cy - t.cy) ** 2 <= (info!.auraRange ?? 2) ** 2)
+            .sort((a, b) => b.level - a.level)[0];
+          if (cand) this.w.command({ type: 'towerAbility', uid: t.uid, targetUid: cand.uid });
+          break;
+        }
+      }
     }
   }
 
@@ -164,8 +242,10 @@ export class StrategyBot {
   private refreshSamples(): void {
     const g = this.w.state.grid;
     const nSeg = this.activeSegments();
-    const key = `${g.version}|${nSeg}`;
+    const sk = spawnerKey(this.w);
+    const key = `${g.version}|${nSeg}|${sk}`;
     if (key === this.samplesKey) return;
+    if (!this.samplesKey.endsWith(`|${sk}`)) this.aSamples = airSamples(this.w);
     this.samplesKey = key;
     const cells = targetCells(this.w, this.plan, nSeg, this.scratch);
     this.gSamples = groundSamples(this.w, cells, this.scratch);
@@ -426,8 +506,22 @@ export class StrategyBot {
     }
     for (const t of this.towers()) {
       if (t.id === 'wall' || t.uid === this.probeUid) continue;
-      if (t.level >= 10) continue;
       const info = this.w.getTowerInfo(t.uid)!;
+      if (t.level >= 10) {
+        // 传奇进化：每星 +12% 伤害等；★3 另有主动能力
+        if (info.evolveCost === null || this.p.upgrade !== 'value') continue;
+        let eff: number;
+        if (t.id === 'piggy' || t.id === 'calculator') eff = 0.002 * 10 / info.evolveCost;
+        else {
+          const r = this.ranges(t.id);
+          let cov = TOWERS[t.id].hitsGround ? coverage(t.cx, t.cy, r.r, r.inner, this.gSamples) : 0;
+          if (TOWERS[t.id].hitsAir) cov += this.airWeight() * coverage(t.cx, t.cy, r.r, 0, this.aSamples);
+          const power = POWER[t.id] * Math.pow(1.186, 9) * 1.5;
+          eff = (cov * power * (t.stars === 2 ? 0.35 : 0.16)) / info.evolveCost;
+        }
+        if (!best || eff > best.eff) best = { t, cost: info.evolveCost, eff };
+        continue;
+      }
       if (info.upgradeCost === null) continue;
       let eff: number;
       if (t.id === 'piggy') {
@@ -448,6 +542,11 @@ export class StrategyBot {
 
   private doUpgrade(t: TowerState, cost: number): boolean {
     if (this.w.state.gold < cost) return false;
+    if (t.level >= 10) {
+      const ok = this.w.command({ type: 'evolve', uid: t.uid }).ok;
+      if (ok) this.otherSpent += cost;
+      return ok;
+    }
     const branch = t.level === 9 ? (this.p.branches[t.id] ?? 'A') : undefined;
     const ok = this.w.command({ type: 'upgrade', uid: t.uid, branch }).ok;
     if (ok) this.otherSpent += cost;
@@ -600,7 +699,10 @@ export class StrategyBot {
 
   private maybeEarlyStart(): void {
     const s = this.w.state;
-    if (s.phase !== 'wave') return;
+    const auto = s.autoWave.enabled && s.autoWave.started;
+    if (s.phase !== 'wave' && !(auto && s.phase === 'build')) return;
+    // 自动波次：倒计时快结束了，提前开没什么奖励
+    if (auto && s.nextWave.earlyBonus < 5) return;
     if (s.time < this.waveSpawnEnd + 1.5) return;
     if (s.bossUids.length > 0) return;
     if (s.nextWave.tags.includes('boss')) return;

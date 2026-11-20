@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
 import type { Session } from '../game/Session';
 import { ArtAtlas } from './assets';
-import { drawBoard } from './background';
+import { boardKey, drawBoard, obstacleKey } from './background';
 import type { RenderCtx } from './ctx';
 import { EnemyLayer } from './enemies';
 import { EventFx } from './events';
+import { FieldLayer } from './field';
 import { Fx } from './fx';
 import { BoardInput } from './input';
 import { BOARD_H, BOARD_W, CELL, DEPTH, type Quality } from './layout';
@@ -36,6 +37,7 @@ export class Board {
   private shots: ShotLayer | null = null;
   private input: BoardInput | null = null;
   private events: EventFx | null = null;
+  private field: FieldLayer | null = null;
   /** 静态桌面：画进 Graphics（不入显示列表），再烘焙到 RenderTexture，避免每帧重新细分几何 */
   private bg: Phaser.GameObjects.Graphics | null = null;
   private bgRT: Phaser.GameObjects.RenderTexture | null = null;
@@ -49,7 +51,10 @@ export class Board {
   private boardScale = 1;
   private rasterCheckT = 0;
   private destroyed = false;
-  private bgVersion = -1;
+  /** 背景缓存：快速探针（版本号等）变化时才计算完整键 */
+  private bgProbe = '';
+  private bgKey = '';
+  private bgObstacles = new Map<string, import('../core/types').Obstacle>();
 
   constructor(
     private parent: HTMLElement,
@@ -109,8 +114,9 @@ export class Board {
     this.towers = new TowerLayer(ctx);
     this.enemies = new EnemyLayer(ctx);
     this.shots = new ShotLayer(ctx);
-    this.events = new EventFx(ctx, this.towers);
-    this.input = new BoardInput(ctx, canvas, (cx, cy) => this.clientToWorld(cx, cy));
+    this.field = new FieldLayer(ctx);
+    this.events = new EventFx(ctx, this.towers, this.field);
+    this.input = new BoardInput(ctx, canvas, (cx, cy) => this.clientToWorld(cx, cy), this.field);
     this.loading = scene.add
       .text(BOARD_W / 2, BOARD_H / 2, '加载中…', {
         fontFamily: FONT,
@@ -134,12 +140,44 @@ export class Board {
     return { x: p.x, y: p.y };
   }
 
-  private drawBackground(): void {
+  /** 便宜的探针：地形版本、正在下落的障碍物数、固定出生点的开放状态 */
+  private probe(): string {
+    const st = this.session.world.state;
+    let p = `${st.grid.version}|${this.field?.hiddenObstacles.size ?? 0}|${st.grid.obstacles.length}|${st.grid.spawns.length}|`;
+    if (st.spawners) for (const sp of st.spawners) if (sp.kind !== 'drop') p += sp.active ? '1' : '0';
+    return p;
+  }
+
+  /** 地形可能变化时检查背景键，变了才重画（并把差异交给动态层做动画） */
+  private checkBackground(force = false): void {
     if (!this.bg) return;
-    const grid = this.session.world.state.grid;
-    drawBoard(this.bg, grid);
-    this.bgVersion = grid.obstacles.length * 1000 + grid.spawns.length * 10 + grid.exits.length;
+    const pr = this.probe();
+    if (!force && pr === this.bgProbe) return;
+    this.bgProbe = pr;
+    const st = this.session.world.state;
+    const grid = st.grid;
+    const hidden = this.field?.hiddenObstacles;
+    let key = boardKey(grid, st.spawners, hidden);
+    if (!force && key === this.bgKey) return;
+    // 障碍物差异
+    const next = new Map<string, (typeof grid.obstacles)[number]>();
+    for (const o of grid.obstacles) next.set(obstacleKey(o), o);
+    if (this.bgKey && this.field) {
+      const added = [...next].filter(([k]) => !this.bgObstacles.has(k)).map(([, o]) => o);
+      const removed = [...this.bgObstacles].filter(([k]) => !next.has(k)).map(([, o]) => o);
+      if (added.length || removed.length) {
+        this.field.terrainDiff(added, removed);
+        key = boardKey(grid, st.spawners, hidden);
+      }
+    }
+    this.bgObstacles = next;
+    this.bgKey = key;
+    drawBoard(this.bg, grid, st.spawners, hidden);
     this.bakeBackground(true);
+  }
+
+  private drawBackground(): void {
+    this.checkBackground(true);
   }
 
   private bakeBackground(force = false): void {
@@ -183,6 +221,7 @@ export class Board {
     const res = Math.min(4, Math.max(1, zoom));
     this.ctx.fx.setResolution(res);
     this.enemies?.setResolution(res);
+    this.field?.setResolution(res);
     this.loading?.setResolution(res);
     this.rasterCheckT = 0.4;
     this.bakeBackground();
@@ -212,10 +251,8 @@ export class Board {
     ctx.vtime += ctx.vdt;
     ctx.alpha = live ? Math.max(0, Math.min(1, s.alpha)) : 1;
 
-    // 地形（障碍物）变化时重画背景
-    const grid = st.grid;
-    const bv = grid.obstacles.length * 1000 + grid.spawns.length * 10 + grid.exits.length;
-    if (bv !== this.bgVersion) this.drawBackground();
+    // 地形变化（随机布局、书本倒下、整理、空降落地、暗门开启）时重画背景
+    this.checkBackground();
 
     // 按需重建图集（缩放/像素密度变化较大时）
     if (this.rasterCheckT > 0) {
@@ -236,6 +273,7 @@ export class Board {
     this.towers!.sync();
     this.enemies!.sync();
     this.shots!.sync();
+    this.field!.sync();
     // 暂停时仍让一次性反馈（失败提示等）以真实时间播完
     ctx.fx.update(live ? ctx.vdt : rdt);
     ctx.fx.draw();
@@ -265,6 +303,7 @@ export class Board {
     this.towers?.destroy();
     this.enemies?.destroy();
     this.shots?.destroy();
+    this.field?.destroy();
     this.ctx?.atlas.destroy();
     this.game.destroy(true);
   }

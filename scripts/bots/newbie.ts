@@ -23,6 +23,8 @@ export function newbie(_ctx: { mode: ModeId; map: MapId }): BotParams {
     offPlan: true,
     placeNoise: 0.5,
     opening: ['pencil', 'pencil'],
+    demolishAt: 0,
+    abilities: 'none',
     decisionTicks: 60,
     xpProbe: false,
   };

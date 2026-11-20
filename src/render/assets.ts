@@ -29,7 +29,7 @@ export interface PartDef {
 
 export interface AssetDef {
   name: string; // 'towers/pencil_t1'
-  group: 'towers' | 'enemies' | 'affixes' | 'skills';
+  group: 'towers' | 'enemies' | 'affixes' | 'skills' | 'abilities';
   vb: number;
   parts: PartDef[];
 }
@@ -46,7 +46,7 @@ function parseAll(): AssetDef[] {
   const parser = new DOMParser();
   const ser = new XMLSerializer();
   for (const [path, raw] of Object.entries(RAW)) {
-    const m = /art\/(towers|enemies|affixes|skills)\/([^/]+)\.svg$/.exec(path);
+    const m = /art\/(towers|enemies|affixes|skills|abilities)\/([^/]+)\.svg$/.exec(path);
     if (!m) continue;
     const group = m[1] as AssetDef['group'];
     const name = `${group}/${m[2]}`;
@@ -59,7 +59,7 @@ function parseAll(): AssetDef[] {
     const parts: { name: string; nodes: string[] }[] = [];
     let staticIdx = 0;
     let lastStatic = false;
-    if (group === 'affixes' || group === 'skills') {
+    if (group === 'affixes' || group === 'skills' || group === 'abilities') {
       // 图标：整张图作为一个部件
       const nodes: string[] = [];
       for (const ch of Array.from(root.children)) {
@@ -108,9 +108,16 @@ function parseAll(): AssetDef[] {
 }
 
 let cachedDefs: AssetDef[] | null = null;
+let cachedNames: Set<string> | null = null;
 export function assetDefs(): AssetDef[] {
   if (!cachedDefs) cachedDefs = parseAll();
   return cachedDefs;
+}
+
+/** 素材是否存在（如 'towers/pencil_t5a'）；新素材可能晚于代码落地，调用方据此回退 */
+export function hasArt(name: string): boolean {
+  if (!cachedNames) cachedNames = new Set(assetDefs().map((a) => a.name));
+  return cachedNames.has(name);
 }
 
 function loadImage(svg: string): Promise<HTMLImageElement | null> {
@@ -185,7 +192,7 @@ export class ArtAtlas {
     for (const a of assetDefs()) {
       let px: number;
       if (a.group === 'affixes') px = Math.round(unitPx * 0.32);
-      else if (a.group === 'skills') px = Math.round(unitPx * 0.8);
+      else if (a.group === 'skills' || a.group === 'abilities') px = Math.round(unitPx * 0.8);
       else px = Math.round(unitPx * (a.vb / 128) * PAD_MUL);
       px = Math.max(8, Math.min(px, 440));
       for (const p of a.parts) jobs.push({ asset: a.name, part: p.name, svg: p.svg.replace(/__S__/g, String(px)), px });

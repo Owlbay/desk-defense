@@ -5,8 +5,9 @@ import {
 } from '../../src/core';
 import { computeDist, nextCell } from '../../src/core/flowfield';
 
+// 固定布局（杂物位置与旧版地图一致），便于按坐标断言
 const base = (o: Partial<RunOptions> = {}): RunOptions => ({
-  mode: 'endless', map: 'ch1', difficulty: 'normal', seed: 'test-seed', skills: ['eraser_strike', 'bell', 'whiteout_zone'], ...o,
+  mode: 'endless', map: 'ch1', difficulty: 'normal', seed: 'test-seed', skills: ['eraser_strike', 'bell', 'whiteout_zone'], fixedLayout: true, ...o,
 });
 const rich = (o: Partial<RunOptions> = {}) => base({ mode: 'custom', custom: { startGold: 100000 }, ...o });
 
@@ -153,7 +154,7 @@ describe('economy & leveling', () => {
 
 describe('determinism', () => {
   function scripted(seed: string): IWorld {
-    const w = createWorld(base({ seed }));
+    const w = createWorld(base({ seed, fixedLayout: false }));
     const plan: [number, Command][] = [
       [0, { type: 'place', tower: 'pencil', cx: 4, cy: 2 }],
       [0, { type: 'place', tower: 'pencil', cx: 7, cy: 2 }],
@@ -179,7 +180,7 @@ describe('determinism', () => {
 
   it('replaying the command log reproduces the state', () => {
     const a = scripted('beta');
-    const b = createWorld(base({ seed: 'beta' }));
+    const b = createWorld(base({ seed: 'beta', fixedLayout: false }));
     const log = a.log.slice();
     let li = 0;
     while (b.state.tick < a.state.tick) {
@@ -190,7 +191,7 @@ describe('determinism', () => {
   });
 
   it('wave generation is deterministic per seed', () => {
-    const ctx = { seed: 'gen', mode: 'endless' as const, map: 'ch2' as const, params: DIFFICULTY_PRESETS.nightmare, entrances: 2 };
+    const ctx = { seed: 'gen', mode: 'endless' as const, map: 'ch2' as const, params: DIFFICULTY_PRESETS.nightmare };
     for (const wv of [1, 7, 10, 25, 50, 100]) {
       expect(JSON.stringify(generateWave(ctx, wv))).toBe(JSON.stringify(generateWave(ctx, wv)));
     }
@@ -286,7 +287,8 @@ describe('skills & perks', () => {
   });
 
   it('offers perks after wave 10 in endless and applies them', () => {
-    const w = createWorld(base({ mode: 'custom', custom: { lives: 100000 }, seed: 'perk' }));
+    // 手动开波：自动波次会让第 11 波在第 10 波结束前开始
+    const w = createWorld(base({ mode: 'custom', custom: { lives: 100000 }, seed: 'perk', autoWave: false }));
     let guard = 0;
     while (w.state.phase !== 'perk' && guard++ < 60 * 60 * 20) {
       if (w.state.phase === 'build') w.command({ type: 'startWave' });

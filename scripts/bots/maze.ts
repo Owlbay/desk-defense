@@ -24,34 +24,55 @@ export interface Sample { x: number; y: number; w: number; f?: number }
 
 const planCache = new Map<string, MazePlan>();
 
-/** 所有入口格都可达时，返回每个入口（取各入口格平均）的路线长度中的最小值；不连通返回 -1 */
+/**
+ * 所有必须连通的出生点（全部边缘入口 + 开放的隐藏出生点 + 空降点的相邻格）都可达时，
+ * 返回开放入口（取各入口格平均）的路线长度中的最小值；不连通返回 -1
+ */
 export function routeLength(w: IWorld, cells: Uint8Array, scratch: Float32Array): number {
   const g = w.state.grid;
   const d = computeDist(g.cols, g.rows, cells, g.exits, scratch);
-  const ents = entranceGroups(w);
   let min = Infinity;
-  for (const ent of ents) {
+  for (const sp of w.state.spawners) {
+    if (sp.kind === 'hidden' && !sp.active) continue;
+    if (sp.kind === 'drop') {
+      if (dropStart(w, sp.cells[0], cells, d) < 0) return -1;
+      continue;
+    }
     let s = 0;
-    for (const c of ent) {
+    for (const c of sp.cells) {
       const v = d[c.y * g.cols + c.x];
       if (!(v < Infinity)) return -1;
       s += v;
     }
-    min = Math.min(min, s / ent.length);
+    if (sp.active) min = Math.min(min, s / sp.cells.length);
   }
-  return min;
+  return min === Infinity ? 0 : min;
 }
 
-/** 入口分组：把 spawns 按相邻关系分组（每个入口 2 格） */
-export function entranceGroups(w: IWorld): { x: number; y: number }[][] {
-  const sp = w.state.grid.spawns;
-  const groups: { x: number; y: number }[][] = [];
-  for (const c of sp) {
-    const gq = groups.find((gr) => gr.some((o) => Math.abs(o.x - c.x) + Math.abs(o.y - c.y) === 1));
-    if (gq) gq.push(c);
-    else groups.push([c]);
+/** 空降点（本身是障碍）出发的第一格：相邻可走格里离出口最近的；-1 = 无 */
+export function dropStart(w: IWorld, c: { x: number; y: number }, cells: Uint8Array, d: Float32Array): number {
+  const g = w.state.grid;
+  let best = -1;
+  let bv = Infinity;
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    const x = c.x + dx;
+    const y = c.y + dy;
+    if ((dx === 0 && dy === 0) || x < 0 || y < 0 || x >= g.cols || y >= g.rows) continue;
+    const i = y * g.cols + x;
+    if (cells[i] === CellKind.Obstacle || cells[i] === CellKind.Tower || !(d[i] < Infinity)) continue;
+    if (d[i] < bv) { bv = d[i]; best = i; }
   }
-  return groups;
+  return best;
+}
+
+/** 开放的出生点（每个出生点一组格子）；空降点给出其格子 */
+export function entranceGroups(w: IWorld): { x: number; y: number }[][] {
+  return w.state.spawners.filter((sp) => sp.active).map((sp) => sp.cells);
+}
+
+/** 出生点集合签名（变化后需要重新采样） */
+export function spawnerKey(w: IWorld): string {
+  return w.state.spawners.filter((sp) => sp.active).map((sp) => sp.id).join(',');
 }
 
 function rowSets(minRow: number, maxRow: number): number[][] {
@@ -81,7 +102,8 @@ function applySeq(w: IWorld, cells: Uint8Array, list: number[], scratch: Float32
 }
 
 export function planMaze(w: IWorld): MazePlan {
-  const key = w.state.opts.map as MapId;
+  // 杂物每局不同：按地图 + 障碍布局缓存
+  const key = `${w.state.opts.map as MapId}|${w.state.grid.obstacles.map((o) => `${o.x},${o.y},${o.w},${o.h}`).join(';')}`;
   const hit = planCache.get(key);
   if (hit) return hit;
   const g = w.state.grid;
@@ -161,11 +183,15 @@ export function targetCells(w: IWorld, plan: MazePlan, nSeg: number, scratch: Fl
 export function groundSamples(w: IWorld, cells: Uint8Array, scratch: Float32Array): Sample[] {
   const g = w.state.grid;
   const d = computeDist(g.cols, g.rows, cells, g.exits, scratch);
-  const ents = entranceGroups(w);
+  const ents = w.state.spawners.filter((sp) => sp.active);
   const out: Sample[] = [];
-  const wt = 1 / ents.length;
-  for (const ent of ents) {
-    const p = tracePath(g.cols, g.rows, cells, d, ent[0].y * g.cols + ent[0].x);
+  const wt = 1 / Math.max(1, ents.length);
+  for (const sp of ents) {
+    const c0 = sp.cells[0];
+    let start = c0.y * g.cols + c0.x;
+    if (sp.kind === 'drop') start = dropStart(w, c0, cells, d);
+    if (start < 0 || !(d[start] < Infinity)) continue;
+    const p = tracePath(g.cols, g.rows, cells, d, start);
     for (let k = 0; k < p.length; k++) {
       const f = k / Math.max(1, p.length - 1);
       out.push({ x: p[k].x + 0.5, y: p[k].y + 0.5, w: wt * 0.5, f });
@@ -179,7 +205,7 @@ export function groundSamples(w: IWorld, cells: Uint8Array, scratch: Float32Arra
 export function airSamples(w: IWorld): Sample[] {
   const g = w.state.grid;
   const out: Sample[] = [];
-  const wt = 1 / g.spawns.length;
+  const wt = 1 / Math.max(1, g.spawns.length);
   for (const sp of g.spawns) {
     const x0 = sp.x + 0.5;
     const y0 = sp.y + 0.5;
