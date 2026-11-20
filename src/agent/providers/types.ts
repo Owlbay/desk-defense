@@ -8,6 +8,7 @@
  */
 import type { IWorld } from '../../core/types';
 import type { AgentToolDef } from '../tools';
+import type { TraceSink } from '../trace';
 import type { AgentRole, DecisionPoint, TokenUsage, ToolResult } from '../types';
 
 export interface DecisionContext {
@@ -18,8 +19,8 @@ export interface DecisionContext {
   /** 本次决策的 user 消息（开局信息 + 原因 + 观测） */
   message: string;
   tools: AgentToolDef[];
-  /** 执行一个工具（不抛异常） */
-  callTool(name: string, input: unknown): Promise<ToolResult>;
+  /** 执行一个工具（不抛异常）。meta.id = 模型那边的工具调用 id（思路与请求面板里对应用） */
+  callTool(name: string, input: unknown, meta?: { id?: string }): Promise<ToolResult>;
   /**
    * 每次模型请求返回后调用（realtime 模式在这里推进世界）。
    * 返回 false = 本局已结束 / 被取消，适配器应立即返回。
@@ -32,6 +33,11 @@ export interface DecisionContext {
   signal: AbortSignal;
   /** 只给进程内的确定性策略（scripted）读状态用；远程模型不会拿到 */
   world?: IWorld;
+  /**
+   * 思路与请求（文档 10 §12.1）：适配器在这里报告请求参数 / 原始请求体、流式的思路与文字、响应与用量。
+   * 可选；没有时适配器照常工作。写入的内容由缓冲区统一脱敏，但适配器自己也不要把密钥放进去。
+   */
+  trace?: TraceSink;
 }
 
 export interface DecisionOutcome {

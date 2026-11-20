@@ -9,6 +9,8 @@ import { decisionMessage, runHeader, systemBlocks } from './prompts';
 import { executeTool, toolsForRole } from './tools';
 import type { AgentModelConfig } from './config';
 import type { LLMProvider } from './providers/types';
+import { cellOfArgs, type AgentTrace, type TraceSink } from './trace';
+import { redactError } from './redact';
 import {
   addUsage, emptyUsage, usageTotal,
   type AgentRole, type CommandSink, type DecisionPoint, type DecisionRecord, type FallbackPolicy, type Suggestion, type TokenUsage, type ToolCallRecord, type ToolResult,
@@ -31,6 +33,40 @@ export interface EngineOptions {
   fallbackPlaysForHuman?: boolean;
   /** 连续多少次模型失败后停用模型、余下全部兜底（默认 3） */
   maxConsecutiveErrors?: number;
+  /** 思路与请求（文档 10 §12.1）：决策追踪写到这里（可选） */
+  trace?: AgentTrace;
+}
+
+interface Snap {
+  gold: number;
+  lives: number;
+  towers: number;
+  levels: number;
+  phase: string;
+  wave: number;
+}
+
+const snap = (w: IWorld): Snap => {
+  const s = w.state;
+  let towers = 0;
+  let levels = 0;
+  for (const t of s.towers.values()) {
+    towers++;
+    levels += t.level;
+  }
+  return { gold: Math.floor(s.gold), lives: s.lives, towers, levels, phase: s.phase, wave: s.wave };
+};
+
+/** 两个快照之间游戏里实际发生的变化（给面板看的摘要） */
+export function effectSummary(a: Snap, b: Snap): string {
+  const out: string[] = [];
+  if (a.gold !== b.gold) out.push(`金币 ${a.gold}→${b.gold}`);
+  if (a.towers !== b.towers) out.push(`塔 ${a.towers}→${b.towers}`);
+  else if (a.levels !== b.levels) out.push(`等级 ${b.levels > a.levels ? '+' : ''}${b.levels - a.levels}`);
+  if (a.lives !== b.lives) out.push(`生命 ${a.lives}→${b.lives}`);
+  if (a.phase !== b.phase) out.push(`阶段 ${a.phase}→${b.phase}`);
+  if (a.wave !== b.wave) out.push(`波次 ${a.wave}→${b.wave}`);
+  return out.join(' · ');
 }
 
 export class DecisionEngine {
@@ -75,6 +111,24 @@ export class DecisionEngine {
     const rec: DecisionRecord = { point, by: 'agent', toolCalls: calls, usage: emptyUsage(), ms: 0, observationTokens: estimateTokens(observation) };
     const budget = this.overBudget();
     if (budget && !this.disabledReason) this.disabledReason = budget;
+    const message = decisionMessage(this.header, point, observation);
+    const tools = toolsForRole(this.role);
+    const sink = this.o.trace?.begin({
+      k: 'decision_start',
+      trigger: point.reasons.slice(),
+      wave: point.wave,
+      time: point.time,
+      tick: point.tick,
+      phase: point.phase,
+      provider: this.o.provider?.id ?? 'none',
+      model: this.o.provider?.model ?? this.o.fallback.name,
+      role: this.role,
+      observation: message,
+      system: this.system.join('\n\n'),
+      toolDefs: tools,
+      toolNames: tools.map((t) => t.name),
+    });
+    let costThis = 0;
 
     let failed: string | null = this.disabledReason;
     if (!failed && this.o.provider) {
@@ -91,13 +145,14 @@ export class DecisionEngine {
           role: this.role,
           point,
           system: this.system,
-          message: decisionMessage(this.header, point, observation),
-          tools: toolsForRole(this.role),
+          message,
+          tools,
           maxToolCalls: this.o.config.maxToolCallsPerDecision ?? 12,
           remainingTokens: this.budgetLeft(),
           signal: ac.signal,
           world: this.o.provider.id === 'scripted' ? w : undefined,
-          callTool: async (name, input) => this.callTool(name, input, calls),
+          callTool: async (name, input, meta) => this.callTool(name, input, calls, sink, meta?.id),
+          trace: sink,
           afterRequest: async (ms) => {
             if (ac.signal.aborted) return false;
             const mode = this.o.config.decision?.mode ?? 'pause';
@@ -113,6 +168,7 @@ export class DecisionEngine {
         rec.usage = out.usage;
         this.usage = addUsage(this.usage, out.usage);
         this.costUsd += out.costUsd;
+        costThis = out.costUsd;
         this.o.onUsage?.(this.usage, this.costUsd);
         if (out.note) this.note = out.note;
         if (out.text) rec.note = out.text.slice(0, 500);
@@ -120,12 +176,13 @@ export class DecisionEngine {
         else if (out.error && !(gameOver && out.error === 'aborted')) failed = out.error;
         if (out.note) rec.note = out.note;
       } catch (e) {
-        failed = `provider threw: ${e instanceof Error ? e.message : String(e)}`;
+        failed = `provider threw: ${redactError(e, this.o.config.apiKey ? [this.o.config.apiKey] : [])}`;
       } finally {
         clearTimeout(timer);
         outer?.removeEventListener('abort', onAbort);
       }
       if (failed) {
+        sink?.({ k: 'error', message: failed });
         this.consecutiveErrors++;
         this.errors.push(`decision ${point.seq} @wave ${point.wave}: ${failed}`);
         if (this.consecutiveErrors >= (this.o.maxConsecutiveErrors ?? 3)) this.disabledReason = `disabled after ${this.consecutiveErrors} consecutive errors (last: ${failed})`;
@@ -133,28 +190,43 @@ export class DecisionEngine {
       const b2 = this.overBudget();
       if (b2) this.disabledReason = b2;
     }
-    if (this.o.signal?.aborted) {
+    const end = (): DecisionRecord => {
       rec.ms = Date.now() - t0;
       this.decisions.push(rec);
+      sink?.({
+        k: 'decision_end', by: rec.by, ms: rec.ms, usage: rec.usage, costUsd: costThis, toolCalls: calls.length,
+        note: rec.note, fallbackReason: rec.fallbackReason,
+      });
       return rec;
-    }
+    };
+    if (this.o.signal?.aborted) return end();
 
     // 兜底：模型失败 / 停用；军师与进攻方（桩）模式下，实际操作也由兜底机器人（模拟玩家 / 防守方）完成
     const isPlayer = this.role === 'player';
     if ((failed && isPlayer) || (!isPlayer && this.o.fallbackPlaysForHuman)) {
       if (failed) { rec.by = 'fallback'; rec.fallbackReason = failed; }
+      const before = snap(w);
       await this.o.fallback.decide(point.reasons);
+      if (failed) sink?.({ k: 'fallback', reason: failed, acted: true, effect: effectSummary(before, snap(w)) || undefined });
     } else if (failed) {
       rec.by = 'fallback';
       rec.fallbackReason = `${failed} (advisor: no advice this time)`;
+      sink?.({ k: 'fallback', reason: rec.fallbackReason, acted: false });
     }
-    if (isPlayer || this.o.fallbackPlaysForHuman) this.ensureProgress(rec);
-    rec.ms = Date.now() - t0;
-    this.decisions.push(rec);
-    return rec;
+    if (isPlayer || this.o.fallbackPlaysForHuman) {
+      const before = snap(w);
+      const had = rec.fallbackReason;
+      this.ensureProgress(rec);
+      if (rec.fallbackReason !== had) sink?.({ k: 'fallback', reason: (rec.fallbackReason ?? '').slice(had ? had.length + 2 : 0), acted: true, effect: effectSummary(before, snap(w)) || undefined });
+    }
+    return end();
   }
 
-  private async callTool(name: string, input: unknown, calls: ToolCallRecord[]): Promise<ToolResult> {
+  private async callTool(name: string, input: unknown, calls: ToolCallRecord[], sink?: TraceSink, id?: string): Promise<ToolResult> {
+    const w = this.o.world;
+    const callId = id ?? `call_${calls.length + 1}`;
+    sink?.({ k: 'tool_call', id: callId, name, args: input });
+    const before = sink ? snap(w) : null;
     const r = executeTool({
       world: this.o.world,
       role: this.role,
@@ -166,6 +238,14 @@ export class DecisionEngine {
       },
     }, name, input);
     calls.push({ name, input, ok: r.ok, result: r.text.length > 400 ? `${r.text.slice(0, 400)}…` : r.text, cmd: r.cmd, queuedFor: r.queuedFor });
+    if (sink && before) {
+      const fx = r.queuedFor !== undefined ? `已排队，第 ${r.queuedFor} 帧落地` : effectSummary(before, snap(w));
+      const cell = cellOfArgs(input, (uid) => {
+        const t = w.state.towers.get(uid);
+        return t ? { x: t.cx, y: t.cy } : undefined;
+      });
+      sink({ k: 'tool_result', id: callId, name, ok: r.ok, text: r.text, effect: fx || undefined, cell });
+    }
     return r;
   }
 

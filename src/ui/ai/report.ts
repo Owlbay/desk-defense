@@ -2,7 +2,7 @@
  * AI 对局的结算卡片：波数 / 得分 / token / 费用 / 决策数 / 兜底占比，提交 AI 榜，观看回放。
  * 带 AI 标记的成绩只能进 `ai:` 榜（文档 10 §13），这里没有「提交到全服榜」。
  */
-import { usageTotal, type AgentReplay, type TokenUsage } from '../../agent';
+import { usageTotal, type AgentReplay, type TokenUsage, type TraceExport } from '../../agent';
 import type { IWorld, RunOptions } from '../../core/types';
 import { getNickname, initOnline, submitWorldRun } from '../../meta/online';
 import { AI_BOARD_PREFIX, AI_BOT_SHARE_FLAG, boardForOpts, boardLabel } from '../../shared/leaderboard';
@@ -38,6 +38,8 @@ export interface AiRunSummary {
   switchedToBot: boolean;
   replay: AgentReplay | null;
   seconds: number;
+  /** 思路与请求记录（已脱敏、封顶），回放时在旁边显示 */
+  trace?: TraceExport;
 }
 
 const fmtDuration = (sec: number): string => (sec >= 3600 ? `${Math.floor(sec / 3600)} 小时 ${Math.floor((sec % 3600) / 60)} 分` : sec >= 60 ? `${Math.floor(sec / 60)} 分 ${sec % 60} 秒` : `${sec} 秒`);
@@ -165,7 +167,7 @@ export function reportCard(app: App, s: AiRunSummary, hd: AiGameOverHandlers): H
           onclick: () => {
             audio.play('click');
             const r = s.replay!;
-            openLocalReplay(app, { opts: { ...r.opts, seed: r.opts.seed ?? st.seed }, log: r.log, tick: st.tick }, { title: `${s.launch.label} 的回放`, subtitle: campaign ? '战役' : boardLabel(boardForOpts(s.opts, null)), wave: s.info.wavesSurvived, score: Math.round(s.info.score) });
+            openLocalReplay(app, { opts: { ...r.opts, seed: r.opts.seed ?? st.seed }, log: r.log, tick: st.tick }, { title: `${s.launch.label} 的回放`, subtitle: campaign ? '战役' : boardLabel(boardForOpts(s.opts, null)), wave: s.info.wavesSurvived, score: Math.round(s.info.score), trace: s.trace });
           },
         },
         h('span.gi', { html: G.eye }),

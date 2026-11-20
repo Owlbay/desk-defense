@@ -607,6 +607,14 @@ export class BoardInput {
       }
     }
 
+    // 文档 10：思路与请求面板里悬停的工具调用 → 棋盘上对应格子描一圈
+    if (s.aiFocus) {
+      const f = s.aiFocus;
+      const pulse = this.ctx.reduced ? 1 : 0.5 + 0.5 * Math.sin(rt * 6);
+      og.lineStyle(3, C.magenta, 0.55 + 0.45 * pulse);
+      og.strokeRoundedRect(f.cx * CELL - 1, f.cy * CELL - 1, CELL + 2, CELL + 2, 9);
+    }
+
     // 幽灵塔
     if (ghostAsset && ghostCell && this.ctx.atlas.ready) {
       this.ghost.bind(this.ctx.atlas, ghostAsset);

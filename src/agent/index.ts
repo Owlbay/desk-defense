@@ -20,6 +20,7 @@ import { scriptedFallback } from './providers/scripted';
 import type { LLMProvider } from './providers/types';
 import { aiBoardKey } from './runner';
 import type { AgentReplay, DecisionRecord, FallbackPolicy, Suggestion, TokenUsage } from './types';
+import { AgentTrace, type TraceExport } from './trace';
 
 export * from './types';
 export * from './config';
@@ -35,6 +36,8 @@ export * from './relay';
 export { connectBridge, originAllowed, makePairingCode, BRIDGE_PROTOCOL } from './bridge';
 export { scriptedFallback, ScriptedProvider } from './providers/scripted';
 export type { LLMProvider, DecisionContext, DecisionOutcome } from './providers/types';
+export * from './trace';
+export { redactString, redactValue, redactJson, redactError, isSecretKey, REDACTED } from './redact';
 
 /** Session 里控制器用到的部分（src/game/Session.ts 满足） */
 export interface SessionLike {
@@ -66,6 +69,8 @@ export interface AgentControllerOptions {
   onEvent?: (ev: AgentControllerEvent) => void;
   /** 自动每 pollMs 检查决策点（默认 100；0 = 由 UI 每帧调用 poll()） */
   pollMs?: number;
+  /** 思路与请求的缓冲区（缺省新建一个；UI 换模型重启控制器时传同一个，面板不断档） */
+  trace?: AgentTrace;
 }
 
 export interface AgentController {
@@ -73,6 +78,8 @@ export interface AgentController {
   readonly usage: TokenUsage;
   readonly costUsd: number;
   readonly decisions: readonly DecisionRecord[];
+  /** 思路与请求（文档 10 §12.1） */
+  readonly trace: AgentTrace;
   start(): Promise<void>;
   pause(): void;
   resume(): void;
@@ -92,6 +99,8 @@ export interface AgentBrowserReport {
   suggestions: Suggestion[];
   replay: AgentReplay;
   config: AgentModelConfig;
+  /** 思路与请求记录（已脱敏、封顶约 1.5M 字符；原始请求 / 响应可能被去掉） */
+  trace: TraceExport;
 }
 
 export function createAgentController(o: AgentControllerOptions): AgentController {
@@ -104,6 +113,8 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
   const recent: GameEvent[] = [];
   const emit = (ev: AgentControllerEvent) => o.onEvent?.(ev);
   const ac = new AbortController();
+  const trace = o.trace ?? new AgentTrace();
+  trace.addSecret(config.apiKey);
   let status: AgentStatus = 'idle';
   let engine: DecisionEngine | null = null;
   let provider: LLMProvider | null = o.provider ?? null;
@@ -147,6 +158,7 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
     get usage() { return engine?.usage ?? { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, requests: 0 }; },
     get costUsd() { return engine?.costUsd ?? 0; },
     get decisions() { return engine?.decisions ?? []; },
+    trace,
     async start() {
       if (engine) return;
       setStatus('loading');
@@ -163,6 +175,7 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
         signal: ac.signal,
         onSuggest: (s) => emit({ type: 'suggestion', suggestion: s }),
         onUsage: (u, c) => emit({ type: 'usage', usage: u, costUsd: c }),
+        trace,
       });
       unsub = session.on((ev) => {
         recent.push(ev);
@@ -204,6 +217,7 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
         suggestions: engine?.suggestions.slice() ?? [],
         replay: { ...makeMidRun(w), agent: { ...tag, role } },
         config: saveableConfig(config),
+        trace: trace.export({ maxChars: 1_500_000 }),
       };
     },
   };

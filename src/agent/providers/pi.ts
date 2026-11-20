@@ -9,7 +9,7 @@
  * 浏览器里只能经 dynamic import() 加载本文件（见 ../factory.ts），避免把 pi 及其各厂商 SDK 打进首屏包。
  */
 import {
-  Type, StringEnum, completeSimple, getModels,
+  Type, StringEnum, streamSimple, getModels,
   type Api, type AssistantMessage, type Context, type KnownProvider, type Message, type Model, type TSchema,
   type ThinkingLevel, type Tool, type ToolResultMessage,
 } from '@mariozechner/pi-ai';
@@ -20,6 +20,7 @@ import { emptyUsage, type TokenUsage } from '../types';
 import { LIMIT_TEXT, type DecisionContext, type DecisionOutcome, type LLMProvider } from './types';
 import { READ_TOOLS, jsonModeInstructions, parseActions } from './json-mode';
 import { normalizeRelayBase } from '../relay';
+import { hostOf } from '../trace';
 
 // ───────────────────────── Schema → TypeBox ─────────────────────────
 
@@ -165,6 +166,65 @@ export class PiProvider implements LLMProvider {
     return this.c.contextBudget === 'compact' ? ctx.system[0] : `${ctx.system[0]}\n\n${ctx.system[1]}`;
   }
 
+
+  /**
+   * 一次模型请求（流式）：pi 的事件流里 thinking_delta（Anthropic 思考摘要 / OpenAI responses 推理摘要 /
+   * completions 的 reasoning_content / Gemini thoughts）与 text_delta 边到边报给面板；
+   * onPayload 拿到真正发出的请求体（脱敏后存档），onResponse 拿到 HTTP 状态与响应头。
+   */
+  private async request(context: Context, ctx: DecisionContext, n: number, api: string): Promise<{ msg: AssistantMessage; ms: number }> {
+    const tr = ctx.trace;
+    const opts = this.options(ctx);
+    const t0 = Date.now();
+    let http: { status: number; headers: Record<string, string> } | undefined;
+    if (tr) {
+      tr({
+        k: 'request', n, provider: this.id, api, model: this.m.id, host: hostOf(this.m.baseUrl), effort: this.c.effort,
+        params: {
+          maxTokens: opts.maxTokens, temperature: opts.temperature, reasoning: opts.reasoning ?? null, cacheRetention: opts.cacheRetention,
+          toolMode: this.c.toolMode ?? 'native', contextBudget: this.c.contextBudget ?? 'full', baseUrl: this.m.baseUrl,
+        },
+        system: context.systemPrompt,
+        toolDefs: context.tools ? ctx.tools : undefined,
+        toolNames: context.tools?.map((t) => t.name),
+        messages: context.messages.length,
+        headers: { authorization: this.c.apiKey ? 'Bearer •••' : '(无)', 'content-type': 'application/json' },
+        // 真正的请求体在 onPayload 里补一条（各家格式不同）；这里先放 pi 的上下文
+        raw: { model: this.m.id, api: this.m.api, systemPrompt: '(见「系统提示词」)', messages: context.messages, tools: context.tools?.map((t) => t.name) },
+      });
+    }
+    const stream = streamSimple(this.m, context, {
+      ...opts,
+      onPayload: tr
+        ? (payload: unknown) => {
+            tr({ k: 'request_raw', n, raw: payload });
+            return undefined;
+          }
+        : undefined,
+      onResponse: tr
+        ? (r: { status: number; headers: Record<string, string> }) => {
+            http = r;
+          }
+        : undefined,
+    });
+    for await (const ev of stream) {
+      if (!tr) continue;
+      if (ev.type === 'thinking_delta' && ev.delta) tr({ k: 'thinking', n, text: ev.delta });
+      else if (ev.type === 'text_delta' && ev.delta) tr({ k: 'text', n, text: ev.delta });
+    }
+    const msg = await stream.result();
+    const ms = Date.now() - t0;
+    if (tr) {
+      if (msg.stopReason === 'error' && msg.errorMessage) tr({ k: 'error', n, message: msg.errorMessage });
+      tr({
+        k: 'response', n, stop: msg.stopReason, ms, costUsd: msg.usage.cost.total,
+        usage: { inputTokens: msg.usage.input, outputTokens: msg.usage.output, cacheReadTokens: msg.usage.cacheRead, cacheWriteTokens: msg.usage.cacheWrite, requests: 1 },
+        raw: { http, message: msg },
+      });
+    }
+    return { msg, ms };
+  }
+
   private async decideNative(ctx: DecisionContext): Promise<DecisionOutcome> {
     const usage = emptyUsage();
     const out: DecisionOutcome = { usage, costUsd: 0, toolCalls: 0, ended: false };
@@ -175,16 +235,16 @@ export class PiProvider implements LLMProvider {
     };
     const texts: string[] = [];
     for (let req = 0; req < ctx.maxToolCalls + 2; req++) {
-      const t0 = Date.now();
       let msg: AssistantMessage;
+      let ms: number;
       try {
-        msg = await completeSimple(this.m, context, this.options(ctx));
+        ({ msg, ms } = await this.request(context, ctx, req + 1, this.m.api));
       } catch (e) {
         out.error = `error: ${e instanceof Error ? e.message : String(e)}`;
         break;
       }
       out.costUsd += addPiUsage(usage, msg);
-      const alive = await ctx.afterRequest(Date.now() - t0);
+      const alive = await ctx.afterRequest(ms);
       if (msg.stopReason === 'error' || msg.stopReason === 'aborted') {
         out.error = msg.stopReason === 'aborted' ? 'aborted' : `error: ${msg.errorMessage ?? 'unknown'}`;
         break;
@@ -202,7 +262,7 @@ export class PiProvider implements LLMProvider {
           isError = true;
         } else {
           out.toolCalls++;
-          const r = await ctx.callTool(call.name, call.arguments);
+          const r = await ctx.callTool(call.name, call.arguments, { id: call.id });
           text = r.text;
           isError = !r.ok;
           if (r.endTurn) { out.ended = true; out.note = r.note; }
@@ -223,16 +283,16 @@ export class PiProvider implements LLMProvider {
     const context: Context = { systemPrompt: `${this.systemPrompt(ctx)}\n\n${jsonModeInstructions(ctx.tools)}`, messages };
     const texts: string[] = [];
     for (let round = 0; round < 4; round++) {
-      const t0 = Date.now();
       let msg: AssistantMessage;
+      let ms: number;
       try {
-        msg = await completeSimple(this.m, context, this.options(ctx));
+        ({ msg, ms } = await this.request(context, ctx, round + 1, `json-mode/${this.m.api}`));
       } catch (e) {
         out.error = `error: ${e instanceof Error ? e.message : String(e)}`;
         break;
       }
       out.costUsd += addPiUsage(usage, msg);
-      const alive = await ctx.afterRequest(Date.now() - t0);
+      const alive = await ctx.afterRequest(ms);
       if (msg.stopReason === 'error' || msg.stopReason === 'aborted') {
         out.error = msg.stopReason === 'aborted' ? 'aborted' : `error: ${msg.errorMessage ?? 'unknown'}`;
         break;
@@ -248,7 +308,7 @@ export class PiProvider implements LLMProvider {
       for (const a of parsed.actions) {
         if (out.toolCalls >= ctx.maxToolCalls) { results.push(LIMIT_TEXT); break; }
         out.toolCalls++;
-        const r = await ctx.callTool(a.tool, a.args);
+        const r = await ctx.callTool(a.tool, a.args, { id: `json_${round + 1}_${out.toolCalls}` });
         results.push(`${a.tool}: ${r.text}`);
         if (READ_TOOLS.has(a.tool)) readUsed = true;
         if (r.endTurn) { out.ended = true; if (r.note) out.note = r.note; break; }

@@ -73,7 +73,7 @@ describe('claude-native adapter (mocked SDK client, no network)', () => {
     expect(out.costUsd).toBeGreaterThan(0);
     const p0 = seen[0];
     expect(p0.model).toBe('claude-opus-5-5');
-    expect(p0.thinking).toEqual({ type: 'adaptive' });
+    expect(p0.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
     expect(p0.output_config).toEqual({ effort: 'low' });
     expect(p0.tool_choice).toEqual({ type: 'auto' });
     expect(p0.fallbacks).toBe('default');

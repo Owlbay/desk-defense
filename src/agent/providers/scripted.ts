@@ -62,13 +62,19 @@ function bestWall(w: IWorld): { x: number; y: number; gain: number } | null {
   return best;
 }
 
-/** 一次决策（异步：经 call 执行每个动作，与模型完全同一路径） */
-export async function scriptedTurn(w: IWorld, call: Call, reasons: DecisionReason[]): Promise<string> {
+/**
+ * 一次决策（异步：经 call 执行每个动作，与模型完全同一路径）。
+ * think：规则策略的"思路"（每条规则判断写一行，思路与请求面板里当作思考过程展示；不影响决策）。
+ */
+export async function scriptedTurn(w: IWorld, call: Call, reasons: DecisionReason[], think?: (line: string) => void): Promise<string> {
   const s = w.state;
   const done: string[] = [];
+  const say = (line: string): void => think?.(`${line}\n`);
+  say(`决策原因：${reasons.join(', ') || '—'}；阶段 ${s.phase}，第 ${s.wave} 波，金币 ${Math.floor(s.gold)}，生命 ${s.lives}/${s.maxLives}。`);
   // 增益
   if (s.phase === 'perk' && s.perkChoices) {
     const cards = s.perkChoices.slice().sort((a, b) => rank(a.id) - rank(b.id));
+    say(`增益三选一：按固定优先级排序 → ${cards.map((c) => c.id).join(' > ')}。`);
     for (const c of cards) {
       const input: Record<string, unknown> = { id: c.id };
       if (c.needsTower) {
@@ -83,11 +89,13 @@ export async function scriptedTurn(w: IWorld, call: Call, reasons: DecisionReaso
   if (s.crateChoice) {
     const pref = ['gold', 'xp', 'lives', 'caffeine', 'cooldown', 'charge'];
     const opt = s.crateChoice.options.slice().sort((a, b) => pref.indexOf(a.id) - pref.indexOf(b.id))[0];
+    if (opt) say(`补给箱：偏好顺序 ${pref.join(' > ')}，选 ${opt.id}。`);
     if (opt && (await call('choose_crate', { option: opt.id })).ok) done.push(`crate ${opt.id}`);
   }
   // 拆空降点（钱多时）
   for (const sp of s.spawners) {
     if (sp.kind === 'drop' && sp.active && sp.demolishCost && s.gold >= sp.demolishCost * 3) {
+      say(`空降点 ${sp.id}：拆除费 ${sp.demolishCost}，金币超过 3 倍 → 拆掉。`);
       if ((await call('demolish_spawner', { id: sp.id })).ok) done.push(`demolish ${sp.id}`);
     }
   }
@@ -97,8 +105,10 @@ export async function scriptedTurn(w: IWorld, call: Call, reasons: DecisionReaso
     const atk = towers().filter((t) => t.id !== 'wall');
     const walls = towers().length - atk.length;
     const target = Math.min(4 + Math.floor(s.wave * 1.2), 30);
+    if (guard === 0) say(`兵力：攻击塔 ${atk.length} / 目标 ${target}，墙 ${walls} / 目标 ${4 + s.wave * 2}。`);
     if (walls < 4 + s.wave * 2 && s.gold >= 25 && atk.length >= 2) {
       const wl = bestWall(w);
+      if (wl) say(`迷宫：在路线 (${wl.x},${wl.y}) 放墙能让路线变长 ${wl.gain} 格 → 放墙。`);
       if (wl && (await call('place_tower', { tower: 'wall', x: wl.x, y: wl.y })).ok) { done.push(`wall ${wl.x},${wl.y}`); continue; }
     }
     if (atk.length < target) {
@@ -109,6 +119,7 @@ export async function scriptedTurn(w: IWorld, call: Call, reasons: DecisionReaso
         const b = opts.find((o) => o.id === id);
         if (!b || !b.unlocked || !b.affordable || b.limitReached) continue;
         const cell = bestCell(w, id);
+        if (cell) say(`建塔：轮到 ${id}，覆盖路格最多的空位是 (${cell.x},${cell.y})。`);
         if (cell && (await call('place_tower', { tower: id, x: cell.x, y: cell.y })).ok) { done.push(`${id} ${cell.x},${cell.y}`); placed = true; }
       }
       if (placed) continue;
@@ -118,6 +129,7 @@ export async function scriptedTurn(w: IWorld, call: Call, reasons: DecisionReaso
       .filter((x) => x.info && x.info.upgradeCost !== null && x.info.upgradeCost <= s.gold)
       .sort((a, b) => a.t.level - b.t.level || a.t.uid - b.t.uid)[0];
     if (cand && (atk.length >= target || s.gold > 120)) {
+      say(`升级：塔数已够或金币充足（${Math.floor(s.gold)}），升级最低级的 #${cand.t.uid}（Lv${cand.t.level}，${cand.info!.upgradeCost} 金币）。`);
       const r = cand.info!.needsBranch
         ? await call('choose_branch', { uid: cand.t.uid, branch: 'A' })
         : await call('upgrade_tower', { uid: cand.t.uid });
@@ -136,14 +148,16 @@ export async function scriptedTurn(w: IWorld, call: Call, reasons: DecisionReaso
       if (!front || dd < front.d) front = { x: Math.floor(e.x), y: Math.floor(e.y), d: dd };
     }
     const ready = (id: string) => s.skills.some((k) => k.id === id && k.ready);
+    say(`技能：离出口 ≤4 格的敌人 ${near} 个${s.bossUids.length ? '，场上有 Boss' : ''}。`);
     if (front && (near >= 3 || s.bossUids.length) && ready('eraser_strike')) {
       if ((await call('cast_skill', { skill: 'eraser_strike', x: front.x, y: front.y })).ok) done.push('eraser');
     }
     if (near >= 6 && ready('bell') && (await call('cast_skill', { skill: 'bell' })).ok) done.push('bell');
   }
   const manual = s.phase === 'build' && !(s.autoWave.enabled && s.autoWave.started);
+  if (manual) say('手动开波模式、正在建造阶段 → 开下一波。');
   if (manual && (await call('start_wave', {})).ok) done.push('start');
-  void reasons;
+  if (!done.length) say('没有值得做的动作，保持现状。');
   const note = done.length ? done.join('; ').slice(0, 200) : 'hold';
   await call('end_turn', { note });
   return note;
@@ -162,13 +176,25 @@ export class ScriptedProvider implements LLMProvider {
   async decide(ctx: DecisionContext): Promise<DecisionOutcome> {
     const out: DecisionOutcome = { usage: emptyUsage(), costUsd: 0, toolCalls: 0, ended: false };
     if (!ctx.world) return { ...out, error: 'scripted provider needs in-process world access' };
+    const tr = ctx.trace;
+    const t0 = Date.now();
+    // 合成的"请求"：离线演示没有网络请求，但面板照样能看到发给"模型"的局面与工具
+    tr?.({
+      k: 'request', n: 1, provider: this.id, api: 'local', model: this.model, host: '本机（离线，无网络请求）',
+      params: { 说明: '内置规则策略：不调用任何模型，下面的"思路"是规则判断过程' },
+      messages: 1,
+      raw: { provider: 'scripted', model: this.model, note: '离线演示：没有发出任何网络请求', messages: [{ role: 'user', content: '(见「观察」)' }] },
+    });
+    let seq = 0;
     const call: Call = async (name, input) => {
       out.toolCalls++;
-      const r = await ctx.callTool(name, input);
+      const r = await ctx.callTool(name, input, { id: `scripted_${++seq}` });
       if (r.endTurn) { out.ended = true; out.note = r.note; }
       return r;
     };
-    await scriptedTurn(ctx.world, call, ctx.point.reasons);
+    const note = await scriptedTurn(ctx.world, call, ctx.point.reasons, tr ? (line) => tr({ k: 'thinking', n: 1, text: line }) : undefined);
+    tr?.({ k: 'text', n: 1, text: `本回合：${note}` });
+    tr?.({ k: 'response', n: 1, stop: 'end_turn', usage: emptyUsage(), ms: Date.now() - t0, costUsd: 0, raw: { stop_reason: 'end_turn', note, tool_calls: out.toolCalls } });
     return out;
   }
 }

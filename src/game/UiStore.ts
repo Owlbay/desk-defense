@@ -34,6 +34,8 @@ export interface UiState {
   spawnerSelected: string | null;
   /** 鼠标悬停中的掉落物 uid（电脑：悬停 + 空格收集） */
   hoverPickup: number | null;
+  /** 文档 10：思路与请求面板里悬停的工具调用涉及的格子（棋盘上描一圈；null = 无） */
+  aiFocus: { cx: number; cy: number } | null;
 }
 
 type Fn = (s: UiState) => void;
@@ -54,6 +56,7 @@ class Store {
     abilityAngle: null,
     spawnerSelected: null,
     hoverPickup: null,
+    aiFocus: null,
   };
   private subs = new Set<Fn>();
 
@@ -82,6 +85,7 @@ class Store {
       abilityAiming: null,
       abilityAngle: null,
       spawnerSelected: null,
+      aiFocus: null,
     });
   }
 

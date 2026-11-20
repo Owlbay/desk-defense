@@ -61,8 +61,12 @@ wss.on('connection', (ws, req) => {
   }
   active++;
   const send = (m: BridgeServerMsg) => ws.send(JSON.stringify(m));
+  // 思路与请求转发给网页前，把本机环境里的密钥也登记为必须替换的字符串（再加上通用格式规则）
+  const secrets = Object.entries(process.env)
+    .filter(([k, v]) => v && /KEY|TOKEN|SECRET/i.test(k) && v.length >= 8)
+    .map(([, v]) => v as string);
   const session = createBridgeSession({
-    provider, code, send,
+    provider, code, send, secrets,
     log: (s) => {
       if (s === 'paired') {
         console.log(`已配对：${origin ?? '(无 Origin)'}`);

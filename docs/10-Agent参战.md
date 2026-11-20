@@ -83,6 +83,7 @@
 | `src/agent/tools.ts` | 工具定义（strict JSON Schema）、最小 Schema 校验器、工具 → Command、执行器 |
 | `src/agent/prompts.ts` | 规则 / 资料表（系统提示，逐字节稳定）、开局信息、决策消息 |
 | `src/agent/scheduler.ts` | `DecisionDetector`（纯判定）与 `AgentScheduler`（无头推进） |
+| `src/agent/trace.ts` / `redact.ts` | 思路与请求：决策追踪事件、环形缓冲 `AgentTrace`、导出；脱敏（§12.1） |
 | `src/agent/engine.ts` | `DecisionEngine`：一次决策的完整流程（观测、调用、记录、预算、超时、熔断、兜底、推进保证） |
 | `src/agent/runner.ts` | `runAgentGame(opts, agent)`；`aiBoardKey()` |
 | `src/agent/config.ts` | 模型配置 schema、预设、校验、`saveableConfig`（去掉 Key） |
@@ -466,12 +467,41 @@ const ctl = createAgentController({
 });
 await ctl.start();                                // 动态 import 对应适配器（pi / 官方 SDK / 桥接器）
 ctl.pause(); ctl.resume(); ctl.stop();
-const rep = ctl.report();                         // { agent, board: 'ai:…', usage, costUsd, decisions, errors, suggestions, replay, config }
+const rep = ctl.report();                         // { agent, board: 'ai:…', usage, costUsd, decisions, errors, suggestions, replay, config, trace }
+ctl.trace.subscribe((ev) => panel.push(ev));      // 思路与请求（§12.1）
 ```
 - 控制器订阅 `session.on()` 事件、每 100 ms 检查决策点（`pollMs: 0` 时由 UI 每帧调 `ctl.poll()`）；暂停模式下决策期间 `session.togglePause(true)`，结束后恢复（玩家自己暂停时不会被恢复）。
 - 指令走 `session.command()`，渲染与 UI 事件照常触发。
 - **打包（已验证）**：首屏包只多了 `src/ui/ai/launch.ts` 等几 KB 的入口；Agent 逻辑与模型 SDK 全部在 `dist/assets/ai/` 下的动态分包里（`vite.config.ts` 的 `chunkFileNames`），不进 PWA 预缓存，首次进入「AI 参战」时下载、之后由 Service Worker 缓存。构建产物里没有 undici / proxy-agent / @aws-sdk / ws。以下为最初的设计说明：`src/agent/index.ts` 本身只含纯逻辑；`createProvider` 用 `import()` 加载 `providers/claude.ts`、`providers/pi.ts`、`bridge.ts`，Vite 会拆成独立分包，只在玩家开启 AI 模式时下载。UI 工作需要确认构建产物里 pi 的 Node 专用依赖（undici、proxy-agent、bedrock）没有被打进浏览器包（必要时在 vite 配置里给它们设 `external` 或别名到空模块）。
 - 结算：带 agent 标记的成绩只能提交到 `aiBoardKey(opts)`（`ai:` 前缀），UI 不得显示"提交到全服排行榜"按钮。
+
+### 12.1 透明度：「思路与请求」面板（`src/agent/trace.ts` + `src/ui/ai/trace-panel.ts`）
+
+观战的人要能在棋盘旁边实时看到 AI 的思路和**全部**请求信息。
+
+**追踪层**（纯 TS，Node / 浏览器通用）：每次决策产生一串与厂商无关的事件，写进内存环形缓冲 `AgentTrace`（默认 ≤ 20000 条、≤ 6M 字符，超出丢最旧；思路 / 文字的流式增量合并存储，订阅者仍收到增量）。
+
+| 事件 | 谁写 | 内容 |
+|---|---|---|
+| `decision_start` | 引擎 | 触发原因、波次、游戏时间 / 帧号、provider / model、观测（含 ASCII 地图）、系统提示词、工具定义（后三者按哈希去重存 blob） |
+| `request` / `request_raw` | 适配器 | 第几次请求、API、模型、主机名、effort、关键参数、请求头（脱敏）、原始请求体（脱敏、≤ 64k 字符；系统提示 / 工具定义以 `$blob:哈希` 占位，复制 / 导出时还原）；pi 的 `onPayload` 拿到真正发出的请求体后用 `request_raw` 替换 |
+| `thinking` / `text` | 适配器 | 流式的思路与回复 |
+| `tool_call` / `tool_result` | 引擎 | 工具调用 id（模型那边的 tool_use id）、参数；结果 ✓/✗、文本、游戏里实际变化（金币 / 塔数 / 阶段……）、涉及的格子 |
+| `response` | 适配器 | stop reason、用量（输入 / 输出 / 缓存读写）、延迟、费用估算、原始响应（脱敏、封顶） |
+| `error` / `fallback` | 引擎 | 失败原因（脱敏）、内置机器人接手及其效果、自动开波 / 自动选增益 |
+| `decision_end` | 引擎 | 由谁完成、总用时、用量、费用、工具调用数、备忘 |
+
+各适配器：
+- **Claude 原生**：`thinking: {type: "adaptive", display: "summarized"}`（当前模型默认 `omitted`，思考文本为空）；客户端支持时用 `messages.stream()`，`thinking_delta` / `text_delta` 边到边显示，`finalMessage()` 取完整消息。被安全过滤加密的思考显示为占位文字。
+- **pi**（anthropic-messages / openai-completions / openai-responses / google-generative-ai，含中转服务）：改用 `streamSimple`，`thinking_delta` 覆盖 Anthropic 思考摘要、OpenAI responses 推理摘要、completions 的 `reasoning_content`、Gemini thoughts；JSON 动作模式的请求标为 `json-mode/…`。
+- **本机桥接器**：桥接器把它那一侧的 request / thinking / response 经新消息 `B→C trace {id, ev}` 转发（先脱敏，桥接器本机环境变量里的 Key 也登记为必须替换的字符串）；工具调用的 id 随 `tool` 消息带过来。旧版网页忽略这条消息。
+- **离线演示 / 内置策略**：合成一条"本机（离线，无网络请求）"的请求，规则策略每一步判断写成一行"思路"，工具调用照常记录——不用 Key 也能演示整个面板。演示军师同理（预演结果写成思路）。
+
+**脱敏**（`src/agent/redact.ts`）：键名像密钥的字段（Authorization、x-api-key、x-goog-api-key、apiKey、access_token、cookie……）整值替换为 `•••`；字符串里的 `sk-ant-…` / `sk-proj-…` / `sk-…` / `AIza…` / `Bearer …` / JWT / URL 里的 `?key=` / `"x-api-key: …"` 一律替换；玩家填的真实 Key 登记到缓冲区，任何位置出现都替换。错误信息同样脱敏。
+
+**面板**：宽横屏（宿主宽 ≥ 960 且宽高比 ≥ 1.25）是棋盘右侧的一栏（可拖动改宽 280–720px、可收成 40px 细边，宽度 / 筛选记在 localStorage）；竖屏手机与紧凑横屏是盖在棋盘上的抽屉（AI 徽标旁的「思路」按钮开关；竖屏盖住棋盘、横屏盖棋盘左侧，塔栏 / 技能 / 开波始终露在外面）。内容：决策时间线（跟随最新）、每张卡片的触发原因、流式思路（蓝色竖线斜体）、回复、工具调用（参数、✓/✗、结果、实际效果；悬停时棋盘上对应格子描品红色圈）、每次请求 / 响应的用量延迟费用；可展开 观察 / 系统提示词 / 工具定义 / 请求头 / 原始请求 JSON / 原始响应 JSON（各带复制，长内容「展开全部」）；筛选（只看思路 / 只看工具 / 显示原始数据）、搜索、合计栏、「导出全部 (JSON)」（Blob 下载链接 + 复制到剪贴板兜底）。底部注明"以上内容只在你的浏览器里，不会上传"。
+- **性能**：事件只改数据模型并标脏，DOM 在 `requestAnimationFrame` 里批量更新；面板收起时不碰 DOM；只有最近 30 张卡片展开，更早的折叠成一行（点开再渲染），最多 300 张；长思路只显示末尾 12k 字符；折叠段懒渲染。
+- **军师模式**同样显示；**回放**：`ctl.report().trace`（导出格式，封顶约 1.5M 字符，超出先去掉原始请求 / 响应再丢最旧的决策）随结算报告保存在内存里，「观看回放」时在旁边显示，随回放进度逐个展开决策。
 
 ---
 
@@ -523,6 +553,7 @@ npm run agent:play -- --mode endless --map ch1 --difficulty normal --model claud
 - 调度：首个决策点在第 0 帧、`game_start/build/wave_interval/perk` 都会出现、wave_interval 间隔、手动模式等待开波、realtime `elapse`。
 - 运行器：脚本策略端到端 ≥10 波、两次运行结果与日志完全一致、回放复现同一 `stateHash`；基线模式；token 预算耗尽转兜底；超时转兜底；连续错误熔断；realtime 下决策间世界前进。
 - 适配器：Claude（注入假 client：自适应思考、effort、strict、缓存、服务端回退参数、thinking 块原样回传、并行工具结果同一消息；Haiku 无回退、拒答 → 错误）；pi（faux provider：原生工具循环、TypeBox 转换、JSON 模式、`testConnection`）；桥接器（内存 socket：错误配对码、配对、工具回传、after）；MCP 处理函数（new_game → 动作 → advance → 回放）。
+- 思路与请求（`trace.test.ts`）：脱敏（请求头 / 请求体字段 / 多种格式的错误文本 / 已登记的 Key）、JSON 封顶；环形缓冲按条数与字符数封顶、增量合并、blob 去重与导出封顶；脚本策略经引擎的完整事件序列；失败 → error + fallback；pi faux（流式思路、回复、请求 / 响应、工具调用 id、JSON 模式）；Claude 假 client（非流式与流式两种：summarized 思路、tool_use id、每次响应的用量）；桥接器转发（线上传输不含 Key、工具 id 透传）。
 - 中转服务（`relay.test.ts`，mock fetch）：`normalizeRelayBase` 的各种地址形式与幂等性；模型列表的 Bearer → x-api-key 回退与 CORS 提示；探测顺序（Claude 先试 Messages）、首个成功即停、错误分类（CORS / 401 / 404 / 模型 / 不调用工具）；经 pi 的 responses（原生工具 + JSON 回退）/ completions / messages 三种请求的 URL、鉴权头与兼容字段。
 
 ---

@@ -16,6 +16,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { emptyUsage, type TokenUsage } from '../types';
 import { LIMIT_TEXT, type DecisionContext, type DecisionOutcome, type LLMProvider } from './types';
 import type { Effort } from '../config';
+import { blobRef, hashText, hostOf } from '../trace';
 
 /** 美元 / 百万 token（估算；以 Anthropic 账单为准）。cacheWrite 按 5 分钟缓存 = 1.25× 输入 */
 export const CLAUDE_PRICES: Record<string, { input: number; output: number; cacheRead: number; cacheWrite: number }> = {
@@ -79,13 +80,21 @@ export class ClaudeProvider implements LLMProvider {
     const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: ctx.message }];
     const texts: string[] = [];
     const maxRequests = ctx.maxToolCalls + 2;
+    const tr = ctx.trace;
+    const host = hostOf(clientBaseUrl(this.client)) ?? 'api.anthropic.com';
+    // 原始请求里系统提示 / 工具定义用占位符（面板里另有完整展示，复制 / 导出时还原）
+    const sysRef = tr ? blobRef(hashText(JSON.stringify(system, null, 2))) : '';
+    const toolsRef = tr ? blobRef(hashText(JSON.stringify(tools, null, 2))) : '';
+    let n = 0;
     try {
       for (let req = 0; req < maxRequests; req++) {
         const t0 = Date.now();
+        n++;
         const params: Anthropic.Beta.MessageCreateParamsNonStreaming = {
           model: this.model,
           max_tokens: Math.max(1024, Math.min(this.maxOut, ctx.remainingTokens)),
-          thinking: { type: 'adaptive' },
+          // 当前模型默认 display: "omitted"（思考文本为空）；面板要看思路摘要，显式要 summarized
+          thinking: { type: 'adaptive', display: 'summarized' },
           output_config: { effort: this.effort },
           cache_control: { type: 'ephemeral' },
           tool_choice: { type: 'auto' },
@@ -97,23 +106,56 @@ export class ClaudeProvider implements LLMProvider {
           params.betas = ['server-side-fallback-2026-07-01'];
           params.fallbacks = 'default';
         }
-        const res = await this.client.beta.messages.create(params, { signal: ctx.signal });
-        addClaudeUsage(usage, res.usage);
-        const alive = await ctx.afterRequest(Date.now() - t0);
-        for (const b of res.content) if (b.type === 'text' && b.text.trim()) texts.push(b.text.trim());
+        if (tr) {
+          tr({
+            k: 'request', n, provider: this.id, api: 'anthropic-messages', model: this.model, host, effort: this.effort,
+            params: {
+              max_tokens: params.max_tokens, thinking: params.thinking, output_config: params.output_config, tool_choice: params.tool_choice,
+              cache_control: params.cache_control, betas: params.betas, fallbacks: params.fallbacks, stream: this.canStream(),
+            },
+            system: JSON.stringify(system, null, 2),
+            toolDefs: tools,
+            toolNames: ctx.tools.map((t) => t.name),
+            messages: messages.length,
+            headers: {
+              'x-api-key': '•••',
+              'anthropic-version': '2023-06-01',
+              ...(params.betas ? { 'anthropic-beta': params.betas.join(',') } : {}),
+              'content-type': 'application/json',
+            },
+            raw: { ...params, system: sysRef, tools: toolsRef, ...(this.canStream() ? { stream: true } : {}) },
+          });
+        }
+        const res = await this.send(params, ctx, n);
+        addClaudeUsage(usage, res.message.usage);
+        const ms = Date.now() - t0;
+        if (tr) {
+          // 非流式（测试注入的客户端）：思路 / 文字在这里一次性补上
+          for (const b of res.message.content) {
+            if (b.type === 'thinking' && !res.streamedThinking && b.thinking) tr({ k: 'thinking', n, text: b.thinking });
+            else if (b.type === 'redacted_thinking' && !res.streamedThinking) tr({ k: 'thinking', n, text: '[这段思考被安全过滤器加密，内容不可见]' });
+            else if (b.type === 'text' && !res.streamedText && b.text) tr({ k: 'text', n, text: b.text });
+          }
+          const u1 = emptyUsage();
+          addClaudeUsage(u1, res.message.usage);
+          tr({ k: 'response', n, stop: res.message.stop_reason ?? undefined, usage: u1, ms, costUsd: claudeCost(this.model, u1), raw: res.message });
+        }
+        const alive = await ctx.afterRequest(ms);
+        for (const b of res.message.content) if (b.type === 'text' && b.text.trim()) texts.push(b.text.trim());
 
-        if (res.stop_reason === 'refusal') {
-          out.error = `refusal${res.stop_details?.category ? ` (${res.stop_details.category})` : ''}`;
+        const m = res.message;
+        if (m.stop_reason === 'refusal') {
+          out.error = `refusal${m.stop_details?.category ? ` (${m.stop_details.category})` : ''}`;
           break;
         }
-        const uses = res.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === 'tool_use');
-        if (res.stop_reason === 'max_tokens' && uses.length) {
+        const uses = m.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === 'tool_use');
+        if (m.stop_reason === 'max_tokens' && uses.length) {
           out.error = 'max_tokens reached inside a tool call';
           break;
         }
         if (!uses.length || !alive) break;
         // 原样放回（含 thinking 块）
-        messages.push({ role: 'assistant', content: res.content as unknown as Anthropic.Beta.BetaContentBlockParam[] });
+        messages.push({ role: 'assistant', content: m.content as unknown as Anthropic.Beta.BetaContentBlockParam[] });
         const results: Anthropic.Beta.BetaToolResultBlockParam[] = [];
         for (const u of uses) {
           if (out.toolCalls >= ctx.maxToolCalls) {
@@ -121,7 +163,7 @@ export class ClaudeProvider implements LLMProvider {
             continue;
           }
           out.toolCalls++;
-          const r = await ctx.callTool(u.name, u.input);
+          const r = await ctx.callTool(u.name, u.input, { id: u.id });
           results.push({ type: 'tool_result', tool_use_id: u.id, content: r.text, is_error: !r.ok });
           if (r.endTurn) { out.ended = true; out.note = r.note; }
         }
@@ -134,6 +176,55 @@ export class ClaudeProvider implements LLMProvider {
     out.costUsd = claudeCost(this.model, usage);
     if (texts.length) out.text = texts.join('\n').slice(0, 2000);
     return out;
+  }
+
+  private canStream(): boolean {
+    return typeof (this.client.beta?.messages as { stream?: unknown } | undefined)?.stream === 'function';
+  }
+
+  /**
+   * 发一次请求。客户端支持流式时用 messages.stream()：思路摘要（thinking_delta）与文字（text_delta）边到边报给面板，
+   * 最后用 finalMessage() 拿完整消息（stop_reason / 工具调用 / 用量）。
+   */
+  private async send(
+    params: Anthropic.Beta.MessageCreateParamsNonStreaming,
+    ctx: DecisionContext,
+    n: number,
+  ): Promise<{ message: Anthropic.Beta.BetaMessage; streamedThinking: boolean; streamedText: boolean }> {
+    if (!this.canStream()) {
+      const message = await this.client.beta.messages.create(params, { signal: ctx.signal });
+      return { message, streamedThinking: false, streamedText: false };
+    }
+    const stream = this.client.beta.messages.stream(params as Anthropic.Beta.MessageCreateParams, { signal: ctx.signal });
+    let streamedThinking = false;
+    let streamedText = false;
+    const tr = ctx.trace;
+    for await (const ev of stream) {
+      if (!tr) continue;
+      if (ev.type === 'content_block_delta') {
+        if (ev.delta.type === 'thinking_delta' && ev.delta.thinking) {
+          streamedThinking = true;
+          tr({ k: 'thinking', n, text: ev.delta.thinking });
+        } else if (ev.delta.type === 'text_delta' && ev.delta.text) {
+          streamedText = true;
+          tr({ k: 'text', n, text: ev.delta.text });
+        }
+      } else if (ev.type === 'content_block_start' && ev.content_block.type === 'redacted_thinking') {
+        streamedThinking = true;
+        tr({ k: 'thinking', n, text: '[这段思考被安全过滤器加密，内容不可见]' });
+      }
+    }
+    const message = await stream.finalMessage();
+    return { message, streamedThinking, streamedText };
+  }
+}
+
+function clientBaseUrl(c: Anthropic): string | undefined {
+  try {
+    const b = (c as unknown as { baseURL?: unknown }).baseURL;
+    return typeof b === 'string' ? b : undefined;
+  } catch {
+    return undefined;
   }
 }
 

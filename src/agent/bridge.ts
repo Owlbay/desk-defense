@@ -12,11 +12,14 @@
  *   B→C after {id, call, ms}                        C→B after_result {id, call, alive}
  *   C→B abort {id}                                  B→C done {id, outcome}
  *   C→B ping                                        B→C pong
+ *                                                   B→C trace {id, ev}（思路与请求：桥接器侧的请求 / 思路 / 响应，已脱敏；旧客户端忽略）
  * 本文件不依赖 ws 包：客户端用标准 WebSocket（浏览器 / Node 22+ 全局），服务端逻辑 createBridgeSession 只需要一个 send 函数。
  */
 import type { AgentToolDef } from './tools';
 import type { AgentRole, DecisionPoint, ToolResult } from './types';
 import { emptyUsage } from './types';
+import { redactValue } from './redact';
+import type { TraceInput } from './trace';
 import type { DecisionContext, DecisionOutcome, LLMProvider } from './providers/types';
 
 export const BRIDGE_PROTOCOL = 1;
@@ -32,9 +35,10 @@ export type BridgeClientMsg =
 export type BridgeServerMsg =
   | { t: 'welcome'; provider: string; model: string; v: number }
   | { t: 'error'; message: string; id?: number }
-  | { t: 'tool'; id: number; call: number; name: string; input: unknown }
+  | { t: 'tool'; id: number; call: number; name: string; input: unknown; meta?: { id?: string } }
   | { t: 'after'; id: number; call: number; ms: number }
   | { t: 'done'; id: number; outcome: DecisionOutcome }
+  | { t: 'trace'; id: number; ev: TraceInput }
   | { t: 'pong' };
 
 /** 允许连接桥接器的网页来源（另加 --origin 参数） */
@@ -65,6 +69,9 @@ export interface BridgeSessionOptions {
   send: (m: BridgeServerMsg) => void;
   /** 配对成功后配对码作废（默认 true） */
   oneTime?: boolean;
+  /** 转发思路与请求事件给网页（默认 true）。转发前脱敏；桥接器上的真实 Key 可登记在这里额外替换 */
+  forwardTrace?: boolean;
+  secrets?: string[];
   log?: (s: string) => void;
 }
 
@@ -88,11 +95,21 @@ export function createBridgeSession(o: BridgeSessionOptions): BridgeSession {
     const ctx: DecisionContext = {
       role: m.role, point: m.point, system: m.system, message: m.message, tools: m.tools,
       maxToolCalls: Math.min(64, m.maxToolCalls), remainingTokens: m.remainingTokens, signal: ac.signal,
-      callTool: async (name, input) => {
+      callTool: async (name, input, meta) => {
         const call = nextCall++;
-        o.send({ t: 'tool', id: m.id, call, name, input });
+        o.send({ t: 'tool', id: m.id, call, name, input, ...(meta ? { meta } : {}) });
         return wait<ToolResult>(call, 'tool');
       },
+      trace: (o.forwardTrace ?? true)
+        ? (ev) => {
+            try {
+              // 密钥永远不离开桥接器：先脱敏再发（网页那边入库时还会再脱敏一次）
+              o.send({ t: 'trace', id: m.id, ev: redactValue(ev, o.secrets ?? []) as TraceInput });
+            } catch {
+              /* 追踪失败不影响对局 */
+            }
+          }
+        : undefined,
       afterRequest: async (ms) => {
         const call = nextCall++;
         o.send({ t: 'after', id: m.id, call, ms });
@@ -178,12 +195,19 @@ export class BridgeProvider implements LLMProvider {
     const m = JSON.parse(raw) as BridgeServerMsg;
     if (m.t === 'tool') {
       const e = this.ctxs.get(m.id);
-      const result: ToolResult = e ? await e.ctx.callTool(m.name, m.input) : { ok: false, text: 'ERROR decision is over' };
+      const result: ToolResult = e ? await e.ctx.callTool(m.name, m.input, m.meta) : { ok: false, text: 'ERROR decision is over' };
       this.ws.send(JSON.stringify({ t: 'tool_result', id: m.id, call: m.call, result } satisfies BridgeClientMsg));
     } else if (m.t === 'after') {
       const e = this.ctxs.get(m.id);
       const alive = e ? await e.ctx.afterRequest(m.ms) : false;
       this.ws.send(JSON.stringify({ t: 'after_result', id: m.id, call: m.call, alive } satisfies BridgeClientMsg));
+    } else if (m.t === 'trace') {
+      const e = this.ctxs.get(m.id);
+      if (e?.ctx.trace && m.ev && typeof m.ev === 'object' && typeof (m.ev as { k?: unknown }).k === 'string') {
+        // 桥接器那边的事件：标上经由桥接器
+        const ev = m.ev.k === 'request' ? { ...m.ev, provider: `bridge:${m.ev.provider}` } : m.ev;
+        e.ctx.trace(ev);
+      }
     } else if (m.t === 'done') {
       this.ctxs.get(m.id)?.resolve(m.outcome);
       this.ctxs.delete(m.id);

@@ -16,6 +16,14 @@ export function demoAdvisor(world: IWorld): LLMProvider {
     model: 'scripted-v1',
     async decide(ctx: DecisionContext): Promise<DecisionOutcome> {
       const out: DecisionOutcome = { usage: emptyUsage(), costUsd: 0, toolCalls: 0, ended: false };
+      const tr = ctx.trace;
+      const t0 = Date.now();
+      tr?.({
+        k: 'request', n: 1, provider: 'scripted', api: 'local', model: 'scripted-v1', host: '本机（离线，无网络请求）',
+        params: { 说明: '离线演示军师：用内置规则策略预演一遍（不真的下指令），把想做的头几步写成建议' },
+        messages: 1,
+        raw: { provider: 'scripted', mode: 'advisor-dry-run', note: '离线演示：没有发出任何网络请求' },
+      });
       const wanted: { name: string; input: Record<string, unknown> }[] = [];
       const seen = new Set<string>();
       let accepted = false;
@@ -31,16 +39,19 @@ export function demoAdvisor(world: IWorld): LLMProvider {
         accepted = true;
         return { ok, text: 'dry-run' };
       };
-      await scriptedTurn(world, dry, ctx.point.reasons);
+      await scriptedTurn(world, dry, ctx.point.reasons, tr ? (line) => tr({ k: 'thinking', n: 1, text: line }) : undefined);
+      tr?.({ k: 'thinking', n: 1, text: `预演结束：挑出 ${wanted.length} 条可做的动作作为建议。\n` });
       if (wanted.length) {
         const actions = wanted.map((a) => `${a.name} ${Object.entries(a.input).map(([k, v]) => `${k}=${String(v)}`).join(' ')}`.trim());
         const text = `可以考虑：${wanted.map((a) => describeCall(world, a.name, a.input) ?? a.name).join('；')}。`;
         out.toolCalls++;
-        await ctx.callTool('suggest', { text: text.slice(0, 120), actions });
+        tr?.({ k: 'text', n: 1, text });
+        await ctx.callTool('suggest', { text: text.slice(0, 120), actions }, { id: 'demo_suggest' });
       }
       out.toolCalls++;
-      const r = await ctx.callTool('end_turn', {});
+      const r = await ctx.callTool('end_turn', {}, { id: 'demo_end' });
       out.ended = !!r.endTurn;
+      tr?.({ k: 'response', n: 1, stop: 'end_turn', usage: emptyUsage(), ms: Date.now() - t0, costUsd: 0, raw: { stop_reason: 'end_turn', suggestions: wanted } });
       return out;
     },
   };

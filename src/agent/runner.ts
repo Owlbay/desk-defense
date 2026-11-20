@@ -34,6 +34,8 @@ export interface AgentRunConfig {
   onWave?: (row: AgentWaveRow) => void;
   onUsage?: (total: TokenUsage, costUsd: number) => void;
   onSuggest?: (s: Suggestion) => void;
+  /** 思路与请求的缓冲区（可选） */
+  trace?: import('./trace').AgentTrace;
 }
 
 export interface AgentRunReport {
@@ -73,6 +75,7 @@ export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Pro
     maxGameSeconds: agent.maxGameSeconds,
   });
   const fallback = (agent.fallback ?? scriptedFallback)(world);
+  agent.trace?.addSecret(config.apiKey);
   const engine = new DecisionEngine({
     world, opts, config, provider: agent.provider, fallback,
     elapse: (sec) => sched.elapse(sec),
@@ -80,6 +83,7 @@ export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Pro
     signal: agent.signal,
     onSuggest: agent.onSuggest,
     onUsage: agent.onUsage,
+    trace: agent.trace,
   });
 
   const waves: AgentWaveRow[] = [];
