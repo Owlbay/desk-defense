@@ -38,7 +38,25 @@ export type AffixId =
 
 export type SkillId =
   | 'eraser_strike' | 'bell' | 'whiteout_zone' | 'caffeine' | 'ruler_sweep'
-  | 'scholarship' | 'relocate' | 'inspiration' | 'magnifier';
+  | 'scholarship' | 'relocate' | 'inspiration' | 'magnifier'
+  | 'seal_tape';           // 封箱胶带：封掉一个空降出生点（文档 09 §2.2）
+
+/** 随机事件（文档 09 §3.2） */
+export type RandomEventId =
+  // 负面
+  | 'drop_box' | 'lamp_outage' | 'fan' | 'books_fall' | 'homework_check' | 'coffee_spill' | 'reinforce'
+  // 正面
+  | 'coins' | 'inspiration' | 'nap' | 'praise' | 'supply_crate'
+  // 中性
+  | 'tidy' | 'wind' | 'secret_door';
+
+export const RANDOM_EVENT_IDS: RandomEventId[] = [
+  'drop_box', 'lamp_outage', 'fan', 'books_fall', 'homework_check', 'coffee_spill', 'reinforce',
+  'coins', 'inspiration', 'nap', 'praise', 'supply_crate',
+  'tidy', 'wind', 'secret_door',
+];
+
+export type SpawnMode = 'fixed' | 'roundRobin' | 'random' | 'split' | 'focus';
 
 export type TalentId =
   | 'wallet' | 'bandaid' | 'alarm' | 'study' | 'secondhand'
@@ -47,7 +65,8 @@ export type TalentId =
 export type DifficultyId = 'easy' | 'normal' | 'hard' | 'nightmare' | 'abyss';
 export type ModeId = 'campaign' | 'endless' | 'custom';
 export type Branch = 'A' | 'B';
-export type Tier = 1 | 2 | 3 | 4;
+/** 1 草稿 / 2 精良 / 3 镀金 / 4 传奇 / 5 神话（传奇 ★3，文档 11） */
+export type Tier = 1 | 2 | 3 | 4 | 5;
 export type TargetMode = 'first' | 'last' | 'strong' | 'weak' | 'close' | 'air';
 export type Rarity = 'common' | 'rare' | 'epic';
 export type MapId = 'ch1' | 'ch2' | 'ch3';
@@ -74,6 +93,15 @@ export interface DifficultyParams {
   skillCdMul: number;
   interestCap: number;
   scoreMul: number;
+  // ── 文档 09：动态战场 ──
+  spawnMode: SpawnMode;        // 默认出怪策略
+  maxActiveSpawners: number;   // 同时开放的出生点上限（含空降）
+  maxDrops: number;            // 同时存在的空降出生点上限
+  dropWarn: number;            // 空降预警秒数
+  eventRate: number;           // 随机事件频率倍率（0 = 关闭）
+  eventHostile: number;        // 负面事件占比 0..1
+  waveGap: number;             // 自动波次：本波刷完到下一波的倒计时（秒）
+  waveMax: number;             // 自动波次：每波上限时间（秒）
 }
 
 // ───────────────────────── 开局参数 ─────────────────────────
@@ -96,6 +124,12 @@ export interface RunOptions {
   /** 永久天赋等级；pure = true 时 core 忽略 */
   talents?: Partial<Record<TalentId, number>>;
   pure?: boolean;
+  /** 自动开波（文档 09 §4）；缺省 = 难度默认（简单为手动，其余为自动） */
+  autoWave?: boolean;
+  /** 战役使用固定杂物布局（不随机） */
+  fixedLayout?: boolean;
+  /** 单独关闭某些随机事件（自定义模式） */
+  events?: Partial<Record<RandomEventId, boolean>>;
 }
 
 // ───────────────────────── 运行时状态（只读给 render/ui） ─────────────────────────
@@ -106,7 +140,9 @@ export const CellKind = { Empty: 0, Obstacle: 1, Tower: 2, Spawn: 3, Exit: 4 } a
 export type CellKind = (typeof CellKind)[keyof typeof CellKind];
 
 export interface Obstacle {
-  kind: 'cup' | 'books' | 'keyboard' | 'mouse' | 'palette' | 'paint';
+  kind: 'cup' | 'books' | 'keyboard' | 'mouse' | 'palette' | 'paint'
+    // 随机杂物（文档 09 §5）
+    | 'eraser' | 'pencilcup' | 'sticky' | 'phone' | 'ruler' | 'tape' | 'stapler' | 'clip';
   x: number; y: number; w: number; h: number;   // 格
 }
 
@@ -117,7 +153,8 @@ export interface GridState {
   cells: Uint8Array;
   /** 每格的塔 uid（无塔为 0） */
   towerAt: Int32Array;
-  spawns: { x: number; y: number }[];   // 入口格（每个入口 2 格，列出全部格）
+  /** 当前所有开放出生点的格子（兼容旧字段；详细信息见 WorldState.spawners） */
+  spawns: { x: number; y: number }[];
   exits: { x: number; y: number }[];
   obstacles: Obstacle[];
   /** 流场：到出口的距离（不可达为 Infinity）；每次地形变化后更新 */
@@ -135,7 +172,13 @@ export interface TowerState {
   branch: Branch | null;
   xp: number;                           // 当前等级内的经验
   xpNext: number;                       // 升到下一级所需（满级为 0）
-  mastery: number;                      // 熟练度（Lv10 后）
+  /** 传奇进化星级（文档 11）；Lv10 之后的经验计入 evoXp */
+  stars: 0 | 1 | 2 | 3;
+  evoXp: number;
+  evoXpNext: number;                    // 满星为 0
+  /** ★3 主动能力剩余冷却（秒）；充能制能力见 abilityCharges */
+  abilityCd: number;
+  abilityCharges?: number;
   invested: number;                     // 已投入金币（出售依据）
   targetMode: TargetMode;
   /** 炮台朝向（弧度） */
@@ -200,7 +243,52 @@ export interface ProjectileState {
   towerUid: number;
 }
 
-export type ZoneKind = 'glue' | 'hotglue' | 'whiteout' | 'tape' | 'magnifier';
+export type ZoneKind = 'glue' | 'hotglue' | 'whiteout' | 'tape' | 'magnifier'
+  | 'coffee' | 'lava' | 'inkcross' | 'fullcorrect';
+
+// ───────────────────────── 动态战场（文档 09） ─────────────────────────
+
+export interface SpawnerState {
+  id: string;                         // 'north' | 'west' | 'drop-3' | 'hidden-1' …
+  kind: 'edge' | 'hidden' | 'drop';
+  cells: { x: number; y: number }[];
+  /** 开放中（可出怪） */
+  active: boolean;
+  /** 空降：预警截止时间（之前为预警阶段，格子不可建造） */
+  warnUntil?: number;
+  /** 空降：在第几波结束后关闭 */
+  expiresAfterWave?: number;
+  /** 拆除价格（空降点） */
+  demolishCost?: number;
+  /** 纸箱上画的敌人图标（空降点） */
+  icon?: EnemyId;
+}
+
+export interface RandomEventState {
+  uid: number;
+  id: RandomEventId;
+  name: string;
+  desc: string;
+  tone: 'bad' | 'good' | 'neutral';
+  phase: 'warn' | 'active' | 'done';
+  startsAt: number;                   // 进入 active 的时间
+  endsAt: number;                     // 结束时间（瞬时事件 = startsAt）
+  /** 影响范围（格），渲染画预警框 */
+  area?: { x: number; y: number; w: number; h: number };
+}
+
+export interface PickupState {
+  uid: number;
+  kind: 'coin' | 'crate';
+  x: number; y: number;               // 格坐标
+  until: number;
+  value: number;                      // 硬币金额
+}
+
+export interface CrateChoice {
+  uid: number;
+  options: { id: string; name: string; desc: string }[];
+}
 
 export interface ZoneState {
   uid: number;
@@ -220,7 +308,7 @@ export interface SkillState {
   charges?: number;      // 充能制技能（搬家）
   maxCharges?: number;
   /** 需要的目标类型 */
-  target: 'none' | 'circle' | 'rect2' | 'line' | 'tower' | 'tower+cell';
+  target: 'none' | 'circle' | 'rect2' | 'line' | 'tower' | 'tower+cell' | 'spawner';
   radius?: number;       // circle 半径（格）
   ready: boolean;
 }
@@ -239,6 +327,7 @@ export interface WavePreviewGroup {
   count: number;
   elite: number;           // 其中精英数量
   affixes: AffixId[];      // 本组出现的词缀（去重）
+  spawner: string;         // 从哪个出生点出来（SpawnerState.id；split 策略为 '*'）
 }
 
 export interface WavePreview {
@@ -286,6 +375,23 @@ export interface WorldState {
   unlockedTowers: TowerId[];
   /** 全局增益：咖啡因截止时间等（渲染可做全屏色调） */
   caffeineUntil: number;
+  /** 文档 09 */
+  spawners: SpawnerState[];
+  events: RandomEventState[];         // 预警中 / 进行中 + 最近结束的（保留 30 秒）
+  eventLog: { wave: number; id: RandomEventId; name: string }[];
+  pickups: PickupState[];
+  crateChoice: CrateChoice | null;    // 打开补给箱后待选择（不暂停游戏）
+  autoWave: {
+    enabled: boolean;
+    /** 已开始自动模式（第一波由玩家开始之后） */
+    started: boolean;
+    /** 下一波自动开始的时间（state.time）；null = 未在倒计时 */
+    nextAt: number | null;
+    /** 当前波的上限时间 */
+    deadline: number | null;
+    /** 因同时进行波次已达上限而暂停倒计时 */
+    blocked: boolean;
+  };
   /** Boss 血条：场上所有 Boss 的 uid */
   bossUids: number[];
   stats: RunStats;
@@ -299,10 +405,18 @@ export type Command =
   | { type: 'sell'; uid: number }                        // 若可撤销则全额退款
   | { type: 'setTarget'; uid: number; mode: TargetMode }
   | { type: 'startWave' }                                // build 阶段开波；wave 阶段 = 提前开下一波
-  | { type: 'cast'; skill: SkillId; x?: number; y?: number; uid?: number; cx?: number; cy?: number; axis?: 'row' | 'col' }
+  | { type: 'cast'; skill: SkillId; x?: number; y?: number; uid?: number; cx?: number; cy?: number; axis?: 'row' | 'col'; spawner?: string }
   /** 传奇在望：uid 为目标塔，branch 为直接进入的传奇分支 */
   | { type: 'choosePerk'; id: string; uid?: number; branch?: Branch }
-  | { type: 'rerollPerks' };
+  | { type: 'rerollPerks' }
+  // 文档 09
+  | { type: 'collect'; uid: number }
+  | { type: 'chooseCrate'; option: string }
+  | { type: 'demolishSpawner'; id: string }
+  // 文档 11
+  | { type: 'evolve'; uid: number }
+  | { type: 'towerAbility'; uid: number; x?: number; y?: number; angle?: number;
+      axis?: 'row' | 'col'; index?: number; targetUid?: number };
 
 export interface CommandResult {
   ok: boolean;
@@ -337,7 +451,17 @@ export type GameEvent =
   | { type: 'perkOffer'; cards: PerkCard[] }
   | { type: 'perkChosen'; id: string }
   | { type: 'gameOver'; won: boolean; wave: number; score: number }
-  | { type: 'toast'; text: string; tone: 'info' | 'warn' | 'good' };
+  | { type: 'toast'; text: string; tone: 'info' | 'warn' | 'good' }
+  // 文档 09
+  | { type: 'randomEvent'; uid: number; id: RandomEventId; phase: 'warn' | 'start' | 'end'; name: string; desc: string; tone: 'bad' | 'good' | 'neutral'; area?: { x: number; y: number; w: number; h: number } }
+  | { type: 'spawnerDrop'; id: string; x: number; y: number; phase: 'warn' | 'land' | 'close' | 'demolish' }
+  | { type: 'terrainChanged'; reason: 'event' | 'drop' | 'tidy' }
+  | { type: 'pickup'; uid: number; kind: 'coin' | 'crate'; x: number; y: number; phase: 'spawn' | 'collect' | 'expire'; value?: number }
+  | { type: 'autoWave'; secondsLeft: number }            // 倒计时剩 3/2/1 秒时各发一次
+  | { type: 'towerMoved'; uid: number; fromX: number; fromY: number; cx: number; cy: number }
+  // 文档 11
+  | { type: 'evolve'; uid: number; stars: number; mythic: boolean }
+  | { type: 'towerAbility'; uid: number; ability: string; x?: number; y?: number; r?: number; angle?: number; axis?: 'row' | 'col'; index?: number; targetUid?: number };
 
 // ───────────────────────── 给 UI 的计算视图 ─────────────────────────
 
@@ -377,8 +501,22 @@ export interface TowerInfo {
   branch: Branch | null;
   xp: number;
   xpNext: number;
-  xpCapped: boolean;      // 已到经验上限（Lv9 / Lv10）
-  mastery: number;
+  xpCapped: boolean;      // 已到经验上限（Lv9；Lv10 后经验计入进化）
+  /** 文档 11：传奇进化 */
+  stars: number;
+  evoXp: number;
+  evoXpNext: number;
+  evolveCost: number | null;    // null = 不能进化（未到 Lv10 / 已满星 / 书本墙）
+  evolveDiscount: number;
+  canAffordEvolve: boolean;
+  evoTraits: TraitLine[];       // 当前分支 ★1/★2 特性（unlockLevel 用 11/12 表示 ★1/★2）
+  ability?: {
+    id: string; name: string; desc: string;
+    cd: number; cdMax: number; ready: boolean;
+    charges?: number; maxCharges?: number;
+    target: 'none' | 'circle' | 'rect3' | 'direction' | 'axis' | 'enemy' | 'tower';
+    radius?: number;
+  };
   stats: StatLine[];
   traits: TraitLine[];
   range: number;          // 当前射程（格），渲染射程圈；无攻击为 0
