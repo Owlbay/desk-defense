@@ -25,7 +25,12 @@ import {
   validateConfig,
   type AgentModelConfig,
   type ConnectionDiagnostics,
-  type Effort,
+  CONTEXT_MODES,
+  CONTEXT_MODE_LABEL,
+  THINKING_LABEL,
+  claudeThinkingPlan,
+  type ContextMode,
+  type ThinkingLevel,
   type LLMProvider,
   type PiApi,
   type Preset,
@@ -63,7 +68,8 @@ const API_LABEL: Record<PiApi, string> = {
   'openai-responses': 'OpenAI Responses',
   'google-generative-ai': 'Google Generative AI',
 };
-const EFFORT_LABEL: Record<Effort, string> = { low: '低（快、省）', medium: '中', high: '高', xhigh: '很高', max: '最高' };
+/** 思考等级的选项：很高 / 最高只对 Claude 开放 */
+const thinkingOptions = (claude: boolean): ThinkingLevel[] => (claude ? ['off', 'low', 'medium', 'high', 'xhigh', 'max'] : ['off', 'low', 'medium', 'high']);
 const DIFF_ORDER: DifficultyId[] = ['easy', 'normal', 'hard', 'nightmare', 'abyss'];
 
 /** 已连接的桥接器（跨页面保留：从对局回到设置页不需要重新配对） */
@@ -199,12 +205,12 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
             // 军师不打断玩家：默认实时模式、决策间隔拉长
             if (role === 'advisor') {
               st.decisionMode = 'realtime';
-              st.waveIntervalSec = Math.max(20, st.waveIntervalSec);
+              st.waveIntervalSec = Math.max(20, st.waveIntervalSec ?? 20);
             } else st.decisionMode = 'pause';
             persist();
             paintRoles();
             decisionSeg.paint();
-            intervalInput.value = String(st.waveIntervalSec);
+            intervalInput.value = st.waveIntervalSec === null ? '' : String(st.waveIntervalSec);
             paintSummary();
           },
         },
@@ -376,10 +382,10 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
     const common: Partial<AgentModelConfig> = {
       role: st.role,
       toolMode: st.toolMode,
-      contextBudget: st.context,
-      effort: st.effort,
-      decision: { mode: st.decisionMode, waveIntervalSec: st.waveIntervalSec },
-      budget: { ...(st.budgetTokens ? { tokens: st.budgetTokens } : {}), ...(st.budgetUsd ? { usd: st.budgetUsd } : {}) },
+      ...(st.contextMode !== 'auto' ? { contextMode: st.contextMode } : {}),
+      ...(st.thinking !== 'auto' ? { thinking: st.thinking } : {}),
+      decision: { mode: st.decisionMode, ...(st.waveIntervalSec !== null ? { waveIntervalSec: st.waveIntervalSec } : {}) },
+      budget: { ...(st.budgetTokens ? { tokens: st.budgetTokens } : {}), ...(st.budgetUsd ? { usd: st.budgetUsd } : {}), mode: st.budgetMode },
     };
     if (st.tab === 'bridge') {
       return { ...common, provider: 'bridge', model: bridge?.provider.model ?? 'bridge', bridge: { url: bridge?.url ?? st.bridgeUrl, code: bridge?.code ?? '' } };
@@ -551,16 +557,26 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
     '工具模式',
     '.two',
   );
+  // 上下文模式：自动 / 省流 / 均衡 / 完整（估算按离线 token 模型，思考等级 低）
+  const ctxHint = h('small.muted');
+  const autoCtx = (): ContextMode => (isLocal(st.source) ? 'saver' : 'balanced');
+  const paintCtxHint = (): void => {
+    const m = st.contextMode === 'auto' ? autoCtx() : st.contextMode;
+    const sp = CONTEXT_MODES[m];
+    setText(ctxHint, `${st.contextMode === 'auto' ? `自动 → ${CONTEXT_MODE_LABEL[m]}。` : ''}约 ${fmtNum(sp.estTokensPerWave)} 折算 token / 波（思考“低”时的离线估算）。${sp.desc}`);
+  };
   const ctxSeg = segs(
     [
-      ['full', '完整', '系统提示带完整资料表（约 8k token，可缓存）'],
-      ['compact', '精简', '不带资料表，小模型 / 小上下文用'],
+      ['auto', '自动', '本机模型用省流，其他用均衡'],
+      ['saver', '省流', CONTEXT_MODES.saver.desc],
+      ['balanced', '均衡', CONTEXT_MODES.balanced.desc],
+      ['full', '完整', CONTEXT_MODES.full.desc],
     ] as const,
-    () => st.context,
-    (v) => ((st.context = v), persist()),
-    '上下文',
-    '.two',
+    () => st.contextMode,
+    (v) => ((st.contextMode = v), persist(), paintCtxHint()),
+    '上下文模式',
   );
+  paintCtxHint();
   const decisionSeg = segs(
     [
       ['pause', '暂停等待', '到决策点时游戏暂停，模型想多久都行（推荐）'],
@@ -571,12 +587,47 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
     '决策模式',
     '.two',
   );
-  const effortSel = h<HTMLSelectElement>('select.input', { attrs: { 'aria-label': '思考强度' } });
-  for (const e of Object.keys(EFFORT_LABEL) as Effort[]) effortSel.appendChild(h('option', { attrs: { value: e, selected: e === st.effort } }, EFFORT_LABEL[e]));
-  effortSel.onchange = () => {
-    st.effort = effortSel.value as Effort;
-    persist();
+  // 思考等级：自动 / 无思考 / 低 / 中 / 高（Claude 另有 很高 / 最高）；提示按服务商与模型给出
+  const thinkingSel = h<HTMLSelectElement>('select.input', { attrs: { 'aria-label': '思考等级' } });
+  const thinkingHint = h('small.muted');
+  const autoThinking = (): ThinkingLevel => (st.source === 'relay' ? 'low' : isLocal(st.source) ? 'off' : st.source === 'demo' ? 'off' : 'medium');
+  const thinkingNote = (lv: ThinkingLevel): string => {
+    const s = st.source;
+    if (s === 'demo') return '离线演示不调用模型，这项不起作用。';
+    if (s === 'claude') {
+      const plan = claudeThinkingPlan(modelOf('claude').trim() || 'claude-opus-5-5', lv);
+      return plan.note ?? (lv === 'off' ? `关闭思考：${plan.effective}` : '自适应思考 + effort；越高越慢、越贵。');
+    }
+    if (s === 'relay') return lv === 'off' ? 'DeepSeek / Qwen 系列发送“关闭思考”；其他模型不发推理参数。' : '推理模型按等级发送 reasoning_effort（DeepSeek / Qwen 用各自的开关）；中转默认“低”。';
+    if (isLocal(s)) return '本机小模型一般不支持推理参数，默认无思考。';
+    return lv === 'off' ? '不发推理参数（模型支持时显式关闭）。' : '按服务商支持的方式发送推理强度。';
   };
+  const paintThinking = (): void => {
+    const claude = st.source === 'claude';
+    const opts = thinkingOptions(claude);
+    if (st.thinking !== 'auto' && !opts.includes(st.thinking)) st.thinking = 'high';
+    clear(thinkingSel);
+    const auto = autoThinking();
+    thinkingSel.appendChild(h('option', { attrs: { value: 'auto', selected: st.thinking === 'auto' } }, `自动（${THINKING_LABEL[auto]}）`));
+    for (const e of opts) thinkingSel.appendChild(h('option', { attrs: { value: e, selected: e === st.thinking } }, THINKING_LABEL[e]));
+    setText(thinkingHint, thinkingNote(st.thinking === 'auto' ? auto : st.thinking));
+  };
+  thinkingSel.onchange = () => {
+    st.thinking = thinkingSel.value as ThinkingLevel | 'auto';
+    persist();
+    paintThinking();
+  };
+  paintThinking();
+  const budgetModeSeg = segs(
+    [
+      ['soft', '压缩后继续', '70% 起切换省流、90% 关思考；用完后以最省模式继续（默认）'],
+      ['hard', '交给机器人', '用完后余下决策由内置机器人接管'],
+      ['ask', '暂停并询问', '用完时暂停游戏，让你选：继续 / 追加 50 万 / 交给机器人'],
+    ] as const,
+    () => st.budgetMode,
+    (v) => ((st.budgetMode = v), persist()),
+    '超出预算时',
+  );
   const numInput = (value: number | null, attrs: Record<string, string | number>, on: (v: number | null) => void): HTMLInputElement => {
     const el = h<HTMLInputElement>('input.input', { attrs: { type: 'number', inputmode: 'decimal', autocomplete: 'off', ...attrs } });
     if (value !== null) el.value = String(value);
@@ -587,9 +638,9 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
     });
     return el;
   };
-  const intervalInput = numInput(st.waveIntervalSec, { min: 3, max: 120, step: 1, 'aria-label': '波次中决策间隔（秒）' }, (v) => {
-    st.waveIntervalSec = Math.max(3, Math.min(120, Math.round(v ?? 10)));
-    intervalInput.value = String(st.waveIntervalSec);
+  const intervalInput = numInput(st.waveIntervalSec, { min: 3, max: 120, step: 1, placeholder: '按模式', 'aria-label': '波次中决策间隔（秒）' }, (v) => {
+    st.waveIntervalSec = v === null ? null : Math.max(3, Math.min(120, Math.round(v)));
+    intervalInput.value = st.waveIntervalSec === null ? '' : String(st.waveIntervalSec);
   });
   const tokenInput = numInput(st.budgetTokens, { min: 1000, step: 1000, placeholder: '不限', 'aria-label': 'token 预算' }, (v) => (st.budgetTokens = v ? Math.round(v) : null));
   const usdInput = numInput(st.budgetUsd, { min: 0.01, step: 0.01, placeholder: '不限', 'aria-label': '费用预算（美元）' }, (v) => (st.budgetUsd = v));
@@ -602,9 +653,11 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
     srcSel.onchange = () => {
       st.source = srcSel.value as AiSource;
       // 本机小模型：间隔拉长（文档 10 §10.6）
-      if (isLocal(st.source)) st.waveIntervalSec = Math.max(20, st.waveIntervalSec);
-      intervalInput.value = String(st.waveIntervalSec);
+      if (isLocal(st.source) && st.waveIntervalSec !== null) st.waveIntervalSec = Math.max(20, st.waveIntervalSec);
+      intervalInput.value = st.waveIntervalSec === null ? '' : String(st.waveIntervalSec);
       persist();
+      paintThinking();
+      paintCtxHint();
       paintDirect();
       paintDiag();
       paintSummary();
@@ -746,6 +799,7 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
       per(s).model = modelInput.value.trim();
       persist();
       if (s === 'relay') relayChanged();
+      if (s === 'claude') paintThinking();
       paintSummary();
       paintErrors();
     });
@@ -1249,8 +1303,8 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
     'div.ai-grid',
     null,
     field('工具模式', toolSeg.el, '“测试连接”发现模型不会调用工具时会自动切到 JSON 动作'),
-    field('上下文', ctxSeg.el, '精简：系统提示不带资料表，适合小模型'),
-    field('思考强度', effortSel, '越高越慢、越贵；本机模型一般忽略'),
+    field('上下文模式', ctxSeg.el, ctxHint),
+    field('思考等级', thinkingSel, thinkingHint),
   );
 
   body.replaceChildren(
@@ -1278,8 +1332,9 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
         'div.ai-grid',
         null,
         field('决策模式', decisionSeg.el, '暂停等待：结果只取决于模型的决定，和网速无关'),
-        field('波次中决策间隔（秒）', intervalInput, '一波进行中每隔多久让模型看一眼；本机小模型建议 20～30'),
-        field('token 预算（整局）', tokenInput, '输入 + 输出 + 缓存都算；用完后由内置机器人接管'),
+        field('波次中决策间隔（秒）', intervalInput, '留空 = 按上下文模式（省流 30 / 均衡 15 / 完整 10）；本机小模型建议 20～30'),
+        field('token 预算（整局，折算）', tokenInput, '折算 = 新输入 + 输出 + 缓存写×1.25 + 缓存读×0.1（缓存读很便宜，只算一成）'),
+        field('超出预算时', budgetModeSeg.el, '默认：70% 切换省流、90% 关思考，用完后压缩上下文以最省模式继续'),
         field('费用预算（美元，估算）', usdInput, '按公开价格估算，以服务商账单为准'),
       ),
     ),

@@ -4,7 +4,7 @@
  * 一次 decide() = 一个决策点：适配器拿到（固定的）系统提示 + 本次 user 消息 + 工具列表，
  * 自己跑"模型 → 工具 → 模型"的循环，每个工具调用都经 ctx.callTool() 交给游戏执行，
  * 直到 end_turn / 模型不再调用工具 / 工具调用次数用完 / 中止。
- * 每次决策都是一段新对话（不跨决策累积历史）：上下文长度恒定，缓存命中靠固定前缀。
+ * 每次决策都是一段新对话（不跨决策累积历史）：上下文长度恒定，缓存命中靠固定前缀；跨决策的记忆只有结构化备忘（MEMO）。
  */
 import type { IWorld } from '../../core/types';
 import type { AgentToolDef } from '../tools';
@@ -28,8 +28,14 @@ export interface DecisionContext {
   afterRequest(ms: number): Promise<boolean>;
   /** 本次决策最多几次工具调用（含读取类） */
   maxToolCalls: number;
-  /** 整局剩余 token 预算（适配器可用来缩小 max_tokens） */
+  /** 整局剩余折算预算（适配器可用来缩小 max_tokens） */
   remainingTokens: number;
+  /** 本次单次回复的输出上限（上下文模式 / 预算分级决定；缺省用适配器自己的配置） */
+  maxOutputTokens?: number;
+  /** 决策内对话超过这么多字符后，把较早的工具结果压成一行摘要（适配器按 API 判断能否改写历史） */
+  historyCompactChars?: number;
+  /** 思考等级覆盖（预算 ≥90% 时 'off'）；缺省用适配器配置 */
+  thinking?: import('../config').ThinkingLevel;
   signal: AbortSignal;
   /** 只给进程内的确定性策略（scripted）读状态用；远程模型不会拿到 */
   world?: IWorld;

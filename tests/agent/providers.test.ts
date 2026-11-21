@@ -120,9 +120,11 @@ describe('pi adapter (faux provider, no network)', () => {
     expect(out.ended).toBe(true);
     expect(w.state.towers.size).toBe(1);
     expect(out.usage.requests).toBe(2);
-    const tb = toTypeBox(toolsForRole('player').find((t) => t.name === 'place_tower')!.input_schema) as unknown as { properties: Record<string, { enum?: string[] }>; required: string[] };
-    expect(tb.required).toEqual(['tower', 'x', 'y']);
-    expect(tb.properties.tower.enum).toContain('pencil');
+    const tb = toTypeBox(toolsForRole('player').find((t) => t.name === 'act')!.input_schema) as unknown as { properties: Record<string, { items?: { properties: Record<string, { enum?: string[] }>; required: string[] } }>; required: string[] };
+    expect(tb.required).toEqual(['actions']);
+    expect(tb.properties.actions.items!.required).toEqual(['do']);
+    expect(tb.properties.actions.items!.properties.tower.enum).toContain('pencil');
+    expect(tb.properties.actions.items!.properties.do.enum).toContain('start_wave');
   });
 
   it('JSON action mode parses, validates and executes', async () => {

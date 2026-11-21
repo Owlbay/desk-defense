@@ -7,7 +7,7 @@
  *
  *   --port 8787  --host 127.0.0.1（默认只监听本机；--host 0.0.0.0 需要显式 --allow-lan）
  *   --origin https://my.domain    额外允许的网页来源（默认 https://jjjj.games 与 localhost）
- *   其余模型参数与 agent-play 相同：--provider --model --preset --api --base-url --tool-mode --effort --context
+ *   其余模型参数与 agent-play 相同：--provider --model --preset --api --base-url --tool-mode --thinking（--effort 为别名）--context
  *
  * 启动后打印 6 位一次性配对码；在游戏的 AI 设置里填 ws://127.0.0.1:8787 和配对码。
  * 每次配对成功后会生成新的配对码（旧码作废）。Key 只从本机环境变量 / `ant auth` 读取。
@@ -15,7 +15,7 @@
 import { WebSocketServer } from 'ws';
 import { createProvider } from '../src/agent/factory';
 import { createBridgeSession, makePairingCode, originAllowed, type BridgeServerMsg } from '../src/agent/bridge';
-import type { AgentModelConfig, Effort, PiApi, Preset } from '../src/agent/config';
+import { parseContextMode, parseThinking, type AgentModelConfig, type PiApi, type Preset } from '../src/agent/config';
 
 const argv = process.argv.slice(2).filter((a) => a !== '--');
 const arg = (n: string, d?: string): string | undefined => {
@@ -38,8 +38,8 @@ const cfg: Partial<AgentModelConfig> = {
   api: arg('api') as PiApi | undefined,
   baseUrl: arg('base-url'),
   toolMode: arg('tool-mode') as 'native' | 'json' | undefined,
-  contextBudget: arg('context') as 'full' | 'compact' | undefined,
-  effort: arg('effort', 'medium') as Effort,
+  contextMode: parseContextMode(arg('context')),
+  thinking: parseThinking(arg('thinking') ?? arg('effort')),
 };
 for (const k of Object.keys(cfg) as (keyof AgentModelConfig)[]) if (cfg[k] === undefined) delete cfg[k];
 

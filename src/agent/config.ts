@@ -18,6 +18,56 @@ export type Preset =
   | 'anthropic' | 'openai' | 'google' | 'openrouter' | 'deepseek'
   | 'ollama' | 'lmstudio' | 'llamacpp' | 'vllm' | 'relay' | 'custom';
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+/** 思考等级：off = 无思考（Opus 5.5 / Fable 5.2 不能关，自动改用最低强度）；xhigh / max 只对 Claude 开放 */
+export type ThinkingLevel = 'off' | Effort;
+export const THINKING_LEVELS: ThinkingLevel[] = ['off', 'low', 'medium', 'high', 'xhigh', 'max'];
+export const THINKING_LABEL: Record<ThinkingLevel, string> = { off: '无思考', low: '低', medium: '中', high: '高', xhigh: '很高', max: '最高' };
+
+/**
+ * 上下文模式（省流 / 均衡 / 完整）——一处开关映射到观测粒度、决策门控、决策频率、历史压缩阈值、单次输出上限。
+ * 显式填写的 decision.waveIntervalSec / maxOutputTokens / maxToolCallsPerDecision 优先于模式缺省值。
+ */
+export type ContextMode = 'saver' | 'balanced' | 'full';
+export const CONTEXT_MODE_LABEL: Record<ContextMode, string> = { saver: '省流', balanced: '均衡', full: '完整' };
+
+export interface ContextModeSpec {
+  /** delta = 首次完整、之后只发变化；full = 每次完整观测 */
+  observation: 'delta' | 'full';
+  /** 地形没变时每隔几次决策重发一次地图（0 = 只在地形变化时发） */
+  mapEvery: number;
+  /** 地图行用游程编码（RLE） */
+  rleMap: boolean;
+  /** 决策门控：aggressive = 钱不够明显的新动作 / 没有危险就不叫模型；normal = 没有买得起的有用动作才跳过；off = 从不跳过 */
+  gating: 'aggressive' | 'normal' | 'off';
+  /** 波次中定期决策间隔（秒） */
+  waveIntervalSec: number;
+  /** 决策内历史超过这么多字符后，把较早的工具结果压成一行摘要 */
+  compactChars: number;
+  maxOutputTokens: number;
+  maxToolCalls: number;
+  /** 设置面板里的估算（每波折算 token；来自 scripts/agent-tokens.ts 的离线模型，思考等级 低） */
+  estTokensPerWave: number;
+  /** 一句话说明 */
+  desc: string;
+}
+
+export const CONTEXT_MODES: Record<ContextMode, ContextModeSpec> = {
+  saver: {
+    observation: 'delta', mapEvery: 0, rleMap: true, gating: 'aggressive', waveIntervalSec: 30, compactChars: 6_000,
+    maxOutputTokens: 4096, maxToolCalls: 6, estTokensPerWave: 5_000,
+    desc: '只发变化的字段、地图只在地形变化时发；钱不够做新动作且没有危险时不叫模型。适合本机小模型 / 省钱。',
+  },
+  balanced: {
+    observation: 'delta', mapEvery: 4, rleMap: false, gating: 'normal', waveIntervalSec: 15, compactChars: 16_000,
+    maxOutputTokens: 8192, maxToolCalls: 8, estTokensPerWave: 5_500,
+    desc: '首次完整、之后增量；每 4 次决策重发地图；没有买得起的有用动作时跳过。云端模型推荐。',
+  },
+  full: {
+    observation: 'full', mapEvery: 1, rleMap: false, gating: 'off', waveIntervalSec: 10, compactChars: 40_000,
+    maxOutputTokens: 16_000, maxToolCalls: 12, estTokensPerWave: 11_000,
+    desc: '每次完整观测 + 地图，每个决策点都叫模型。最稳，也最贵。',
+  },
+};
 
 export interface AgentModelConfig {
   provider: ProviderKind;
@@ -30,10 +80,15 @@ export interface AgentModelConfig {
   apiKey?: string;
   /** native = 模型原生工具调用；json = 让模型输出 JSON 动作列表（不擅长工具调用的小模型） */
   toolMode?: 'native' | 'json';
+  /** 旧字段：思考强度（= thinking 的非 off 取值）；新代码用 thinking */
   effort?: Effort;
+  /** 思考等级（缺省：中转 低、本机模型 无思考、其他 中）。各厂商的映射见 ./thinking.ts */
+  thinking?: ThinkingLevel;
+  /** 上下文模式（缺省：本机模型 省流，其他 均衡） */
+  contextMode?: ContextMode;
   /** 部分 OpenAI 兼容模型可用；Claude 新模型不接受非默认采样参数，claude-native 会忽略 */
   temperature?: number;
-  /** full = 完整观测（JSON + 地图）；compact = 去掉地图与次要字段（小模型 / 小上下文） */
+  /** 旧字段：full → contextMode 完整，compact → 省流（contextMode 优先） */
   contextBudget?: 'full' | 'compact';
   /** 每次决策最多的工具调用次数（默认 12） */
   maxToolCallsPerDecision?: number;
@@ -48,10 +103,15 @@ export interface AgentModelConfig {
     realtimeLatencySec?: number | 'measured';
   };
   budget?: {
-    /** 整局 token 上限（输入 + 输出 + 缓存读写），超出后余下决策全部由内置机器人接管 */
+    /** 整局折算 token 上限（新输入 + 输出 + 缓存写×1.25 + 缓存读×0.1，见 types.ts BUDGET_WEIGHTS），超出后余下决策全部由内置机器人接管 */
     tokens?: number;
     /** 整局费用上限（美元，估算） */
     usd?: number;
+    /**
+     * 超出预算时：soft（默认）= ≥70% 省流、≥90% 再关思考并减少决策点、≥100% 压缩上下文后以最省模式继续（不交给机器人）；
+     * hard = 用完后交给内置机器人；ask = 用完时暂停并询问（继续 / 追加 50 万 / 交给机器人）。
+     */
+    mode?: 'soft' | 'hard' | 'ask';
   };
   /** pi：SDK 层的自动重试次数（缺省用 SDK 默认值 2）；中转服务接口探测时设为 0，失败立刻试下一种接口 */
   maxRetries?: number;
@@ -99,12 +159,9 @@ export const CLAUDE_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-ha
 export const DEFAULT_CONFIG: AgentModelConfig = {
   provider: 'claude-native',
   model: 'claude-opus-5-5',
-  effort: 'medium',
   toolMode: 'native',
-  contextBudget: 'full',
-  maxToolCallsPerDecision: 12,
   role: 'player',
-  decision: { mode: 'pause', waveIntervalSec: 10, realtimeLatencySec: 3 },
+  decision: { mode: 'pause', realtimeLatencySec: 3 },
   decisionTimeoutMs: 90_000,
 };
 
@@ -118,13 +175,52 @@ export function resolveConfig(c: Partial<AgentModelConfig>): AgentModelConfig {
     out.baseUrl = out.baseUrl ?? p.baseUrl;
     if (!c.model) out.model = p.defaultModel;
     if (p.local && c.decision?.waveIntervalSec === undefined) out.decision!.waveIntervalSec = 20;
-    // 中转服务上的模型多为推理模型：默认低推理强度，避免把输出全花在思考上、来不及调用工具
-    if (out.preset === 'relay' && c.effort === undefined) out.effort = 'low';
     // 推理模型的开局决策可能超过 3 分钟（实测 deepseek-flash 开局约 180 秒）；暂停模式下等待不影响局势，放宽到 5 分钟
     if (out.preset === 'relay' && c.decisionTimeoutMs === undefined) out.decisionTimeoutMs = 300_000;
   }
   if (out.provider === 'scripted' && !c.model) out.model = 'scripted-v1';
+  const local = isLocalConfig(out);
+  // 上下文模式：显式 > 旧 contextBudget > 本机省流 / 其他均衡
+  out.contextMode = c.contextMode ?? (c.contextBudget === 'compact' ? 'saver' : c.contextBudget === 'full' ? 'full' : local ? 'saver' : 'balanced');
+  const spec = CONTEXT_MODES[out.contextMode];
+  if (out.decision!.waveIntervalSec === undefined) out.decision!.waveIntervalSec = spec.waveIntervalSec;
+  if (out.maxToolCallsPerDecision === undefined) out.maxToolCallsPerDecision = spec.maxToolCalls;
+  // 思考等级：显式 thinking > 旧 effort > 中转 低（推理模型默认把输出全花在思考上）/ 本机 无思考 / 其他 中
+  out.thinking = c.thinking ?? c.effort ?? (out.preset === 'relay' && out.provider === 'pi' ? 'low' : local ? 'off' : 'medium');
+  out.effort = out.thinking === 'off' ? undefined : out.thinking;
+  if (out.effort === undefined) delete out.effort;
   return out;
+}
+
+/** CLI：--context saver|balanced|full|省流|均衡|完整（旧值 compact → 省流） */
+export function parseContextMode(v: string | undefined): ContextMode | undefined {
+  if (!v) return undefined;
+  const m: Record<string, ContextMode> = { saver: 'saver', compact: 'saver', 省流: 'saver', balanced: 'balanced', 均衡: 'balanced', full: 'full', 完整: 'full' };
+  return m[v.trim().toLowerCase()] ?? m[v.trim()];
+}
+
+/** CLI：--thinking off|low|medium|high|xhigh|max（none / 无思考 = off） */
+export function parseThinking(v: string | undefined): ThinkingLevel | undefined {
+  if (!v) return undefined;
+  const x = v.trim().toLowerCase();
+  if (x === 'none' || x === '无思考' || x === 'false' || x === '0') return 'off';
+  return (THINKING_LEVELS as string[]).includes(x) ? (x as ThinkingLevel) : undefined;
+}
+
+/** 本机模型（Ollama / LM Studio / llama.cpp / vLLM） */
+export function isLocalConfig(c: Partial<AgentModelConfig>): boolean {
+  return c.provider === 'pi' && !!PRESETS[c.preset ?? 'custom']?.local;
+}
+
+/** 模式缺省值 + 显式配置 → 本局实际使用的上下文设置 */
+export function contextSpec(c: AgentModelConfig): ContextModeSpec {
+  const base = CONTEXT_MODES[c.contextMode ?? 'balanced'];
+  return {
+    ...base,
+    maxOutputTokens: c.maxOutputTokens ?? base.maxOutputTokens,
+    maxToolCalls: c.maxToolCallsPerDecision ?? base.maxToolCalls,
+    waveIntervalSec: c.decision?.waveIntervalSec ?? base.waveIntervalSec,
+  };
 }
 
 /** 校验配置；返回中文错误列表（空 = 可用） */
@@ -155,11 +251,14 @@ export function validateConfig(c: Partial<AgentModelConfig>): string[] {
     if (!c.bridge?.code) e.push('bridge 需要配对码');
   }
   if (c.effort && !['low', 'medium', 'high', 'xhigh', 'max'].includes(c.effort)) e.push('effort 取值 low / medium / high / xhigh / max');
+  if (c.thinking && !THINKING_LEVELS.includes(c.thinking)) e.push('thinking 取值 off / low / medium / high / xhigh / max');
+  if (c.contextMode && !(c.contextMode in CONTEXT_MODES)) e.push('contextMode 取值 saver / balanced / full');
   if (c.toolMode && c.toolMode !== 'native' && c.toolMode !== 'json') e.push('toolMode 取值 native / json');
   if (c.maxToolCallsPerDecision !== undefined && (c.maxToolCallsPerDecision < 1 || c.maxToolCallsPerDecision > 64)) e.push('maxToolCallsPerDecision 范围 1..64');
   if (c.decision?.mode && c.decision.mode !== 'pause' && c.decision.mode !== 'realtime') e.push('decision.mode 取值 pause / realtime');
   if (c.decision?.waveIntervalSec !== undefined && c.decision.waveIntervalSec < 0) e.push('waveIntervalSec 不能为负');
   if (c.budget?.tokens !== undefined && c.budget.tokens <= 0) e.push('budget.tokens 必须为正');
+  if (c.budget?.mode && !['soft', 'hard', 'ask'].includes(c.budget.mode)) e.push('budget.mode 取值 soft / hard / ask');
   if (c.temperature !== undefined && (c.temperature < 0 || c.temperature > 2)) e.push('temperature 范围 0..2');
   return e;
 }

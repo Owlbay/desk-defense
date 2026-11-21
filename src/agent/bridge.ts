@@ -16,6 +16,7 @@
  * 本文件不依赖 ws 包：客户端用标准 WebSocket（浏览器 / Node 22+ 全局），服务端逻辑 createBridgeSession 只需要一个 send 函数。
  */
 import type { AgentToolDef } from './tools';
+import type { ThinkingLevel } from './config';
 import type { AgentRole, DecisionPoint, ToolResult } from './types';
 import { emptyUsage } from './types';
 import { redactValue } from './redact';
@@ -26,7 +27,11 @@ export const BRIDGE_PROTOCOL = 1;
 
 export type BridgeClientMsg =
   | { t: 'hello'; code: string; client: string; v: number }
-  | { t: 'decide'; id: number; role: AgentRole; point: DecisionPoint; system: [string, string]; message: string; tools: AgentToolDef[]; maxToolCalls: number; remainingTokens: number }
+  | {
+      t: 'decide'; id: number; role: AgentRole; point: DecisionPoint; system: [string, string]; message: string; tools: AgentToolDef[]; maxToolCalls: number; remainingTokens: number;
+      /** 可选（旧桥接器忽略）：上下文模式 / 预算分级给的输出上限、历史压缩阈值、思考覆盖 */
+      maxOutputTokens?: number; historyCompactChars?: number; thinking?: ThinkingLevel;
+    }
   | { t: 'tool_result'; id: number; call: number; result: ToolResult }
   | { t: 'after_result'; id: number; call: number; alive: boolean }
   | { t: 'abort'; id: number }
@@ -95,6 +100,9 @@ export function createBridgeSession(o: BridgeSessionOptions): BridgeSession {
     const ctx: DecisionContext = {
       role: m.role, point: m.point, system: m.system, message: m.message, tools: m.tools,
       maxToolCalls: Math.min(64, m.maxToolCalls), remainingTokens: m.remainingTokens, signal: ac.signal,
+      ...(m.maxOutputTokens ? { maxOutputTokens: m.maxOutputTokens } : {}),
+      ...(m.historyCompactChars ? { historyCompactChars: m.historyCompactChars } : {}),
+      ...(m.thinking ? { thinking: m.thinking } : {}),
       callTool: async (name, input, meta) => {
         const call = nextCall++;
         o.send({ t: 'tool', id: m.id, call, name, input, ...(meta ? { meta } : {}) });
@@ -222,6 +230,9 @@ export class BridgeProvider implements LLMProvider {
       const msg: BridgeClientMsg = {
         t: 'decide', id, role: ctx.role, point: ctx.point, system: ctx.system, message: ctx.message,
         tools: ctx.tools, maxToolCalls: ctx.maxToolCalls, remainingTokens: Number.isFinite(ctx.remainingTokens) ? ctx.remainingTokens : 1e12,
+        ...(ctx.maxOutputTokens ? { maxOutputTokens: ctx.maxOutputTokens } : {}),
+        ...(ctx.historyCompactChars ? { historyCompactChars: ctx.historyCompactChars } : {}),
+        ...(ctx.thinking ? { thinking: ctx.thinking } : {}),
       };
       this.ws.send(JSON.stringify(msg));
     });

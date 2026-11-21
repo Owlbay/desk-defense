@@ -4,15 +4,16 @@
  * 无头 runner（CLI / 测试）与浏览器控制器（index.ts）共用。
  */
 import type { IWorld, RunOptions } from '../core/types';
-import { renderObservation, estimateTokens } from './observation';
-import { decisionMessage, runHeader, systemBlocks } from './prompts';
+import { runHeader, systemBlocks } from './prompts';
 import { executeTool, toolsForRole } from './tools';
-import type { AgentModelConfig } from './config';
+import { CONTEXT_MODES, contextSpec, type AgentModelConfig, type ContextModeSpec, type ThinkingLevel } from './config';
+import { ContextBuilder } from './context';
+import { gateDecision } from './gating';
 import type { LLMProvider } from './providers/types';
 import { cellOfArgs, type AgentTrace, type TraceSink } from './trace';
 import { redactError } from './redact';
 import {
-  addUsage, emptyUsage, usageTotal,
+  addUsage, budgetTokens, emptyUsage,
   type AgentRole, type CommandSink, type DecisionPoint, type DecisionRecord, type FallbackPolicy, type Suggestion, type TokenUsage, type ToolCallRecord, type ToolResult,
 } from './types';
 
@@ -35,7 +36,43 @@ export interface EngineOptions {
   maxConsecutiveErrors?: number;
   /** 思路与请求（文档 10 §12.1）：决策追踪写到这里（可选） */
   trace?: AgentTrace;
+  /** 预算分级变化（UI：预算条刻度 + 模式标签） */
+  onBudget?: (b: BudgetState) => void;
+  /**
+   * budget.mode = 'ask' 且用完预算时调用（浏览器：暂停并弹出 继续 / 追加 / 交给机器人）。
+   * 不提供时按 'continue'（压缩后以最省模式继续）。
+   */
+  onBudgetExceeded?: (b: BudgetState) => Promise<BudgetChoice>;
 }
+
+/** 预算分级：0 正常 · 1 ≥70% 省流 · 2 ≥90% 省流 + 无思考 + 只在建造 / 事件时决策 · 3 ≥100%（soft：最省模式继续） */
+export type BudgetStage = 0 | 1 | 2 | 3;
+export const BUDGET_STAGE_AT = [0.7, 0.9, 1.0] as const;
+export type BudgetChoice = 'continue' | 'extend' | 'bot';
+/** 追加预算（暂停并询问 → 追加） */
+export const BUDGET_EXTEND = 500_000;
+
+export interface BudgetState {
+  stage: BudgetStage;
+  /** 折算预算用量 / 上限（按 token 与美元两者取大；无上限为 0） */
+  ratio: number;
+  weighted: number;
+  limit: number | null;
+  /** 当前上下文模式标签：均衡 / 省流 / 最省 …… */
+  modeLabel: string;
+  /** 给玩家看的一句话（例如 "已超出预算，已切换到最省模式继续"） */
+  message?: string;
+  /** 上下文已压缩的次数 */
+  compactions: number;
+  policy: 'soft' | 'hard' | 'ask';
+}
+
+const STAGE_MSG: Record<BudgetStage, string | undefined> = {
+  0: undefined,
+  1: '预算已用 70%：已切换到省流模式',
+  2: '预算已用 90%：省流 + 低思考，只在建造阶段 / 事件时决策',
+  3: '已超出预算，已切换到最省模式继续',
+};
 
 interface Snap {
   gold: number;
@@ -77,42 +114,183 @@ export class DecisionEngine {
   readonly suggestions: Suggestion[] = [];
   /** 模型已停用（预算耗尽 / 连续失败） */
   disabledReason: string | null = null;
-  private note: string | undefined;
   private consecutiveErrors = 0;
   private readonly system: [string, string];
   private readonly role: AgentRole;
   private header: string;
+  /** 本局配置的上下文设置（模式缺省 + 显式配置）；实际使用见 spec（随预算分级收紧） */
+  readonly baseSpec: ContextModeSpec;
+  readonly ctx: ContextBuilder;
+  /** 预算分级 */
+  stage: BudgetStage = 0;
+  compactions = 0;
+  private budgetAsked = false;
+  private budgetLimit: number | null;
+  /** 门控跳过的决策点数 */
+  skippedCount = 0;
+  private goldAtLastCall = 0;
 
   constructor(readonly o: EngineOptions) {
     this.role = o.config.role ?? 'player';
     this.system = systemBlocks(this.role);
     this.header = runHeader(o.opts, o.world);
+    this.baseSpec = contextSpec(o.config);
+    this.budgetLimit = o.config.budget?.tokens ?? null;
+    this.ctx = new ContextBuilder(o.world, this.baseSpec, this.header);
     if (!o.provider) this.disabledReason = 'no provider (baseline bot)';
+  }
+
+  private get policy(): 'soft' | 'hard' | 'ask' {
+    return this.o.config.budget?.mode ?? 'soft';
+  }
+
+  /** 实际使用的上下文设置：预算分级越高越省 */
+  get spec(): ContextModeSpec {
+    const b = this.baseSpec;
+    if (this.stage === 0) return b;
+    const saver = CONTEXT_MODES.saver;
+    const s1: ContextModeSpec = {
+      ...b, observation: 'delta', mapEvery: 0, rleMap: true, gating: 'aggressive',
+      compactChars: Math.min(b.compactChars, saver.compactChars), maxOutputTokens: Math.min(b.maxOutputTokens, saver.maxOutputTokens),
+      maxToolCalls: Math.min(b.maxToolCalls, saver.maxToolCalls),
+    };
+    if (this.stage === 1) return s1;
+    // 输出上限不能压得太低：推理模型即使在低思考档也要几千 token，压到 1.5k 会在调用工具前被截断（实测）
+    if (this.stage === 2) return { ...s1, maxOutputTokens: Math.min(s1.maxOutputTokens, 6144), compactChars: Math.min(s1.compactChars, 4000) };
+    return { ...s1, maxOutputTokens: Math.min(s1.maxOutputTokens, 4096), compactChars: 3000, maxToolCalls: Math.min(s1.maxToolCalls, 4) };
+  }
+
+  /**
+   * 预算分级下的思考等级覆盖（≥90%：降到"低"）。
+   * 不降到"无思考"：实测 deepseek-flash 无思考时有钱也不造塔、明显漏怪；省 token 主要靠增量观察、跳过定期检查和压缩历史。
+   * 只有玩家本来就选了"无思考"才保持关闭。
+   */
+  private thinkingOverride(): ThinkingLevel | undefined {
+    if (this.stage < 2) return undefined;
+    return this.o.config.thinking === 'off' ? 'off' : 'low';
+  }
+
+  budgetState(message?: string): BudgetState {
+    const weighted = budgetTokens(this.usage);
+    const tok = this.budgetLimit ? weighted / this.budgetLimit : 0;
+    const usd = this.o.config.budget?.usd ? this.costUsd / this.o.config.budget.usd : 0;
+    const base = this.o.config.contextMode ?? 'balanced';
+    const labels = { saver: '省流', balanced: '均衡', full: '完整' } as const;
+    const modeLabel = this.stage === 0 ? labels[base] : this.stage === 1 ? '省流' : this.stage === 2 ? '省流·低思考' : '最省';
+    return { stage: this.stage, ratio: Math.max(tok, usd), weighted, limit: this.budgetLimit, modeLabel, message: message ?? STAGE_MSG[this.stage], compactions: this.compactions, policy: this.policy };
+  }
+
+  private ratio(): number {
+    const tok = this.budgetLimit ? budgetTokens(this.usage) / this.budgetLimit : 0;
+    const usd = this.o.config.budget?.usd ? this.costUsd / this.o.config.budget.usd : 0;
+    return Math.max(tok, usd);
+  }
+
+  private stageOf(r: number): BudgetStage {
+    return r >= BUDGET_STAGE_AT[2] ? 3 : r >= BUDGET_STAGE_AT[1] ? 2 : r >= BUDGET_STAGE_AT[0] ? 1 : 0;
+  }
+
+  /**
+   * 决策前检查预算分级。上升时压缩上下文；到 100%：soft 继续（最省）、hard 交给机器人、ask 询问。
+   * 返回本次要记进追踪的压缩事件（如有）。
+   */
+  private async checkBudget(): Promise<{ before: number; after: number; n: number; stage: BudgetStage } | null> {
+    if (this.disabledReason || !this.o.provider) return null;
+    let next = this.stageOf(this.ratio());
+    if (next === 3 && this.policy === 'hard') {
+      this.disabledReason = this.overBudget() ?? 'budget exhausted';
+      this.stage = 3;
+      this.o.onBudget?.(this.budgetState('预算已用完，余下由内置机器人接管'));
+      return null;
+    }
+    if (next === 3 && this.policy === 'ask' && !this.budgetAsked) {
+      this.budgetAsked = true;
+      const choice = this.o.onBudgetExceeded ? await this.o.onBudgetExceeded({ ...this.budgetState('预算已用完：继续（最省模式）/ 追加预算 / 交给机器人？'), stage: 3 }) : 'continue';
+      if (choice === 'bot') {
+        this.disabledReason = 'budget exhausted (handed to bot)';
+        this.stage = 3;
+        this.o.onBudget?.(this.budgetState('预算已用完，余下由内置机器人接管'));
+        return null;
+      }
+      if (choice === 'extend') {
+        this.budgetLimit = (this.budgetLimit ?? 0) + BUDGET_EXTEND;
+        this.budgetAsked = false;
+        next = this.stageOf(this.ratio());
+      }
+    }
+    if (next <= this.stage) {
+      if (next < this.stage) {
+        // 追加预算后回落
+        this.stage = next;
+        this.o.onBudget?.(this.budgetState());
+      }
+      return null;
+    }
+    this.stage = next;
+    const c = this.compactContext();
+    this.o.onBudget?.(this.budgetState());
+    return { ...c, stage: next };
+  }
+
+  /** 压缩上下文：把备忘 + 最近几次决策的结果压成 ≤300 token 的备忘，清掉增量基线（下次发完整观测） */
+  private compactContext(): { before: number; after: number; n: number } {
+    const before = this.ctx.memo.tokens() + this.ctx.baselineTokens();
+    const outcomes: string[] = [];
+    for (const d of this.decisions.slice(-6)) {
+      if (d.by !== 'agent') continue;
+      const acts = d.toolCalls.filter((c) => c.name === 'act' || c.name === 'suggest').map((c) => c.result.split('\n').filter((l) => /^\d+ (OK|REJECTED)/.test(l)).map((l) => l.replace(/^\d+ /, '').slice(0, 40)).join('; '));
+      const txt = acts.filter(Boolean).join('; ');
+      if (txt) outcomes.push(`w${d.point.wave}: ${txt}`);
+    }
+    const f = this.ctx.memo.fields;
+    this.ctx.memo.update({
+      ...(f.plan ? { plan: f.plan.slice(0, 240) } : {}),
+      ...(f.maze ? { maze: f.maze.slice(0, 160) } : {}),
+      ...(f.priorities ? { priorities: f.priorities.slice(0, 160) } : {}),
+      note: (outcomes.length ? `recent: ${outcomes.slice(-3).join(' / ')}` : f.note ?? 'budget tight: act only when needed').slice(0, 400),
+    });
+    this.ctx.reset();
+    this.compactions++;
+    return { before, after: this.ctx.memo.tokens(), n: this.compactions };
+  }
+
+  /** 固定前缀（系统提示两块），测试 / 基准用 */
+  get systemPrompt(): readonly [string, string] {
+    return this.system;
   }
 
   private budgetLeft(): number {
     const b = this.o.config.budget?.tokens;
-    return b ? b - usageTotal(this.usage) : Number.POSITIVE_INFINITY;
+    return b ? b - budgetTokens(this.usage) : Number.POSITIVE_INFINITY;
   }
 
   private overBudget(): string | null {
     const b = this.o.config.budget;
-    if (b?.tokens && usageTotal(this.usage) >= b.tokens) return `token budget ${b.tokens} exhausted`;
+    if (b?.tokens && budgetTokens(this.usage) >= b.tokens) return `token budget ${b.tokens} exhausted (weighted)`;
     if (b?.usd && this.costUsd >= b.usd) return `cost budget $${b.usd} exhausted`;
     return null;
   }
 
-  /** 执行一个决策点（含兜底与推进保证）。recent = 自上次决策以来的事件 */
+  /** 执行一个决策点（含门控、兜底与推进保证）。recent = 自上次决策以来的事件 */
   async decide(point: DecisionPoint, recent: import('../core/types').GameEvent[]): Promise<DecisionRecord> {
     const w = this.o.world;
     const t0 = Date.now();
     const calls: ToolCallRecord[] = [];
-    const observation = renderObservation(w, { recent, note: this.note });
-    const rec: DecisionRecord = { point, by: 'agent', toolCalls: calls, usage: emptyUsage(), ms: 0, observationTokens: estimateTokens(observation) };
-    const budget = this.overBudget();
-    if (budget && !this.disabledReason) this.disabledReason = budget;
-    const message = decisionMessage(this.header, point, observation);
+    const compacted = await this.checkBudget();
     const tools = toolsForRole(this.role);
+    const spec = this.spec;
+    this.ctx.setSpec(spec);
+
+    // 门控：模型可用、但局面里没有值得叫模型的事 → 本地处理
+    if (!this.disabledReason && this.o.provider) {
+      const why = gateDecision(w, point.reasons, spec.gating, { goldAtLastCall: this.goldAtLastCall, seq: point.seq, quiet: this.stage >= 2 });
+      if (why) return this.skipLocal(point, recent, why, t0, compacted);
+    }
+
+    const built = this.ctx.build(point, recent);
+    const message = built.text;
+    const rec: DecisionRecord = { point, by: 'agent', toolCalls: calls, usage: emptyUsage(), ms: 0, observationTokens: built.observationTokens };
+    this.goldAtLastCall = Math.floor(w.state.gold);
     const sink = this.o.trace?.begin({
       k: 'decision_start',
       trigger: point.reasons.slice(),
@@ -127,7 +305,11 @@ export class DecisionEngine {
       system: this.system.join('\n\n'),
       toolDefs: tools,
       toolNames: tools.map((t) => t.name),
+      contextMode: this.o.config.contextMode,
+      delta: !built.full,
+      budgetStage: this.stage,
     });
+    if (compacted) sink?.({ k: 'compact', n: compacted.n, before: compacted.before, after: compacted.after, stage: compacted.stage, reason: STAGE_MSG[compacted.stage] ?? '' });
     let costThis = 0;
 
     let failed: string | null = this.disabledReason;
@@ -147,8 +329,12 @@ export class DecisionEngine {
           system: this.system,
           message,
           tools,
-          maxToolCalls: this.o.config.maxToolCallsPerDecision ?? 12,
-          remainingTokens: this.budgetLeft(),
+          maxToolCalls: spec.maxToolCalls,
+          // soft / ask-继续：超出预算后仍按模式的输出上限请求（不缩到 0）
+          remainingTokens: this.policy === 'hard' ? this.budgetLeft() : Math.max(this.budgetLeft(), spec.maxOutputTokens),
+          maxOutputTokens: spec.maxOutputTokens,
+          historyCompactChars: spec.compactChars,
+          thinking: this.thinkingOverride(),
           signal: ac.signal,
           world: this.o.provider.id === 'scripted' ? w : undefined,
           callTool: async (name, input, meta) => this.callTool(name, input, calls, sink, meta?.id),
@@ -170,11 +356,13 @@ export class DecisionEngine {
         this.costUsd += out.costUsd;
         costThis = out.costUsd;
         this.o.onUsage?.(this.usage, this.costUsd);
-        if (out.note) this.note = out.note;
+        // JSON 模式的 note / 旧 end_turn 的 note（act 的结构化备忘已在工具结果里更新）
+        if (out.note && !calls.some((c) => c.name === 'act' || c.name === 'end_turn' || c.name === 'suggest')) this.ctx.memo.update(undefined, out.note);
         if (out.text) rec.note = out.text.slice(0, 500);
         if (timedOut) failed = `timeout after ${timeoutMs} ms`;
         else if (out.error && !(gameOver && out.error === 'aborted')) failed = out.error;
-        if (out.note) rec.note = out.note;
+        const memo = this.ctx.memo.text();
+        if (memo && (out.note || calls.some((c) => c.name === 'act'))) rec.note = memo;
       } catch (e) {
         failed = `provider threw: ${redactError(e, this.o.config.apiKey ? [this.o.config.apiKey] : [])}`;
       } finally {
@@ -182,13 +370,17 @@ export class DecisionEngine {
         outer?.removeEventListener('abort', onAbort);
       }
       if (failed) {
+        // 模型可能没看到 / 没用上这次观测：下次发完整观测
+        this.ctx.reset();
         sink?.({ k: 'error', message: failed });
         this.consecutiveErrors++;
         this.errors.push(`decision ${point.seq} @wave ${point.wave}: ${failed}`);
         if (this.consecutiveErrors >= (this.o.maxConsecutiveErrors ?? 3)) this.disabledReason = `disabled after ${this.consecutiveErrors} consecutive errors (last: ${failed})`;
       } else this.consecutiveErrors = 0;
-      const b2 = this.overBudget();
-      if (b2) this.disabledReason = b2;
+      if (this.policy === 'hard') {
+        const b2 = this.overBudget();
+        if (b2) this.disabledReason = b2;
+      }
     }
     const end = (): DecisionRecord => {
       rec.ms = Date.now() - t0;
@@ -222,6 +414,30 @@ export class DecisionEngine {
     return end();
   }
 
+  /** 门控跳过：不叫模型，只做推进保证（手动开波模式下自动开波），追踪里记一条"跳过（无可行动作）" */
+  private skipLocal(point: DecisionPoint, recent: import('../core/types').GameEvent[], why: string, t0: number, compacted: { before: number; after: number; n: number; stage: BudgetStage } | null): DecisionRecord {
+    const w = this.o.world;
+    this.skippedCount++;
+    this.ctx.skip(recent);
+    const rec: DecisionRecord = { point, by: 'local', skipped: why, toolCalls: [], usage: emptyUsage(), ms: 0, observationTokens: 0 };
+    const sink = this.o.trace?.begin({
+      k: 'decision_start', trigger: point.reasons.slice(), wave: point.wave, time: point.time, tick: point.tick, phase: point.phase,
+      provider: this.o.provider?.id ?? 'none', model: this.o.provider?.model ?? this.o.fallback.name, role: this.role,
+      contextMode: this.o.config.contextMode, skipped: why, budgetStage: this.stage,
+    });
+    if (compacted) sink?.({ k: 'compact', n: compacted.n, before: compacted.before, after: compacted.after, stage: compacted.stage, reason: STAGE_MSG[compacted.stage] ?? '' });
+    if (this.role === 'player' || this.o.fallbackPlaysForHuman) {
+      if (this.role !== 'player') void this.o.fallback.decide(point.reasons);
+      const before = snap(w);
+      this.ensureProgress(rec);
+      if (rec.fallbackReason) sink?.({ k: 'fallback', reason: rec.fallbackReason, acted: true, effect: effectSummary(before, snap(w)) || undefined });
+    }
+    rec.ms = Date.now() - t0;
+    this.decisions.push(rec);
+    sink?.({ k: 'decision_end', by: 'local', ms: rec.ms, usage: rec.usage, costUsd: 0, toolCalls: 0, skipped: why, fallbackReason: rec.fallbackReason });
+    return rec;
+  }
+
   private async callTool(name: string, input: unknown, calls: ToolCallRecord[], sink?: TraceSink, id?: string): Promise<ToolResult> {
     const w = this.o.world;
     const callId = id ?? `call_${calls.length + 1}`;
@@ -231,12 +447,15 @@ export class DecisionEngine {
       world: this.o.world,
       role: this.role,
       sink: this.o.sink,
+      rleMap: this.spec.rleMap,
+      onObserve: (obs) => this.ctx.onObserve(obs),
       onSuggest: (text, actions) => {
         const s: Suggestion = { tick: this.o.world.state.tick, wave: this.o.world.state.wave, text, actions };
         this.suggestions.push(s);
         this.o.onSuggest?.(s);
       },
     }, name, input);
+    this.ctx.onToolResult(r);
     calls.push({ name, input, ok: r.ok, result: r.text.length > 400 ? `${r.text.slice(0, 400)}…` : r.text, cmd: r.cmd, queuedFor: r.queuedFor });
     if (sink && before) {
       const fx = r.queuedFor !== undefined ? `已排队，第 ${r.queuedFor} 帧落地` : effectSummary(before, snap(w));

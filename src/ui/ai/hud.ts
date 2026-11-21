@@ -7,8 +7,13 @@
  */
 import {
   AgentTrace,
+  actToLegacy,
+  budgetTokens,
   createAgentController,
+  usageLine,
   usageTotal,
+  type BudgetChoice,
+  type BudgetState,
   type AgentController,
   type AgentControllerEvent,
   type AgentModelConfig,
@@ -111,8 +116,14 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
   const statusLine = h('p.ai-status-line', { attrs: { role: 'status', 'aria-live': 'polite' } });
   const usageNums = h('div.ai-usage-nums');
   const budgetFill = h('span.ai-budget-fill');
-  const budgetBar = h('div.ai-budget', { attrs: { role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-label': '预算使用' } }, budgetFill);
+  // 分级刻度：70% 省流 · 90% 低思考 · 100% 最省（或按设置交给机器人 / 询问）
+  const marks = [70, 90].map((p) => h('span.ai-budget-mark', { attrs: { 'aria-hidden': 'true', title: p === 70 ? '70%：切换到省流' : '90%：省流 + 低思考' }, style: { left: `${p}%` } }));
+  const budgetBar = h('div.ai-budget', { attrs: { role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-label': '预算使用（折算）' } }, budgetFill, ...marks);
+  const budgetMode = h('span.badge.ai-mode-chip', { attrs: { title: '当前上下文模式（随预算用量自动收紧）' } });
   const budgetText = h('small.muted.ai-budget-text');
+  const budgetAsk = h('div.ai-budget-ask', { attrs: { role: 'group', 'aria-label': '预算已用完' } });
+  budgetAsk.hidden = true;
+  let budgetState: BudgetState | null = null;
   const errorBox = h('div.ai-error');
   errorBox.hidden = true;
 
@@ -133,7 +144,7 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
     h('div.ai-panel-head', null, h('div.ai-panel-title', null, h('b', null, isPlayer ? 'AI 玩家' : 'AI 军师'), h('small.muted', null, launch.label)), closeBtn),
     statusLine,
     errorBox,
-    h('div.ai-usage', null, usageNums, budgetBar, budgetText),
+    h('div.ai-usage', null, usageNums, budgetBar, h('div.ai-budget-row', null, budgetMode, budgetText), budgetAsk),
     controls,
     feed,
   );
@@ -212,7 +223,7 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       case 'loading': line = '正在加载模型适配器，首次需要下载一小段代码…'; break;
       case 'thinking': line = `正在决策：${statusDetail.split(',').map((r) => REASON_NAME[r] ?? r).join('、') || '…'}${pauseMode ? '（游戏已暂停等待）' : ''}`; break;
       case 'acting': line = '正在下达指令…'; break;
-      case 'paused': line = 'AI 和游戏都已暂停。'; break;
+      case 'paused': line = ctl?.budgetPending ? '预算已用完，等你决定（见下方按钮）。' : 'AI 和游戏都已暂停。'; break;
       case 'fallback': line = '上一次决策由内置机器人代做（模型超时 / 出错 / 预算用完）。'; break;
       case 'stopped': line = isPlayer ? 'AI 已停止，现在由你操作。这局不再计入 AI 榜。' : '军师已停止提建议。'; break;
       case 'error': line = '模型没能启动。'; break;
@@ -228,25 +239,64 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
   };
 
   const paintUsage = (): void => {
-    const total = usageTotal(usage);
-    setText(chipUsage, total > 0 ? `${fmtTokens(total)}${costUsd > 0 ? ` · ${fmtCost(costUsd)}` : ''}` : '');
+    // 预算按"折算"计（新输入 + 输出 + 缓存写×1.25 + 缓存读×0.1）；原始总数单独显示，避免把便宜的缓存读当成预算
+    const weighted = budgetTokens(usage);
+    const raw = usageTotal(usage);
+    setText(chipUsage, weighted > 0 ? `${fmtTokens(weighted)}${costUsd > 0 ? ` · ${fmtCost(costUsd)}` : ''}` : '');
+    chipUsage.title = weighted > 0 ? `折算预算 ${fmtNum(weighted)}（原始 ${fmtNum(raw)}）` : '';
     usageNums.replaceChildren(
-      h('span', { title: `输入 ${fmtNum(usage.inputTokens)} · 输出 ${fmtNum(usage.outputTokens)} · 缓存读 ${fmtNum(usage.cacheReadTokens)} · 缓存写 ${fmtNum(usage.cacheWriteTokens)}` }, h('b', null, fmtTokens(total)), ' token'),
+      h('span', { title: usageLine(usage, fmtNum) }, h('b', null, fmtTokens(weighted)), ' 折算'),
+      h('span.muted', { title: '原始 token 总数（含便宜的缓存读）' }, `原始 ${fmtTokens(raw)}`),
       h('span', { title: '按公开价格估算，以服务商账单为准' }, h('b', null, fmtCost(costUsd)), ' 估算'),
       h('span', null, h('b', null, String(usage.requests)), ' 次请求'),
     );
     const bt = config.budget?.tokens;
     const bu = config.budget?.usd;
-    const ratio = Math.max(bt ? total / bt : 0, bu ? costUsd / bu : 0);
-    budgetBar.hidden = !bt && !bu;
-    budgetText.hidden = !bt && !bu;
-    if (bt || bu) {
-      const pct = Math.min(100, Math.round(ratio * 100));
+    const limit = budgetState?.limit ?? bt;
+    const ratio = budgetState?.ratio ?? Math.max(limit ? weighted / limit : 0, bu ? costUsd / bu : 0);
+    budgetBar.hidden = !limit && !bu;
+    budgetText.hidden = !limit && !bu;
+    budgetMode.hidden = !budgetState;
+    if (budgetState) setText(budgetMode, budgetState.modeLabel);
+    if (limit || bu) {
+      const pct = Math.round(ratio * 100);
       budgetFill.style.transform = `scaleX(${Math.min(1, ratio).toFixed(3)})`;
-      budgetBar.dataset.level = ratio >= 1 ? 'out' : ratio >= 0.8 ? 'high' : 'ok';
-      budgetBar.setAttribute('aria-valuenow', String(pct));
-      const parts = [bt ? `${fmtTokens(total)} / ${fmtTokens(bt)} token` : '', bu ? `${fmtCost(costUsd)} / ${fmtCost(bu)}` : ''].filter(Boolean);
-      setText(budgetText, ratio >= 1 ? `预算已用完，余下由内置机器人接管（${parts.join(' · ')}）` : `预算 ${pct}% · ${parts.join(' · ')}`);
+      budgetBar.dataset.level = ratio >= 1 ? 'out' : ratio >= 0.9 ? 'high' : ratio >= 0.7 ? 'mid' : 'ok';
+      budgetBar.setAttribute('aria-valuenow', String(Math.min(100, pct)));
+      const parts = [limit ? `折算 ${fmtTokens(weighted)} / ${fmtTokens(limit)}` : '', bu ? `${fmtCost(costUsd)} / ${fmtCost(bu)}` : ''].filter(Boolean);
+      const policy = budgetState?.policy ?? config.budget?.mode ?? 'soft';
+      const msg = ratio >= 1
+        ? policy === 'hard' || ctl?.report().decisions.some((d) => d.fallbackReason?.includes('budget'))
+          ? '预算已用完，余下由内置机器人接管'
+          : '已超出预算，已切换到最省模式继续'
+        : budgetState?.message ?? `预算 ${pct}%`;
+      setText(budgetText, `${msg}（${parts.join(' · ')}）`);
+    }
+  };
+
+  /** 暂停并询问：继续（最省模式）/ 追加预算（+500k）/ 交给机器人 */
+  const showBudgetAsk = (b: BudgetState): void => {
+    budgetAsk.hidden = false;
+    const choose = (c: BudgetChoice): void => {
+      audio.play('click');
+      budgetAsk.hidden = true;
+      ctl?.resolveBudget(c);
+      if (c === 'bot') lastBy = 'fallback';
+      paintStatus();
+    };
+    budgetAsk.replaceChildren(
+      h('p', null, `预算已用完（折算 ${fmtTokens(b.weighted)}${b.limit ? ` / ${fmtTokens(b.limit)}` : ''}），游戏已暂停。接下来怎么办？`),
+      h(
+        'div.ai-error-actions',
+        null,
+        h('button.btn.small.primary', { attrs: { type: 'button' }, onclick: () => choose('continue') }, '继续（最省模式）'),
+        h('button.btn.small', { attrs: { type: 'button' }, onclick: () => choose('extend') }, '追加预算（+500k）'),
+        h('button.btn.small', { attrs: { type: 'button' }, onclick: () => choose('bot') }, '交给机器人'),
+      ),
+    );
+    if (!open) {
+      open = true;
+      paintOpen();
     }
   };
 
@@ -256,21 +306,42 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
 
   // ───────────── 决策流 ─────────────
   let feedTotal = 0;
+  let skippedCount = 0;
   const addFeed = (rec: DecisionRecord): void => {
+    if (rec.by === 'local') {
+      // 门控跳过：不刷屏，只计数（思路与请求面板里每条都有）
+      skippedCount++;
+      setText(feedCount, `${feedTotal}${skippedCount ? ` · 跳过 ${skippedCount}` : ''}`);
+      return;
+    }
     feedTotal++;
     const acts: HTMLElement[] = [];
     let reads = 0;
     for (const c of rec.toolCalls) {
+      if (c.name === 'act') {
+        // 批量动作：逐条展开（每条的成败按结果里的行号）
+        const list = Array.isArray((c.input as { actions?: unknown })?.actions) ? ((c.input as { actions: Record<string, unknown>[] }).actions) : [];
+        const lines = c.result.split('\n');
+        list.forEach((a, i) => {
+          const m = actToLegacy(a);
+          const text = 'error' in m ? null : describeCall(world, m.name, m.input);
+          if (!text) return;
+          const line = lines.find((l) => l.startsWith(`${i + 1} `)) ?? '';
+          const ok = /^\d+ (OK|QUEUED)/.test(line);
+          acts.push(h(`li.${ok ? 'ok' : 'bad'}`, null, h('span.gi', { html: ok ? G.check : G.close }), h('span', null, text, ok ? null : h('small', null, ` — ${line.replace(/^\d+ /, '').slice(0, 80)}`))));
+        });
+        continue;
+      }
       const text = describeCall(world, c.name, c.input);
       if (!text) {
-        if (c.name !== 'end_turn' && c.name !== 'suggest') reads++;
+        if (c.name !== 'end_turn' && c.name !== 'suggest' && c.name !== 'act') reads++;
         continue;
       }
       acts.push(h(`li.${c.ok ? 'ok' : 'bad'}`, null, h('span.gi', { html: c.ok ? G.check : G.close }), h('span', null, text, c.ok ? null : h('small', null, ` — ${failReason(c)}`))));
     }
     const reasons = rec.point.reasons.map((r) => REASON_NAME[r] ?? r).join('、');
-    const tokens = usageTotal(rec.usage);
-    const meta = [`${(rec.ms / 1000).toFixed(1)} 秒`, tokens ? `${fmtTokens(tokens)} token` : '', reads ? `查看 ×${reads}` : ''].filter(Boolean).join(' · ');
+    const tokens = budgetTokens(rec.usage);
+    const meta = [`${(rec.ms / 1000).toFixed(1)} 秒`, tokens ? `${fmtTokens(tokens)} 折算` : '', rec.usage.requests ? `${rec.usage.requests} 次请求` : '', reads ? `查看 ×${reads}` : ''].filter(Boolean).join(' · ');
     const item = h(
       `li.ai-feed-item${rec.by === 'fallback' ? '.by-bot' : ''}`,
       null,
@@ -282,7 +353,7 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
     );
     feedList.prepend(item);
     while (feedList.children.length > FEED_MAX) feedList.lastElementChild?.remove();
-    setText(feedCount, `${feedTotal}`);
+    setText(feedCount, `${feedTotal}${skippedCount ? ` · 跳过 ${skippedCount}` : ''}`);
   };
 
   // ───────────── 军师建议 ─────────────
@@ -365,6 +436,16 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
         break;
       case 'suggestion':
         addSuggestion(ev.suggestion);
+        break;
+      case 'budget':
+        budgetState = ev.budget;
+        if (ev.budget.message && ev.budget.stage > 0) app.toast(ev.budget.message, 'info');
+        paintUsage();
+        break;
+      case 'budget_ask':
+        budgetState = ev.budget;
+        paintUsage();
+        showBudgetAsk(ev.budget);
         break;
       case 'error':
         errorCount++;

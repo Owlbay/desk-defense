@@ -243,7 +243,8 @@ describe('pi adapter trace (faux provider)', () => {
     const reqs = ev.filter((e) => e.k === 'request') as Extract<TraceEvent, { k: 'request' }>[];
     expect(reqs.map((r) => r.n)).toEqual([1, 2]);
     expect(reqs[0].provider).toBe(p.id);
-    expect(reqs[0].toolNames).toContain('place_tower');
+    expect(reqs[0].toolNames).toContain('act');
+    expect(reqs[0].thinking).toBeTruthy();
     expect(c.t.blob(reqs[0].systemHash)).toBeTruthy();
     const th = ev.filter((e) => e.k === 'thinking').map((e) => (e as { text: string }).text);
     expect(th.join('|')).toMatch(/left lane is open.*\|Done for now/);

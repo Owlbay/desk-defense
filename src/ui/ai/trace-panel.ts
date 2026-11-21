@@ -11,9 +11,9 @@
  */
 import {
   argsLine,
+  budgetTokens,
   computeTotals,
   emptyUsage,
-  usageTotal,
   type AgentTrace,
   type TokenUsage,
   type TraceEvent,
@@ -79,7 +79,8 @@ type Seg =
   | { kind: 'tool'; call: Ev<'tool_call'>; result?: Ev<'tool_result'>; el?: HTMLElement; dirty: boolean }
   | { kind: 'resp'; ev: Ev<'response'>; el?: HTMLElement; dirty: boolean }
   | { kind: 'error'; ev: Ev<'error'>; el?: HTMLElement; dirty: boolean }
-  | { kind: 'fallback'; ev: Ev<'fallback'>; el?: HTMLElement; dirty: boolean };
+  | { kind: 'fallback'; ev: Ev<'fallback'>; el?: HTMLElement; dirty: boolean }
+  | { kind: 'compact'; ev: Ev<'compact'>; el?: HTMLElement; dirty: boolean };
 
 interface Card {
   d: number;
@@ -160,9 +161,10 @@ const prettyJson = (s: string | undefined): string => s ?? '(无)';
 const fmtMs = (ms: number): string => (ms >= 1000 ? `${(ms / 1000).toFixed(1)} 秒` : `${Math.round(ms)} ms`);
 
 const usageLine = (u: TokenUsage): string => {
-  const parts = [`输入 ${fmtTokens(u.inputTokens)}`, `输出 ${fmtTokens(u.outputTokens)}`];
+  const parts = [`新输入 ${fmtTokens(u.inputTokens)}`];
   if (u.cacheReadTokens) parts.push(`缓存读 ${fmtTokens(u.cacheReadTokens)}`);
   if (u.cacheWriteTokens) parts.push(`缓存写 ${fmtTokens(u.cacheWriteTokens)}`);
+  parts.push(`输出 ${fmtTokens(u.outputTokens)}`, `折算 ${fmtTokens(budgetTokens(u))}`);
   return parts.join(' · ');
 };
 
@@ -584,6 +586,13 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
         c.dirtyHead = true;
         break;
       }
+      case 'compact': {
+        const s: Seg = { kind: 'compact', ev: e, dirty: true };
+        c.segs.push(s);
+        c.pending.push(s);
+        addSearch(c, `上下文已压缩 ${e.reason}`);
+        break;
+      }
       case 'error':
       case 'fallback': {
         const s = (e.k === 'error' ? { kind: 'error', ev: e, dirty: true } : { kind: 'fallback', ev: e, dirty: true }) as Seg;
@@ -628,14 +637,16 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
     const e = c.end;
     const reasons = s ? s.trigger.map((r) => REASON_NAME[r] ?? r).join('、') : '（更早的事件已丢弃）';
     const running = live && !e;
-    const tokens = usageTotal(c.usage);
+    const tokens = budgetTokens(c.usage);
     fill(c.head, 
       h('span.tr-d', null, `#${c.d}`),
       h('b', null, s ? `第 ${Math.max(1, s.wave)} 波` : '—'),
       h('span.tr-reasons', null, reasons),
       running ? h('span.tr-running', null, h('span.ai-spinner'), '进行中') : null,
       e?.by === 'fallback' ? h('span.badge.ai-bot-badge', null, '机器人') : null,
-      h('span.tr-head-meta.muted', null, [e ? fmtMs(e.ms) : c.latency ? fmtMs(c.latency) : '', tokens ? `${fmtTokens(tokens)} tok` : '', c.cost ? fmtCost(c.cost) : ''].filter(Boolean).join(' · ')),
+      s?.skipped ? h('span.badge.tr-skip-badge', { attrs: { title: s.skipped } }, '跳过（无可行动作）') : null,
+      s?.delta ? h('span.badge.tr-delta-badge', { attrs: { title: '只发送了变化的字段' } }, '增量') : null,
+      h('span.tr-head-meta.muted', null, [e ? fmtMs(e.ms) : c.latency ? fmtMs(c.latency) : '', tokens ? `折算 ${fmtTokens(tokens)}` : '', c.cost ? fmtCost(c.cost) : ''].filter(Boolean).join(' · ')),
     );
     c.el?.classList.toggle('by-bot', e?.by === 'fallback');
     c.el?.classList.toggle('running', running);
@@ -646,14 +657,15 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
     const s = c.start;
     const e = c.end;
     const parts: HTMLElement[] = [];
-    if (e) {
+    if (s?.skipped) parts.push(h('p.tr-sum', null, `跳过（无可行动作）：${s.skipped}——没有调用模型`));
+    else if (e) {
       parts.push(h('p.tr-sum', null,
         `共 ${e.toolCalls} 次工具调用 · ${c.usage.requests} 次请求 · ${usageLine(c.usage)}${c.cost ? ` · ${fmtCost(c.cost)}` : ''} · 用时 ${fmtMs(e.ms)}`,
         e.note ? h('span.tr-note', null, ` · 备忘：${e.note}`) : null,
       ));
     }
     const extras = h('div.tr-extra');
-    if (s) {
+    if (s && !s.skipped) {
       extras.append(
         lazyDetails('tr-obs', '观察（发送给模型的局面）', () => codeBlock('观察', () => trace.blob(s.observationHash) ?? '(已从缓冲区丢弃)')),
         lazyDetails('tr-sys', '系统提示词', () => {
@@ -679,9 +691,10 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
     switch (s.kind) {
       case 'req': {
         const r = s.ev;
-        const meta = [providerLabel(r.provider), r.model, r.api, r.host ? `→ ${r.host}` : '', r.effort ? `effort ${r.effort}` : '', r.messages ? `${r.messages} 条消息` : ''].filter(Boolean).join(' · ');
+        const meta = [providerLabel(r.provider), r.model, r.api, r.host ? `→ ${r.host}` : '', r.thinking ? `思考：${r.thinking}` : r.effort ? `effort ${r.effort}` : '', r.messages ? `${r.messages} 条消息` : '', r.compacted ? `压缩了 ${r.compacted} 条旧结果` : ''].filter(Boolean).join(' · ');
         fill(el, 
           h('div.tr-req-line', null, h('span.tr-tag', null, `请求 ${r.n}`), h('span.muted', null, meta)),
+          r.thinkingNote ? h('p.tr-effect', null, r.thinkingNote) : null,
           r.params ? h('p.tr-params', null, Object.entries(r.params).filter(([, v]) => v !== undefined && v !== null).map(([k, v]) => h('code.tr-chip.tr-param', null, `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`))) : null,
           h('div.tr-rawonly', null,
             r.headers ? lazyDetails('tr-hdr', '请求头（已脱敏）', () => codeBlock('请求头', () => JSON.stringify(r.headers, null, 2), { lang: 'json' })) : null,
@@ -734,6 +747,9 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
       }
       case 'error':
         fill(el, h('span.gi', { html: G.warn }), h('span', null, `出错：${s.ev.message}`));
+        break;
+      case 'compact':
+        fill(el, h('span.gi', { html: G.bolt }), h('span', null, `上下文已压缩（第 ${s.ev.n} 次）：≈${s.ev.before} → ${s.ev.after} token`), s.ev.reason ? h('small.muted', null, ` · ${s.ev.reason}`) : null);
         break;
       case 'fallback':
         fill(el, h('span.gi', { html: G.bolt }), h('span', null, s.ev.acted ? `内置机器人接手：${s.ev.reason}` : `没有拿到结果：${s.ev.reason}`), s.ev.effect ? h('small.muted', null, ` → ${s.ev.effect}`) : null);
@@ -834,11 +850,14 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
     const u = t.usage;
     const item = (label: string, v: string, title?: string) => h('span.tr-tot', { title }, h('small', null, label), h('b', null, v));
     fill(totals, 
-      item('决策', String(t.decisions)),
-      item('请求', String(t.requests)),
-      item('输入', fmtTokens(u.inputTokens)),
+      item('决策', t.skipped ? `${t.decisions - t.skipped} + 跳过 ${t.skipped}` : String(t.decisions)),
+      item('请求', t.requestsPerDecision ? `${t.requests}（${t.requestsPerDecision.toFixed(1)}/次）` : String(t.requests)),
+      item('新输入', fmtTokens(u.inputTokens)),
+      item('缓存读', fmtTokens(u.cacheReadTokens)),
+      item('缓存写', fmtTokens(u.cacheWriteTokens)),
       item('输出', fmtTokens(u.outputTokens)),
-      item('缓存读/写', `${fmtTokens(u.cacheReadTokens)} / ${fmtTokens(u.cacheWriteTokens)}`),
+      item('折算预算', fmtTokens(budgetTokens(u)), '新输入 + 输出 + 缓存写×1.25 + 缓存读×0.1'),
+      t.compactions ? item('压缩', `${t.compactions} 次`) : null,
       item('费用', fmtCost(t.costUsd), '按公开价格估算，以服务商账单为准'),
       item('平均延迟', t.avgLatencyMs ? fmtMs(t.avgLatencyMs) : '—'),
       t.fallbacks || t.errors ? item('出错/兜底', `${t.errors} / ${t.fallbacks}`) : null,

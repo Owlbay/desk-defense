@@ -52,8 +52,48 @@ export function addUsage(a: TokenUsage, b: TokenUsage): TokenUsage {
   };
 }
 
-/** 计入预算的 token：全部输入（含缓存读写）+ 输出 */
+/** 原始 token 总数：全部输入（含缓存读写）+ 输出（不加权，只用于展示 / 对账） */
 export const usageTotal = (u: TokenUsage): number => u.inputTokens + u.outputTokens + u.cacheReadTokens + u.cacheWriteTokens;
+export const usageRaw = usageTotal;
+
+/**
+ * 预算折算权重（按真实成本）：新输入 1、输出 1、缓存写 1.25、缓存读 0.1。
+ * 实测（中转 deepseek-flash）57% 的 token 是缓存读：按原始总数计预算会让网页默认 1M 预算在第 12 波左右就耗尽。
+ * 输出的单价通常是输入的数倍，这里仍记 1×——预算只是"量"的上限，费用另由 budget.usd 控制。
+ */
+export const BUDGET_WEIGHTS = { input: 1, output: 1, cacheWrite: 1.25, cacheRead: 0.1 } as const;
+
+/** 折算预算 token = 新输入 + 输出 + 缓存写×1.25 + 缓存读×0.1（budget.tokens 按这个比较） */
+export function budgetTokens(u: TokenUsage): number {
+  const w = BUDGET_WEIGHTS;
+  return Math.round(u.inputTokens * w.input + u.outputTokens * w.output + u.cacheWriteTokens * w.cacheWrite + u.cacheReadTokens * w.cacheRead);
+}
+
+/** 用量分解（面板 / 报告用） */
+export interface UsageBreakdown {
+  /** 新输入（未命中缓存） */
+  input: number;
+  cacheRead: number;
+  cacheWrite: number;
+  output: number;
+  /** 原始总数 */
+  raw: number;
+  /** 折算预算 */
+  weighted: number;
+  requests: number;
+}
+
+export function usageBreakdown(u: TokenUsage): UsageBreakdown {
+  return {
+    input: u.inputTokens, cacheRead: u.cacheReadTokens, cacheWrite: u.cacheWriteTokens, output: u.outputTokens,
+    raw: usageTotal(u), weighted: budgetTokens(u), requests: u.requests,
+  };
+}
+
+/** 中文一行：新输入 / 缓存读 / 缓存写 / 输出 / 折算预算 */
+export function usageLine(u: TokenUsage, fmt: (n: number) => string = (n) => String(n)): string {
+  return `新输入 ${fmt(u.inputTokens)} · 缓存读 ${fmt(u.cacheReadTokens)} · 缓存写 ${fmt(u.cacheWriteTokens)} · 输出 ${fmt(u.outputTokens)} · 折算预算 ${fmt(budgetTokens(u))}`;
+}
 
 /** 一次工具调用的记录 */
 export interface ToolCallRecord {
@@ -78,8 +118,10 @@ export interface Suggestion {
 
 export interface DecisionRecord {
   point: DecisionPoint;
-  /** agent：模型自己完成；fallback：超时 / 出错 / 预算耗尽后由内置机器人接管 */
-  by: 'agent' | 'fallback';
+  /** agent：模型自己完成；fallback：超时 / 出错 / 预算耗尽后由内置机器人接管；local：决策门控判定无可行动作，未调用模型 */
+  by: 'agent' | 'fallback' | 'local';
+  /** by = local 时的跳过原因 */
+  skipped?: string;
   fallbackReason?: string;
   toolCalls: ToolCallRecord[];
   usage: TokenUsage;
@@ -124,6 +166,8 @@ export interface ToolResult {
   /** end_turn：结束本次决策 */
   endTurn?: boolean;
   note?: string;
+  /** act {end:{plan,maze,priorities}}：结构化备忘（跨决策记忆） */
+  memo?: Partial<Record<'plan' | 'maze' | 'priorities' | 'note', string>>;
   queuedFor?: number;
 }
 
@@ -136,8 +180,12 @@ export interface AgentWaveRow {
   leaks: number;
   towers: number;
   score: number;
-  /** 截至本波结束的累计 token 与费用估算 */
+  /** 截至本波结束的累计 token（原始总数）与费用估算 */
   tokens: number;
+  /** 截至本波结束的累计折算预算 token */
+  weighted: number;
+  /** 截至本波结束的累计模型请求数 */
+  requests: number;
   costUsd: number;
   decisions: number;
   fallbacks: number;

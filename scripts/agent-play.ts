@@ -5,14 +5,16 @@
  *
  *   --provider claude|pi|scripted|baseline   claude = 官方 SDK（默认）；pi = 多厂商；scripted = 内置确定性策略；baseline = 只跑内置机器人
  *   --model claude-opus-5-5                  claude-opus-5-5 | claude-sonnet-5-5 | claude-haiku-5-5 | claude-fable-5-2 | pi 的模型 id
- *   --effort low|medium|high|xhigh|max       默认 medium
+ *   --thinking off|low|medium|high|xhigh|max 思考等级（--effort 为旧别名）；缺省：claude 中、中转 低、本机 无思考
+ *   --context saver|balanced|full（省流 / 均衡 / 完整；旧值 compact = 省流）缺省：本机 省流、其他 均衡
  *   --preset ollama|lmstudio|llamacpp|vllm|openai|google|openrouter|deepseek|anthropic|relay|custom   （pi）
  *   --api openai-completions|openai-responses|anthropic-messages|google-generative-ai  --base-url URL   （pi，覆盖预设）
  *   --api-key-env NAME   （pi：从环境变量 NAME 读取 Key，用于中转服务 / 自定义地址）
- *   --tool-mode native|json  --context full|compact
+ *   --tool-mode native|json
  *   --mode endless|campaign  --map ch1|ch2|ch3  --difficulty easy|normal|hard|nightmare|abyss  --abyss N
  *   --seed S  --seeds N（评测场：N 个种子）  --max-waves 30
- *   --budget-tokens 2000000  --budget-usd 5  --max-tool-calls 12  --timeout-ms 90000
+ *   --budget-tokens 2000000（折算：新输入 + 输出 + 缓存写×1.25 + 缓存读×0.1）  --budget-usd 5  --budget-mode soft|hard（soft = 超出后最省模式继续）
+ *   --max-tool-calls N  --timeout-ms 90000
  *   --decision pause|realtime  --wave-interval 10  --latency 3|measured
  *   --role player|advisor|attacker
  *   --fallback medium|expert|newbie|scripted  兜底机器人（默认 medium）
@@ -29,9 +31,9 @@ import { fileURLToPath } from 'node:url';
 import type { DifficultyId, IWorld, MapId, ModeId, RunOptions, SkillId } from '../src/core';
 import { BOTS, StrategyBot } from './bots';
 import { createProvider } from '../src/agent/factory';
-import { resolveConfig, validateConfig, type AgentModelConfig, type Effort, type Preset, type PiApi } from '../src/agent/config';
+import { parseContextMode, parseThinking, resolveConfig, validateConfig, type AgentModelConfig, type Preset, type PiApi } from '../src/agent/config';
 import { runAgentGame, type AgentRunReport } from '../src/agent/runner';
-import type { AgentRole, DecisionMode, FallbackPolicy } from '../src/agent/types';
+import { budgetTokens, usageLine, type AgentRole, type DecisionMode, type FallbackPolicy } from '../src/agent/types';
 import { scriptedFallback } from '../src/agent/providers/scripted';
 
 const argv = process.argv.slice(2).filter((a) => a !== '--');
@@ -64,14 +66,14 @@ const latencyArg = arg('latency');
 const config: Partial<AgentModelConfig> = {
   provider: providerArg === 'claude' ? 'claude-native' : providerArg === 'baseline' ? 'scripted' : (providerArg as AgentModelConfig['provider']),
   model: arg('model'),
-  effort: arg('effort', 'medium') as Effort,
+  thinking: parseThinking(arg('thinking') ?? arg('effort')),
   preset: arg('preset') as Preset | undefined,
   api: arg('api') as PiApi | undefined,
   baseUrl: arg('base-url'),
   // 中转服务 / 自定义地址的 Key：只从环境变量读取（--api-key-env 变量名），从不在命令行明文传入
   apiKey: arg('api-key-env') ? process.env[arg('api-key-env')!] : undefined,
   toolMode: arg('tool-mode') as 'native' | 'json' | undefined,
-  contextBudget: arg('context') as 'full' | 'compact' | undefined,
+  contextMode: parseContextMode(arg('context')),
   maxToolCallsPerDecision: num('max-tool-calls'),
   role: arg('role', 'player') as AgentRole,
   decisionTimeoutMs: num('timeout-ms'),
@@ -80,7 +82,7 @@ const config: Partial<AgentModelConfig> = {
     waveIntervalSec: num('wave-interval'),
     realtimeLatencySec: latencyArg === 'measured' ? 'measured' : latencyArg !== undefined ? Number(latencyArg) : undefined,
   },
-  budget: { tokens: num('budget-tokens', 2_000_000), usd: num('budget-usd') },
+  budget: { tokens: num('budget-tokens', 2_000_000), usd: num('budget-usd'), mode: (arg('budget-mode') as 'soft' | 'hard' | undefined) ?? 'soft' },
 };
 if (config.provider === 'claude-native' && !config.model) config.model = 'claude-opus-5-5';
 for (const k of Object.keys(config) as (keyof AgentModelConfig)[]) if (config[k] === undefined) delete config[k];
@@ -125,7 +127,7 @@ async function one(seed: string, baseline: string | null): Promise<AgentRunRepor
     onWave: (r) => {
       if (QUIET) return;
       console.log(`[${label} ${seed}] wave ${String(r.wave).padStart(3)}  lives ${r.lives}  gold ${r.gold}  towers ${r.towers}  leaks ${r.leaks}  score ${r.score}  ` +
-        `tokens ${r.tokens}  ${fmt$(r.costUsd)}  decisions ${r.decisions} (fallback ${r.fallbacks})`);
+        `tokens ${r.tokens} (折算 ${r.weighted})  req ${r.requests}  ${fmt$(r.costUsd)}  decisions ${r.decisions} (fallback ${r.fallbacks})`);
     },
     onDecision: (rec) => {
       if (QUIET || !rec.fallbackReason || rec.by !== 'fallback') return;
@@ -137,12 +139,22 @@ async function one(seed: string, baseline: string | null): Promise<AgentRunRepor
 }
 
 function summary(r: AgentRunReport) {
+  const called = r.decisions.filter((d) => d.by === 'agent').length;
+  const weighted = budgetTokens(r.usage);
   return {
     seed: r.replay.opts.seed, agent: r.agent, board: r.board, result: r.result,
-    tokens: r.totalTokens, usage: r.usage, costUsd: r.costUsd,
+    tokens: r.totalTokens, weightedTokens: weighted,
+    usage: r.usage,
+    breakdown: { 新输入: r.usage.inputTokens, 缓存读: r.usage.cacheReadTokens, 缓存写: r.usage.cacheWriteTokens, 输出: r.usage.outputTokens, 折算预算: weighted },
+    costUsd: r.costUsd,
     costPerWave: r.result.cleared ? r.costUsd / r.result.cleared : null,
     tokensPerWave: r.result.cleared ? Math.round(r.totalTokens / r.result.cleared) : null,
-    decisions: r.decisions.length, fallbacks: r.decisions.filter((d) => d.by === 'fallback').length,
+    weightedPerWave: r.result.cleared ? Math.round(weighted / r.result.cleared) : null,
+    requests: r.usage.requests,
+    requestsPerDecision: called ? Math.round((r.usage.requests / called) * 100) / 100 : null,
+    decisions: r.decisions.length, modelDecisions: called, skipped: r.decisions.filter((d) => d.by === 'local').length,
+    budget: r.budget,
+    fallbacks: r.decisions.filter((d) => d.by === 'fallback').length,
     toolCalls: r.decisions.reduce((a, d) => a + d.toolCalls.length, 0),
     rejected: r.decisions.reduce((a, d) => a + d.toolCalls.filter((c) => !c.ok).length, 0),
     errors: r.errors, disabledReason: r.disabledReason, wallMs: r.wallMs,
@@ -151,7 +163,7 @@ function summary(r: AgentRunReport) {
 
 function html(title: string, runs: AgentRunReport[], baselines: AgentRunReport[]): string {
   const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
-  const rows = [...runs, ...baselines].map((r) => `<tr><td>${esc(r.agent.provider)}/${esc(r.agent.model)}</td><td>${esc(String(r.replay.opts.seed))}</td><td>${r.result.outcome}</td><td>${r.result.wave}</td><td>${r.result.score}</td><td>${r.result.lives}/${r.result.maxLives}</td><td>${r.totalTokens}</td><td>${fmt$(r.costUsd)}</td><td>${r.decisions.length}</td><td>${r.decisions.filter((d) => d.by === 'fallback').length}</td></tr>`).join('');
+  const rows = [...runs, ...baselines].map((r) => `<tr><td>${esc(r.agent.provider)}/${esc(r.agent.model)}</td><td>${esc(String(r.replay.opts.seed))}</td><td>${r.result.outcome}</td><td>${r.result.wave}</td><td>${r.result.score}</td><td>${r.result.lives}/${r.result.maxLives}</td><td>${r.totalTokens}</td><td>${budgetTokens(r.usage)}</td><td>${r.result.cleared ? Math.round(budgetTokens(r.usage) / r.result.cleared) : '-'}</td><td>${r.usage.requests}</td><td>${fmt$(r.costUsd)}</td><td>${r.decisions.length}</td><td>${r.decisions.filter((d) => d.by === 'fallback').length}</td></tr>`).join('');
   const charts = runs.map((r) => {
     const W = 560; const H = 140; const n = Math.max(1, r.waves.length);
     const maxL = Math.max(1, r.result.maxLives); const maxT = Math.max(1, ...r.waves.map((x) => x.tokens));
@@ -165,7 +177,7 @@ body{font:14px/1.5 system-ui,sans-serif;color:var(--fg);background:var(--bg);mar
 table{border-collapse:collapse;width:100%}td,th{padding:4px 8px;border-bottom:1px solid #8884;text-align:right;font-variant-numeric:tabular-nums}td:first-child,th:first-child{text-align:left}
 .wrap{overflow-x:auto}svg{width:100%;height:auto;background:#8881;border-radius:6px}polyline{stroke-width:2}.l{stroke:var(--l);color:var(--l)}.t{stroke:var(--t);color:var(--t)}small{color:var(--mute)}</style>
 <h1>${esc(title)}</h1><p><small>Agent 参战报告 · AI 专用榜（不进入真人榜）· 费用为估算</small></p>
-<div class="wrap"><table><tr><th>agent</th><th>seed</th><th>result</th><th>wave</th><th>score</th><th>lives</th><th>tokens</th><th>cost</th><th>decisions</th><th>fallbacks</th></tr>${rows}</table></div>${charts}`;
+<div class="wrap"><table><tr><th>agent</th><th>seed</th><th>result</th><th>wave</th><th>score</th><th>lives</th><th>tokens</th><th>折算</th><th>折算/波</th><th>requests</th><th>cost</th><th>decisions</th><th>fallbacks</th></tr>${rows}</table></div>${charts}`;
 }
 
 async function main(): Promise<void> {
@@ -180,9 +192,11 @@ async function main(): Promise<void> {
     runs.push(r);
     writeFileSync(join(OUT, `replay-${seed}.json`), JSON.stringify(r.replay));
     writeFileSync(join(OUT, `decisions-${seed}.jsonl`), r.decisions.map((d) => JSON.stringify(d)).join('\n'));
-    console.log(`== ${r.agent.provider}/${r.agent.model} seed ${seed}: ${r.result.outcome} wave ${r.result.wave} score ${r.result.score} lives ${r.result.lives}/${r.result.maxLives} ` +
-      `tokens ${r.totalTokens} (in ${r.usage.inputTokens} out ${r.usage.outputTokens} cache r/w ${r.usage.cacheReadTokens}/${r.usage.cacheWriteTokens}) cost≈${fmt$(r.costUsd)} ` +
-      `decisions ${r.decisions.length} fallbacks ${r.decisions.filter((d) => d.by === 'fallback').length}${r.disabledReason ? ` [model disabled: ${r.disabledReason}]` : ''}`);
+    const sm = summary(r);
+    console.log(`== ${r.agent.provider}/${r.agent.model} seed ${seed}: ${r.result.outcome} wave ${r.result.wave} score ${r.result.score} lives ${r.result.lives}/${r.result.maxLives} cost≈${fmt$(r.costUsd)}`);
+    console.log(`   tokens 原始 ${r.totalTokens} · ${usageLine(r.usage)}`);
+    console.log(`   每波：原始 ${sm.tokensPerWave ?? '-'} / 折算 ${sm.weightedPerWave ?? '-'} · 请求 ${sm.requests}（${sm.requestsPerDecision ?? '-'} 次/决策）· 决策点 ${sm.decisions}（叫模型 ${sm.modelDecisions}，跳过 ${sm.skipped}，兜底 ${sm.fallbacks}）` +
+      `${r.budget ? ` · 预算分级 ${r.budget.stage}（${r.budget.modeLabel}，压缩 ${r.budget.compactions} 次）` : ''}${r.disabledReason ? ` [model disabled: ${r.disabledReason}]` : ''}`);
     for (const b of compare) {
       const br = await one(seed, b);
       baselines.push(br);

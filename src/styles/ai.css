@@ -771,6 +771,7 @@
 }
 
 .ai-budget {
+  position: relative;
   height: 10px;
   overflow: hidden;
   border: 1.5px solid var(--ink);
@@ -786,6 +787,42 @@
   transform: scaleX(0);
   transform-origin: left center;
   transition: transform var(--dur-l) var(--ease-out);
+}
+
+.ai-budget-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1.5px;
+  background: var(--ink);
+  opacity: 0.45;
+}
+
+.ai-budget-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.ai-mode-chip {
+  font-size: 12px;
+}
+
+.ai-budget-ask {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: var(--bw) solid var(--orange);
+  border-radius: var(--radius-s);
+}
+
+.ai-budget-ask p {
+  margin: 0;
+}
+
+.ai-budget[data-level='mid'] .ai-budget-fill {
+  background: var(--gold);
 }
 
 .ai-budget[data-level='high'] .ai-budget-fill {

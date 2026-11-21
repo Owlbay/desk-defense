@@ -207,8 +207,8 @@ describe('runner', () => {
     expect(a.result.cleared).toBeGreaterThanOrEqual(10);
     expect(a.result.outcome).toBe('cap');
     expect(a.errors).toEqual([]);
-    expect(a.decisions.every((d) => d.by === 'agent')).toBe(true);
-    expect(a.decisions.length).toBeGreaterThan(20);
+    expect(a.decisions.every((d) => d.by !== 'fallback')).toBe(true);
+    expect(a.decisions.filter((d) => d.by === 'agent').length).toBeGreaterThan(15);
     expect(a.waves.length).toBe(a.result.cleared);
     expect(a.board).toBe('ai:normal:pure:auto');
     expect(a.replay.agent).toEqual({ provider: 'scripted', model: 'scripted-v1', role: 'player' });
@@ -252,7 +252,7 @@ describe('runner', () => {
 
   it('token budget exhaustion hands the rest to the fallback bot', async () => {
     const p = fakeProvider(async () => ({ inputTokens: 600, outputTokens: 100 }));
-    const r = await runAgentGame(OPTS, { config: { provider: 'scripted', budget: { tokens: 2000 } }, provider: p, maxWaves: 3 });
+    const r = await runAgentGame(OPTS, { config: { provider: 'scripted', contextMode: 'full', budget: { tokens: 2000, mode: 'hard' } }, provider: p, maxWaves: 3 });
     const agentDecisions = r.decisions.filter((d) => d.by === 'agent').length;
     expect(agentDecisions).toBe(3);
     expect(r.decisions.some((d) => d.fallbackReason?.includes('budget'))).toBe(true);
@@ -268,7 +268,7 @@ describe('runner', () => {
     expect(r1.decisions.slice(1).every((d) => d.by === 'agent')).toBe(true);
 
     const bad = fakeProvider(async () => 'error');
-    const r2 = await runAgentGame(OPTS, { config: {}, provider: bad, maxWaves: 2 });
+    const r2 = await runAgentGame(OPTS, { config: { contextMode: 'full' }, provider: bad, maxWaves: 2 });
     expect(r2.errors.length).toBe(3);
     expect(r2.disabledReason).toMatch(/consecutive/);
     expect(r2.result.cleared).toBe(2);

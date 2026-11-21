@@ -127,6 +127,8 @@
 
 ## 5. 观测格式
 
+> **已更新**：模型实际收到的是 §17.4 的紧凑观测 v2（短键 + 进攻路线 + 增量）。下面的旧格式仍用于 `get_state` / MCP `observe` / `observe {detail:'full'}`。
+
 每个决策点发给模型：开局信息（模式 / 地图 / 种子 / 技能 / 解锁的塔）+ 决策原因 + 观测。观测 = 一行紧凑 JSON + ASCII 地图：
 
 ```text
@@ -163,6 +165,8 @@ MAP
 ---
 
 ## 6. 工具
+
+> **已更新**：发给模型的是 §17.3 的 5～6 个精简工具（`act` 批量动作 + `observe` / `preview` / `get_catalog` / `get_tower` / `suggest`）。下面的细粒度工具保留在 `LEGACY_TOOLS`：MCP 照常开放、军师建议按它们解析、模型若调用旧名字执行器照常执行。
 
 全部工具定义在 `src/agent/tools.ts`，**strict JSON Schema**（每个 object 都 `additionalProperties: false` + `required`；可选字段不列入 required），Claude 用 `strict: true`，pi 转 TypeBox（字符串枚举用 `StringEnum`，兼容 Google）。坐标统一是**格**：`x` 列 0..11、`y` 行 0..13；圆形技能以格中心为圆心（执行器自动 +0.5）。
 
@@ -213,6 +217,8 @@ MAP
 ---
 
 ## 7. 提示词与缓存
+
+> **已更新**：`system[1]` 由完整资料表（≈4.4k）改为速查表（≈0.6k），完整资料改由 `get_catalog` 按需取；跨决策记忆改为结构化备忘（§17.6）。见 §17。
 
 - **每个决策是一段新对话**：`system`（固定）+ 一条 user 消息（开局信息 + 原因 + 观测）；决策内多轮工具调用正常累积，决策结束即丢弃。上下文长度恒定，不需要压缩；跨决策记忆只靠 `note`。
 - **缓存布局**（前缀匹配）：`tools`（固定顺序）→ `system[0]` 规则 + 角色说明 → `system[1]` 资料表（`cache_control: ephemeral`）→ messages。规则与资料表不含任何随局变化的东西（种子、时间、金币都在 user 消息里），同模型同角色的所有局共享缓存；再加顶层自动缓存，覆盖同一决策内的多轮请求。验证：报告里的 `cacheReadTokens` 应该在第二个决策起就 > 0。
@@ -296,13 +302,13 @@ interface LLMProvider { id: string; model: string; decide(ctx: DecisionContext):
 
 | 控制 | 默认 | 行为 |
 |---|---|---|
-| 整局 token 预算 `budget.tokens` | CLI 2,000,000 | 计入输入 + 输出 + 缓存读写；用尽后余下决策全部由内置机器人接管（`disabledReason`） |
+| 整局 token 预算 `budget.tokens` | CLI 2,000,000 / 网页 1,000,000 | **折算**：新输入 + 输出 + 缓存写×1.25 + 缓存读×0.1（§17.1）；`budget.mode` 默认 soft = 分级收紧后继续，hard = 用尽交给内置机器人（§17.8） |
 | 整局费用预算 `budget.usd` | 无 | 同上（按价格表估算） |
 | 每次决策工具调用上限 | 12 | 超出的调用返回 `ERROR tool-call limit…`，本回合结束 |
 | 单次决策超时 | 90 s | 中止请求，本回合由兜底机器人决定 |
 | 连续失败熔断 | 3 次 | 停用模型（例如没有凭据、模型不存在），余下全部兜底 |
-| effort | medium | low 更便宜更快；评测建议 low / medium / high 各跑一次 |
-| 单次回复 max_tokens | 16000（Claude）/ 4096 | 不超过剩余预算 |
+| 思考等级 `thinking` | Claude 中 / 中转 低 / 本机 无思考 | 见 §17.9 映射表（旧 `effort` 是别名） |
+| 单次回复 max_tokens | 按上下文模式：省流 4096 / 均衡 8192 / 完整 16000 | 预算分级时更低（§17.8） |
 
 **兜底机器人**：CLI 用 `scripts/bots` 的 StrategyBot（默认 `medium`，`--fallback expert` 可换）；浏览器默认用脚本策略。决策后还有"推进保证"：增益没选 → 选第一张不需要目标的；补给没选 → 选第一项；手动模式没开波 → 自动开波。这些都记在决策记录的 `fallbackReason` 里。
 
@@ -533,10 +539,12 @@ npm run agent:play -- --provider baseline --fallback expert --seeds 5 --seed are
 ## 15. CLI
 
 ```bash
-npm run agent:play -- --mode endless --map ch1 --difficulty normal --model claude-opus-5-5 --effort medium \
-  --seed X --max-waves 30 --budget-tokens 2000000 --decision pause --provider claude --out scripts/out/agent/run1
+npm run agent:play -- --mode endless --map ch1 --difficulty normal --model claude-opus-5-5 --thinking medium \
+  --context balanced --seed X --max-waves 30 --budget-tokens 2000000 --decision pause --provider claude --out scripts/out/agent/run1
 ```
-参数见 `scripts/agent-play.ts` 头部注释（`--provider claude|pi|scripted|baseline`、`--preset`、`--api`、`--base-url`、`--tool-mode`、`--context`、`--wave-interval`、`--latency`、`--role`、`--fallback`、`--compare`、`--seeds`、`--budget-usd`、`--max-tool-calls`、`--timeout-ms`、`--quiet`）。
+参数见 `scripts/agent-play.ts` 头部注释（`--provider claude|pi|scripted|baseline`、`--preset`、`--api`、`--base-url`、`--api-key-env`、`--tool-mode`、`--thinking off|low|medium|high|xhigh|max`（`--effort` 为别名）、`--context saver|balanced|full`（省流 / 均衡 / 完整）、`--budget-mode soft|hard`、`--wave-interval`、`--latency`、`--role`、`--fallback`、`--compare`、`--seeds`、`--budget-usd`、`--max-tool-calls`、`--timeout-ms`、`--quiet`）。
+
+报告除原有字段外还有：用量分解（新输入 / 缓存读 / 缓存写 / 输出 / 折算预算）、每波原始与折算 token、请求数与"请求 / 决策"、叫模型 / 门控跳过 / 兜底的决策数、预算分级与压缩次数。离线 token 模型：`npm run agent:tokens`（§17.10）。
 
 输出目录：
 - `report.json`：配置（无 Key）、每局结果、每波进度（金币 / 生命 / 漏怪 / 累计 token 与费用 / 决策与兜底次数）、错误、评测汇总
@@ -558,14 +566,114 @@ npm run agent:play -- --mode endless --map ch1 --difficulty normal --model claud
 
 ---
 
-## 17. 开放问题
+- 上下文与成本（`context.test.ts`）：预算折算；`act` 的顺序执行与逐条结果 / 错误、全部成功自动结束；速查表 < 800 token、精简工具 ≤ 7 且 Schema 严格、MCP 仍有细粒度工具；前缀（system + tools，以及 Claude 请求的 tools / system / cache_control）跨决策、跨对局逐字节相同；门控的跳过 / 不跳过条件与本地开波；增量可逐键还原、地图只在变化时 / 每 N 次发送、RLE 往返；后期观测大小上限；pi 历史压缩与不回传推理、Claude 原样回传 thinking + 服务端 context editing；备忘合并与 300 token 上限；思考等级映射（Claude 各模型的 off、pi 各接口）；预算分级（soft 不交机器人、hard 交机器人、ask 暂停询问与追加、压缩事件）；进攻路线（三张图 × 随机布局 × 空降点的航点还原、与世界路线一致、preview 不改状态、覆盖数值合理）；离线 token 模型（优化后每波折算 < 优化前的 1/3、请求 / 决策 ≈1）；三种模式下脚本策略都能打满 10 波。
+
+---
+
+## 17. 上下文与成本优化
+
+**起因（实测）**：中转 deepseek-flash、5 波 5 个决策：20 次请求（≈4 次 / 决策），共 376k token = 缓存读 215k（57%）+ 新输入 102k（27%）+ 输出 60k（16%，大多是推理）。每次请求固定前缀 ≈7k（规则 1.1k + 资料表 4.4k + 19 个工具 1k+ + 观测 0.3～0.4k）。网页默认预算 1M 按原始总数计，第 12 波左右就耗尽；不少决策只是 `end_turn`。
+
+### 17.1 预算按真实成本折算
+`budgetTokens(u) = 新输入 + 输出 + 缓存写×1.25 + 缓存读×0.1`（权重 `BUDGET_WEIGHTS`，`src/agent/types.ts`）。`budget.tokens` 按折算值比较；原始总数仍保留（`usageTotal` / `usageRaw`）。面板、追踪合计、CLI 报告都显示分解：新输入 / 缓存读 / 缓存写 / 输出 / 折算预算。上面的实测换算：376k 原始 = 183.5k 折算。
+
+### 17.2 一次决策一次请求：`act`
+`act {actions:[…], end:{plan,maze,priorities,note}}`：按顺序执行，每条一行结果（`1 OK placed pencil #5 at 3,5 …` / `2 REJECTED …` / `3 ERROR …`），末尾一行金币 / 生命 / 阶段 / 路线长度。带 `end` 或"全部成功"即结束本回合；有失败且没写 `end` 时模型可以再发一次 `act` 纠正。提示词要求：读 STATE → 简短计划 → **一次** `act`（含 end）。纯文字回复（没调用工具）直接结束本回合，不再追问（只有因长度被截断时追问一次）。
+
+### 17.3 精简工具与速查表（固定前缀 ≈2.9k，原 ≈8.1k）
+| 工具 | 作用 |
+|---|---|
+| `act` | 批量动作（place / upgrade / branch / evolve / sell / target / cast_skill / tower_ability / collect / choose_perk / reroll_perks / choose_crate / demolish / start_wave / end_turn），`do` 是枚举 |
+| `observe` | 完整（非增量）观测 + 地图；`detail:'full'` 加每塔覆盖、价格、路线格、最近敌人 |
+| `preview` | 假设的放置 / 拆除（可多处）→ 合法性、每条路线的新航点与长度变化、覆盖得失、防空变化；不改世界 |
+| `get_catalog` | `section` 或 `id`（塔 / 敌人 / 技能 / 能力 / 增益 / 事件）——完整资料按需取 |
+| `get_tower` | 一座塔的详细信息 |
+| `suggest` | 仅军师；发出即结束本回合 |
+
+`system[1]` 换成速查表（≈590 token）：每种塔一行（地图字符、价格、定位、对地 / 对空、Lv1 伤害 / 间隔 / 射程、传奇分支名），每种敌人一行（两字母代号、血量、速度、护甲、飞行 / Boss、克制），技能一行，词缀一行。规则 ≈930 token，工具 ≈1.3k。MCP 同时开放 `act` / `preview` 与原来的细粒度工具。
+
+### 17.4 紧凑观测 v2 与增量
+短键：`t ph w g hp sc aw T W E Ef EB nx R Rs Rp Ra sk ev sp pu perk crate own b rc pe`（图例在规则里，只随前缀发一次）。塔一行 `#uid id x,y Llevel [A|B] [★n] [x xp%] [t=mode] [up|br 价] [ev 价] [ab R|cd]`（价格向上取整到 5，减少增量抖动）；敌人按代号聚合 `cr×5 62% 2/2/1 A`；建造价与速查表相同时只写 `"b":"base"`。
+- **增量**：每次决策的第一次完整，之后只发变化的键（`STATE Δ`）；塔按 uid 发 `T+`（新增 / 变化的行）与 `T-`（消失的 uid），消失的键在 `_unset`。`applyObsDelta(旧, 增量)` 逐键还原新观测（测试覆盖）。模型调用 `observe` 后以它为新基线；模型出错 / 兜底后下次重发完整。
+- **地图**：均衡 / 完整在地形版本（`grid.version`，含放塔）或路线变化时重发，均衡另外每 4 次决策重发一次；省流只在"地形（不含塔）或路线"变化时重发，行用游程编码（`3.` = `...`）。地图不画敌人（敌人在 `E`），路线画成字母 `a b c…`（首行图例 `routes a=north b=west`，重叠 `+`，将要落地的空降路线 `~`）。
+- 开局信息（模式 / 地图 / 种子 / 技能）只随完整观测发送（不在前缀里，前缀逐字节稳定）。
+
+### 17.5 进攻路线（`src/agent/routes.ts`）
+- **地面路线 `R`**：每个开放出生点（边缘 / 打开的暗门 / 落地的空降箱）沿流场到出口，只留拐点：`north:5,0>5,4>9,4>9,13 L24`（相邻航点之间是 8 方向直线，`expandWaypoints` 逐格还原，与 `world.currentPaths()` 一致）；预警中的空降箱给出"落地后会出现的路线"：`drop-3:… L12 warn 8s`。
+- **`Rs` 最长直线段**：`north 5,4>9,4 L5 b7`（b = 段旁可建空格数）；**`Rp` 好位置**：射程 2.5 内覆盖路线格最多的可建空格 `4,5:14`。
+- **`Ra` 飞行线**：出生格中心 → 横向最近的出口中心，沿线每 0.25 格采样统计防空覆盖：`north 5.5,0.5>5.5,13.5 L13 aa38% #3,#7`。
+- **`nx` 按出生点分组**的下一波：`w7 [air] | north: plane×6 crumb×5 | west: …`。
+- **覆盖**：`observe {detail:'full'}` 附 `COVERAGE #3 pencil g14 a3.5`（射程内路线格数 / 飞行线长度）。
+- **`preview`**：多处假设放置 + 拆除 → `VALID/INVALID`、逐步结论（第一处在没有拆除时用 `world.canPlace`，与真实放置完全一致；后续按同规则近似：越界 / 非空地 / 有地面敌人 / 堵路 / 困住敌人）、`route north L14→19 (+5) 航点`、`cover+ #3 g+2; new pencil@6,5 g+5 a+4.7`、`cover-`、`air north aa34→70%`。只读：流场用新缓冲区计算，`stateHash` 不变（测试覆盖）。
+
+### 17.6 跨决策记忆（结构化备忘）
+`act {end:{plan, maze, priorities, note}}` 合并更新（未给的字段保留），总量 ≤ 300 token（按字段顺序分配余量），每次决策消息里以 `MEMO plan: … | maze: …` 出现。取代"每次先 get_state"的习惯。
+
+### 17.7 决策内历史
+- 每次决策仍是新对话（不跨决策累积）。决策内对话超过模式阈值（省流 6k / 均衡 16k / 完整 40k 字符）时：
+  - **pi**（completions / responses / google）：最近一轮之前的工具结果压成一行 `[…] 首行 (older result summarized)`；
+  - **Anthropic Messages**（Claude 官方适配器 / pi 的 anthropic）：**不改写历史**——保留思考的历史校验要求 system / tools / 先前消息逐字节不变，改写会让后续 thinking 块失效（新账号直接 400）。Claude 官方适配器改用服务端 context editing（`clear_tool_uses_20250919`，beta `context-management-2025-06-27`，按输入 token 触发、保留最近 2 次工具调用），它不算改写。
+- **推理内容回传**：thinking / reasoning 块在同一决策内原样回传给 Anthropic（必须，签名绑定）、OpenAI Responses（推理条目与 function_call 绑定）、Google（thoughtSignature）、DeepSeek 思考模式（工具调用轮次需要回传 reasoning_content）；其余 OpenAI 兼容（Qwen / 本机 / 通用中转）去掉思考块不回传（只是白花输入 token）。跨决策从不带。
+
+### 17.8 预算分级（`budget.mode`：soft 默认 / hard / ask）
+| 折算用量 | 行为 |
+|---|---|
+| ≥ 70% | 切换到省流（增量 + 激进门控 + 地图只在变化时 + 输出上限 ≤4096 + 历史阈值 6k） |
+| ≥ 90% | 思考降到"低"（玩家原本选"无思考"则保持关闭；实测 deepseek-flash 无思考时打法明显变弱，见 §17.9）、输出上限 6144，波次中的定期检查一律跳过（只在建造阶段 / 事件 / 增益 / Boss / 漏怪时决策） |
+| ≥ 100% | soft：最省模式继续（低思考、输出 4096、工具调用 ≤4），面板显示"已超出预算，已切换到最省模式继续"，**不交给机器人**；hard：余下交给内置机器人；ask：暂停游戏并询问（继续（最省模式）/ 追加预算（+500k）/ 交给机器人） |
+
+每次分级上升都会**压缩上下文**：把备忘与最近几次决策的结果压成 ≤300 token 的备忘、清掉增量基线（下次发完整观测），追踪里记一条"上下文已压缩（第 N 次）：≈before → after token"。超时 / 出错 / 连续失败的兜底行为不变。网页默认预算 1,000,000 折算 token、soft；预算条带 70 / 90 刻度与模式标签（均衡 → 省流 → 省流·无思考 → 最省）；设置页"超出预算时：压缩后继续（默认）/ 交给机器人 / 暂停并询问"。控制器 API：`ctl.budget()`、`ctl.budgetPending`、`ctl.resolveBudget('continue'|'extend'|'bot')`，事件 `budget` / `budget_ask`。
+
+### 17.9 上下文模式与思考等级
+| 模式 | 观测 | 地图 | 门控 | 波中间隔 | 历史压缩 | 输出上限 | 工具调用上限 | 估算（折算 / 波，思考低） |
+|---|---|---|---|---|---|---|---|---|
+| 省流 `saver`（本机默认） | 增量 | 地形 / 路线变化，RLE | 激进 | 30 s | 6k 字符 | 4096 | 6 | ≈5.0k |
+| 均衡 `balanced`（云端默认） | 增量 | 地形变化 + 每 4 次 | 普通 | 15 s | 16k | 8192 | 8 | ≈5.5k |
+| 完整 `full` | 每次完整 | 每次 | 关 | 10 s | 40k | 16000 | 12 | ≈11k |
+
+门控（`src/agent/gating.ts`）：永不跳过开局、增益、补给、事件 / 空降预警、Boss、漏怪、有危险时有就绪技能 / 能力、钱够拆空降箱；普通 = 金币够不上最便宜的有用动作（攻击塔 / 升级 / 分支 / 进化）才跳过；激进 = 另外波次中的定期检查还要求"上次叫模型后新到手的钱 ≥ 最便宜动作"且"手里的钱 ≥ 2×最便宜动作"。跳过的决策点在追踪里记为"跳过（无可行动作）"，手动开波模式下本地自动开波，期间的事件并入下一次决策的 `rc`。
+
+**思考等级**（`config.thinking`：off / low / medium / high，Claude 另有 xhigh / max；`--thinking`，`--effort` 为别名；映射在 `src/agent/thinking.ts`，追踪面板每次请求显示实际生效的设置）：
+
+| 服务 / 接口 | 无思考 off | 低 / 中 / 高（很高 / 最高） |
+|---|---|---|
+| Claude Opus 5.5（官方 SDK） | 不能关闭 → adaptive + effort low，提示"Opus 5.5 不支持关闭思考，已用最低强度" | adaptive（summarized）+ effort |
+| Claude Sonnet 5.5 | `{type:'between_tools'}`（不带其他字段）+ effort low | 同上 |
+| Claude Haiku 5.5 | `{type:'disabled'}` + effort low | 同上 |
+| Claude Fable 5.2 | 不能关闭 → adaptive + effort low，同样提示 | 同上 |
+| pi · openai-completions（DeepSeek / Qwen 格式） | 不传 reasoning → pi 发 `{thinking:{type:'disabled'}}` / `enable_thinking:false` | thinking enabled + reasoning_effort / enable_thinking |
+| pi · openai-completions（其他） | 不发 reasoning_effort | reasoning_effort = 等级 |
+| pi · openai-responses | 不发 reasoning（非推理模型永远不发） | reasoning.effort |
+| pi · anthropic-messages | Claude 5.x：不发 thinking（服务端默认自适应；pi 只认得 4.6 / 4.7 的自适应，对 5.x 会发 budget_tokens → 400），Haiku 5.5 发 disabled；旧模型 disabled | Claude 5.x 同左（提示用官方适配器精细控制）；旧模型按 pi 语义 |
+| pi · google | thinkingBudget 0 / 最低 thinkingLevel | thinking 等级 |
+
+缺省：中转 低、本机 无思考、其他 中。预算 ≥90% 时降为 low（原本是 off 则保持 off）。
+
+### 17.10 前缀稳定（缓存）
+顺序固定：tools（`SLIM_TOOLS` 固定顺序）→ `system[0]` 规则 + 角色 → `system[1]` 速查表（Claude：`cache_control` 断点 1）→ messages（Claude：顶层自动缓存 = 断点 2，覆盖同一决策内的多轮）。前缀里没有时间 / 种子 / 随局内容（开局信息在 user 消息里）。测试断言：同一局所有决策、以及不同种子的两局之间，`system + tools` 逐字节相同；Claude 假客户端收到的每次请求 `tools / system / tool_choice / cache_control` 相同。注意：Claude 各模型的最小可缓存前缀不同（新模型 512，Opus 4.6 / Haiku 4.5 为 4096）；新前缀 ≈2.9k，在最新模型上可缓存。
+
+### 17.11 离线 token 模型（优化前 / 后）
+`npm run agent:tokens -- --waves 15`：用真实的提示词构造器回放一局脚本对局（种子 tok-1、ch1、普通），按实测锚点估算（每次请求输出 ≈3k，思考"低"；服务端自动前缀缓存；旧做法固定 4 次请求 / 决策、第 2 次带一次 get_state）。旧做法的单次请求估算 ≈16.5k，与实测 ≈18.8k 接近。15 波结果：
+
+| 模式（思考低） | 决策点 | 叫模型 | 请求 / 决策 | 前缀 | 消息均值 | 原始 / 波 | **折算 / 波** |
+|---|---|---|---|---|---|---|---|
+| 优化前 | 45 | 45 | 4 | 8124 | 441 | 196.4k | **54.8k** |
+| 完整 | 45 | 45 | 1 | 2881 | 370 | 18.8k | **11.1k** |
+| 均衡 | 34 | 22（跳过 12） | 1 | 2881 | 239 | 9.0k | **5.3k** |
+| 省流 | 21 | 21 | 1 | 2881 | 186 | 8.5k | **5.0k** |
+
+无思考时：优化前 18.2k → 完整 3.2k / 均衡 1.5k / 省流 1.3k 折算 / 波。按均衡估算，1M 折算预算从 ≈18 波延长到 ≈180 波（思考低）。说明：脚本策略从不出错，所以"请求 / 决策"是理想值 1；真实模型偶尔需要第二次 `act` 纠正，预计 1.1～1.5。决策点更少对"每次只看眼前"的脚本策略有影响（30 波时均衡在 21 波、省流在 25 波失守，完整在 28 波），真实模型靠备忘里的计划弥补；这是省钱与稳健的取舍，可选"完整"。
+
+---
+
+## 18. 开放问题
 
 1. **AI 榜服务端**：表结构、是否需要服务端回放校验（Agent 回放更长、指令更多），按 model 还是 provider 分榜。
 2. **进攻方钩子** `overrideWave` 需要批准后再改 core；价格表需要平衡。
-3. **跨决策记忆**：只有 `note` 是否足够？可选"上一决策摘要"或保留最近 N 个决策的精简历史（会增加 token）。
+3. **跨决策记忆**：已改为结构化备忘（§17.6）；是否还需要"最近 N 个决策的精简结果"待真实模型评测后决定（预算分级压缩时已会带上）。
 4. **实时模式的公平性**：固定延迟 vs 实测延迟；AI 榜是否只收暂停模式（建议：AI 榜按模式分榜）。
 5. **硬币自动拾取**是否应算作"辅助"并在榜上标注。
 6. **兜底机器人的贡献**：兜底比例高的局是否计入 AI 榜（建议：兜底决策 > 20% 不上榜或标注）。
 7. **pi 的浏览器打包体积**与 Node 专用依赖处理（UI 工作验证）。
-8. **观测里是否加入飞行路线**（目前只给地面路线；飞行敌人直线飞往出口）。
+8. ~~观测里是否加入飞行路线~~：已加入（§17.5 `Ra`）。棋盘高亮目前只高亮单个格子，路线航点的高亮留给 UI 以后做。
 9. 本地小模型的默认 `toolMode`：先 native 再按 `testConnection` 结果自动降级到 json？

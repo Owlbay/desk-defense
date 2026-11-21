@@ -2,7 +2,7 @@
  * 「AI 参战」设置的保存：只存不含密钥的部分（saveableConfig 的结果 + 界面选项）。
  * API Key 另行处理：默认只在内存；可选 sessionStorage（关标签页即清除）或 localStorage（不推荐，玩家显式选择）。
  */
-import type { AgentModelConfig, PiApi, Preset } from '../../agent/config';
+import type { AgentModelConfig, ContextMode, PiApi, Preset, ThinkingLevel } from '../../agent/config';
 import type { RelayApi } from '../../agent/relay';
 import type { DifficultyId, MapId } from '../../core/types';
 import { safeStorage } from '../../meta/storage';
@@ -34,10 +34,18 @@ export interface AiSetupSaved {
   /** 每个来源各自记住的模型 / 地址 */
   per: Partial<Record<AiSource, PerSource>>;
   toolMode: 'native' | 'json';
-  context: 'full' | 'compact';
-  effort: NonNullable<AgentModelConfig['effort']>;
+  /** 上下文模式；auto = 本机模型 省流、其他 均衡 */
+  contextMode: ContextMode | 'auto';
+  /** 思考等级；auto = 中转 低、本机 无思考、其他 中 */
+  thinking: ThinkingLevel | 'auto';
+  /** 超出预算时：soft 压缩后继续（默认）/ hard 交给机器人 / ask 暂停并询问 */
+  budgetMode: 'soft' | 'hard' | 'ask';
+  /** 旧版本保存的字段（读取时迁移） */
+  context?: 'full' | 'compact';
+  effort?: NonNullable<AgentModelConfig['effort']>;
   decisionMode: 'pause' | 'realtime';
-  waveIntervalSec: number;
+  /** 波次中决策间隔（秒）；null = 按上下文模式（省流 30 / 均衡 15 / 完整 10） */
+  waveIntervalSec: number | null;
   budgetTokens: number | null;
   budgetUsd: number | null;
   keyMode: KeyMode;
@@ -55,10 +63,11 @@ export function defaultSetup(): AiSetupSaved {
     run: { mode: 'endless', map: 'ch1', difficulty: 'normal', abyss: 1, pure: true, autoWave: true },
     per: {},
     toolMode: 'native',
-    context: 'full',
-    effort: 'medium',
+    contextMode: 'auto',
+    thinking: 'auto',
+    budgetMode: 'soft',
     decisionMode: 'pause',
-    waveIntervalSec: 10,
+    waveIntervalSec: null,
     budgetTokens: 1_000_000,
     budgetUsd: null,
     keyMode: 'memory',
@@ -73,7 +82,15 @@ export function loadSetup(): AiSetupSaved {
     if (!raw) return d;
     const v = JSON.parse(raw) as Partial<AiSetupSaved> | null;
     if (!v || typeof v !== 'object' || v.v !== 1) return d;
-    return { ...d, ...v, run: { ...d.run, ...(v.run ?? {}) }, per: { ...(v.per ?? {}) } };
+    const out: AiSetupSaved = { ...d, ...v, run: { ...d.run, ...(v.run ?? {}) }, per: { ...(v.per ?? {}) } };
+    // 迁移旧字段：context compact → 省流；effort → 思考等级（旧版没有"自动"，只迁移非默认值）
+    if (v.contextMode === undefined && v.context === 'compact') out.contextMode = 'saver';
+    if (v.thinking === undefined && v.effort && v.effort !== 'medium') out.thinking = v.effort;
+    // 旧版默认 10 秒：迁移为"按模式"
+    if (v.contextMode === undefined && v.waveIntervalSec === 10) out.waveIntervalSec = null;
+    delete out.context;
+    delete out.effort;
+    return out;
   } catch {
     return d;
   }

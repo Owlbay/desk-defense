@@ -14,7 +14,7 @@ import { renderObservation } from './observation';
 import { runHeader, systemBlocks } from './prompts';
 import { aiBoardKey } from './runner';
 import { AgentScheduler } from './scheduler';
-import { AGENT_TOOLS, executeTool, validateAgainst, type JsonSchema, type ObjectSchema } from './tools';
+import { LEGACY_TOOLS, SLIM_TOOLS, executeTool, validateAgainst, type JsonSchema, type ObjectSchema } from './tools';
 import type { AgentReplay, DecisionPoint } from './types';
 
 export interface McpToolSpec {
@@ -87,8 +87,14 @@ const META_TOOLS: McpToolSpec[] = [
   },
 ];
 
-/** 游戏动作 / 读取工具（加 session_id）。end_turn 由 advance 代替，suggest 不开放 */
-const GAME_TOOLS: McpToolSpec[] = AGENT_TOOLS.filter((t) => t.roles.includes('player') && t.name !== 'end_turn').map((t) => ({
+/**
+ * 游戏动作 / 读取工具（加 session_id）：批量 act + preview（路线预览）+ 旧的细粒度工具（兼容）。
+ * end_turn 由 advance 代替（act 的 end 只更新备忘），suggest 不开放；MCP 的 observe 是会话工具（上面）。
+ */
+const GAME_TOOLS: McpToolSpec[] = [
+  ...SLIM_TOOLS.filter((t) => t.name === 'act' || t.name === 'preview'),
+  ...LEGACY_TOOLS.filter((t) => t.roles.includes('player') && t.name !== 'end_turn'),
+].map((t) => ({
   name: t.name,
   description: t.description,
   inputSchema: { ...t.input_schema, properties: { session_id: SID, ...t.input_schema.properties }, required: ['session_id', ...t.input_schema.required] },
@@ -170,7 +176,7 @@ export class McpGameServer {
     this.sessions.set(id, g);
     const rules = (a.include_rules ?? !this.rulesSent) ? `${systemBlocks('player').join('\n\n')}\n\n` : '';
     this.rulesSent = true;
-    return text(`${rules}session_id: ${id}\n${runHeader(opts, world)}\nPlay with the action tools (pass session_id), then call advance.\n${this.obs(g)}`);
+    return text(`${rules}session_id: ${id}\n${runHeader(opts, world)}\nPlay with act (batch of actions, pass session_id) or the single-action tools, then call advance (act's end does not advance time).\n${this.obs(g)}`);
   }
 
   private advance(g: GameSession, seconds?: number): McpCallResult {

@@ -7,7 +7,7 @@ import type { AgentMeta } from '../../shared/leaderboard';
 import { isEligibleRun } from '../online/util';
 
 /** 兜底机器人做的决策占比 */
-export function botShareOf(decisions: readonly { by: 'agent' | 'fallback' }[]): number {
+export function botShareOf(decisions: readonly { by: 'agent' | 'fallback' | 'local' }[]): number {
   if (!decisions.length) return 0;
   return decisions.filter((d) => d.by === 'fallback').length / decisions.length;
 }

@@ -3,7 +3,7 @@
  * 解析很宽松（位置参数 / key=value / JSON 都认），但最终都要过 Agent 工具的同一份 Schema 校验，
  * 执行仍走玩家的 session.command —— 与手动点击完全同一套规则。
  */
-import { AGENT_TOOLS, toCommand, validateToolInput, type ToolCallRecord } from '../../agent';
+import { ACT_TO_LEGACY, AGENT_TOOLS, toCommand, validateToolInput, type ToolCallRecord } from '../../agent';
 import type { Command, CommandResult, IWorld } from '../../core/types';
 import { SKILL_META, TOWER_META } from '../coreMeta';
 
@@ -71,7 +71,8 @@ export function parseAction(raw: string): ParsedAction | null {
   let s = raw.trim().replace(/^[-*•\d.)\s`]+(?=[a-z_]+)/i, '').replace(/[`;\s]+$/g, '').trim();
   const m = /^([a-z_]+)\s*(.*)$/is.exec(s);
   if (!m) return null;
-  const name = m[1].toLowerCase();
+  // act 的短名字（place / upgrade / branch …）也认
+  const name = ACT_TO_LEGACY[m[1].toLowerCase()] ?? m[1].toLowerCase();
   if (!TOOL_NAMES.has(name)) return null;
   s = m[2].trim().replace(/^[:(]\s*/, '').replace(/\)\s*;?$/, '').trim();
   let input: Record<string, unknown> = {};

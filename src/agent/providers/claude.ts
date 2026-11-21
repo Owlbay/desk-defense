@@ -3,9 +3,14 @@
  *
  * 按 claude-api 技能的约定：
  *  - 默认模型 claude-opus-5-5；可选 claude-sonnet-5-5 / claude-haiku-5-5 / claude-fable-5-2；
- *  - 自适应思考 thinking: {type:'adaptive'} + output_config.effort（不用 budget_tokens；Opus 5.5 不能关思考）；
+ *  - 思考等级 → thinking / output_config.effort（../thinking.ts claudeThinkingPlan：Opus 5.5 / Fable 不能关思考 → 最低强度；
+ *    Sonnet 5.5 关思考用 {type:'between_tools'}；Haiku 5.5 用 {type:'disabled'}；不用 budget_tokens）；
+ *  - 决策内历史：助手消息（含 thinking 块）原样放回——保留思考的历史校验要求逐字节不变，所以这里不自己改写旧的工具结果，
+ *    而是用服务端 context editing（clear_tool_uses_20250919，beta context-management-2025-06-27）在超过阈值时清理，
+ *    它不算改写历史；
  *  - tool_choice 用 auto（Opus 5.5 / Sonnet 5.5 / Fable 5.2 上强制 any/tool 会 400），工具全部 strict: true，由提示要求以 end_turn 收尾；
- *  - 提示缓存：tools → system[规则] → system[资料表 + cache_control]，再加顶层自动缓存覆盖本次决策内的多轮；
+ *  - 提示缓存：tools（固定顺序）→ system[规则] → system[速查表 + cache_control 断点 1]，顶层自动缓存（断点 2）覆盖本次决策内的多轮；
+ *    前缀里没有任何随局 / 随决策变化的内容（开局信息在 user 消息里），所以跨决策、跨对局都能命中；
  *  - 拒答：检查 stop_reason === 'refusal'；opus-5-5 / sonnet-5-5 / fable-5-2 默认开服务端回退 fallbacks: 'default'
  *    （beta server-side-fallback-2026-07-01）；haiku-5-5 没有服务端回退，拒答时本回合交给内置机器人；
  *  - 助手消息原样（含 thinking 块）放回对话；
@@ -15,7 +20,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { emptyUsage, type TokenUsage } from '../types';
 import { LIMIT_TEXT, type DecisionContext, type DecisionOutcome, type LLMProvider } from './types';
-import type { Effort } from '../config';
+import type { Effort, ThinkingLevel } from '../config';
+import { claudeThinkingPlan } from '../thinking';
 import { blobRef, hashText, hostOf } from '../trace';
 
 /** 美元 / 百万 token（估算；以 Anthropic 账单为准）。cacheWrite 按 5 分钟缓存 = 1.25× 输入 */
@@ -36,7 +42,9 @@ const FALLBACK_MODELS = new Set(['claude-opus-5-5', 'claude-sonnet-5-5', 'claude
 
 export interface ClaudeProviderOptions {
   model?: string;
+  /** 旧字段（= thinking 的非 off 取值） */
   effort?: Effort;
+  thinking?: ThinkingLevel;
   /** 浏览器 BYO key；Node 下留空让 SDK 自己解析凭据 */
   apiKey?: string;
   browser?: boolean;
@@ -50,13 +58,13 @@ export class ClaudeProvider implements LLMProvider {
   readonly id = 'claude-native';
   readonly model: string;
   private readonly client: Anthropic;
-  private readonly effort: Effort;
+  private readonly thinking: ThinkingLevel;
   private readonly maxOut: number;
   private readonly fallback: boolean;
 
   constructor(o: ClaudeProviderOptions = {}) {
     this.model = o.model ?? 'claude-opus-5-5';
-    this.effort = o.effort ?? 'medium';
+    this.thinking = o.thinking ?? o.effort ?? 'medium';
     this.maxOut = o.maxOutputTokens ?? 16000;
     this.fallback = (o.refusalFallback ?? true) && FALLBACK_MODELS.has(this.model);
     this.client = o.client ?? (o.apiKey
@@ -86,32 +94,48 @@ export class ClaudeProvider implements LLMProvider {
     const sysRef = tr ? blobRef(hashText(JSON.stringify(system, null, 2))) : '';
     const toolsRef = tr ? blobRef(hashText(JSON.stringify(tools, null, 2))) : '';
     let n = 0;
+    // 思考等级（预算分级可覆盖为 off）；同一决策内不变（between_tools 不允许中途改 effort）
+    const plan = claudeThinkingPlan(this.model, ctx.thinking ?? this.thinking);
     try {
       for (let req = 0; req < maxRequests; req++) {
         const t0 = Date.now();
         n++;
         const params: Anthropic.Beta.MessageCreateParamsNonStreaming = {
           model: this.model,
-          max_tokens: Math.max(1024, Math.min(this.maxOut, ctx.remainingTokens)),
-          // 当前模型默认 display: "omitted"（思考文本为空）；面板要看思路摘要，显式要 summarized
-          thinking: { type: 'adaptive', display: 'summarized' },
-          output_config: { effort: this.effort },
+          max_tokens: Math.max(1024, Math.min(ctx.maxOutputTokens ?? this.maxOut, ctx.remainingTokens)),
+          output_config: { effort: plan.effort },
           cache_control: { type: 'ephemeral' },
           tool_choice: { type: 'auto' },
           system,
           tools,
           messages,
         };
+        // 当前模型默认 display: "omitted"（思考文本为空）；面板要看思路摘要，开启时显式要 summarized
+        if (plan.thinking) params.thinking = plan.thinking;
+        const betas: string[] = [];
         if (this.fallback) {
-          params.betas = ['server-side-fallback-2026-07-01'];
+          betas.push('server-side-fallback-2026-07-01');
           params.fallbacks = 'default';
         }
+        if (ctx.historyCompactChars) {
+          // 服务端清理较早的工具结果（不算改写历史，保留思考块有效）；阈值按 ~3.5 字符/token 换算
+          betas.push('context-management-2025-06-27');
+          params.context_management = {
+            edits: [{
+              type: 'clear_tool_uses_20250919',
+              trigger: { type: 'input_tokens', value: Math.max(4000, Math.round(ctx.historyCompactChars / 3.5) + 3000) },
+              keep: { type: 'tool_uses', value: 2 },
+            }],
+          };
+        }
+        if (betas.length) params.betas = betas;
         if (tr) {
           tr({
-            k: 'request', n, provider: this.id, api: 'anthropic-messages', model: this.model, host, effort: this.effort,
+            k: 'request', n, provider: this.id, api: 'anthropic-messages', model: this.model, host, effort: plan.effort,
+            thinking: plan.effective, ...(plan.note ? { thinkingNote: plan.note } : {}),
             params: {
-              max_tokens: params.max_tokens, thinking: params.thinking, output_config: params.output_config, tool_choice: params.tool_choice,
-              cache_control: params.cache_control, betas: params.betas, fallbacks: params.fallbacks, stream: this.canStream(),
+              max_tokens: params.max_tokens, thinking: params.thinking ?? null, output_config: params.output_config, tool_choice: params.tool_choice,
+              cache_control: params.cache_control, betas: params.betas, fallbacks: params.fallbacks, context_management: params.context_management, stream: this.canStream(),
             },
             system: JSON.stringify(system, null, 2),
             toolDefs: tools,

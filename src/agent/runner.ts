@@ -14,7 +14,7 @@ import { AgentScheduler } from './scheduler';
 import { scriptedFallback } from './providers/scripted';
 import type { LLMProvider } from './providers/types';
 import {
-  usageTotal,
+  budgetTokens, usageTotal,
   type AgentReplay, type AgentRunResult, type AgentWaveRow, type DecisionRecord, type FallbackPolicy, type Suggestion, type TokenUsage,
 } from './types';
 
@@ -36,6 +36,10 @@ export interface AgentRunConfig {
   onSuggest?: (s: Suggestion) => void;
   /** 思路与请求的缓冲区（可选） */
   trace?: import('./trace').AgentTrace;
+  /** 预算分级变化 */
+  onBudget?: (b: import('./engine').BudgetState) => void;
+  /** budget.mode = 'ask' 时的回答（缺省 continue） */
+  onBudgetExceeded?: (b: import('./engine').BudgetState) => Promise<import('./engine').BudgetChoice>;
 }
 
 export interface AgentRunReport {
@@ -55,6 +59,8 @@ export interface AgentRunReport {
   agent: { provider: string; model: string; role: string };
   config: AgentModelConfig;
   disabledReason: string | null;
+  /** 结束时的预算分级（无预算时为 null） */
+  budget: import('./engine').BudgetState | null;
   wallMs: number;
 }
 
@@ -84,6 +90,8 @@ export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Pro
     onSuggest: agent.onSuggest,
     onUsage: agent.onUsage,
     trace: agent.trace,
+    onBudget: agent.onBudget,
+    onBudgetExceeded: agent.onBudgetExceeded,
   });
 
   const waves: AgentWaveRow[] = [];
@@ -98,7 +106,7 @@ export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Pro
       const row: AgentWaveRow = {
         wave: ev.wave, tick: s.tick, gold: Math.floor(s.gold), lives: s.lives, leaks,
         towers: [...s.towers.values()].filter((t) => t.id !== 'wall').length, score: s.score,
-        tokens: usageTotal(engine.usage), costUsd: engine.costUsd,
+        tokens: usageTotal(engine.usage), weighted: budgetTokens(engine.usage), requests: engine.usage.requests, costUsd: engine.costUsd,
         decisions: engine.decisions.length, fallbacks: engine.decisions.filter((d) => d.by === 'fallback').length,
       };
       waves.push(row);
@@ -142,6 +150,7 @@ export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Pro
     agent: replay.agent,
     config: saveableConfig(config),
     disabledReason: agent.provider ? engine.disabledReason : null,
+    budget: config.budget?.tokens || config.budget?.usd ? engine.budgetState() : null,
     wallMs: Date.now() - t0,
   };
 }

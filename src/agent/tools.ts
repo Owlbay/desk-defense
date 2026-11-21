@@ -13,7 +13,9 @@ import {
 } from '../core/types';
 import { SKILL_IDS } from '../config/skills';
 import { asciiMap, renderObservation } from './observation';
-import { catalogText, type CatalogSection } from './prompts';
+import { catalogEntry, catalogText, type CatalogSection } from './prompts';
+import { compactObservation, terrainMap, type CompactObs } from './compact';
+import { coverageLines, groundRoutes, fmtWp, previewChanges, previewText, routeSummary } from './routes';
 import type { AgentRole, CommandSink, ToolResult } from './types';
 
 // ───────────────────────── Schema ─────────────────────────
@@ -55,8 +57,11 @@ const BRANCH = str('legend branch at Lv9→10', ['A', 'B']);
 const P: AgentRole[] = ['player'];
 const ALL: AgentRole[] = ['player', 'advisor', 'attacker'];
 
-/** 全部工具。顺序固定（提示缓存要求工具列表逐字节稳定）。 */
-export const AGENT_TOOLS: AgentToolDef[] = [
+/**
+ * 旧的细粒度工具（19 个）。不再发给模型（太占前缀），但：MCP 仍开放（兼容旧客户端）、军师建议字符串按它们解析、
+ * 模型若仍调用旧名字，执行器照常执行。顺序固定。
+ */
+export const LEGACY_TOOLS: AgentToolDef[] = [
   // ── 读取 ──
   {
     name: 'get_state', kind: 'read', roles: ALL,
@@ -169,10 +174,92 @@ export const AGENT_TOOLS: AgentToolDef[] = [
   },
 ];
 
-export const TOOL_BY_NAME: Record<string, AgentToolDef> = Object.fromEntries(AGENT_TOOLS.map((t) => [t.name, t]));
+/** 兼容旧名字：AGENT_TOOLS = 细粒度旧工具 */
+export const AGENT_TOOLS = LEGACY_TOOLS;
 
+/** act 里的动作类型 → 旧工具名 */
+export const ACT_TO_LEGACY: Record<string, string> = {
+  place: 'place_tower', upgrade: 'upgrade_tower', branch: 'choose_branch', evolve: 'evolve_tower', sell: 'sell_tower',
+  target: 'set_target_mode', cast_skill: 'cast_skill', tower_ability: 'tower_ability', collect: 'collect_pickup',
+  choose_perk: 'choose_perk', reroll_perks: 'reroll_perks', choose_crate: 'choose_crate', demolish: 'demolish_spawner',
+  start_wave: 'start_wave',
+};
+export const ACT_KINDS = [...Object.keys(ACT_TO_LEGACY), 'end_turn'];
+
+/** 每种动作用到的字段（其余字段忽略） */
+const ACT_FIELDS: Record<string, string[]> = {
+  place: ['tower', 'x', 'y'], upgrade: ['uid'], branch: ['uid', 'branch'], evolve: ['uid'], sell: ['uid'],
+  target: ['uid', 'mode'], cast_skill: ['skill', 'x', 'y', 'uid', 'axis', 'index', 'spawner'],
+  tower_ability: ['uid', 'x', 'y', 'angle', 'axis', 'index', 'target_uid'], collect: ['uid'],
+  choose_perk: ['id', 'uid', 'branch'], reroll_perks: [], choose_crate: ['option'], demolish: ['id'], start_wave: [],
+};
+
+const MEMO: ObjectSchema = obj({
+  plan: str('overall plan (≤60 words)'), maze: str('maze intent'), priorities: str('next priorities'), note: str('anything else'),
+});
+
+const ACTION: ObjectSchema = obj({
+  do: str('action', ACT_KINDS),
+  tower: str('place: tower id', TOWER_IDS), x: X, y: Y, uid: UID,
+  branch: BRANCH, mode: str('target mode', TARGET_MODES), skill: str('cast_skill id', SKILL_IDS),
+  axis: str('row|col', ['row', 'col']), index: int('row/col index'), angle: num('radians'), target_uid: int('ability target uid'),
+  id: str('choose_perk id / demolish spawner id'), option: str('choose_crate option', ['gold', 'lives', 'cooldown', 'xp', 'caffeine', 'charge']),
+  spawner: str('seal_tape spawner id'), note: str('end_turn memo'),
+}, ['do']);
+
+/**
+ * 精简工具（发给模型的，≤ 6 个）：act（批量动作）、observe、preview、get_catalog、get_tower、suggest（军师）。
+ * 描述短、Schema 用枚举收紧；顺序固定（缓存前缀逐字节稳定）。
+ */
+export const SLIM_TOOLS: AgentToolDef[] = [
+  {
+    name: 'act', kind: 'action', roles: P,
+    description: 'Run game actions in order (each validated; per-action results). Put ALL actions of this decision in one call and include end to finish the turn. Fields per do: place tower,x,y | upgrade/evolve/sell uid | branch uid,branch | target uid,mode | cast_skill skill (+x,y / uid / axis,index / spawner) | tower_ability uid (+x,y/angle/axis,index/target_uid) | collect [uid] | choose_perk id [uid,branch] | reroll_perks | choose_crate option | demolish id | start_wave | end_turn [note].',
+    input_schema: obj({
+      actions: { type: 'array', items: ACTION, description: 'ordered actions (max 16)' },
+      end: { ...MEMO, description: 'finish the turn; fields update your MEMO' },
+    }, ['actions']),
+  },
+  {
+    name: 'observe', kind: 'read', roles: ALL,
+    description: 'Full current state (not a delta) + map. detail=full adds per-tower coverage, prices, path cells, nearest enemies. Rarely needed.',
+    input_schema: obj({ detail: str('compact (default) | full', ['compact', 'full']) }),
+  },
+  {
+    name: 'preview', kind: 'read', roles: ALL,
+    description: 'Simulate placements/removals without changing the game: validity, new route waypoints and length change per spawner, tower coverage gained/lost, anti-air change. No args = current routes.',
+    input_schema: obj({
+      place: { type: 'array', items: obj({ tower: str('tower id', TOWER_IDS), x: X, y: Y }, ['tower', 'x', 'y']), description: 'hypothetical placements, in order' },
+      remove: { type: 'array', items: int('tower uid to sell'), description: 'hypothetical sells' },
+    }),
+  },
+  {
+    name: 'get_catalog', kind: 'read', roles: ALL,
+    description: 'Static reference beyond the cheat sheet: a section, or one entry by id (tower / enemy / skill / ability / perk / event).',
+    input_schema: obj({ section: str('section', CATALOG_SECTIONS), id: str('entry id, e.g. lamp or boss_alarm') }),
+  },
+  {
+    name: 'get_tower', kind: 'read', roles: ALL,
+    description: 'One placed tower: stats, upgrade/branch/evolve costs and effects, sell value, ability.',
+    input_schema: obj({ uid: UID }, ['uid']),
+  },
+  {
+    name: 'suggest', kind: 'control', roles: ['advisor'],
+    description: 'Advisor: advise the human (Chinese, ≤120 chars) + up to 4 concrete actions like "place pencil 3,5". Ends your turn.',
+    input_schema: obj({ text: str('suggestion'), actions: { type: 'array', items: str('one action'), description: 'up to 4' }, note: str('memo for next time') }, ['text']),
+  },
+];
+
+export const TOOL_BY_NAME: Record<string, AgentToolDef> = Object.fromEntries([...LEGACY_TOOLS, ...SLIM_TOOLS].map((t) => [t.name, t]));
+
+/** 发给模型的工具（精简集） */
 export function toolsForRole(role: AgentRole): AgentToolDef[] {
-  return AGENT_TOOLS.filter((t) => t.roles.includes(role));
+  return SLIM_TOOLS.filter((t) => t.roles.includes(role));
+}
+
+/** 旧的细粒度工具（MCP / 旧客户端） */
+export function legacyToolsForRole(role: AgentRole): AgentToolDef[] {
+  return LEGACY_TOOLS.filter((t) => t.roles.includes(role));
 }
 
 // ───────────────────────── 校验 ─────────────────────────
@@ -324,6 +411,10 @@ export interface ToolContext {
   sink?: CommandSink;
   /** 军师建议回调 */
   onSuggest?: (text: string, actions: string[]) => void;
+  /** observe 被调用：模型拿到了一份完整观测（增量基线随之更新） */
+  onObserve?: (obs: CompactObs) => void;
+  /** 地图用游程编码 */
+  rleMap?: boolean;
 }
 
 const fmtCmd = (c: Command): string => JSON.stringify(c);
@@ -335,14 +426,14 @@ function describeOk(w: IWorld, name: string, cmd: Command, before: { gold: numbe
   switch (cmd.type) {
     case 'place': {
       const nu = [...st.towers.keys()].find((u) => !before.towers.has(u));
-      return `OK placed ${cmd.tower} #${nu ?? '?'} at ${cmd.cx},${cmd.cy} (-${spent}g, gold ${gold}). path lengths now ${w.currentPaths().map((p) => p.length).join('/')}`;
+      return `OK placed ${cmd.tower} #${nu ?? '?'} at ${cmd.cx},${cmd.cy} (-${spent}g, gold ${gold}) path ${w.currentPaths().map((p) => p.length).join('/')}`;
     }
     case 'upgrade': {
       const t = st.towers.get(cmd.uid);
       return `OK #${cmd.uid} ${t?.id} now L${t?.level}${t?.branch ? ` branch ${t.branch}` : ''} (-${spent}g, gold ${gold})`;
     }
     case 'evolve': return `OK #${cmd.uid} now ★${st.towers.get(cmd.uid)?.stars} (-${spent}g, gold ${gold})`;
-    case 'sell': return `OK sold #${cmd.uid} (+${-spent}g, gold ${gold}). path lengths now ${w.currentPaths().map((p) => p.length).join('/')}`;
+    case 'sell': return `OK sold #${cmd.uid} (+${-spent}g, gold ${gold}) path ${w.currentPaths().map((p) => p.length).join('/')}`;
     case 'startWave': return `OK wave ${st.wave} started${-spent > 0 ? ` (+${-spent}g early bonus)` : ''}`;
     case 'choosePerk': return `OK perk ${cmd.id} taken (gold ${gold}). phase ${st.phase}`;
     case 'rerollPerks': return `OK rerolled: ${st.perkChoices?.map((c) => `${c.id}(${c.rarity}${c.needsTower ? ', needs uid+branch' : ''}): ${c.desc}`).join(' | ')}`;
@@ -364,10 +455,35 @@ export function executeTool(ctx: ToolContext, name: string, rawInput: unknown): 
   const st = w.state;
 
   switch (name) {
+    case 'act':
+      return executeAct(ctx, input);
+    case 'observe': {
+      const full = input.detail === 'full';
+      if (full) {
+        return { ok: true, text: `${renderObservation(w, { detail: 'full' })}\nROUTES ${routeSummary(w).ground.join(' | ')}\nCOVERAGE ${coverageLines(w).join(' | ')}` };
+      }
+      const obs = compactObservation(w);
+      ctx.onObserve?.(obs);
+      return { ok: true, text: `${JSON.stringify(obs)}\nMAP\n${terrainMap(w, { rle: ctx.rleMap, routes: groundRoutes(w) }).join('\n')}` };
+    }
+    case 'preview': {
+      const place = (input.place as { tower: TowerId; x: number; y: number }[] | undefined) ?? [];
+      const remove = (input.remove as number[] | undefined) ?? [];
+      if (!place.length && !remove.length) {
+        const rs = groundRoutes(w);
+        return { ok: true, text: rs.map((r) => `${r.id}${r.status === 'warn' ? '(warn)' : ''} L${r.len}: ${fmtWp(r.wp)}`).join('\n') || 'no routes' };
+      }
+      return { ok: true, text: previewText(previewChanges(w, { place: place.slice(0, 8), remove: remove.slice(0, 8) })) };
+    }
     case 'get_state':
       return { ok: true, text: renderObservation(w, { detail: input.detail === 'full' ? 'full' : 'compact' }) };
-    case 'get_catalog':
+    case 'get_catalog': {
+      if (typeof input.id === 'string') {
+        const e = catalogEntry(input.id);
+        return e ? { ok: true, text: e } : { ok: false, text: `ERROR no catalog entry "${input.id}"` };
+      }
       return { ok: true, text: catalogText((input.section as CatalogSection | undefined) ?? 'all') };
+    }
     case 'get_tower': {
       const info = w.getTowerInfo(input.uid as number);
       if (!info) return { ok: false, text: `ERROR tower #${input.uid} does not exist` };
@@ -401,7 +517,8 @@ export function executeTool(ctx: ToolContext, name: string, rawInput: unknown): 
       const text = String(input.text).slice(0, 240);
       const actions = Array.isArray(input.actions) ? (input.actions as string[]).slice(0, 4).map((a) => String(a).slice(0, 80)) : [];
       ctx.onSuggest?.(text, actions);
-      return { ok: true, text: 'OK suggestion recorded' };
+      const note = typeof input.note === 'string' ? input.note : undefined;
+      return { ok: true, text: 'OK suggestion recorded; turn ended', endTurn: true, ...(note ? { note: note.slice(0, 600), memo: { note } } : {}) };
     }
   }
 
@@ -451,3 +568,73 @@ function hint(w: IWorld, cmd: Command): string {
 
 /** 地图（给 MCP / 调试） */
 export const mapText = (w: IWorld): string => asciiMap(w).join('\n');
+
+
+// ───────────────────────── act：批量动作 ─────────────────────────
+
+/** 一条 act 动作 → 旧工具名 + 输入（只取该动作用到的字段） */
+export function actToLegacy(a: Record<string, unknown>): { name: string; input: Record<string, unknown> } | { error: string } {
+  const kind = String(a.do);
+  const name = ACT_TO_LEGACY[kind];
+  if (!name) return { error: `unknown do "${kind}"` };
+  const input: Record<string, unknown> = {};
+  for (const f of ACT_FIELDS[kind] ?? []) if (a[f] !== undefined && a[f] !== null) input[f] = a[f];
+  if (kind === 'demolish' && input.id === undefined && typeof a.spawner === 'string') input.id = a.spawner;
+  return { name, input };
+}
+
+const MAX_ACT = 16;
+
+/** 去掉旧结果文字里的冗余前缀，保证一行 */
+const oneLine = (t: string): string => t.replace(/\s*\n\s*/g, ' ').slice(0, 220);
+
+function executeAct(ctx: ToolContext, input: In): ToolResult {
+  const list = Array.isArray(input.actions) ? (input.actions as Record<string, unknown>[]) : [];
+  const w = ctx.world;
+  const lines: string[] = [];
+  let failed = 0;
+  let endNote: string | undefined;
+  let ended = input.end !== undefined && input.end !== null;
+  const memo: NonNullable<ToolResult['memo']> = {};
+  if (ended && typeof input.end === 'object') {
+    for (const k of ['plan', 'maze', 'priorities', 'note'] as const) {
+      const v = (input.end as Record<string, unknown>)[k];
+      if (typeof v === 'string' && v.trim()) memo[k] = v.trim();
+    }
+  }
+  let last: ToolResult | undefined;
+  list.slice(0, MAX_ACT).forEach((a, i) => {
+    const n = i + 1;
+    if (a.do === 'end_turn') {
+      ended = true;
+      if (typeof a.note === 'string' && a.note.trim()) endNote = a.note.trim();
+      lines.push(`${n} OK end`);
+      return;
+    }
+    const m = actToLegacy(a);
+    if ('error' in m) { failed++; lines.push(`${n} ERROR ${m.error}`); return; }
+    const errs = validateToolInput(m.name, m.input);
+    if (errs.length) { failed++; lines.push(`${n} ERROR ${a.do}: ${errs.join('; ')}`); return; }
+    const r = executeTool(ctx, m.name, m.input);
+    last = r;
+    if (!r.ok) failed++;
+    lines.push(`${n} ${oneLine(r.text)}`);
+  });
+  if (list.length > MAX_ACT) lines.push(`(only the first ${MAX_ACT} actions were run)`);
+  if (endNote && !memo.note) memo.note = endNote;
+  const st = w.state;
+  lines.push(`→ gold ${Math.floor(st.gold)} lives ${st.lives} phase ${st.phase} path ${w.currentPaths().map((p) => p.length).join('/')}`);
+  // 全部成功又没写 end：也算本回合结束（省一次"只为说结束"的请求）；有失败则留给模型改正
+  const endTurn = ended || (failed === 0 && list.length > 0);
+  if (!ended && endTurn) lines.push('turn ended (all actions OK)');
+  else if (!endTurn) lines.push(failed ? 'fix the failed actions with another act (include end), or act {actions:[],end:{}}' : '');
+  const hasMemo = Object.keys(memo).length > 0;
+  return {
+    ok: failed === 0,
+    text: lines.filter(Boolean).join('\n'),
+    endTurn,
+    ...(hasMemo ? { memo, note: Object.values(memo).join(' | ').slice(0, 600) } : {}),
+    ...(last?.cmd && list.length === 1 ? { cmd: last.cmd } : {}),
+    ...(last?.queuedFor !== undefined && list.length === 1 ? { queuedFor: last.queuedFor } : {}),
+  };
+}

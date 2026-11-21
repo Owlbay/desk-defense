@@ -13,7 +13,7 @@
 import type { Command, GameEvent, IWorld } from '../core/types';
 import { makeMidRun } from '../meta/midrun';
 import { agentTag, resolveConfig, saveableConfig, validateConfig, type AgentModelConfig } from './config';
-import { DecisionEngine } from './engine';
+import { DecisionEngine, type BudgetChoice, type BudgetState } from './engine';
 import { createProvider } from './factory';
 import { DecisionDetector } from './scheduler';
 import { scriptedFallback } from './providers/scripted';
@@ -24,9 +24,21 @@ import { AgentTrace, type TraceExport } from './trace';
 
 export * from './types';
 export * from './config';
-export { AGENT_TOOLS, toolsForRole, executeTool, validateToolInput, validateAgainst, toCommand, type AgentToolDef, type ToolContext, type JsonSchema, type ObjectSchema } from './tools';
+export {
+  AGENT_TOOLS, LEGACY_TOOLS, SLIM_TOOLS, ACT_TO_LEGACY, toolsForRole, legacyToolsForRole, executeTool, validateToolInput, validateAgainst, toCommand, actToLegacy,
+  type AgentToolDef, type ToolContext, type JsonSchema, type ObjectSchema,
+} from './tools';
 export { observe, renderObservation, asciiMap, estimateTokens, MAP_LEGEND, type Observation } from './observation';
-export { systemBlocks, catalogText, decisionMessage } from './prompts';
+export { compactObservation, diffObs, applyObsDelta, terrainMap, rle, unrle, ENEMY_CODE, type CompactObs } from './compact';
+export {
+  groundRoutes, flightLines, coverage, coverageLines, routeSummary, previewChanges, previewText, compressWaypoints, expandWaypoints,
+  type Route, type FlightLine, type PreviewInput, type PreviewResult,
+} from './routes';
+export { ContextBuilder, Memo, MEMO_MAX_TOKENS } from './context';
+export { gateDecision, cheapestUsefulAction, inDanger, type GatingLevel } from './gating';
+export { claudeThinkingPlan, piThinkingPlan, keepThinkingInHistory, mayCompactHistory } from './thinking';
+export { systemBlocks, catalogText, catalogEntry, cheatSheet, decisionMessage } from './prompts';
+export { BUDGET_STAGE_AT, BUDGET_EXTEND, type BudgetStage, type BudgetState, type BudgetChoice } from './engine';
 export { AgentScheduler, DecisionDetector, type SchedulerOptions } from './scheduler';
 export { DecisionEngine } from './engine';
 export { runAgentGame, aiBoardKey, type AgentRunConfig, type AgentRunReport } from './runner';
@@ -55,6 +67,10 @@ export type AgentControllerEvent =
   | { type: 'decision'; record: DecisionRecord }
   | { type: 'usage'; usage: TokenUsage; costUsd: number }
   | { type: 'suggestion'; suggestion: Suggestion }
+  /** 预算分级变化（70% 省流 / 90% 无思考 / 100% 最省或交给机器人） */
+  | { type: 'budget'; budget: BudgetState }
+  /** budget.mode = 'ask' 用完预算：游戏已暂停，等 resolveBudget() */
+  | { type: 'budget_ask'; budget: BudgetState }
   | { type: 'error'; message: string };
 
 export interface AgentControllerOptions {
@@ -86,6 +102,12 @@ export interface AgentController {
   stop(): void;
   /** 检查并（必要时）发起一次决策；pollMs = 0 时由 UI 每帧调用 */
   poll(): void;
+  /** 当前预算分级 */
+  budget(): BudgetState | null;
+  /** 回答"预算用完了"的询问：continue = 最省模式继续；extend = 追加 50 万；bot = 交给机器人 */
+  resolveBudget(choice: BudgetChoice): void;
+  /** 是否正在等玩家回答预算询问 */
+  readonly budgetPending: boolean;
   report(): AgentBrowserReport;
 }
 
@@ -109,7 +131,7 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
   const config = resolveConfig({ ...o.config, decision: { ...o.config.decision, mode: o.mode ?? o.config.decision?.mode } });
   const session = o.session;
   const w = session.world;
-  const detector = new DecisionDetector({ waveIntervalSec: config.decision?.waveIntervalSec ?? 10, minGapSec: 3 });
+  const detector = new DecisionDetector({ waveIntervalSec: config.decision?.waveIntervalSec ?? 15, minGapSec: 3 });
   const recent: GameEvent[] = [];
   const emit = (ev: AgentControllerEvent) => o.onEvent?.(ev);
   const ac = new AbortController();
@@ -122,6 +144,7 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
   let userPaused = false;
   let timer: ReturnType<typeof setInterval> | null = null;
   let unsub: (() => void) | null = null;
+  let budgetResolve: ((c: BudgetChoice) => void) | null = null;
 
   const setStatus = (s: AgentStatus, detail?: string) => {
     status = s;
@@ -175,6 +198,17 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
         signal: ac.signal,
         onSuggest: (s) => emit({ type: 'suggestion', suggestion: s }),
         onUsage: (u, c) => emit({ type: 'usage', usage: u, costUsd: c }),
+        onBudget: (b) => emit({ type: 'budget', budget: b }),
+        onBudgetExceeded: (b) => new Promise<BudgetChoice>((resolve) => {
+          // 暂停并询问：游戏停住（实时模式也停），等玩家选
+          session.togglePause(true);
+          budgetResolve = (c) => {
+            budgetResolve = null;
+            resolve(c);
+          };
+          setStatus('paused', 'budget');
+          emit({ type: 'budget_ask', budget: b });
+        }),
         trace,
       });
       unsub = session.on((ev) => {
@@ -197,6 +231,7 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
       setStatus(busy ? 'thinking' : 'running');
     },
     stop() {
+      budgetResolve?.('bot');
       ac.abort();
       if (timer) clearInterval(timer);
       unsub?.();
@@ -204,6 +239,14 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
       setStatus('stopped');
     },
     poll,
+    budget: () => engine?.budgetState() ?? null,
+    get budgetPending() { return budgetResolve !== null; },
+    resolveBudget(choice: BudgetChoice) {
+      const r = budgetResolve;
+      if (!r) return;
+      setStatus('thinking', choice);
+      r(choice);
+    },
     report() {
       const tag = provider ? agentTag(config) : { provider: 'none', model: 'none' };
       const role = config.role ?? 'player';

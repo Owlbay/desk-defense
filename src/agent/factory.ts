@@ -17,7 +17,7 @@ export async function createProvider(c: Partial<AgentModelConfig>): Promise<LLMP
     case 'claude-native': {
       const { ClaudeProvider } = await import('./providers/claude');
       return new ClaudeProvider({
-        model: cfg.model, effort: cfg.effort, apiKey: cfg.apiKey, browser: cfg.browser,
+        model: cfg.model, thinking: cfg.thinking, apiKey: cfg.apiKey, browser: cfg.browser,
         maxOutputTokens: cfg.maxOutputTokens, refusalFallback: cfg.refusalFallback,
       });
     }

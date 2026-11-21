@@ -40,6 +40,23 @@ export type TraceBody =
       /** 工具定义（完整 JSON Schema 列表）——blob 哈希 */
       toolsHash?: string;
       toolNames?: string[];
+      /** 上下文模式（saver / balanced / full） */
+      contextMode?: string;
+      /** 本次发的是增量观测 */
+      delta?: boolean;
+      /** 门控跳过的原因（有值 = 没有调用模型） */
+      skipped?: string;
+      /** 预算分级 0..3 */
+      budgetStage?: number;
+    }
+  | {
+      /** 上下文已压缩（预算分级上升时）：before / after 为估算 token */
+      k: 'compact';
+      n: number;
+      before: number;
+      after: number;
+      stage: number;
+      reason: string;
     }
   | {
       k: 'request';
@@ -52,6 +69,12 @@ export type TraceBody =
       /** 请求发往的主机（只显示主机名，不含路径参数） */
       host?: string;
       effort?: string;
+      /** 实际生效的思考设置（各厂商映射之后，例如 "between_tools（无思考）· effort low"） */
+      thinking?: string;
+      /** 思考设置的提示（例如 "Opus 5.5 不支持关闭思考，已用最低强度"） */
+      thinkingNote?: string;
+      /** 本次请求前把多少条较早的工具结果压成了摘要 */
+      compacted?: number;
       /** 关键参数（max_tokens、thinking、tool_choice、temperature……） */
       params?: Record<string, unknown>;
       /** 本次请求实际用的系统提示词（与 decision_start 不同时才有，例如拼了 JSON 模式说明） */
@@ -102,7 +125,9 @@ export type TraceBody =
   | { k: 'fallback'; reason: string; acted: boolean; effect?: string }
   | {
       k: 'decision_end';
-      by: 'agent' | 'fallback';
+      by: 'agent' | 'fallback' | 'local';
+      /** by = local：门控跳过原因 */
+      skipped?: string;
       ms: number;
       usage: TokenUsage;
       costUsd: number;
@@ -138,6 +163,12 @@ export interface TraceExport {
 
 export interface TraceTotals {
   decisions: number;
+  /** 门控跳过（没有调用模型）的决策数 */
+  skipped: number;
+  /** 上下文压缩次数 */
+  compactions: number;
+  /** 平均每次（真正调用模型的）决策的请求数 */
+  requestsPerDecision: number;
   requests: number;
   usage: TokenUsage;
   costUsd: number;
@@ -373,6 +404,9 @@ export class AgentTrace {
       case 'error':
         out = { ...ev, d, t, message: redactString(ev.message, sec).slice(0, 4000) };
         break;
+      case 'compact':
+        out = { ...ev, d, t, reason: redactString(ev.reason, sec) };
+        break;
       case 'fallback':
         out = { ...ev, d, t, reason: redactString(ev.reason, sec), effect: ev.effect && redactString(ev.effect, sec) };
         break;
@@ -497,8 +531,11 @@ export function computeTotals(evs: readonly TraceEvent[]): TraceTotals {
   let errors = 0;
   let fallbacks = 0;
   let requests = 0;
+  let skipped = 0;
+  let compactions = 0;
   for (const e of evs) {
-    if (e.k === 'decision_start') decisions++;
+    if (e.k === 'decision_start') { decisions++; if (e.skipped) skipped++; }
+    else if (e.k === 'compact') compactions++;
     else if (e.k === 'request') requests++;
     else if (e.k === 'response') {
       usage = addUsage(usage, { ...e.usage, requests: 0 });
@@ -510,7 +547,8 @@ export function computeTotals(evs: readonly TraceEvent[]): TraceTotals {
     else if (e.k === 'fallback') fallbacks++;
   }
   usage.requests = requests;
-  return { decisions, requests, usage, costUsd, avgLatencyMs: latN ? lat / latN : 0, toolCalls, errors, fallbacks };
+  const called = decisions - skipped;
+  return { decisions, skipped, compactions, requestsPerDecision: called > 0 ? requests / called : 0, requests, usage, costUsd, avgLatencyMs: latN ? lat / latN : 0, toolCalls, errors, fallbacks };
 }
 
 /** 工具参数 → 一行文字（tower=pencil x=3 y=5） */
@@ -525,6 +563,16 @@ export function argsLine(args: unknown): string {
 export function cellOfArgs(args: unknown, towerAt?: (uid: number) => { x: number; y: number } | undefined): { x: number; y: number } | undefined {
   if (!args || typeof args !== 'object') return undefined;
   const a = args as Record<string, unknown>;
+  // act：取第一条带格子 / uid 的动作；preview：第一处假设放置
+  for (const k of ['actions', 'place'] as const) {
+    if (Array.isArray(a[k])) {
+      for (const x of a[k] as unknown[]) {
+        const c = cellOfArgs(x, towerAt);
+        if (c) return c;
+      }
+      return undefined;
+    }
+  }
   if (typeof a.x === 'number' && typeof a.y === 'number') return { x: a.x, y: a.y };
   if (typeof a.uid === 'number' && towerAt) return towerAt(a.uid);
   return undefined;
