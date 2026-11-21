@@ -3,7 +3,7 @@ import { COMBOS, TOWER_META, type TowerId } from '../../../core';
 import { t } from '../../../i18n';
 import { towerIcon } from '../../assets';
 import { h } from '../../dom';
-import { bullets, icon, plain, rich, section, type Entry, type TabContext, type TabModule } from '../kit';
+import { bullets, type Entry, icon, plain, rich, section, type TabContext, type TabModule } from '../kit';
 
 /** 每套流派的代表塔（只用来配图） */
 const ARCHETYPES: { id: string; towers: TowerId[] }[] = [

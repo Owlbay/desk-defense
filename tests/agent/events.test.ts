@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { createWorld, World, type GameEvent, type RunOptions } from '../../src/core';
+
 import {
-  DecisionDetector,
-  EVENT_DECIDE,
   cheatSheet,
   compactObservation,
+  DecisionDetector,
+  EVENT_DECIDE,
   eventLine,
   eventNeedsDecision,
   gateDecision,
 } from '../../src/agent';
-import { withLocale, SOURCE_LOCALE } from '../../src/i18n';
+import { createWorld, type GameEvent, type RunOptions, type World } from '../../src/core';
+import { SOURCE_LOCALE, withLocale } from '../../src/i18n';
 
 const opts = (seed: string, gold = 150): RunOptions => ({
   mode: 'custom',

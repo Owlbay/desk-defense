@@ -7,12 +7,12 @@
  *  - 组合技：已激活的配对、缺搭档的塔；
  *  - 迷宫：当前路线长度 vs 规划可达长度、直线长度，未利用的障碍物。
  */
-import { CellKind, type IWorld, type TowerId, type TowerState } from '../core/types';
-import { COMBOS, TOWERS } from '../config/towers';
 import { ENEMIES } from '../config/enemies';
-import { baseCells, coverage as towerCoverage, groundRoutes, type Route } from './routes';
-import { planMaze, type MazePlan } from './maze';
+import { COMBOS, TOWERS } from '../config/towers';
+import { CellKind, type IWorld, type TowerId, type TowerState } from '../core/types';
 import type { BattleIntel } from './intel';
+import { type MazePlan, planMaze } from './maze';
+import { baseCells, coverage as towerCoverage, groundRoutes, type Route } from './routes';
 
 const N4 = [
   [1, 0],

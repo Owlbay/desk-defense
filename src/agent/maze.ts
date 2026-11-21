@@ -5,8 +5,8 @@
  * 逐格放置并保证始终连通，选最长路线的一组；再贪心补格把残余捷径堵上。
  * 结果按段（每条挡板一段）排序，任意前缀都是合法（连通）的局部迷宫。
  */
-import { CellKind, type IWorld, type MapId } from '../core/types';
 import { computeDist, tracePath } from '../core/flowfield';
+import { CellKind, type IWorld, type MapId } from '../core/types';
 
 export interface MazePlan {
   /** 有序的段，每段是若干格子索引（y*cols+x） */

@@ -9,9 +9,9 @@
  *    第一个真正调用了工具的就是答案；全部失败时给出分类诊断（CORS / Key / 路径 / 模型）。
  * 我们不做服务器转发：请求由浏览器直接发往玩家填写的地址，中转站必须允许跨域（CORS）。
  */
+import { t } from '../i18n';
 import type { AgentModelConfig, PiApi } from './config';
 import type { ConnectionDiagnostics } from './models';
-import { t } from '../i18n';
 
 export type RelayApi = Exclude<PiApi, 'google-generative-ai'>;
 export const RELAY_APIS: readonly RelayApi[] = ['openai-completions', 'openai-responses', 'anthropic-messages'];

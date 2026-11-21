@@ -1,4 +1,6 @@
+/* eslint-disable no-console -- 冒烟测试打印耗时与平衡数据（BOT_DEBUG），便于人工查看 */
 import { describe, expect, it } from 'vitest';
+
 import { createWorld, type IWorld, type RunOptions, type TowerId } from '../../src/core';
 
 /** 简单机器人：蛇形墙迷宫 + 沿路线贪心摆攻击塔，空闲金币升级，冷却好就放技能，增益选第一张 */

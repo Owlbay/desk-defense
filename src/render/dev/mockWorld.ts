@@ -4,26 +4,26 @@
  * 数值、规则都不准确，只追求"各种画面状态都能出现"。
  */
 import {
-  CellKind,
-  DT,
-  GRID_COLS,
-  GRID_ROWS,
   type AffixId,
   type BuildOption,
+  CellKind,
   type Command,
   type CommandResult,
+  DT,
   type EnemyId,
   type EnemyState,
   type GameEvent,
+  GRID_COLS,
+  GRID_ROWS,
   type IWorld,
   type PickupState,
   type PlaceCheck,
-  type RandomEventId,
-  type RandomEventState,
-  type SpawnerState,
   type ProjectileKind,
   type ProjectileState,
+  type RandomEventId,
+  type RandomEventState,
   type SkillState,
+  type SpawnerState,
   type TowerId,
   type TowerInfo,
   type TowerState,
@@ -220,7 +220,11 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
     while (true) {
       let best = -1,
         bd = Infinity;
-      for (let i = 0; i < out.length; i++) if (!done[i] && out[i] < bd) ((bd = out[i]), (best = i));
+      for (let i = 0; i < out.length; i++)
+        if (!done[i] && out[i] < bd) {
+          bd = out[i];
+          best = i;
+        }
       if (best < 0) break;
       done[best] = 1;
       const bx = best % cols,
@@ -252,7 +256,10 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
         if ((!dx && !dy) || nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
         if (dx && dy && (d[y * cols + nx] === Infinity || d[ny * cols + x] === Infinity)) continue;
         const v = d[ny * cols + nx];
-        if (v < bd) ((bd = v), (best = { x: nx, y: ny }));
+        if (v < bd) {
+          bd = v;
+          best = { x: nx, y: ny };
+        }
       }
     return best;
   }
@@ -269,7 +276,10 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
         if (c) p.push(c);
       }
       const k = JSON.stringify(p);
-      if (!seen.has(k)) (seen.add(k), out.push(p));
+      if (!seen.has(k)) {
+        seen.add(k);
+        out.push(p);
+      }
     }
     return out;
   }
@@ -968,7 +978,10 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
         if (e.hidden) continue;
         if (t.id === 'swatter' && !e.flying) continue;
         const d = Math.hypot(e.x - x, e.y - y);
-        if (d <= r && d < bd) ((bd = d), (best = e));
+        if (d <= r && d < bd) {
+          bd = d;
+          best = e;
+        }
       }
       if (!best) continue;
       t.angle = Math.atan2(best.y - y, best.x - x);
@@ -1022,7 +1035,10 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
             for (const e of state.enemies) {
               if (!e.flying || used.has(e.uid)) continue;
               const d = Math.hypot(e.x - cur.x, e.y - cur.y);
-              if (d < nd) ((nd = d), (nx = e));
+              if (d < nd) {
+                nd = d;
+                nx = e;
+              }
             }
             if (!nx) break;
             used.add(nx.uid);

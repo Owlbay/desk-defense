@@ -3,18 +3,18 @@ import {
   abyssParams,
   CRATE_OPTIONS,
   DIFFICULTY_PRESETS,
+  type DifficultyParams,
   MAP_META,
+  type MapId,
   RANDOM_EVENT_META,
   TIER_NAMES,
-  type DifficultyParams,
-  type MapId,
 } from '../../../core';
 import { RANDOM_EVENT_IDS } from '../../../core/types';
 import { t } from '../../../i18n';
 import { diffLabel } from '../../../meta/progress';
 import { art, towerIcon } from '../../assets';
 import { h } from '../../dom';
-import { bullets, icon, items, plain, rich, section, table, tag, type Entry, type TabContext, type TabModule } from '../kit';
+import { bullets, type Entry, icon, items, plain, rich, section, type TabContext, table, type TabModule, tag } from '../kit';
 
 const SECTIONS = ['start', 'controls', 'modes', 'autowave', 'events', 'field', 'evolve'] as const;
 const CONTROL_ROWS = ['build', 'place', 'cancel', 'upgrade', 'skill', 'wave', 'speed', 'pause', 'ability'] as const;

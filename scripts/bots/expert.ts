@@ -2,9 +2,9 @@
  * 高手：完整蛇形迷宫 + 补格、组合技相邻摆放、计算器罩主力、存钱罐贴计算器（复利）、
  * 书本墙升级、按收益升级到传奇并选强分支、安全时提前开波、挑时机放技能。
  */
-import type { BotParams } from './strategy';
 import type { MapId, ModeId } from '../../src/core';
 import { campaignSkills } from './loadout';
+import type { BotParams } from './strategy';
 
 export function expert(ctx: { mode: ModeId; map: MapId }): BotParams {
   const skills =

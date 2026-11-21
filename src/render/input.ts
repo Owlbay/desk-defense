@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
-import { t } from '../i18n';
+
 import type { Command, EnemyState, PlaceCheck, SkillState, TowerId, TowerInfo, TowerState } from '../core/types';
 import { ui } from '../game/UiStore';
+import { t } from '../i18n';
 import type { RenderCtx } from './ctx';
 import type { FieldLayer } from './field';
 import { BOARD_H, BOARD_W, CELL, DEPTH } from './layout';

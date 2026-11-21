@@ -1,10 +1,11 @@
 import type { DifficultyId, MapId } from '../../core/types';
+import { fmtNumber, t } from '../../i18n';
 import {
   ABYSS_MAX,
   bestWave,
-  diffKey,
   DIFF_NAME,
   difficultyUnlocked,
+  diffKey,
   effectiveAutoWave,
   endlessMaps,
   INK_FACTOR,
@@ -13,8 +14,7 @@ import {
   roman,
   unlockHint,
 } from '../../meta/progress';
-import { fmtNumber, t } from '../../i18n';
-import { screenHeader, type App, type Screen } from '../App';
+import { type App, type Screen, screenHeader } from '../App';
 import { audio } from '../audio';
 import { DIFFICULTY_PRESETS, MAP_META, resolveParams } from '../coreMeta';
 import { clear, h } from '../dom';

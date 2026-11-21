@@ -2,26 +2,24 @@
  * 上下文与成本优化（文档 10 §13）：预算折算、act 批量动作、速查表、精简工具、门控、增量观测、历史压缩、备忘、
  * 前缀稳定、思考等级映射、预算分级、进攻路线与 preview。全部离线（mock / faux / 假客户端）。
  */
-import { afterEach, describe, expect, it } from 'vitest';
 import type Anthropic from '@anthropic-ai/sdk';
-import { fauxAssistantMessage, fauxThinking, fauxToolCall, registerFauxProvider, type Message } from '@mariozechner/pi-ai';
-import { createWorld, stateHash, type IWorld, type MapId, type RunOptions } from '../../src/core';
+import { fauxAssistantMessage, fauxThinking, fauxToolCall, type Message, registerFauxProvider } from '@mariozechner/pi-ai';
+import { afterEach, describe, expect, it } from 'vitest';
+
+import { tokenRun } from '../../scripts/token-model';
 import {
   AgentScheduler,
-  ContextBuilder,
-  DecisionEngine,
-  Memo,
-  MEMO_MAX_TOKENS,
-  SLIM_TOOLS,
-  ScriptedProvider,
   applyObsDelta,
   budgetTokens,
   cheatSheet,
   claudeThinkingPlan,
   compactObservation,
   compressWaypoints,
+  ContextBuilder,
   contextSpec,
   coverage,
+  type DecisionContext,
+  DecisionEngine,
   diffObs,
   emptyUsage,
   estimateTokens,
@@ -30,29 +28,32 @@ import {
   flightLines,
   gateDecision,
   groundRoutes,
+  type JsonSchema,
   keepThinkingInHistory,
+  type LLMProvider,
   mayCompactHistory,
+  Memo,
+  MEMO_MAX_TOKENS,
   piThinkingPlan,
   previewChanges,
   resolveConfig,
   rle,
   runAgentGame,
   scriptedFallback,
+  ScriptedProvider,
+  SLIM_TOOLS,
   systemBlocks,
+  type TokenUsage,
   toolsForRole,
   unrle,
   usageTotal,
   validateAgainst,
-  type DecisionContext,
-  type JsonSchema,
-  type LLMProvider,
-  type TokenUsage,
 } from '../../src/agent';
-import { AgentTrace } from '../../src/agent/trace';
-import { ClaudeProvider } from '../../src/agent/providers/claude';
-import { PiProvider, compactToolResults, stripThinking } from '../../src/agent/providers/pi';
 import { McpGameServer } from '../../src/agent/mcp';
-import { tokenRun } from '../../scripts/token-model';
+import { ClaudeProvider } from '../../src/agent/providers/claude';
+import { compactToolResults, PiProvider, stripThinking } from '../../src/agent/providers/pi';
+import { AgentTrace } from '../../src/agent/trace';
+import { createWorld, type IWorld, type MapId, type RunOptions, stateHash } from '../../src/core';
 
 const OPTS: RunOptions = {
   mode: 'endless',

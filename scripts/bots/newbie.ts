@@ -1,6 +1,6 @@
 /** 新手：塔不多、几乎不造迷宫、沿路随手放、很少升级、技能想起来才按、增益选第一张 */
-import type { BotParams } from './strategy';
 import type { MapId, ModeId } from '../../src/core';
+import type { BotParams } from './strategy';
 
 export function newbie(_ctx: { mode: ModeId; map: MapId }): BotParams {
   return {

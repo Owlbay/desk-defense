@@ -12,15 +12,15 @@
  */
 import type { Command, GameEvent, IWorld } from '../core/types';
 import { makeMidRun } from '../meta/midrun';
-import { agentTag, configErrorMessage, resolveConfig, saveableConfig, validateConfig, type AgentModelConfig } from './config';
-import { DecisionEngine, type BudgetChoice, type BudgetState } from './engine';
+import { type AgentModelConfig, agentTag, configErrorMessage, resolveConfig, saveableConfig, validateConfig } from './config';
+import { type BudgetChoice, type BudgetState, DecisionEngine } from './engine';
 import { createProvider } from './factory';
-import { DecisionDetector } from './scheduler';
 import { scriptedFallback } from './providers/scripted';
 import type { LLMProvider } from './providers/types';
 import { aiBoardKey } from './runner';
-import type { AgentReplay, DecisionRecord, FallbackPolicy, Suggestion, TokenUsage } from './types';
+import { DecisionDetector } from './scheduler';
 import { AgentTrace, type TraceExport } from './trace';
+import type { AgentReplay, DecisionRecord, FallbackPolicy, Suggestion, TokenUsage } from './types';
 
 export * from './types';
 export * from './config';

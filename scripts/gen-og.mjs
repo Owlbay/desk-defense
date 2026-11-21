@@ -1,9 +1,10 @@
 // 生成社交分享图 public/og.png（1200×630）。
 // 用游戏自己的美术（art/**/*.svg）拼一张 SVG（scripts/og/og.svg，作为可提交的源文件），再用 resvg 渲染成 PNG。
 // 用法：node scripts/gen-og.mjs        （文字用系统里的中文黑体：macOS 的 Hiragino Sans GB / PingFang SC）
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
 import { Resvg } from '@resvg/resvg-js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');

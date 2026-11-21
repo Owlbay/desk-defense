@@ -2,16 +2,17 @@
  * 打法情报与新意图（文档 10 §19.8）：漏怪明细 / 缺口、无用墙、回收、用途选塔、组合技相邻、前缀稳定。全部离线、确定性。
  */
 import { describe, expect, it } from 'vitest';
-import { CellKind, createWorld, type Command, type IWorld, type MapId, type RunOptions } from '../../src/core';
-import { SOURCE_LOCALE, loadLocale, setLocale, withLocale } from '../../src/i18n';
-import { COMBOS } from '../../src/config/towers';
-import { BattleIntel, findGap, gapLine, killLine, leakLine, segTarget, segText } from '../../src/agent/intel';
+
+import { DecisionEngine, executeTool, resolveConfig, scriptedFallback } from '../../src/agent';
 import { comboLine, comboState, crowdedCells, mazeLine, reclaimLine, uselessWalls, wallInfo } from '../../src/agent/board';
+import { BattleIntel, findGap, gapLine, killLine, leakLine, segTarget, segText } from '../../src/agent/intel';
+import { planMaze } from '../../src/agent/maze';
+import { estimateTokens } from '../../src/agent/observation';
 import { Planner } from '../../src/agent/planner';
 import { cheatSheet, systemBlocks } from '../../src/agent/prompts';
-import { estimateTokens } from '../../src/agent/observation';
-import { DecisionEngine, executeTool, resolveConfig, scriptedFallback } from '../../src/agent';
-import { planMaze } from '../../src/agent/maze';
+import { COMBOS } from '../../src/config/towers';
+import { CellKind, type Command, createWorld, type IWorld, type MapId, type RunOptions } from '../../src/core';
+import { loadLocale, setLocale, SOURCE_LOCALE, withLocale } from '../../src/i18n';
 
 const opts = (seed: string, map: MapId = 'ch1', difficulty: RunOptions['difficulty'] = 'normal'): RunOptions => ({
   mode: 'endless',

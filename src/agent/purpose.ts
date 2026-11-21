@@ -2,8 +2,8 @@
  * 塔的"用途"（文档 10 §19.8）：模型说要什么（破甲 / 群伤 / 防空 …），规划器挑塔；
  * 克制表把敌人 / 精英词缀映射到用途。无状态、只依赖配置，速查表 / 规划器 / 战报共用。
  */
-import type { AffixId, TowerId } from '../core/types';
 import type { EnemyDef } from '../config/enemies';
+import type { AffixId, TowerId } from '../core/types';
 
 export const PURPOSES = ['dps', 'aoe', 'slow', 'armor', 'air', 'stealth', 'boss', 'antiheal', 'shield'] as const;
 export type Purpose = (typeof PURPOSES)[number];

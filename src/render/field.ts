@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
-import { t } from '../i18n';
+
 import type { EnemyId, GameEvent, Obstacle, PickupState, RandomEventState, SpawnerState, WorldState } from '../core/types';
 import { ui } from '../game/UiStore';
+import { t } from '../i18n';
 import { cellBounds, drawObstacle, obstacleKey } from './background';
 import type { RenderCtx } from './ctx';
 import { enemyAsset } from './enemies';

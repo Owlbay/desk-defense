@@ -6,12 +6,12 @@
  *             其他走 pi 内置模型表。
  * testConnection：用一个只有 ping 工具的极小请求验证"能连上 + 会调用工具"，返回诊断信息。
  */
-import { PRESETS, resolveConfig, type AgentModelConfig } from './config';
-import type { LLMProvider } from './providers/types';
-import { createProvider } from './factory';
-import type { AgentToolDef } from './tools';
-import { listRelayModels, relayCorsHint } from './relay';
 import { t } from '../i18n';
+import { type AgentModelConfig, PRESETS, resolveConfig } from './config';
+import { createProvider } from './factory';
+import type { LLMProvider } from './providers/types';
+import { listRelayModels, relayCorsHint } from './relay';
+import type { AgentToolDef } from './tools';
 
 export interface ModelListing {
   ok: boolean;

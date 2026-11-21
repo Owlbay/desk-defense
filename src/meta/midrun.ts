@@ -1,5 +1,5 @@
 import type { Command, IWorld, RunOptions } from '../core/types';
-import { cloneAssist, type AiAssist } from './aiAssist';
+import { type AiAssist, cloneAssist } from './aiAssist';
 import type { MidRun } from './profile';
 
 /**

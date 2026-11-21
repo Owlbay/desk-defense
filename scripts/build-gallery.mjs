@@ -1,7 +1,7 @@
 // 把 art/ 下的所有 SVG 内联进 art/gallery.html，方便直接用浏览器打开预览（无需服务器）。
 // 用法：node scripts/build-gallery.mjs
-import { readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');

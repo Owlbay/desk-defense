@@ -1,23 +1,23 @@
 import type { DifficultyId, DifficultyParams, MapId, RandomEventId } from '../../core/types';
+import { t } from '../../i18n';
 import {
   CUSTOM_FIELDS,
+  type CustomField,
   decodeShare,
   encodeShare,
+  type NumParamKey,
   paramValue,
   sliderValue,
   SPAWN_MODES,
-  type CustomField,
-  type NumParamKey,
 } from '../../meta/custom';
 import { DIFF_NAME, effectiveAutoWave, MAPS } from '../../meta/progress';
-import { screenHeader, type App, type Screen } from '../App';
+import { type App, type Screen, screenHeader } from '../App';
 import { audio } from '../audio';
 import { DIFFICULTY_PRESETS, eventMeta, MAP_META, RANDOM_EVENT_IDS, resolveParams } from '../coreMeta';
 import { clear, copyText, h } from '../dom';
 import { G } from '../icons';
 import { buildRunOptions, layoutPicker, loadoutStrip, randomSeed, switchRow } from './common';
 import { pop, popSelected } from './motion';
-import { t } from '../../i18n';
 
 const TONE_GLYPH = { bad: G.warn, good: G.gift, neutral: G.swirl } as const;
 

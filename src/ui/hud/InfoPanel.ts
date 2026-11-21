@@ -1,13 +1,13 @@
 import type { BuildOption, SpawnerState, TargetMode, TowerInfo, WorldState } from '../../core/types';
 import { ui } from '../../game/UiStore';
+import { getLocale, t } from '../../i18n';
 import { abilityIcon, enemyIcon, svgUrl, towerIcon } from '../assets';
 import { audio } from '../audio';
 import { ENEMY_META, SKILL_META, spawnerName } from '../coreMeta';
-import { getLocale, t } from '../../i18n';
 import { fmtNum, h, img, setText, toggle } from '../dom';
 import { G } from '../icons';
 import { ABILITY_TARGET_TEXT, castTowerAbility } from './abilities';
-import { fmtSec, TARGET_NAME, type GameCtx } from './context';
+import { fmtSec, type GameCtx, TARGET_NAME } from './context';
 import { reduced, replay, sparkle } from './motion';
 
 interface AbilityRefs {
@@ -231,7 +231,7 @@ export class InfoPanel {
     const r = this.spRefs;
     if (!r) return;
     // 状态行
-    let status = '';
+    let status: string;
     if (sp.warnUntil !== undefined && sp.warnUntil > st.time) status = t('ui.info.sp.warn', { n: Math.ceil(sp.warnUntil - st.time) });
     else if (sp.kind === 'drop' || sp.kind === 'hidden') {
       if (sp.expiresAfterWave !== undefined) {

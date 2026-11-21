@@ -11,9 +11,9 @@
  * 纯 TS、只依赖 core 的流场函数；与 World 内部的路线 / 校验逻辑保持同一规则（预警中的空降格视为障碍、
  * 空降箱从相邻格出发、不能贴墙角斜穿）。
  */
-import { CellKind, type IWorld, type TowerId, type TowerState } from '../core/types';
-import { computeDist, isPassableKind } from '../core/flowfield';
 import { TOWERS } from '../config/towers';
+import { computeDist, isPassableKind } from '../core/flowfield';
+import { CellKind, type IWorld, type TowerId, type TowerState } from '../core/types';
 
 export interface P {
   x: number;

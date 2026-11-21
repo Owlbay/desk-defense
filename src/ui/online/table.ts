@@ -2,13 +2,13 @@
  * 全服榜表格：名次 / 昵称 / 波数 / 得分 / 回放；未校验的成绩带「待验证」标记；
  * 自己的名次不在前 N 名里时追加一行「我的名次」。
  */
+import { fmtNumber, t } from '../../i18n';
 import { fetchLeaderboard, initOnline } from '../../meta/online';
 import type { LeaderboardResponse, LeaderRow } from '../../shared/leaderboard';
 import type { App } from '../App';
 import { audio } from '../audio';
 import { MAP_META } from '../coreMeta';
 import { clear, h } from '../dom';
-import { fmtNumber, t } from '../../i18n';
 import { G } from '../icons';
 import { openReplay } from './replay';
 import { fmtTime } from './util';

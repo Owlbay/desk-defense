@@ -1,11 +1,11 @@
-import { applySettings, confirmDialog, screenHeader, type App, type Screen } from '../App';
-import { audio } from '../audio';
 import { getLocale, LOCALES, setLocale, t } from '../../i18n';
-import { rememberLocale } from '../locale';
-import { THEME_MODES, type ThemeMode } from '../theme';
+import { AI_GLYPH } from '../ai/icon';
+import { type App, applySettings, confirmDialog, type Screen, screenHeader } from '../App';
+import { audio } from '../audio';
 import { h } from '../dom';
 import { G } from '../icons';
-import { AI_GLYPH } from '../ai/icon';
+import { rememberLocale } from '../locale';
+import { THEME_MODES, type ThemeMode } from '../theme';
 import { anim, popSelected } from './motion';
 
 /** 滑块数值变化时轻轻跳一下（上一次没播完就接着播，不叠加） */

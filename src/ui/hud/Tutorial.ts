@@ -1,7 +1,7 @@
 import type { GameEvent } from '../../core/types';
+import { onLocaleChange, t } from '../../i18n';
 import { audio } from '../audio';
 import { SKILL_META } from '../coreMeta';
-import { onLocaleChange, t } from '../../i18n';
 import { h, setText } from '../dom';
 import type { GameCtx } from './context';
 

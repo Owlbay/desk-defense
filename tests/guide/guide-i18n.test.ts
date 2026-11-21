@@ -1,10 +1,12 @@
 import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
-import zhCN from '../../src/i18n/locales/zh-CN/guide';
-import zhTW from '../../src/i18n/locales/zh-TW/guide';
+
+import { detect, normalize, pickLocale } from '../../src/about/i18n';
 import en from '../../src/i18n/locales/en/guide';
 import ja from '../../src/i18n/locales/ja/guide';
-import { detect, normalize, pickLocale } from '../../src/about/i18n';
+import zhCN from '../../src/i18n/locales/zh-CN/guide';
+import zhTW from '../../src/i18n/locales/zh-TW/guide';
 
 const dicts: Record<string, Record<string, string>> = { 'zh-TW': zhTW, en, ja };
 const placeholders = (s: string): string[] => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();

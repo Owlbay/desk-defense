@@ -1,4 +1,5 @@
 import type Phaser from 'phaser';
+
 import type { Session } from '../game/Session';
 import type { ArtAtlas } from './assets';
 import type { Fx } from './fx';

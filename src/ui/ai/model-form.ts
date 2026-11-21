@@ -6,46 +6,45 @@
  * 只保存不含密钥的配置（store.saveSetup）；Key 的存放方式由玩家选择，默认只在内存，只发给所选的模型服务商。
  */
 import {
+  type AgentModelConfig,
   BYO_KEY_WARNING,
-  CLAUDE_MODELS,
-  FAMILY_LABEL,
-  PRESETS,
-  RELAY_API_LABEL,
   classifyRelayError,
+  CLAUDE_MODELS,
+  claudeThinkingPlan,
   connectBridge,
+  type ConnectionDiagnostics,
+  CONTEXT_MODE_LABEL,
+  CONTEXT_MODES,
+  type ContextMode,
   detectRelayApi,
+  FAMILY_LABEL,
   groupModels,
+  listModels,
+  type LLMProvider,
   normalizeRelayBase,
   parseRelayUrl,
-  relayFailureText,
-  relayHost,
-  listModels,
-  resolveConfig,
-  testConnection,
-  type AgentModelConfig,
-  type ConnectionDiagnostics,
-  CONTEXT_MODES,
-  CONTEXT_MODE_LABEL,
-  THINKING_LABEL,
-  claudeThinkingPlan,
-  type ContextMode,
-  type ThinkingLevel,
-  type LLMProvider,
   type PiApi,
   type Preset,
+  PRESETS,
+  RELAY_API_LABEL,
   type RelayApi,
   type RelayDetection,
+  relayFailureText,
+  relayHost,
+  resolveConfig,
+  testConnection,
+  THINKING_LABEL,
+  type ThinkingLevel,
 } from '../../agent';
 import type { WsLike } from '../../agent/bridge';
+import { fmtNumber, t, tOr } from '../../i18n';
 import type { App } from '../App';
 import { audio } from '../audio';
-import { fmtNumber, t, tOr } from '../../i18n';
 import { clear, copyText, fmtNum, h, setText } from '../dom';
 import { G } from '../icons';
-import { bridgeProvider, getBridge, setBridge, type BridgeConn } from './bridge-state';
+import { type BridgeConn, bridgeProvider, getBridge, setBridge } from './bridge-state';
 import type { AiRole } from './launch';
 import {
-  SOURCE_ORDER,
   apiOf,
   baseUrlOf,
   buildModelConfig,
@@ -60,10 +59,11 @@ import {
   relayFor,
   relayMode,
   relayNeedsDetect,
+  SOURCE_ORDER,
   sourceLabelOf,
 } from './model-config';
 import { bridgeCommands, detectOs, localGuides, networkNotes, OS_NAME, type OsId, type SetupStep } from './snippets';
-import { forgetKey, keyModeOf, loadSetup, readKey, saveSetup, writeKey, type AiSetupSaved, type AiSource, type KeyMode } from './store';
+import { type AiSetupSaved, type AiSource, forgetKey, type KeyMode, keyModeOf, loadSetup, readKey, saveSetup, writeKey } from './store';
 
 /** 服务商预设的说明：src/agent 里是中文，这里按 id 取本地化文字（没有翻译时用原文） */
 const presetNotes = (s: Preset): string | undefined =>

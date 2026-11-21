@@ -1,5 +1,5 @@
 import { createWorld } from '../core';
-import { DT, type Command, type CommandResult, type GameEvent, type IWorld, type RunOptions } from '../core/types';
+import { type Command, type CommandResult, DT, type GameEvent, type IWorld, type RunOptions } from '../core/types';
 
 export type Speed = 1 | 2 | 3;
 type Listener = (ev: GameEvent) => void;

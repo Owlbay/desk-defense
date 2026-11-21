@@ -1,4 +1,5 @@
-import Phaser from 'phaser';
+import type Phaser from 'phaser';
+
 import type { ProjectileState, ZoneState } from '../core/types';
 import type { RenderCtx } from './ctx';
 import { CELL, DEPTH } from './layout';

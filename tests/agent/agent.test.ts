@@ -1,30 +1,31 @@
 import { describe, expect, it } from 'vitest';
-import { createWorld, stateHash, type Command, type RunOptions } from '../../src/core';
-import { replaySync } from '../../src/meta/midrun';
+
 import {
   AGENT_TOOLS,
   AgentScheduler,
-  executeTool,
-  observe,
-  renderObservation,
   asciiMap,
-  estimateTokens,
-  runAgentGame,
-  toCommand,
-  toolsForRole,
-  validateToolInput,
-  ScriptedProvider,
-  scriptedFallback,
-  systemBlocks,
-  resolveConfig,
-  validateConfig,
-  saveableConfig,
+  type DecisionContext,
   type DecisionReason,
+  estimateTokens,
+  executeTool,
   type JsonSchema,
   type LLMProvider,
-  type DecisionContext,
+  observe,
+  renderObservation,
+  resolveConfig,
+  runAgentGame,
+  saveableConfig,
+  scriptedFallback,
+  ScriptedProvider,
+  systemBlocks,
+  toCommand,
+  toolsForRole,
+  validateConfig,
+  validateToolInput,
 } from '../../src/agent';
 import { emptyUsage } from '../../src/agent/types';
+import { type Command, createWorld, type RunOptions, stateHash } from '../../src/core';
+import { replaySync } from '../../src/meta/midrun';
 
 const OPTS: RunOptions = {
   mode: 'endless',

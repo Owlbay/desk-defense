@@ -1,4 +1,5 @@
 import type Phaser from 'phaser';
+
 import { BOARD_H, BOARD_W, CELL } from './layout';
 
 /** 系统 / 应用是否要求减弱动效（html.reduce-motion 或 prefers-reduced-motion） */

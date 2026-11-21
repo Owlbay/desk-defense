@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { detectLocale, normalizeLocale, setLocale, t, getLocale } from '../src/i18n';
+
+import { detectLocale, getLocale, normalizeLocale, setLocale, t } from '../src/i18n';
 
 describe('i18n', () => {
   it('detects locales', () => {

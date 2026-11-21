@@ -18,8 +18,8 @@
  *     （服务端默认自适应）；Haiku 5.5 的 off 例外：pi 发 {type:'disabled'} 是合法的
  *   - google-generative-ai：off = pi 发 thinkingBudget 0（Gemini 2.x）/ 最低 thinkingLevel（Gemini 3）
  */
-import type { PiApi, ThinkingLevel } from './config';
 import { t } from '../i18n';
+import type { PiApi, ThinkingLevel } from './config';
 
 export type PiThinkingLevel = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 

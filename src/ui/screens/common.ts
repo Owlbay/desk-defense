@@ -1,14 +1,15 @@
 import {
-  GRID_COLS,
-  GRID_ROWS,
   type DifficultyId,
   type DifficultyParams,
+  GRID_COLS,
+  GRID_ROWS,
   type MapId,
   type ModeId,
   type RandomEventId,
   type RunOptions,
   type SkillId,
 } from '../../core/types';
+import { t } from '../../i18n';
 import type { Profile } from '../../meta/profile';
 import { effectiveAutoWave, resolveLoadout, skillLevel, unlockReached } from '../../meta/progress';
 import type { App, Route } from '../App';
@@ -18,7 +19,6 @@ import { generateLayout, SKILL_META, SKILL_ORDER, spawnerName } from '../coreMet
 import { h, img } from '../dom';
 import { G } from '../icons';
 import { anim, DUR, EASE_IN, EASE_SPRING } from './motion';
-import { t } from '../../i18n';
 
 export function unlockedSkills(p: Profile): SkillId[] {
   return SKILL_ORDER.filter((id) => unlockReached(p, SKILL_META[id]?.unlock));

@@ -2,16 +2,16 @@
  * 结算面板里的「全服排行榜」区：昵称、上传状态、查看全服榜。
  * 只对无尽（非自定义）与每日挑战显示；全部异步，不阻塞结算界面。
  */
-import { isAiAssisted } from '../../meta/aiAssist';
-import { getNickname, initOnline, submitWorldRun, type SubmitOutcome } from '../../meta/online';
-import { boardLabel } from '../../shared/leaderboard';
 import { fmtNumber, t } from '../../i18n';
+import { isAiAssisted } from '../../meta/aiAssist';
+import { getNickname, initOnline, type SubmitOutcome, submitWorldRun } from '../../meta/online';
+import { boardLabel } from '../../shared/leaderboard';
 import { audio } from '../audio';
 import { h, setText } from '../dom';
-import { G } from '../icons';
 import type { GameCtx } from '../hud/context';
-import { askNickname, ensureNickname } from './nickname';
+import { G } from '../icons';
 import { requestLeaderboardTab } from './nav';
+import { askNickname, ensureNickname } from './nickname';
 import { boardOfRun, dailyDayOfOpts, isEligibleRun } from './util';
 
 export type SubmitView =

@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { handleDaily, handleGetRun, handleLeaderboard, handleStatus, handleSubmit, type Deps } from '../../functions/_lib/handlers';
+
+import { type Deps, handleDaily, handleGetRun, handleLeaderboard, handleStatus, handleSubmit } from '../../functions/_lib/handlers';
 import { apiError } from '../../functions/_lib/http';
+import { createWorld } from '../../src/core';
+import { replaySync } from '../../src/meta/midrun';
 import {
   _resetOnlineForTests,
   configureOnline,
@@ -20,9 +23,7 @@ import {
   submitWorldRun,
   subscribeOnline,
 } from '../../src/meta/online';
-import { createWorld } from '../../src/core';
-import { replaySync } from '../../src/meta/midrun';
-import { memoryStorage, type KV } from '../../src/meta/storage';
+import { type KV, memoryStorage } from '../../src/meta/storage';
 import { boardForOpts, dailyInfo, isDeviceId } from '../../src/shared/leaderboard';
 import { createFakeD1 } from './fakeD1';
 import { playRun } from './helpers';

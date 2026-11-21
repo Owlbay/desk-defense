@@ -1,7 +1,7 @@
 /** 图鉴 · AI 参战：两种角色、三种接入方式 */
 import { t } from '../../../i18n';
 import { h } from '../../dom';
-import { bullets, items, plain, rich, section, type Entry, type TabContext, type TabModule } from '../kit';
+import { bullets, type Entry, items, plain, rich, section, type TabContext, type TabModule } from '../kit';
 
 const WAYS = ['relay', 'local', 'bridge'] as const;
 

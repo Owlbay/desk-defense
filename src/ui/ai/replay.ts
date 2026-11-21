@@ -2,19 +2,19 @@
  * 本地回放：刚结束的 AI 对局不用先上传，直接用「开局参数 + 指令日志」重放一遍。
  * 与 src/ui/online/replay.ts 相同的做法（新建 Session、按帧号喂指令、棋盘只读），样式也复用它的。
  */
-import { t } from '../../i18n';
 import { AgentTrace, type TraceExport } from '../../agent/trace';
 import type { Command, RunOptions } from '../../core/types';
 import { Session, type Speed } from '../../game/Session';
 import { ui } from '../../game/UiStore';
+import { t } from '../../i18n';
 import { mountBoard } from '../../render';
 import type { App } from '../App';
 import { audio } from '../audio';
 import { fmtNum, h, setText } from '../dom';
 import { G } from '../icons';
 import { makeFeeder } from '../online/util';
-import { mountTracePanel, type TracePanelHandle } from './trace-panel';
 import { OpsRecorder, type TraceExportWithOps } from './ops';
+import { mountTracePanel, type TracePanelHandle } from './trace-panel';
 
 export interface LocalReplay {
   opts: RunOptions;

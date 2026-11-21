@@ -1,9 +1,9 @@
 /** 图鉴 · 技能 / 增益 / 天赋 */
-import { PERK_META, SKILL_IDS, SKILL_META, TALENT_IDS, TALENT_META, type Rarity } from '../../../core';
+import { PERK_META, type Rarity, SKILL_IDS, SKILL_META, TALENT_IDS, TALENT_META } from '../../../core';
 import { t } from '../../../i18n';
 import { skillIcon } from '../../assets';
 import { h } from '../../dom';
-import { bullets, icon, rich, section, tag, unlockLabel, type Entry, type TabContext, type TabModule } from '../kit';
+import { bullets, type Entry, icon, rich, section, type TabContext, type TabModule, tag, unlockLabel } from '../kit';
 
 const RARITIES: Rarity[] = ['common', 'rare', 'epic'];
 

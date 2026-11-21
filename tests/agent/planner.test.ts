@@ -1,33 +1,35 @@
 /**
  * 打法辅助（文档 10 §19）：意图规划器、被拒放置自动挪位、战报、威胁估算、闲置提醒、评测场。全部离线、确定性。
  */
-import { mkdtempSync, existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
-import { createWorld, stateHash, type Command, type IWorld, type MapId, type RunOptions } from '../../src/core';
-import { replaySync } from '../../src/meta/midrun';
+
+import { markdownTable, parseVariants, runEval, summarize } from '../../scripts/eval-lib';
 import {
   ACT_TOOL_V1,
   BattleLog,
   DecisionEngine,
-  INTENT_KINDS,
-  Planner,
-  ScriptedProvider,
   estimateTokens,
   executeTool,
   flightLines,
   idleLine,
+  INTENT_KINDS,
+  Planner,
   resolveConfig,
   runAgentGame,
   scriptedFallback,
+  ScriptedProvider,
   systemBlocks,
   threatEstimate,
   threatLine,
   toolsForRole,
   validateAgainst,
 } from '../../src/agent';
-import { parseVariants, runEval, summarize, markdownTable } from '../../scripts/eval-lib';
+import { type Command, createWorld, type IWorld, type MapId, type RunOptions, stateHash } from '../../src/core';
+import { replaySync } from '../../src/meta/midrun';
 
 const opts = (seed: string, map: MapId = 'ch1', difficulty: RunOptions['difficulty'] = 'normal'): RunOptions => ({
   mode: 'endless',

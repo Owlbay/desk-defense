@@ -1,7 +1,7 @@
-import type { DifficultyId, MapId, ModeId, RunOptions, SkillId, TalentId } from '../core/types';
-import type { LeaderEntry, Profile } from './profile';
-import { t } from '../i18n';
 import { localize } from '../config/text';
+import type { DifficultyId, MapId, ModeId, RunOptions, SkillId, TalentId } from '../core/types';
+import { t } from '../i18n';
+import type { LeaderEntry, Profile } from './profile';
 
 /**
  * 局外进度的纯函数（不依赖 DOM / core 运行时，便于测试）。

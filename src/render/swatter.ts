@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
-import { t } from '../i18n';
+
 import type { EnemyState, GameEvent } from '../core/types';
+import { t } from '../i18n';
 import type { RenderCtx } from './ctx';
 import type { EnemyLayer } from './enemies';
 import { BOARD_H, BOARD_W, CELL, DEPTH } from './layout';

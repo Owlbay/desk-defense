@@ -7,14 +7,14 @@
  *  - 无随机数、遍历顺序固定：同一局面 ⇒ 同一结果；
  *  - 每个意图返回一行"做了什么"（格子、花费、路线长度变化）与被拒 / 跳过的原因。
  */
-import { CellKind, type Branch, type Command, type CommandResult, type IWorld, type TowerId, type TowerState } from '../core/types';
 import { COMBOS, TOWERS } from '../config/towers';
 import { computeDist, tracePath } from '../core/flowfield';
+import { type Branch, CellKind, type Command, type CommandResult, type IWorld, type TowerId, type TowerState } from '../core/types';
 import { threatEstimate } from './battle';
-import { coverage as sampleCov, dropStart, planMaze, routeLength, targetCells, type MazePlan, type Sample } from './maze';
 import { crowdedCells, idleTowers, refreshStats, shortensRoutes, uselessWalls, wallInfo } from './board';
 import type { BattleIntel } from './intel';
-import { PURPOSES, PURPOSE_TARGET, PURPOSE_TOWERS, type Purpose } from './purpose';
+import { coverage as sampleCov, dropStart, type MazePlan, planMaze, routeLength, type Sample, targetCells } from './maze';
+import { type Purpose, PURPOSE_TARGET, PURPOSE_TOWERS, PURPOSES } from './purpose';
 
 export { PURPOSES, PURPOSE_TOWERS, type Purpose } from './purpose';
 

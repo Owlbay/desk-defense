@@ -25,17 +25,18 @@
  *   summary.json  每个场景的统计
  *   report.html   波数分布图（自包含，可直接用浏览器打开）
  */
-import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
-import { join, dirname, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { ABYSS_BASE, ABYSS_PER_LEVEL, PRESETS } from '../src/config/difficulty';
+import { ENEMIES } from '../src/config/enemies';
+import { DROP, RANDOM_EVENTS } from '../src/config/events';
+import { EVO } from '../src/config/evolution';
+import { MAPS as MAP_DEFS } from '../src/config/maps';
+import { TOWERS } from '../src/config/towers';
 import { createWorld, type DifficultyId, type MapId, type ModeId, type RunOptions } from '../src/core';
 import { BOTS, StrategyBot } from './bots';
-import { ENEMIES } from '../src/config/enemies';
-import { TOWERS } from '../src/config/towers';
-import { PRESETS, ABYSS_BASE, ABYSS_PER_LEVEL } from '../src/config/difficulty';
-import { MAPS as MAP_DEFS } from '../src/config/maps';
-import { RANDOM_EVENTS, DROP } from '../src/config/events';
-import { EVO } from '../src/config/evolution';
 
 // ───────────────────────── 参数 ─────────────────────────
 

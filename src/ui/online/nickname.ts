@@ -1,9 +1,9 @@
 /**
  * 昵称：对话框 + 页面头部的「昵称 · 修改」小组件
  */
+import { t } from '../../i18n';
 import { getNickname, setNickname } from '../../meta/online';
 import { NICK_MAX } from '../../shared/leaderboard';
-import { t } from '../../i18n';
 import { audio } from '../audio';
 import { h } from '../dom';
 import { nicknameError } from './util';

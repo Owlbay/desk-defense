@@ -20,8 +20,8 @@
  * 事件型原因在距上次决策不足 minGapSec 时先挂起，到时间再合并触发（避免一波里频繁打断）。
  */
 import type { GameEvent, IWorld } from '../core/types';
-import type { DecisionMode, DecisionPoint, DecisionReason } from './types';
 import { eventNeedsDecision } from './gating';
+import type { DecisionMode, DecisionPoint, DecisionReason } from './types';
 
 export interface SchedulerOptions {
   mode?: DecisionMode;

@@ -6,15 +6,15 @@
  *   new_game → observe → 动作工具… → advance（推进到下一个决策点或 N 秒）→ … → get_replay
  * 多局并存，用 session_id 区分。所有动作仍走 World.command 校验；成绩只属于 AI 榜（agent = mcp）。
  */
+import { SKILL_IDS } from '../config/skills';
 import { createWorld } from '../core';
 import type { DifficultyId, IWorld, MapId, ModeId, RunOptions, SkillId } from '../core/types';
-import { SKILL_IDS } from '../config/skills';
 import { makeMidRun } from '../meta/midrun';
 import { renderObservation } from './observation';
 import { runHeader, systemBlocks } from './prompts';
 import { aiBoardKey } from './runner';
 import { AgentScheduler } from './scheduler';
-import { LEGACY_TOOLS, SLIM_TOOLS, executeTool, validateAgainst, type JsonSchema, type ObjectSchema } from './tools';
+import { executeTool, type JsonSchema, LEGACY_TOOLS, type ObjectSchema, SLIM_TOOLS, validateAgainst } from './tools';
 import type { AgentReplay, DecisionPoint } from './types';
 
 export interface McpToolSpec {

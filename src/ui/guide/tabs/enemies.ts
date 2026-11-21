@@ -4,7 +4,7 @@ import { ENEMY_META, type EnemyId } from '../../../core';
 import { t } from '../../../i18n';
 import { enemyIcon } from '../../assets';
 import { h } from '../../dom';
-import { icon, plain, rich, section, stat, tag, type Entry, type TabContext, type TabModule } from '../kit';
+import { type Entry, icon, plain, rich, section, stat, type TabContext, type TabModule, tag } from '../kit';
 
 const NORMAL: EnemyId[] = [...ENDLESS_POOL, 'crumbmini'];
 const BOSSES: EnemyId[] = [...BOSS_ROTATION.slice(0, 1), 'boss_coffee_small', ...BOSS_ROTATION.slice(1)];

@@ -10,16 +10,16 @@
  *
  * 只读世界状态；不发任何指令。
  */
-import type { EnemyId, GameEvent, IWorld, TowerId } from '../core/types';
-import { ENEMIES, ELITE } from '../config/enemies';
+import { ELITE, ENEMIES } from '../config/enemies';
 import { TOWERS } from '../config/towers';
+import { armorAt, hpScale, speedScale } from '../core/scaling';
+import type { EnemyId, GameEvent, IWorld, TowerId } from '../core/types';
 import { generateWave } from '../core/wavegen';
-import { hpScale, speedScale, armorAt } from '../core/scaling';
 import { ENEMY_CODE } from './compact';
-import { counterOf } from './prompts';
-import { PURPOSE_CORE, enemyPurposes, type Purpose } from './purpose';
-import { flightLines, groundRoutes, shooters, type Shooter } from './routes';
 import type { PlannerState } from './planner';
+import { counterOf } from './prompts';
+import { enemyPurposes, type Purpose, PURPOSE_CORE } from './purpose';
+import { flightLines, groundRoutes, type Shooter, shooters } from './routes';
 
 const code = (id: string): string => ENEMY_CODE[id as EnemyId] ?? id;
 

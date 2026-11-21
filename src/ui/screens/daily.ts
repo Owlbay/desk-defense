@@ -2,11 +2,11 @@
  * 每日挑战（docs/12）：今天的地图 + 难度 + 种子，北京时间零点换期。
  * 固定纯净模式 + 自动开波，技能等级按 1 级；成绩进入 daily:<日期> 榜。
  */
+import { fmtNumber, t } from '../../i18n';
 import { fetchDaily } from '../../meta/online';
 import { diffLabel, resolveLoadout } from '../../meta/progress';
-import { dailyInfo, dailyRunOptions, dayOf, type DailyInfo, type LeaderboardResponse } from '../../shared/leaderboard';
-import { fmtNumber, t } from '../../i18n';
-import { screenHeader, type App, type Screen } from '../App';
+import { type DailyInfo, dailyInfo, dailyRunOptions, dayOf, type LeaderboardResponse } from '../../shared/leaderboard';
+import { type App, type Screen, screenHeader } from '../App';
 import { audio } from '../audio';
 import { MAP_META } from '../coreMeta';
 import { clear, copyText, h, setText } from '../dom';

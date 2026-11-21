@@ -101,7 +101,7 @@ export function networkNotes(
   ua: string = typeof navigator !== 'undefined' ? navigator.userAgent : '',
 ): string[] {
   const out: string[] = [];
-  let u: URL | null = null;
+  let u: URL;
   try {
     u = new URL(baseUrl);
   } catch {

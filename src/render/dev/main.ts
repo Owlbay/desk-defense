@@ -4,19 +4,19 @@
  * - 自带一个与 Session 接口一致的 DevSession，避免依赖 core 是否就绪。
  */
 import {
-  DT,
-  RANDOM_EVENT_IDS,
-  TOWER_IDS,
   type Command,
   type CommandResult,
+  DT,
   type GameEvent,
   type IWorld,
+  RANDOM_EVENT_IDS,
   type RunOptions,
   type SkillId,
+  TOWER_IDS,
 } from '../../core/types';
 import type { Session } from '../../game/Session';
 import { ui } from '../../game/UiStore';
-import { mountBoard, setRenderQuality, getRenderQuality } from '../index';
+import { getRenderQuality, mountBoard, setRenderQuality } from '../index';
 import { createMockWorld, type MockDev } from './mockWorld';
 
 type Listener = (ev: GameEvent) => void;

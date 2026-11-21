@@ -7,9 +7,9 @@
  *
  * 设计文档：docs/12-全服排行榜.md
  */
-import type { Command, DifficultyId, MapId, RunOptions, SkillId, TalentId } from '../core/types';
-import { ABYSS_MAX_LEVEL, PRESETS, abyssParams } from '../config/difficulty';
 import { version as PACKAGE_VERSION } from '../../package.json';
+import { ABYSS_MAX_LEVEL, abyssParams, PRESETS } from '../config/difficulty';
+import type { Command, DifficultyId, MapId, RunOptions, SkillId, TalentId } from '../core/types';
 import { stDef } from './text';
 
 // ───────────────────────── 版本 ─────────────────────────
@@ -494,6 +494,7 @@ export const NICK_BLOCKLIST: readonly string[] = [
   '傻逼', '煞笔', '沙比', 'sb', '操你', '草泥马', '你妈', '妈的', '去死', '共产党', '法轮', '习近平', '毛泽东',
 ];
 
+// eslint-disable-next-line no-control-regex -- 有意匹配控制字符，用于清洗昵称
 const CONTROL_RE = /[\u0000-\u001f\u007f-\u009f\u00ad\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff\ufff0-\uffff]/g;
 const NORMALIZE_FOR_BLOCK_RE = /[\s\p{P}\p{S}_]/gu;
 
@@ -532,6 +533,7 @@ const inRange = (x: unknown, lo: number, hi: number): x is number => isNum(x) &&
 const intIn = (x: unknown, lo: number, hi: number): x is number => isInt(x) && x >= lo && x <= hi;
 
 export function isValidSeed(s: unknown): s is string {
+  // eslint-disable-next-line no-control-regex -- 种子不允许控制字符
   return typeof s === 'string' && s.length >= 1 && s.length <= SEED_MAX && !/[\u0000-\u001f\u007f]/.test(s);
 }
 

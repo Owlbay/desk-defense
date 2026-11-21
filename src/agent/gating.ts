@@ -10,9 +10,9 @@
  *   aggressive：另外要求自上次真正叫模型以来新增的金币 ≥ 最便宜动作，且波次中的定期检查只有"金币 ≥ 2× 最便宜动作"才叫；
  *   off：从不跳过。
  */
-import type { IWorld, RandomEventId } from '../core/types';
-import { TOWERS } from '../config/towers';
 import { RANDOM_EVENTS } from '../config/events';
+import { TOWERS } from '../config/towers';
+import type { IWorld, RandomEventId } from '../core/types';
 import type { DecisionReason } from './types';
 
 export type GatingLevel = 'aggressive' | 'normal' | 'off';

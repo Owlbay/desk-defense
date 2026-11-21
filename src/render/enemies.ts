@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+
 import type { EnemyId, EnemyState } from '../core/types';
 import type { RenderCtx } from './ctx';
 import { CELL, DEPTH } from './layout';

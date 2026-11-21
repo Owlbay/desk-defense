@@ -9,10 +9,10 @@
  *
  * 只读世界状态；不发指令。浏览器（index.ts）与无头（runner.ts）都在每个世界事件上调用 onEvent。
  */
-import type { AffixId, EnemyId, GameEvent, IWorld, TowerId } from '../core/types';
-import { ENEMIES, AFFIXES } from '../config/enemies';
+import { AFFIXES, ENEMIES } from '../config/enemies';
 import { TOWERS } from '../config/towers';
-import { shooters, type Shooter } from './routes';
+import type { AffixId, EnemyId, GameEvent, IWorld, TowerId } from '../core/types';
+import { type Shooter, shooters } from './routes';
 
 /** 采样间隔（游戏秒） */
 const SAMPLE_DT = 0.2;

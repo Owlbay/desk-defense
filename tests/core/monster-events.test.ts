@@ -1,19 +1,20 @@
 import { describe, expect, it } from 'vitest';
+
+import { AFFIX_ROLL_IDS, AFFIXES, ENEMIES } from '../../src/config/enemies';
 import {
+  createWorld,
+  type EnemyState,
+  eventSeverity,
+  type GameEvent,
+  goldScale,
   MONSTER_EVENTS,
   RANDOM_EVENT_IDS,
   RANDOM_EVENTS,
-  createWorld,
-  eventSeverity,
-  goldScale,
-  stateHash,
-  World,
-  type EnemyState,
-  type GameEvent,
   type RandomEventId,
   type RunOptions,
+  stateHash,
+  type World,
 } from '../../src/core';
-import { AFFIXES, AFFIX_ROLL_IDS, ENEMIES } from '../../src/config/enemies';
 
 /** 文档 09 §3.2：怪物类随机事件 */
 const NEW_EVENTS: RandomEventId[] = [

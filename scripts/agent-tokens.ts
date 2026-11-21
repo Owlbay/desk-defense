@@ -2,12 +2,12 @@
  * 离线 token 基准：npm run agent:tokens -- [--waves 15] [--seed tok-1] [--map ch1] [--json]
  * 模型与假设见 ./token-model.ts。不联网、不需要 Key。
  */
-import type { MapId } from '../src/core/types';
+import { CONTEXT_MODES } from '../src/agent/config';
 import { estimateTokens } from '../src/agent/observation';
 import { catalogText, systemBlocks } from '../src/agent/prompts';
 import { LEGACY_TOOLS, SLIM_TOOLS } from '../src/agent/tools';
-import { CONTEXT_MODES } from '../src/agent/config';
-import { tokenRun, LEGACY_RULES_TOKENS, type TokenRun } from './token-model';
+import type { MapId } from '../src/core/types';
+import { LEGACY_RULES_TOKENS, type TokenRun, tokenRun } from './token-model';
 
 const argv = process.argv.slice(2).filter((a) => a !== '--');
 const arg = (k: string, d?: string): string | undefined => {

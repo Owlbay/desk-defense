@@ -2,7 +2,7 @@
  * 配置 → 适配器。所有厂商 SDK 都用 dynamic import() 按需加载：
  * 浏览器首屏包里只有 src/agent 的纯逻辑；玩家打开 AI 模式时才下载 pi / @anthropic-ai/sdk 对应的分包。
  */
-import { configErrorMessage, resolveConfig, validateConfig, type AgentModelConfig } from './config';
+import { type AgentModelConfig, configErrorMessage, resolveConfig, validateConfig } from './config';
 import type { LLMProvider } from './providers/types';
 
 export async function createProvider(c: Partial<AgentModelConfig>): Promise<LLMProvider> {

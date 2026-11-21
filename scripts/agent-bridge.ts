@@ -13,9 +13,10 @@
  * 每次配对成功后会生成新的配对码（旧码作废）。Key 只从本机环境变量 / `ant auth` 读取。
  */
 import { WebSocketServer } from 'ws';
+
+import { type BridgeServerMsg, createBridgeSession, makePairingCode, originAllowed } from '../src/agent/bridge';
+import { type AgentModelConfig, parseContextMode, parseThinking, type PiApi, type Preset } from '../src/agent/config';
 import { createProvider } from '../src/agent/factory';
-import { createBridgeSession, makePairingCode, originAllowed, type BridgeServerMsg } from '../src/agent/bridge';
-import { parseContextMode, parseThinking, type AgentModelConfig, type PiApi, type Preset } from '../src/agent/config';
 
 const argv = process.argv.slice(2).filter((a) => a !== '--');
 const arg = (n: string, d?: string): string | undefined => {

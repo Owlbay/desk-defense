@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import type { DifficultyParams, RunOptions } from '../../src/core/types';
 import { CUSTOM_FIELDS, decodeShare, ELITE_OFF, encodeShare, paramValue, sanitizeParams, sliderValue } from '../../src/meta/custom';
 import { makeMidRun, replaySync, type ReplayWorld } from '../../src/meta/midrun';
@@ -6,16 +7,16 @@ import { defaultProfile, loadProfile, normalizeProfile, PROFILE_KEY, ProfileStor
 import {
   buyTalent,
   campaignDiffUnlocked,
-  defaultAutoWave,
-  effectiveAutoWave,
-  leaderKey,
   chapterUnlocked,
-  difficultyUnlocked,
-  endlessUnlocked,
-  endlessMaps,
   customUnlocked,
+  defaultAutoWave,
+  difficultyUnlocked,
+  effectiveAutoWave,
+  endlessMaps,
+  endlessUnlocked,
   inkFor,
   insertLeader,
+  leaderKey,
   maxAbyssLevel,
   recordCampaignClear,
   resolveLoadout,
@@ -25,7 +26,7 @@ import {
   unlockReached,
   upgradeSkill,
 } from '../../src/meta/progress';
-import { memoryStorage, type KV } from '../../src/meta/storage';
+import { type KV, memoryStorage } from '../../src/meta/storage';
 
 const NORMAL: DifficultyParams = {
   startGold: 150,

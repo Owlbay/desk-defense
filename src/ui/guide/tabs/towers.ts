@@ -1,12 +1,12 @@
 /** 图鉴 · 防御塔：列表 + 单座塔的详情页（各形态、数值、特性、分支、进化与神话能力） */
-import { ABILITY_META, COMBOS, TIER_NAMES, TOWER_META, type Branch, type TowerId, type TowerInfo } from '../../../core';
+import { ABILITY_META, type Branch, COMBOS, TIER_NAMES, TOWER_META, type TowerId, type TowerInfo } from '../../../core';
 import { TOWER_IDS } from '../../../core/types';
 import { t } from '../../../i18n';
 import { abilityIcon, towerIcon } from '../../assets';
 import { h } from '../../dom';
 import { G } from '../../icons';
-import { icon, rich, section, stat, table, tag, unlockLabel, yesNo, type Entry, type TabContext, type TabModule } from '../kit';
-import { towerSheet, type TowerSheet } from '../towerData';
+import { type Entry, icon, rich, section, stat, type TabContext, table, type TabModule, tag, unlockLabel, yesNo } from '../kit';
+import { type TowerSheet, towerSheet } from '../towerData';
 
 const BRANCHES: Branch[] = ['A', 'B'];
 /** 目标策略的名称沿用对局界面的文案（ui.game.target.*），不在图鉴里另写一份 */

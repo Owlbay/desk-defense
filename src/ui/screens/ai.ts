@@ -2,7 +2,7 @@
  * 「AI 参战」设置页的外壳：只有标题和加载占位，表单（连同 Agent 代码）进入页面时才 import()。
  */
 import { t } from '../../i18n';
-import { screenHeader, type App, type Screen } from '../App';
+import { type App, type Screen, screenHeader } from '../App';
 import { audio } from '../audio';
 import { h } from '../dom';
 

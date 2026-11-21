@@ -1,20 +1,20 @@
+import { TOWERS } from '../../config/towers';
 import type { PerkCard, TowerState, WorldState } from '../../core/types';
 import { ui } from '../../game/UiStore';
+import { getLocale, onLocaleChange, t } from '../../i18n';
+import { isAiAssisted, usedAi } from '../../meta/aiAssist';
 import type { Rewards } from '../../meta/progress';
 import { towerIcon } from '../assets';
 import { audio } from '../audio';
 import { eventMeta, TOWER_META } from '../coreMeta';
-import { TOWERS } from '../../config/towers';
-import { getLocale, onLocaleChange, t } from '../../i18n';
 import { copyText, fmtNum, h, img, setText } from '../dom';
 import { G } from '../icons';
-import { settingsPanel } from '../screens/settings';
-import { RARITY_NAME, type GameCtx } from './context';
-import { runSummary } from '../screens/menu';
-import { countUp } from './motion';
-import { starRow } from '../screens/common';
 import { mountOnlineSubmit } from '../online/submit';
-import { isAiAssisted, usedAi } from '../../meta/aiAssist';
+import { starRow } from '../screens/common';
+import { runSummary } from '../screens/menu';
+import { settingsPanel } from '../screens/settings';
+import { type GameCtx, RARITY_NAME } from './context';
+import { countUp } from './motion';
 
 function overlay(cls: string, ...children: HTMLElement[]): HTMLElement {
   return h(`div.overlay.${cls}`, null, ...children);

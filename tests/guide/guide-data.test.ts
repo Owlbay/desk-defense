@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { TOWER_IDS } from '../../src/core/types';
+
 import { AFFIX_IDS, ENEMIES } from '../../src/config/enemies';
+import { TOWER_IDS } from '../../src/core/types';
 import zhCN from '../../src/i18n/locales/zh-CN/guide';
-import { towerSheet } from '../../src/ui/guide/towerData';
 import { parseGuideHash } from '../../src/ui/guide/hash';
+import { towerSheet } from '../../src/ui/guide/towerData';
 
 const src = zhCN as Record<string, string>;
 

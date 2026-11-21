@@ -1,9 +1,9 @@
 import type { RandomEventState, WavePreview, WavePreviewGroup, WorldState } from '../../core/types';
 import type { Speed } from '../../game/Session';
+import { getLocale, t } from '../../i18n';
 import { affixIcon, enemyIcon } from '../assets';
 import { audio } from '../audio';
 import { AFFIX_META, ENEMY_META, spawnerName } from '../coreMeta';
-import { getLocale, t } from '../../i18n';
 import { h, img, setText, toggle } from '../dom';
 import { G } from '../icons';
 import type { GameCtx } from './context';
@@ -143,7 +143,7 @@ export class WavePanel {
     const aw = st.autoWave;
     const auto = !!aw?.enabled;
     const started = auto && (aw.started || st.wave > 0);
-    let label = '';
+    let label: string;
     let sub = '';
     let disabled = false;
     let counting = false;

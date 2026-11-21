@@ -5,19 +5,19 @@
  * Key 按玩家选的存放方式读取（store.readKey），只随配置传给模型服务商。
  */
 import {
-  PRESETS,
+  type AgentModelConfig,
   normalizeRelayBase,
   parseRelayUrl,
-  validateConfigIssues,
-  type AgentModelConfig,
   type PiApi,
   type Preset,
+  PRESETS,
   type RelayApi,
+  validateConfigIssues,
 } from '../../agent';
 import { t, tOr } from '../../i18n';
 import type { BridgeConn } from './bridge-state';
 import type { AiRole } from './launch';
-import { readKey, type AiSetupSaved, type AiSource, type PerSource } from './store';
+import { type AiSetupSaved, type AiSource, type PerSource, readKey } from './store';
 
 export const SOURCE_ORDER: AiSource[] = [
   'demo',

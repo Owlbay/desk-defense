@@ -1,17 +1,17 @@
+import { fmtNumber, t } from '../../i18n';
+import { fetchDaily } from '../../meta/online';
 import { allDiffKeys, keyLabel, leaderKey, leaderView } from '../../meta/progress';
 import { dailyInfo, dayOf, parseBoard } from '../../shared/leaderboard';
-import { fetchDaily } from '../../meta/online';
-import { fmtNumber, t } from '../../i18n';
-import { fmtDay } from '../online/util';
-import { screenHeader, type App, type Screen } from '../App';
+import { aiBoard } from '../ai/board';
+import { type App, type Screen, screenHeader } from '../App';
 import { audio } from '../audio';
 import { MAP_META } from '../coreMeta';
 import { clear, copyText, h } from '../dom';
 import { G } from '../icons';
-import { takeLeaderboardRequest, type LbTab } from '../online/nav';
+import { type LbTab, takeLeaderboardRequest } from '../online/nav';
 import { nicknameChip } from '../online/nickname';
 import { onlineBoard } from '../online/table';
-import { aiBoard } from '../ai/board';
+import { fmtDay } from '../online/util';
 
 /** 'ai'：AI 榜（文档 10 §13），成绩来自「AI 参战」，与真人榜完全分开 */
 type Tab = LbTab | 'ai';

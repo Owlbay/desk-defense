@@ -95,7 +95,7 @@ export async function decodeLogPayload(p: LogPayload, maxRawBytes = LOG_MAX_RAW_
   try {
     bytes = await gunzip(base64ToBytes(p.gz), maxRawBytes);
   } catch (e) {
-    throw new Error(e instanceof Error && e.message === 'too_large' ? 'too_large' : 'bad_log');
+    throw new Error(e instanceof Error && e.message === 'too_large' ? 'too_large' : 'bad_log', { cause: e });
   }
   try {
     return { log: JSON.parse(new TextDecoder().decode(bytes)) as unknown, rawBytes: bytes.byteLength };

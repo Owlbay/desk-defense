@@ -4,7 +4,7 @@
  * 语言写在存档 settings.lang（Locale id；旧存档的 'zh' 视为简体中文）。另外在独立的键里镜像一份，
  * 这样即使存档解析暂时不保留 lang（或玩家清除了存档），语言选择也不会丢。
  */
-import { detectLocale, normalizeLocale, type Locale } from '../i18n';
+import { detectLocale, type Locale, normalizeLocale } from '../i18n';
 import type { ProfileStore } from '../meta/profile';
 
 export const LANG_KEY = 'desk-defense.lang';

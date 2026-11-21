@@ -4,7 +4,7 @@ import { AFFIX_META } from '../../../core';
 import { t } from '../../../i18n';
 import { affixIcon } from '../../assets';
 import { h } from '../../dom';
-import { bullets, icon, rich, type Entry, type TabContext, type TabModule } from '../kit';
+import { bullets, type Entry, icon, rich, type TabContext, type TabModule } from '../kit';
 
 export const affixTab: TabModule = {
   entries(): Entry[] {

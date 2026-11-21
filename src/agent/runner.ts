@@ -8,21 +8,21 @@ import { createWorld } from '../core';
 import type { IWorld, RunOptions } from '../core/types';
 import { makeMidRun } from '../meta/midrun';
 import { boardForOpts } from '../shared/leaderboard';
-import { agentTag, resolveConfig, saveableConfig, type AgentModelConfig } from './config';
+import { type AgentModelConfig, agentTag, resolveConfig, saveableConfig } from './config';
 import { DecisionEngine } from './engine';
-import { AgentScheduler } from './scheduler';
 import { scriptedFallback } from './providers/scripted';
 import type { LLMProvider } from './providers/types';
+import { AgentScheduler } from './scheduler';
 import {
-  budgetTokens,
-  usageTotal,
   type AgentReplay,
   type AgentRunResult,
   type AgentWaveRow,
+  budgetTokens,
   type DecisionRecord,
   type FallbackPolicy,
   type Suggestion,
   type TokenUsage,
+  usageTotal,
 } from './types';
 
 export interface AgentRunConfig {

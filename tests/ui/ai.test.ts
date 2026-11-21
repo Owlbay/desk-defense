@@ -2,6 +2,7 @@
  * AI 参战界面的纯逻辑（无 DOM）：军师动作解析、配置片段、设置保存不含密钥、结算上传标记、启动钩子。
  */
 import { beforeEach, describe, expect, it, onTestFinished } from 'vitest';
+
 import { createWorld } from '../../src/core';
 import type { Command, RunOptions } from '../../src/core/types';
 import { sanitizeAgentMeta } from '../../src/shared/leaderboard';

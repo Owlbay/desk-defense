@@ -4,9 +4,9 @@
  */
 import { t } from '../../i18n';
 import { isAiAssisted } from '../../meta/aiAssist';
-import { audio } from '../audio';
 import { AI_GLYPH } from '../ai/icon';
 import type { AiLaunch, AiRole, AiSlot } from '../ai/launch';
+import { audio } from '../audio';
 import { h, setText } from '../dom';
 import { G } from '../icons';
 import type { GameCtx } from './context';

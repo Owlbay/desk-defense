@@ -8,15 +8,15 @@
  *
  * 本文件不依赖任何 LLM SDK：Claude 适配器、MCP 服务、脚本策略都复用这里的定义与执行器。
  */
-import { SOURCE_LOCALE, withLocale } from '../i18n';
-import { TOWER_IDS, type Branch, type Command, type IWorld, type SkillId, type TargetMode, type TowerId } from '../core/types';
 import { SKILL_IDS } from '../config/skills';
+import { type Branch, type Command, type IWorld, type SkillId, type TargetMode, TOWER_IDS, type TowerId } from '../core/types';
+import { SOURCE_LOCALE, withLocale } from '../i18n';
+import { type CompactObs, compactObservation, terrainMap } from './compact';
 import { asciiMap, renderObservation } from './observation';
-import { catalogEntry, catalogText, type CatalogSection } from './prompts';
-import { compactObservation, terrainMap, type CompactObs } from './compact';
-import { coverageLines, groundRoutes, fmtWp, previewChanges, previewText, routeSummary } from './routes';
-import { COMBO_PAIRS, Planner, type IntentOutcome, type PlannerState } from './planner';
-import { PURPOSES, type Purpose } from './purpose';
+import { COMBO_PAIRS, type IntentOutcome, Planner, type PlannerState } from './planner';
+import { catalogEntry, type CatalogSection, catalogText } from './prompts';
+import { type Purpose, PURPOSES } from './purpose';
+import { coverageLines, fmtWp, groundRoutes, previewChanges, previewText, routeSummary } from './routes';
 import type { AgentRole, CommandSink, ToolResult } from './types';
 
 // ───────────────────────── Schema ─────────────────────────

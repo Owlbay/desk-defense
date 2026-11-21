@@ -1,12 +1,13 @@
 import Phaser from 'phaser';
-import { t } from '../i18n';
+
+import { LAMP } from '../config/towers';
 import type { TowerState } from '../core/types';
 import { ui } from '../game/UiStore';
+import { t } from '../i18n';
 import { hasArt } from './assets';
 import type { RenderCtx } from './ctx';
 import { CELL, DEPTH } from './layout';
 import { springCos, springSin } from './motion';
-import { LAMP } from '../config/towers';
 import { C, FONT, TOWER_COLOR } from './palette';
 import { PartSet } from './parts';
 import { TEX } from './sprites';

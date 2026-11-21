@@ -6,23 +6,23 @@
  * 这里负责：轮询节奏（军师模式避免在建造 / 增益阶段反复提问）、自动拾取、AI 操作时屏蔽玩家输入。
  */
 import {
-  AgentTrace,
   actToLegacy,
-  budgetTokens,
-  createAgentController,
-  usageLine,
-  usageTotal,
-  type BudgetChoice,
-  type BudgetState,
   type AgentController,
   type AgentControllerEvent,
   type AgentModelConfig,
   type AgentStatus,
+  AgentTrace,
+  type BudgetChoice,
+  type BudgetState,
+  budgetTokens,
+  createAgentController,
   type DecisionRecord,
   type SessionLike,
   type Suggestion,
   type TokenUsage,
   type TraceExport,
+  usageLine,
+  usageTotal,
 } from '../../agent';
 import type { Command, CommandResult } from '../../core/types';
 import type { Speed } from '../../game/Session';
@@ -31,14 +31,14 @@ import { fmtNumber, onLocaleChange, t } from '../../i18n';
 import { audio } from '../audio';
 import { clear, fmtNum, h, setText } from '../dom';
 import { G } from '../icons';
-import { fmtCost, fmtTokens } from './format';
 import { applyAction, describeCall, failReason, parseAction, reasonName } from './actions';
 import { demoAdvisor } from './demoAdvisor';
-import { botShareOf } from './meta';
+import { fmtCost, fmtTokens } from './format';
 import type { AiAttachCtx, AiGameOverHandlers, AiGameOverInfo, AiHudHandle, AiLaunch } from './launch';
-import { reportCard, type AiRunSummary } from './report';
-import { mountTracePanel, type TracePanelHandle } from './trace-panel';
+import { botShareOf } from './meta';
 import { OpsRecorder, type OpsWorld, type TraceExportWithOps } from './ops';
+import { type AiRunSummary, reportCard } from './report';
+import { mountTracePanel, type TracePanelHandle } from './trace-panel';
 
 const FEED_MAX = 40;
 const SUGGEST_MAX = 2;

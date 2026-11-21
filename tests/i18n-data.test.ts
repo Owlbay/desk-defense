@@ -6,13 +6,15 @@
  *  - 语言不影响模拟：同一组指令在不同语言下 stateHash 完全一致；
  *  - src/core、src/config、src/meta、src/shared 里不残留中文字符串字面量（注释与白名单除外）。
  */
-import { afterAll, describe, expect, it } from 'vitest';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { dictOf, getLocale, loadLocale, setLocale, t, tSource, withLocale, type Locale } from '../src/i18n';
-import { createWorld, stateHash, TOWER_META, ENEMY_META, ABILITY_META, type Command, type IWorld, type RunOptions } from '../src/core';
-import { TIER_NAMES, TOWERS } from '../src/config/towers';
+
+import { afterAll, describe, expect, it } from 'vitest';
+
 import { PERKS } from '../src/config/perks';
+import { TIER_NAMES, TOWERS } from '../src/config/towers';
+import { ABILITY_META, type Command, createWorld, ENEMY_META, type IWorld, type RunOptions, stateHash, TOWER_META } from '../src/core';
+import { dictOf, getLocale, loadLocale, type Locale, setLocale, t, tSource, withLocale } from '../src/i18n';
 import { CUSTOM_FIELDS } from '../src/meta/custom';
 import { diffLabel, unlockHint } from '../src/meta/progress';
 import { boardLabel } from '../src/shared/leaderboard';

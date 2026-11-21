@@ -1,8 +1,8 @@
 import type { DifficultyParams, RunOptions, SpawnMode } from './types';
 
 const SPAWN_MODES: SpawnMode[] = ['fixed', 'roundRobin', 'random', 'split', 'focus'];
-import { PRESETS, abyssParams } from '../config/difficulty';
 import { CAMPAIGN_HP } from '../config/campaign';
+import { abyssParams, PRESETS } from '../config/difficulty';
 
 /** 文档 04 §3 成长公式 */
 export function hpScale(D: DifficultyParams, w: number): number {

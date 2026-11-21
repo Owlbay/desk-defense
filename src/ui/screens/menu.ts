@@ -1,13 +1,13 @@
 import type { RunOptions } from '../../core/types';
+import { getLocale, t } from '../../i18n';
 import { chapterCleared, customUnlocked, diffLabel, endlessUnlocked } from '../../meta/progress';
-import { currencyChips, type App, type Screen } from '../App';
+import { AI_GLYPH } from '../ai/icon';
+import { type App, currencyChips, type Screen } from '../App';
 import { towerIcon } from '../assets';
 import { audio } from '../audio';
 import { MAP_META } from '../coreMeta';
 import { h, img } from '../dom';
 import { G } from '../icons';
-import { AI_GLYPH } from '../ai/icon';
-import { getLocale, t } from '../../i18n';
 
 const modeName = (m: RunOptions['mode']): string => t(`ui.menu.mode.${m}`);
 

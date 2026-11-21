@@ -1,9 +1,9 @@
-import type { AffixId, DifficultyParams, EnemyId, MapId, ModeId, SpawnMode, WavePreview, WavePreviewGroup } from './types';
-import { Rng } from './rng';
-import { countScale, eliteChance } from './scaling';
-import { AFFIXES, AFFIX_ROLL_IDS, BOSS_ROTATION, ENDLESS_POOL, ENEMIES } from '../config/enemies';
 import { CAMPAIGN, CAMPAIGN_WAVES } from '../config/campaign';
 import { CAPS } from '../config/difficulty';
+import { AFFIX_ROLL_IDS, AFFIXES, BOSS_ROTATION, ENDLESS_POOL, ENEMIES } from '../config/enemies';
+import { Rng } from './rng';
+import { countScale, eliteChance } from './scaling';
+import type { AffixId, DifficultyParams, EnemyId, MapId, ModeId, SpawnMode, WavePreview, WavePreviewGroup } from './types';
 
 export interface SpawnEntry {
   /** 相对开波的秒数 */

@@ -29,21 +29,22 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { DifficultyId, IWorld, MapId, ModeId, RunOptions, SkillId } from '../src/core';
-import { BOTS, StrategyBot } from './bots';
-import { createProvider } from '../src/agent/factory';
+
 import {
+  type AgentModelConfig,
   parseContextMode,
   parseThinking,
+  type PiApi,
+  type Preset,
   resolveConfig,
   validateConfig,
-  type AgentModelConfig,
-  type Preset,
-  type PiApi,
 } from '../src/agent/config';
-import { runAgentGame, type AgentRunReport } from '../src/agent/runner';
-import { budgetTokens, usageLine, type AgentRole, type DecisionMode, type FallbackPolicy } from '../src/agent/types';
+import { createProvider } from '../src/agent/factory';
 import { scriptedFallback } from '../src/agent/providers/scripted';
+import { type AgentRunReport, runAgentGame } from '../src/agent/runner';
+import { type AgentRole, budgetTokens, type DecisionMode, type FallbackPolicy, usageLine } from '../src/agent/types';
+import type { DifficultyId, IWorld, MapId, ModeId, RunOptions, SkillId } from '../src/core';
+import { BOTS, StrategyBot } from './bots';
 
 const argv = process.argv.slice(2).filter((a) => a !== '--');
 function arg(name: string, def?: string): string | undefined {

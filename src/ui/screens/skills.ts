@@ -1,6 +1,7 @@
 import type { SkillId } from '../../core/types';
+import { fmtNumber, t } from '../../i18n';
 import { resolveLoadout, SKILL_MAX_LEVEL, skillLevel, skillSlots, skillUpgradeCost, unlockText, upgradeSkill } from '../../meta/progress';
-import { screenHeader, type App, type Route, type Screen } from '../App';
+import { type App, type Route, type Screen, screenHeader } from '../App';
 import { skillIcon } from '../assets';
 import { audio } from '../audio';
 import { SKILL_META, SKILL_ORDER } from '../coreMeta';
@@ -8,7 +9,6 @@ import { clear, h, img } from '../dom';
 import { G } from '../icons';
 import { unlockedSkills } from './common';
 import { burst } from './motion';
-import { fmtNumber, t } from '../../i18n';
 
 const TARGET_KEYS = ['none', 'circle', 'rect2', 'line', 'tower', 'tower+cell', 'spawner'];
 const targetText = (k: string): string => (TARGET_KEYS.includes(k) ? t(`ui.skills.target.${k.replace('+', '_')}`) : '');

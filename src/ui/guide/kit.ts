@@ -3,7 +3,7 @@
  * 所有文字都来自 t('guide.…') 或 core 的 *_META，这里不写死任何文案。
  */
 import { t, tOr } from '../../i18n';
-import { h, type Child } from '../dom';
+import { type Child, h } from '../dom';
 
 export const TAB_IDS = ['play', 'tower', 'enemy', 'affix', 'skill', 'combo', 'ai', 'faq'] as const;
 export type TabId = (typeof TAB_IDS)[number];

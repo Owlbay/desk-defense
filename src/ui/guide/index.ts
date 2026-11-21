@@ -3,12 +3,13 @@
  * 这个模块连同样式由 screens/guide.ts 动态加载，不进主包。
  */
 import '../../styles/guide.css';
+
 import { t } from '../../i18n';
 import type { App } from '../App';
 import { audio } from '../audio';
 import { clear, h } from '../dom';
 import { G } from '../icons';
-import { icon, TAB_IDS, type Entry, type GuidePath, type TabContext, type TabId, type TabModule } from './kit';
+import { type Entry, type GuidePath, icon, TAB_IDS, type TabContext, type TabId, type TabModule } from './kit';
 import { affixTab } from './tabs/affixes';
 import { aiTab } from './tabs/ai';
 import { comboTab } from './tabs/combos';
@@ -169,24 +170,22 @@ export function mountGuide(app: App, host: HTMLElement, initial: string | undefi
       h(
         'ul.guide-results',
         null,
-        hits
-          .slice(0, MAX_RESULTS)
-          .map((e) =>
+        hits.slice(0, MAX_RESULTS).map((e) =>
+          h(
+            'li',
+            null,
             h(
-              'li',
-              null,
-              h(
-                'a.guide-result.card',
-                {
-                  attrs: { href: `#guide/${e.tab}/${e.id}` },
-                  onclick: (ev: Event) => (ev.preventDefault(), go({ tab: e.tab, item: e.id })),
-                },
-                e.icon ? icon(e.icon, 'guide-ico', 40) : h('span.guide-ico.blank', { attrs: { 'aria-hidden': 'true' } }),
-                h('span.guide-result-main', null, h('strong', null, e.title), e.text ? h('small.muted', null, snippet(e.text, q)) : null),
-                h('span.tag', null, t(`guide.tab.${e.tab}`)),
-              ),
+              'a.guide-result.card',
+              {
+                attrs: { href: `#guide/${e.tab}/${e.id}` },
+                onclick: (ev: Event) => (ev.preventDefault(), go({ tab: e.tab, item: e.id })),
+              },
+              e.icon ? icon(e.icon, 'guide-ico', 40) : h('span.guide-ico.blank', { attrs: { 'aria-hidden': 'true' } }),
+              h('span.guide-result-main', null, h('strong', null, e.title), e.text ? h('small.muted', null, snippet(e.text, q)) : null),
+              h('span.tag', null, t(`guide.tab.${e.tab}`)),
             ),
           ),
+        ),
       ),
     );
   }

@@ -1,6 +1,6 @@
-import { t } from '../i18n';
 import { localize } from '../config/text';
-import { RANDOM_EVENT_IDS, type DifficultyId, type DifficultyParams, type MapId, type RandomEventId, type SpawnMode } from '../core/types';
+import { type DifficultyId, type DifficultyParams, type MapId, RANDOM_EVENT_IDS, type RandomEventId, type SpawnMode } from '../core/types';
+import { t } from '../i18n';
 
 /** DifficultyParams 里数值型的字段 */
 export type NumParamKey = { [K in keyof DifficultyParams]: DifficultyParams[K] extends number ? K : never }[keyof DifficultyParams];

@@ -2,18 +2,18 @@
  * 只读回放：用成绩的开局参数 + 种子新建 Session，按帧号喂入记录的指令。
  * 棋盘用 mountBoard 渲染，上面盖一层透明遮罩拦住所有点击（回放不接受玩家操作）。
  */
-import { makeFeeder } from './util';
 import { Session, type Speed } from '../../game/Session';
 import { ui } from '../../game/UiStore';
+import { fmtNumber, t } from '../../i18n';
 import { fetchRun, type RunReplay } from '../../meta/online';
 import { mountBoard } from '../../render';
+import { boardLabel } from '../../shared/leaderboard';
 import type { App } from '../App';
 import { audio } from '../audio';
 import { MAP_META } from '../coreMeta';
 import { h, setText } from '../dom';
-import { fmtNumber, t } from '../../i18n';
 import { G } from '../icons';
-import { boardLabel } from '../../shared/leaderboard';
+import { makeFeeder } from './util';
 
 /** 打开回放（先拉取数据）。返回关闭函数。 */
 export function openReplay(app: App, runId: string, nickname?: string): () => void {

@@ -3,7 +3,7 @@
  * 这里保存的设置是全局的：对局里的 AI 按钮（任何模式）与「AI 参战」共用。
  */
 import { t } from '../../i18n';
-import { screenHeader, type App, type Screen } from '../App';
+import { type App, type Screen, screenHeader } from '../App';
 import { audio } from '../audio';
 import { h } from '../dom';
 

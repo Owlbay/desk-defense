@@ -24,7 +24,11 @@
     "agent:tokens": "vite-node scripts/agent-tokens.ts",
     "agent:eval": "vite-node scripts/agent-eval.ts",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix && prettier --write .",
+    "check": "npm run typecheck && npm run typecheck:functions && npm run lint && npm run format:check && npm run test",
+    "prepare": "simple-git-hooks"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.11.0",
@@ -43,12 +47,27 @@
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-simple-import-sort": "14.0.0",
     "globals": "17.14.0",
+    "lint-staged": "17.6.0",
     "prettier": "3.9.10",
+    "simple-git-hooks": "2.14.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "8.72.1",
     "vite": "^8.3.8",
     "vite-node": "^6.0.0",
     "vite-plugin-pwa": "^2.0.0",
     "vitest": "^5.1.1"
+  },
+  "engines": {
+    "node": ">=22.22.1"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "npx lint-staged"
+  },
+  "lint-staged": {
+    "*.{ts,mjs,js}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,css,yml,yaml}": "prettier --write"
   }
 }

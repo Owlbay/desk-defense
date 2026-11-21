@@ -7,7 +7,7 @@
  *
  * 文本不参与任何游戏逻辑 / 状态哈希；核心逻辑只读数值字段。
  */
-import { t, type Params } from '../i18n';
+import { type Params, t } from '../i18n';
 
 export type TextParams = Params | (() => Params);
 

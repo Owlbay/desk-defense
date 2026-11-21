@@ -1,6 +1,6 @@
 import type { TowerId } from '../core/types';
-import { BRANCH, SWATTER, pct, type TraitText } from './towers';
 import { localize, nameDesc, part, type TextParams } from './text';
+import { BRANCH, pct, SWATTER, type TraitText } from './towers';
 
 /** 传奇进化（文档 11） */
 export const EVO = {

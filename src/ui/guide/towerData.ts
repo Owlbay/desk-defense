@@ -2,7 +2,7 @@
  * 图鉴里塔的面板数值：在一个临时对局里真的放塔、逐级升级，再读 getTowerInfo()，
  * 与游戏内显示完全一致（做法同 scripts/gen-data-docs.ts）。按「语言 + 塔」缓存。
  */
-import { createWorld, type Branch, type IWorld, type TowerId, type TowerInfo } from '../../core';
+import { type Branch, createWorld, type IWorld, type TowerId, type TowerInfo } from '../../core';
 import { getLocale } from '../../i18n';
 
 export interface TowerSheet {

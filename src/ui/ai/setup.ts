@@ -4,7 +4,9 @@
  * 角色（AI 玩家 / AI 军师）→ 对局（模式 / 地图 / 难度 / 种子）→ 模型设置表单（与设置里的「AI 助手」共用，
  * 见 model-form.ts）→ 开始。AI 参战的对局由 AI 从第 1 波开始全程操作，可以进 AI 榜。
  */
+import { resolveConfig, saveableConfig } from '../../agent';
 import type { DifficultyId, MapId } from '../../core/types';
+import { t } from '../../i18n';
 import {
   ABYSS_MAX,
   campaignDiffUnlocked,
@@ -15,17 +17,15 @@ import {
   maxAbyssLevel,
   roman,
 } from '../../meta/progress';
-import { resolveConfig, saveableConfig } from '../../agent';
 import type { App } from '../App';
 import { audio } from '../audio';
 import { MAP_META } from '../coreMeta';
-import { t } from '../../i18n';
 import { clear, h, setText } from '../dom';
 import { G } from '../icons';
 import { buildRunOptions, layoutPicker, randomSeed, switchRow } from '../screens/common';
-import { requestAiLaunch, type AiRole } from './launch';
+import { type AiRole, requestAiLaunch } from './launch';
 import { field, mountAiModelConfigForm } from './model-form';
-import { loadSetup, type AiSetupSaved } from './store';
+import { type AiSetupSaved, loadSetup } from './store';
 
 export { normalizeDiag } from './model-form';
 

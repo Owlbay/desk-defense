@@ -2,17 +2,18 @@
  * 操作解读（思路与请求面板右栏）：指令 / 事件归属到决策、act 结果与意图对齐、被拒解析、文案（zh-CN / en）、四种语言的 key 一致。
  */
 import { afterAll, describe, expect, it } from 'vitest';
+
+import type { TraceEvent } from '../../src/agent/trace';
 import { createWorld } from '../../src/core';
 import { SKILL_META, TOWER_META } from '../../src/core';
 import type { Command, CommandResult, GameEvent, RunOptions } from '../../src/core/types';
-import type { TraceEvent } from '../../src/agent/trace';
 import { setLocale } from '../../src/i18n';
-import { OpsRecorder, alignAct, opsTotals, type CapturedCmd, type Op, type OpsWorld } from '../../src/ui/ai/ops';
-import { groupSummary, groupTitle, opGold, opLine } from '../../src/ui/ai/ops-format';
-import zhCN from '../../src/i18n/locales/zh-CN/agent.ops';
-import zhTW from '../../src/i18n/locales/zh-TW/agent.ops';
 import en from '../../src/i18n/locales/en/agent.ops';
 import ja from '../../src/i18n/locales/ja/agent.ops';
+import zhCN from '../../src/i18n/locales/zh-CN/agent.ops';
+import zhTW from '../../src/i18n/locales/zh-TW/agent.ops';
+import { alignAct, type CapturedCmd, type Op, OpsRecorder, opsTotals, type OpsWorld } from '../../src/ui/ai/ops';
+import { groupSummary, groupTitle, opGold, opLine } from '../../src/ui/ai/ops-format';
 
 afterAll(async () => {
   await setLocale('zh-CN');

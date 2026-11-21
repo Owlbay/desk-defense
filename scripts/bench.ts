@@ -13,11 +13,11 @@
  * 5) 台灯联动（文档 02 §2.5）：同样的位置（挨在一起），联动开 / 关（LAMP.link = 0）对比 Boss 波与普通波的输出；
  *    再拿 10 座激光笔（不限座数的大组）与同样金币的传奇 A 铅笔 / 尺子比较。单塔性价比里的"孤灯"用 --patch '{"lamp.link":0}' 跑 solo。
  */
-import { createWorld, type Branch, type IWorld, type MapId, type TowerId } from '../src/core';
-import { BRANCH, LAMP, SWATTER, TOWERS } from '../src/config/towers';
 import { ABILITY_FX, EVO } from '../src/config/evolution';
-import { airSamples, coverage, groundSamples, planMaze, targetCells } from './bots/maze';
+import { BRANCH, LAMP, SWATTER, TOWERS } from '../src/config/towers';
+import { type Branch, createWorld, type IWorld, type MapId, type TowerId } from '../src/core';
 import { BOTS, StrategyBot } from './bots';
+import { airSamples, coverage, groundSamples, planMaze, targetCells } from './bots/maze';
 
 const argv = process.argv.slice(2).filter((a) => a !== '--');
 const arg = (n: string, d: string) => {

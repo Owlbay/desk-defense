@@ -4,19 +4,19 @@
  * 每个决策点（建造阶段每次开波前，以及波次进行中每 decisionTicks 步）依次：
  *   选增益 → 维护迷宫 → 买塔 / 升级 → 放技能 → （高手）安全时提前开波
  */
+import { COMBOS, TOWERS } from '../../src/config/towers';
 import {
+  type Branch,
   CellKind,
   generateWave,
-  type Branch,
   type IWorld,
   type PerkCard,
   type SkillId,
   type TowerId,
   type TowerState,
 } from '../../src/core';
-import { COMBOS, TOWERS } from '../../src/config/towers';
 import { rawUpgradeCost } from '../../src/core/scaling';
-import { airSamples, coverage, groundSamples, planMaze, spawnerKey, targetCells, type MazePlan, type Sample } from './maze';
+import { airSamples, coverage, groundSamples, type MazePlan, planMaze, type Sample, spawnerKey, targetCells } from './maze';
 
 export interface BotParams {
   name: string;

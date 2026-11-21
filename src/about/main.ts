@@ -72,7 +72,7 @@ function applyLocale(): void {
 }
 
 async function setLocale(next: Locale): Promise<void> {
-  let d: Dict | null = null;
+  let d: Dict | null;
   try {
     d = await loadDict(next);
   } catch (e) {

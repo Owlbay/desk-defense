@@ -7,13 +7,13 @@
  *   对局页用 takeAiLaunch() 取出这个请求并以「AI 参战」方式挂上（同一套机制：从第 1 波开始、结算出 AI 报告）。
  * 没有启用 AI 的对局零开销：Agent / 模型 SDK 只会出现在动态分包里。
  */
-import { t } from '../../i18n';
-import { ui } from '../../game/UiStore';
-import { emptyAssist, markAssist, type AiAssist } from '../../meta/aiAssist';
 import type { AgentModelConfig } from '../../agent/config';
 import type { LLMProvider } from '../../agent/providers/types';
 import type { RunOptions } from '../../core/types';
 import type { Session } from '../../game/Session';
+import { ui } from '../../game/UiStore';
+import { t } from '../../i18n';
+import { type AiAssist, emptyAssist, markAssist } from '../../meta/aiAssist';
 import type { App } from '../App';
 import { h } from '../dom';
 

@@ -1,5 +1,5 @@
-import type { EnemyState, ProjectileState, TowerState, ZoneState } from './types';
 import type { TowerDef } from '../config/towers';
+import type { EnemyState, ProjectileState, TowerState, ZoneState } from './types';
 
 /** 组合技位标志 */
 export const C_PENCIL_ERASER = 1;

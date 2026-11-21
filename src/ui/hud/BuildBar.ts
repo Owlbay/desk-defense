@@ -1,6 +1,6 @@
 import type { BuildOption, TowerId } from '../../core/types';
-import { t } from '../../i18n';
 import { ui } from '../../game/UiStore';
+import { t } from '../../i18n';
 import { parseUnlock } from '../../meta/progress';
 import { towerIcon } from '../assets';
 import { audio } from '../audio';

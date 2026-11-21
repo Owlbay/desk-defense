@@ -1,12 +1,12 @@
 import type { RunOptions } from '../core/types';
+import { onLocaleChange, t } from '../i18n';
 import type { MidRun, ProfileStore, Settings } from '../meta/profile';
 import { setRenderQuality } from '../render';
-import { onLocaleChange, t } from '../i18n';
 import { audio } from './audio';
-import { normalizeTheme, setTheme } from './theme';
 import { h } from './dom';
 import { G } from './icons';
 import { countTo, DUR, EASE_IN, EASE_OUT, flip, motionOK, shake } from './screens/motion';
+import { normalizeTheme, setTheme } from './theme';
 
 export interface Screen {
   el: HTMLElement;

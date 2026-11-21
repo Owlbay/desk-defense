@@ -1,11 +1,11 @@
+import { fmtNumber, t } from '../../i18n';
 import { buyTalent, talentLevel, totalStarsEarned } from '../../meta/progress';
-import { screenHeader, type App, type Screen } from '../App';
+import { type App, type Screen, screenHeader } from '../App';
 import { audio } from '../audio';
 import { TALENT_META, TALENT_ORDER } from '../coreMeta';
 import { clear, h } from '../dom';
 import { G } from '../icons';
 import { burst } from './motion';
-import { fmtNumber, t } from '../../i18n';
 
 const TALENT_GLYPH: Record<string, string> = {
   wallet: G.coin,

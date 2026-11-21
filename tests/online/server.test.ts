@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+
 import {
+  type CacheLike,
+  type Deps,
   handleDaily,
   handleGetRun,
   handleLeaderboard,
@@ -7,28 +10,26 @@ import {
   handleSubmit,
   hashDevice,
   leaderboardCacheKey,
-  type CacheLike,
-  type Deps,
 } from '../../functions/_lib/handlers';
 import { crossSiteRejection } from '../../functions/_lib/http';
 import { checkRateLimit, D1RateLimitStore, MemoryRateLimitStore, windowStartOf } from '../../functions/_lib/ratelimit';
+import type { RunOptions } from '../../src/core/types';
 import { decodeLogPayload, encodeLog } from '../../src/shared/codec';
 import {
-  GAME_VERSION,
-  RATE_LIMIT,
+  type ApiError,
   boardForOpts,
   dailyInfo,
   dailyRunOptions,
-  type ApiError,
+  GAME_VERSION,
   type LeaderboardResponse,
+  RATE_LIMIT,
   type RunDetail,
   type StatusResponse,
   type SubmitBody,
   type SubmitResponse,
 } from '../../src/shared/leaderboard';
-import type { RunOptions } from '../../src/core/types';
 import { createFakeD1, type FakeD1 } from './fakeD1';
-import { playRun, type PlayedRun } from './helpers';
+import { type PlayedRun, playRun } from './helpers';
 
 const ORIGIN = 'https://desk-defense.pages.dev';
 const NOW = Date.parse('2026-11-20T04:00:00Z');

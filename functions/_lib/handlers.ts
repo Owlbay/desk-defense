@@ -4,26 +4,26 @@
  */
 import { decodeLogPayload, gzipJsonBase64 } from '../../src/shared/codec';
 import {
-  GAME_VERSION,
-  LEADERBOARD_MAX_LIMIT,
-  MAX_BODY_BYTES,
-  RATE_LIMIT,
+  agentBadge,
   checkLog,
   checkSubmission,
+  type DailyInfo,
   dailyInfo,
   dayOf,
-  isDeviceId,
-  agentBadge,
+  GAME_VERSION,
   isAiBoardKey,
+  isDeviceId,
+  LEADERBOARD_MAX_LIMIT,
+  type LeaderboardResponse,
+  MAX_BODY_BYTES,
   parseAiBoard,
   parseBoard,
-  type DailyInfo,
-  type LeaderboardResponse,
+  RATE_LIMIT,
   type RunDetail,
   type StatusResponse,
   type SubmitResponse,
 } from '../../src/shared/leaderboard';
-import { RunStore, toLeaderRow, type D1Like, type RunRow } from './db';
+import { type D1Like, type RunRow, RunStore, toLeaderRow } from './db';
 import { apiError, json } from './http';
 import { checkRateLimit, D1RateLimitStore, type RateLimitStore } from './ratelimit';
 

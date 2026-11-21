@@ -12,16 +12,16 @@
  *  - 新做法：一次 act（全部动作 + end）；有动作被拒时再加一次纠正请求；门控跳过的决策点不花 token。
  * 估算用 estimateTokens（ASCII ≈3.5 字符 / token，CJK ≈1.1 token / 字），只用于比较，不代表账单。
  */
-import { createWorld, type RunOptions } from '../src/core';
-import type { MapId } from '../src/core/types';
+import { type ContextMode, type ThinkingLevel } from '../src/agent/config';
 import { estimateTokens, renderObservation } from '../src/agent/observation';
 import { catalogText, decisionMessage, runHeader, systemBlocks } from '../src/agent/prompts';
-import { LEGACY_TOOLS, SLIM_TOOLS } from '../src/agent/tools';
-import { runAgentGame } from '../src/agent/runner';
 import { scriptedTurn } from '../src/agent/providers/scripted';
-import { type ContextMode, type ThinkingLevel } from '../src/agent/config';
-import { budgetTokens, emptyUsage, usageTotal, type TokenUsage } from '../src/agent/types';
 import type { DecisionContext, DecisionOutcome, LLMProvider } from '../src/agent/providers/types';
+import { runAgentGame } from '../src/agent/runner';
+import { LEGACY_TOOLS, SLIM_TOOLS } from '../src/agent/tools';
+import { budgetTokens, emptyUsage, type TokenUsage, usageTotal } from '../src/agent/types';
+import { createWorld, type RunOptions } from '../src/core';
+import type { MapId } from '../src/core/types';
 
 /** 每次请求的输出 token（按思考等级；"低"取实测中转 deepseek-flash 的 60k / 20 次） */
 export const OUTPUT_PER_REQUEST: Record<'off' | 'low', { first: number; fix: number }> = {

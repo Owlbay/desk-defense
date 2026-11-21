@@ -2,9 +2,9 @@
  * 基于 node:sqlite 的假 D1：实现 functions/_lib/db.ts 用到的 D1Like 子集，
  * 并执行真实的 migrations/*.sql，所以测试覆盖的是线上同一份 SQL。
  */
+import type { D1Like, D1StmtLike } from '../../functions/_lib/db';
 import migration from '../../migrations/0001_init.sql?raw';
 import migrationAi from '../../migrations/0002_ai_board.sql?raw';
-import type { D1Like, D1StmtLike } from '../../functions/_lib/db';
 
 interface SqliteStmt {
   get(...a: unknown[]): unknown;

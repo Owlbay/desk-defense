@@ -1,4 +1,5 @@
 import type Phaser from 'phaser';
+
 import { C, hex } from './palette';
 
 /**

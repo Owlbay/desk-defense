@@ -1,9 +1,9 @@
 /**
  * AI 对局结算用的纯函数（无 DOM、不引用渲染层，便于单测）：兜底占比、上传标记、能否进 AI 榜。
  */
-import { t } from '../../i18n';
-import { usageTotal, type TokenUsage } from '../../agent/types';
+import { type TokenUsage, usageTotal } from '../../agent/types';
 import type { RunOptions } from '../../core/types';
+import { t } from '../../i18n';
 import type { AgentMeta } from '../../shared/leaderboard';
 import { isEligibleRun } from '../online/util';
 

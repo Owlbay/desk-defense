@@ -1,16 +1,17 @@
 import { describe, expect, it } from 'vitest';
+
+import { ABILITY_FX } from '../../src/config/evolution';
+import { SWATTER, TOWERS } from '../../src/config/towers';
 import {
   CellKind,
   createWorld,
-  stateHash,
+  type EnemyId,
+  type EnemyState,
   type GameEvent,
   type IWorld,
   type RunOptions,
-  type EnemyId,
-  type EnemyState,
+  stateHash,
 } from '../../src/core';
-import { SWATTER, TOWERS } from '../../src/config/towers';
-import { ABILITY_FX } from '../../src/config/evolution';
 
 // 苍蝇拍（文档 02 §2.12、文档 11 苍蝇拍分支）
 const opts = (o: Partial<RunOptions> = {}): RunOptions => ({

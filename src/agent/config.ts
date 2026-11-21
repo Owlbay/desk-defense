@@ -10,8 +10,8 @@
  *
  * apiKey 默认绝不持久化：saveableConfig() 会去掉它；浏览器端只放内存（可选 sessionStorage，由 UI 决定）。
  */
+import { type Params, t } from '../i18n';
 import type { AgentRole, DecisionMode } from './types';
-import { t, type Params } from '../i18n';
 
 export type ProviderKind = 'claude-native' | 'pi' | 'bridge' | 'scripted';
 export type PiApi = 'anthropic-messages' | 'openai-completions' | 'openai-responses' | 'google-generative-ai';

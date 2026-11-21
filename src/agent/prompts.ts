@@ -6,17 +6,17 @@
  * 规则与速查表不含任何随局变化的内容（种子、时间、金币……），所以同一模型、同一角色的所有局共享一份缓存。
  * 完整资料表（≈4.4k token）不再放进前缀，改由 get_catalog 按需取。
  */
-import type { IWorld, RunOptions } from '../core/types';
-import { TOWERS, TIER_NAMES } from '../config/towers';
-import { ENEMIES, AFFIXES } from '../config/enemies';
-import { SKILLS } from '../config/skills';
-import { PERKS } from '../config/perks';
+import { AFFIXES, ENEMIES } from '../config/enemies';
+import { CRATE_OPTIONS, RANDOM_EVENTS } from '../config/events';
 import { ABILITIES, EVOLUTION } from '../config/evolution';
-import { RANDOM_EVENTS, CRATE_OPTIONS } from '../config/events';
-import { TOWER_CHAR } from './observation';
-import { ENEMY_CODE } from './compact';
+import { PERKS } from '../config/perks';
+import { SKILLS } from '../config/skills';
+import { TIER_NAMES, TOWERS } from '../config/towers';
 import { COMBOS } from '../config/towers';
-import { PURPOSES, enemyPurposes, purposeText } from './purpose';
+import type { IWorld, RunOptions } from '../core/types';
+import { ENEMY_CODE } from './compact';
+import { TOWER_CHAR } from './observation';
+import { enemyPurposes, PURPOSES, purposeText } from './purpose';
 import type { AgentRole, DecisionPoint } from './types';
 
 export type CatalogSection = 'all' | 'towers' | 'enemies' | 'skills' | 'perks' | 'abilities' | 'events';

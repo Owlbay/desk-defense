@@ -9,33 +9,33 @@
  *
  * UI 用法：启动时 initOnline()；subscribeOnline(fn) 订阅状态；结算时 submitWorldRun(world, {...})。
  */
+import { localize } from '../config/text';
 import type { RunOptions, WorldState } from '../core/types';
 import { getLocale, t } from '../i18n';
-import { localize } from '../config/text';
 import { decodeLogPayload, encodeLog } from '../shared/codec';
 import {
-  AI_BOARD_PREFIX,
-  GAME_VERSION,
-  boardForOpts,
-  dailyInfo,
-  dayOf,
-  isDeviceId,
-  sanitizeNickname,
   type AgentMeta,
+  AI_BOARD_PREFIX,
   type ApiError,
+  boardForOpts,
   type Checked,
   type ClaimedResult,
   type DailyInfo,
+  dailyInfo,
+  dayOf,
+  GAME_VERSION,
+  isDeviceId,
   type LeaderboardResponse,
   type LogEntry,
   type RunDetail,
+  sanitizeNickname,
   type StatusResponse,
   type SubmitBody,
   type SubmitResponse,
 } from '../shared/leaderboard';
-import { isAiAssisted, type AiAssist } from './aiAssist';
+import { type AiAssist, isAiAssisted } from './aiAssist';
 import type { MidRun } from './profile';
-import { safeStorage, type KV } from './storage';
+import { type KV, safeStorage } from './storage';
 
 export const DEVICE_KEY = 'desk-defense.online.device.v1';
 export const NICK_KEY = 'desk-defense.online.nickname.v1';
@@ -146,7 +146,7 @@ function randomUuid(): string {
 /** 本设备的随机 id（首次调用时生成并保存） */
 export function getDeviceId(): string {
   const kv = conf().storage;
-  let id: string | null = null;
+  let id: string | null;
   try {
     id = kv.get(DEVICE_KEY);
   } catch {

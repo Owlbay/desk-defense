@@ -15,13 +15,13 @@
  *                                                   B→C trace {id, ev}（思路与请求：桥接器侧的请求 / 思路 / 响应，已脱敏；旧客户端忽略）
  * 本文件不依赖 ws 包：客户端用标准 WebSocket（浏览器 / Node 22+ 全局），服务端逻辑 createBridgeSession 只需要一个 send 函数。
  */
-import type { AgentToolDef } from './tools';
 import type { ThinkingLevel } from './config';
+import type { DecisionContext, DecisionOutcome, LLMProvider } from './providers/types';
+import { redactValue } from './redact';
+import type { AgentToolDef } from './tools';
+import type { TraceInput } from './trace';
 import type { AgentRole, DecisionPoint, ToolResult } from './types';
 import { emptyUsage } from './types';
-import { redactValue } from './redact';
-import type { TraceInput } from './trace';
-import type { DecisionContext, DecisionOutcome, LLMProvider } from './providers/types';
 
 export const BRIDGE_PROTOCOL = 1;
 

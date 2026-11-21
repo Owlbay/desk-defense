@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { createWorld, stateHash, type EnemyId, type EnemyState, type GameEvent, type IWorld, type RunOptions } from '../../src/core';
-import { BRANCH, LAMP, TOWERS } from '../../src/config/towers';
+
 import { ABILITY_FX } from '../../src/config/evolution';
+import { BRANCH, LAMP, TOWERS } from '../../src/config/towers';
+import { createWorld, type EnemyId, type EnemyState, type GameEvent, type IWorld, type RunOptions, stateHash } from '../../src/core';
 
 // 台灯：持续光束 + 递增 + 联动（文档 02 §2.5）
 const opts = (o: Partial<RunOptions> = {}): RunOptions => ({

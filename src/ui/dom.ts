@@ -9,6 +9,7 @@ export interface Props {
   title?: string;
   attrs?: Record<string, string | number | boolean | null | undefined>;
   data?: Record<string, string>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 让 onclick: (e) => … 的参数按调用处推断；换成 Event 会使 (e: MouseEvent) 处理器不兼容
   [on: `on${string}`]: ((ev: any) => void) | undefined;
 }
 

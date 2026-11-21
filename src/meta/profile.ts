@@ -1,7 +1,7 @@
 import type { Command, DifficultyId, DifficultyParams, MapId, RandomEventId, RunOptions, SkillId, TalentId } from '../core/types';
-import { safeStorage, type KV } from './storage';
-import { sanitizeAssist, type AiAssist } from './aiAssist';
-import { normalizeLocale, type Locale } from '../i18n';
+import { type Locale, normalizeLocale } from '../i18n';
+import { type AiAssist, sanitizeAssist } from './aiAssist';
+import { type KV, safeStorage } from './storage';
 
 /** 存档格式（文档 07 §3.3 的扩展） */
 export const PROFILE_KEY = 'desk-defense.profile.v1';

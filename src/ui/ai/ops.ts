@@ -9,8 +9,8 @@
  *    意图（maze / build_near / reclaim …）成为组头，下面挂它实际下的指令；没走到指令的参数错误从结果文字里解析成「被拒」。
  * 没有事件的指令（setTarget、刷新增益、补给箱）由指令参数 + 结果推出。
  */
-import type { Command, CommandResult, GameEvent } from '../../core/types';
 import type { TraceEvent, TraceExport } from '../../agent/trace';
+import type { Command, CommandResult, GameEvent } from '../../core/types';
 
 export type OpKind =
   | 'place'

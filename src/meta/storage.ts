@@ -26,7 +26,7 @@ export function memoryStorage(): KV {
 }
 
 export function safeStorage(): KV {
-  let ls: Storage | null = null;
+  let ls: Storage | null;
   try {
     ls = typeof localStorage !== 'undefined' ? localStorage : null;
     if (ls) {

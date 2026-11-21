@@ -5,9 +5,9 @@
  *      + 一张 12×14 ASCII 地图（图例见 MAP_LEGEND）。
  * 目标：常规局面 ≤ ~1500 token，40 座塔的后期局面 ≤ ~2500 token。
  */
-import { CellKind, type GameEvent, type IWorld, type TowerId, type TowerState } from '../core/types';
-import { ENEMY_META } from '../core/meta';
 import { TOWERS } from '../config/towers';
+import { ENEMY_META } from '../core/meta';
+import { CellKind, type GameEvent, type IWorld, type TowerId, type TowerState } from '../core/types';
 
 export const TOWER_CHAR: Record<TowerId, string> = {
   wall: 'W',

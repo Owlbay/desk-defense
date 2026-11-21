@@ -5,27 +5,29 @@ import './styles/hud-motion.css';
 import './styles/online.css';
 import './styles/responsive.css';
 import './styles/ai.css';
+
+import { registerSW } from 'virtual:pwa-register';
+
 import { ui } from './game/UiStore';
+import { getLocale, onLocaleChange, setLocale, t } from './i18n';
+import { initOnline } from './meta/online';
 import { ProfileStore } from './meta/profile';
 import { App, applySettings } from './ui/App';
 import { audio } from './ui/audio';
-import { initOnline } from './meta/online';
-import { registerSW } from 'virtual:pwa-register';
+import { gameScreen } from './ui/hud/GameScreen';
+import { resolveLocale } from './ui/locale';
+import { aiScreen } from './ui/screens/ai';
+import { aiAssistantScreen } from './ui/screens/aiAssistant';
 import { campaignScreen } from './ui/screens/campaign';
 import { customScreen } from './ui/screens/custom';
-import { endlessScreen } from './ui/screens/endless';
-import { leaderboardScreen } from './ui/screens/leaderboard';
 import { dailyScreen } from './ui/screens/daily';
+import { endlessScreen } from './ui/screens/endless';
+import { installGuideRoute } from './ui/screens/guide';
+import { leaderboardScreen } from './ui/screens/leaderboard';
 import { menuScreen } from './ui/screens/menu';
 import { settingsScreen } from './ui/screens/settings';
 import { skillsScreen } from './ui/screens/skills';
 import { talentsScreen } from './ui/screens/talents';
-import { gameScreen } from './ui/hud/GameScreen';
-import { aiScreen } from './ui/screens/ai';
-import { aiAssistantScreen } from './ui/screens/aiAssistant';
-import { installGuideRoute } from './ui/screens/guide';
-import { getLocale, onLocaleChange, setLocale, t } from './i18n';
-import { resolveLocale } from './ui/locale';
 
 async function boot(): Promise<void> {
   const root = document.getElementById('app');

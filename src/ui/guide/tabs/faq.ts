@@ -2,7 +2,7 @@
 import { TOWER_META, type TowerId } from '../../../core';
 import { t } from '../../../i18n';
 import { h } from '../../dom';
-import { rich, section, table, type Entry, type TabContext, type TabModule } from '../kit';
+import { type Entry, rich, section, type TabContext, table, type TabModule } from '../kit';
 
 const QUESTIONS = [
   'save',

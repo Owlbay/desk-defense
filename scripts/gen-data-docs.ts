@@ -13,20 +13,20 @@
  *  - 某个导出缺失时打印警告并跳过对应小节，不会整体失败。
  *  - 输出确定性：固定种子；唯一会变的是生成日期。
  */
-import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
-import { join, dirname, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { setLocale } from '../src/i18n';
-import * as core from '../src/core';
-import * as cfgTowers from '../src/config/towers';
-import * as cfgEnemies from '../src/config/enemies';
-import * as cfgDifficulty from '../src/config/difficulty';
 import * as cfgCampaign from '../src/config/campaign';
-import * as cfgMaps from '../src/config/maps';
-import * as cfgSkills from '../src/config/skills';
-import * as cfgPerks from '../src/config/perks';
+import * as cfgDifficulty from '../src/config/difficulty';
+import * as cfgEnemies from '../src/config/enemies';
 import * as cfgEvents from '../src/config/events';
+import * as cfgMaps from '../src/config/maps';
+import * as cfgPerks from '../src/config/perks';
+import * as cfgSkills from '../src/config/skills';
+import * as cfgTowers from '../src/config/towers';
+import * as core from '../src/core';
+import { setLocale } from '../src/i18n';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Any = any;

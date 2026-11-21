@@ -1,7 +1,7 @@
 import type { Command, CommandResult, IWorld, RunOptions, TargetMode } from '../../core/types';
-import type { AiAssist } from '../../meta/aiAssist';
-import { t } from '../../i18n';
 import type { Session } from '../../game/Session';
+import { t } from '../../i18n';
+import type { AiAssist } from '../../meta/aiAssist';
 import type { App } from '../App';
 
 export interface GameCtx {

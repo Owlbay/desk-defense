@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
-import { t } from '../i18n';
+
 import type { Session } from '../game/Session';
+import { t } from '../i18n';
 import { Ambience } from './ambience';
 import { ArtAtlas } from './assets';
 import { boardKey, drawBoard, obstacleKey } from './background';
@@ -14,9 +15,9 @@ import { BOARD_H, BOARD_W, CELL, DEPTH, type Quality } from './layout';
 import { CameraRig, readReducedMotion } from './motion';
 import { B, C, FONT, hex, onBoardTheme } from './palette';
 import { ShotLayer } from './shots';
+import { ensureSprites } from './sprites';
 import { SwatterLayer } from './swatter';
 import { TowerLayer } from './towers';
-import { ensureSprites } from './sprites';
 
 class BoardScene extends Phaser.Scene {
   constructor(private board: Board) {

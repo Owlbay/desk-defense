@@ -3,30 +3,30 @@
  * 观测、工具执行与记录、超时、token / 费用预算、连续失败熔断、决策后的推进保证。
  * 无头 runner（CLI / 测试）与浏览器控制器（index.ts）共用。
  */
-import { SOURCE_LOCALE, t, withLocale } from '../i18n';
-import type { IWorld, RunOptions } from '../core/types';
-import { runHeader, systemBlocks } from './prompts';
-import { executeTool, toolsForRole } from './tools';
-import { CONTEXT_MODES, contextSpec, type AgentModelConfig, type ContextModeSpec, type ThinkingLevel } from './config';
-import { ContextBuilder } from './context';
-import { BattleLog, eventLine, idleLine, threatLine } from './battle';
-import { BattleIntel, gapLine, killLine, leakLine, type LeakRecord } from './intel';
-import { comboLine, mazeLine, reclaimLine } from './board';
-import { AFFIX_PURPOSE, enemyPurposes, type Purpose } from './purpose';
 import { ENEMIES } from '../config/enemies';
-import type { PlannerState } from './planner';
+import type { IWorld, RunOptions } from '../core/types';
+import { SOURCE_LOCALE, t, withLocale } from '../i18n';
+import { BattleLog, eventLine, idleLine, threatLine } from './battle';
+import { comboLine, mazeLine, reclaimLine } from './board';
+import { type AgentModelConfig, CONTEXT_MODES, type ContextModeSpec, contextSpec, type ThinkingLevel } from './config';
+import { ContextBuilder } from './context';
 import { gateDecision } from './gating';
+import { BattleIntel, gapLine, killLine, leakLine, type LeakRecord } from './intel';
+import type { PlannerState } from './planner';
+import { runHeader, systemBlocks } from './prompts';
 import type { LLMProvider } from './providers/types';
-import { cellOfArgs, type AgentTrace, type TraceSink } from './trace';
+import { AFFIX_PURPOSE, enemyPurposes, type Purpose } from './purpose';
 import { redactError } from './redact';
+import { executeTool, toolsForRole } from './tools';
+import { type AgentTrace, cellOfArgs, type TraceSink } from './trace';
 import {
   addUsage,
-  budgetTokens,
-  emptyUsage,
   type AgentRole,
+  budgetTokens,
   type CommandSink,
   type DecisionPoint,
   type DecisionRecord,
+  emptyUsage,
   type FallbackPolicy,
   type Suggestion,
   type TokenUsage,

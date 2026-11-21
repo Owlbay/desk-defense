@@ -6,13 +6,13 @@
  * → 升级最低级的塔 → 敌人逼近出口时放技能 → 手动模式开波 → end_turn。
  * 全部遍历顺序固定，无随机数：同一种子 ⇒ 同一结果。
  */
+import { ENEMIES } from '../../config/enemies';
 import type { IWorld, TowerId } from '../../core/types';
 import { CellKind } from '../../core/types';
-import { executeTool } from '../tools';
-import { ENEMIES } from '../../config/enemies';
-import { PURPOSE_CORE, enemyPurposes, type Purpose } from '../purpose';
 import { comboState } from '../board';
-import { emptyUsage, type DecisionReason, type FallbackPolicy, type ToolResult } from '../types';
+import { enemyPurposes, type Purpose, PURPOSE_CORE } from '../purpose';
+import { executeTool } from '../tools';
+import { type DecisionReason, emptyUsage, type FallbackPolicy, type ToolResult } from '../types';
 import type { DecisionContext, DecisionOutcome, LLMProvider } from './types';
 
 type Call = (name: string, input: Record<string, unknown>) => Promise<ToolResult> | ToolResult;

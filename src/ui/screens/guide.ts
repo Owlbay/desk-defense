@@ -3,7 +3,7 @@
  * 深链：#guide、#guide/tower/pencil、#guide/enemy/boss_coffee …（installGuideRoute 负责注册路由并监听地址栏）。
  */
 import { t } from '../../i18n';
-import { screenHeader, type App, type Route, type Screen } from '../App';
+import { type App, type Route, type Screen, screenHeader } from '../App';
 import { audio } from '../audio';
 import { h } from '../dom';
 import { parseGuideHash } from '../guide/hash';

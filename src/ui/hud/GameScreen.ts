@@ -1,28 +1,28 @@
 import type { BuildOption, Command, GameEvent, RunOptions } from '../../core/types';
-import { t, tOr } from '../../i18n';
 import { Session } from '../../game/Session';
 import { ui } from '../../game/UiStore';
+import { t, tOr } from '../../i18n';
+import { isAiAssisted } from '../../meta/aiAssist';
 import { makeMidRun, replayAsync } from '../../meta/midrun';
-import { recordWave, settleRun, type Rewards } from '../../meta/progress';
+import { recordWave, type Rewards, settleRun } from '../../meta/progress';
 import { mountBoard } from '../../render';
+import { createAiSlot, takeAiLaunch } from '../ai/launch';
 import type { App, Route, Screen } from '../App';
 import { audio } from '../audio';
 import { h, isTypingTarget } from '../dom';
 import { G } from '../icons';
+import { AiMenu } from './AiMenu';
 import { BoardOverlay } from './BoardOverlay';
 import { BuildBar } from './BuildBar';
 import { BUILD_KEYS, type GameCtx } from './context';
 import { GoldFx } from './GoldFx';
 import { InfoPanel } from './InfoPanel';
-import { replay } from './motion';
 import { branchModal, gameOverView, loadingOverlay, pauseMenu, PerkModal } from './Modals';
+import { replay } from './motion';
 import { SkillBar } from './SkillBar';
 import { TopBar } from './TopBar';
 import { Tutorial } from './Tutorial';
 import { WavePanel } from './WavePanel';
-import { createAiSlot, takeAiLaunch } from '../ai/launch';
-import { isAiAssisted } from '../../meta/aiAssist';
-import { AiMenu } from './AiMenu';
 
 export function gameScreen(app: App, route: Route): Screen {
   if (route.name !== 'game') throw new Error('bad route');
@@ -571,12 +571,9 @@ export function gameScreen(app: App, route: Route): Screen {
       const opts2 = world.getBuildOptions();
       buildBar.update(opts2);
       wavePanel.update(st);
-      let sel = ui.state.selected;
-      let ti = sel !== null ? world.getTowerInfo(sel) : null;
-      if (sel !== null && !ti) {
-        ui.set({ selected: null });
-        sel = null;
-      }
+      const sel = ui.state.selected;
+      const ti = sel !== null ? world.getTowerInfo(sel) : null;
+      if (sel !== null && !ti) ui.set({ selected: null });
       const bo: BuildOption | null = ui.state.build ? (opts2.find((o) => o.id === ui.state.build) ?? null) : null;
       info.update(ti, bo);
       game.classList.toggle('has-selection', !!ti);

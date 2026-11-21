@@ -2,8 +2,8 @@
  * ui 使用的 core 元数据（文档 08「入口函数」）。集中在这里引用，便于对接。
  */
 import * as core from '../core';
-import { t } from '../i18n';
 import type { MapId, Obstacle, RandomEventId, SkillId, SpawnerState, TalentId } from '../core/types';
+import { t } from '../i18n';
 
 export { TOWER_META, SKILL_META, TALENT_META, DIFFICULTY_PRESETS, resolveParams, MAP_META, ENEMY_META, AFFIX_META } from '../core';
 

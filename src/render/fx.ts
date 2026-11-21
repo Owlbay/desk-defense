@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
-import { B, C, FONT, hex } from './palette';
+
 import { DEPTH } from './layout';
+import { B, C, FONT, hex } from './palette';
 
 /**
  * 轻量特效系统：所有几何特效记录在对象池里，每帧画进两个 Graphics（普通 / 叠加）。

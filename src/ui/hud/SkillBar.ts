@@ -1,13 +1,13 @@
 import type { SkillId, SkillState, TowerState, WorldState } from '../../core/types';
-import { t } from '../../i18n';
 import { ui } from '../../game/UiStore';
+import { t } from '../../i18n';
 import { abilityIcon, skillIcon } from '../assets';
 import { audio } from '../audio';
 import { SKILL_META, TOWER_META } from '../coreMeta';
 import { h, img, setText, toggle } from '../dom';
 import { G } from '../icons';
 import { castTowerAbility } from './abilities';
-import { fmtSec, SKILL_KEYS, type GameCtx } from './context';
+import { fmtSec, type GameCtx, SKILL_KEYS } from './context';
 import { replay } from './motion';
 
 interface AbilityBtn {

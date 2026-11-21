@@ -7,11 +7,11 @@
  *  - 门控跳过的决策点：事件累积到下一次真正的决策（rc 摘要）。
  */
 import type { GameEvent, IWorld } from '../core/types';
+import { type CompactObs, compactObservation, diffObs, terrainMap, terrainSig } from './compact';
 import type { ContextModeSpec } from './config';
-import { compactObservation, diffObs, terrainMap, terrainSig, type CompactObs } from './compact';
 import { estimateTokens } from './observation';
 import { decisionMessage } from './prompts';
-import { groundRoutes, fmtWp } from './routes';
+import { fmtWp, groundRoutes } from './routes';
 import type { DecisionPoint, ToolResult } from './types';
 
 export const MEMO_MAX_TOKENS = 300;

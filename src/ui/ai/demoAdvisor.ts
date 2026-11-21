@@ -2,10 +2,10 @@
  * 离线演示版「AI 军师」：不联网，用内置脚本策略"预演"一遍（不真的下指令），
  * 把它想做的头几步写成建议，走与真模型完全相同的 suggest 工具。
  */
-import { t } from '../../i18n';
-import { emptyUsage, type DecisionContext, type DecisionOutcome, type LLMProvider, type ToolResult } from '../../agent';
+import { type DecisionContext, type DecisionOutcome, emptyUsage, type LLMProvider, type ToolResult } from '../../agent';
 import { scriptedTurn } from '../../agent/providers/scripted';
 import type { IWorld } from '../../core/types';
+import { t } from '../../i18n';
 import { describeCall } from './actions';
 
 const MAX_ACTIONS = 3;

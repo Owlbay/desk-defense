@@ -1,7 +1,8 @@
-import Phaser from 'phaser';
+import type Phaser from 'phaser';
+
 import type { GridState, Obstacle, SpawnerState } from '../core/types';
-import { B, C } from './palette';
 import { BOARD_H, BOARD_W, CELL } from './layout';
+import { B, C } from './palette';
 
 /** 简单可复现的伪随机（只用于装饰） */
 function rng(seed: number): () => number {

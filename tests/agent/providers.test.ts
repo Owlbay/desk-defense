@@ -1,23 +1,24 @@
-import { afterEach, describe, expect, it } from 'vitest';
 import type Anthropic from '@anthropic-ai/sdk';
 import { fauxAssistantMessage, fauxText, fauxToolCall, registerFauxProvider } from '@mariozechner/pi-ai';
-import { createWorld, type RunOptions } from '../../src/core';
+import { afterEach, describe, expect, it } from 'vitest';
+
 import {
+  type DecisionContext,
   executeTool,
+  type LLMProvider,
   resolveConfig,
   runAgentGame,
   systemBlocks,
-  toolsForRole,
   testConnection,
-  type DecisionContext,
-  type LLMProvider,
   type ToolResult,
+  toolsForRole,
 } from '../../src/agent';
-import { ClaudeProvider } from '../../src/agent/providers/claude';
-import { PiProvider, toTypeBox } from '../../src/agent/providers/pi';
-import { extractJsonObject, parseActions } from '../../src/agent/providers/json-mode';
-import { BridgeProvider, createBridgeSession, originAllowed, type BridgeServerMsg, type WsLike } from '../../src/agent/bridge';
+import { BridgeProvider, type BridgeServerMsg, createBridgeSession, originAllowed, type WsLike } from '../../src/agent/bridge';
 import { McpGameServer } from '../../src/agent/mcp';
+import { ClaudeProvider } from '../../src/agent/providers/claude';
+import { extractJsonObject, parseActions } from '../../src/agent/providers/json-mode';
+import { PiProvider, toTypeBox } from '../../src/agent/providers/pi';
+import { createWorld, type RunOptions } from '../../src/core';
 
 const OPTS: RunOptions = {
   mode: 'endless',
@@ -228,6 +229,7 @@ describe('bridge protocol (in-memory sockets)', () => {
         };
       },
     };
+    // eslint-disable-next-line prefer-const -- 先声明后赋值：send 回调可能在 client 赋值前被创建
     let client!: WsLike;
     const session = createBridgeSession({
       provider: remote,

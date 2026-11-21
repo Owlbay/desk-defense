@@ -2,34 +2,35 @@
  * AI 榜（文档 10 §13）：带 AI 标记的成绩只进 `ai:` 榜；真人榜拒收；榜上带模型 / 决策模式 / 兜底占比。
  */
 import { beforeEach, describe, expect, it } from 'vitest';
-import { handleGetRun, handleLeaderboard, handleSubmit, hashDevice, type Deps } from '../../functions/_lib/handlers';
+
+import { type Deps, handleGetRun, handleLeaderboard, handleSubmit, hashDevice } from '../../functions/_lib/handlers';
+import { aiBoardKey } from '../../src/agent/runner';
+import type { RunOptions } from '../../src/core/types';
+import { _resetOnlineForTests, buildSubmitBody, configureOnline } from '../../src/meta/online';
 import { encodeLog } from '../../src/shared/codec';
 import {
-  AI_BOARD_PREFIX,
-  GAME_VERSION,
   agentBadge,
+  type AgentMeta,
+  AI_BOARD_PREFIX,
   aiEndlessBoardKey,
+  type ApiError,
   boardForOpts,
   boardLabel,
   checkSubmission,
   dailyInfo,
   dailyRunOptions,
   dayOf,
+  GAME_VERSION,
+  type LeaderboardResponse,
   parseAiBoard,
   parseBoard,
-  sanitizeAgentMeta,
-  type AgentMeta,
-  type ApiError,
-  type LeaderboardResponse,
   type RunDetail,
+  sanitizeAgentMeta,
   type SubmitBody,
   type SubmitResponse,
 } from '../../src/shared/leaderboard';
-import { buildSubmitBody, configureOnline, _resetOnlineForTests } from '../../src/meta/online';
-import { aiBoardKey } from '../../src/agent/runner';
-import type { RunOptions } from '../../src/core/types';
 import { createFakeD1, type FakeD1 } from './fakeD1';
-import { playRun, type PlayedRun } from './helpers';
+import { type PlayedRun, playRun } from './helpers';
 
 const ORIGIN = 'https://desk-defense.pages.dev';
 const NOW = Date.parse('2026-11-20T04:00:00Z');

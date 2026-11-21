@@ -1,10 +1,12 @@
 /**
  * 中转服务（relay）：地址规范化、模型列表、接口探测顺序与诊断、经 pi 的三种接口端到端（全部 mock 网络，不用真实 Key）。
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getModels } from '@mariozechner/pi-ai';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
 import {
   classifyRelayError,
+  type ConnectionDiagnostics,
   detectRelayApi,
   groupModels,
   listModels,
@@ -12,14 +14,13 @@ import {
   modelFamily,
   normalizeRelayBase,
   parseRelayUrl,
+  type RelayApi,
   relayHost,
   relayProbeOrder,
   resolveConfig,
   saveableConfig,
   testConnection,
   validateConfig,
-  type ConnectionDiagnostics,
-  type RelayApi,
 } from '../../src/agent';
 import { buildPiModel } from '../../src/agent/providers/pi';
 

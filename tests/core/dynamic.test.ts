@@ -1,27 +1,28 @@
 import { describe, expect, it } from 'vitest';
+
+import { EVOLUTION } from '../../src/config/evolution';
+import { MAPS } from '../../src/config/maps';
 import {
   ABILITY_META,
   CellKind,
+  checkLayout,
+  type Command,
+  createWorld,
   DT,
   EVO,
-  RANDOM_EVENT_IDS,
-  RANDOM_EVENT_META,
-  SKILL_META,
-  checkLayout,
-  createWorld,
-  generateLayout,
-  rawUpgradeCost,
-  stateHash,
-  World,
-  type Command,
   type GameEvent,
+  generateLayout,
   type IWorld,
   type MapId,
+  RANDOM_EVENT_IDS,
+  RANDOM_EVENT_META,
+  rawUpgradeCost,
   type RunOptions,
+  SKILL_META,
+  stateHash,
   type TowerId,
+  type World,
 } from '../../src/core';
-import { MAPS } from '../../src/config/maps';
-import { EVOLUTION } from '../../src/config/evolution';
 
 const MAP_IDS: MapId[] = ['ch1', 'ch2', 'ch3'];
 

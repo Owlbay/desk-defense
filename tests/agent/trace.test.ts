@@ -1,26 +1,27 @@
-import { afterEach, describe, expect, it } from 'vitest';
 import type Anthropic from '@anthropic-ai/sdk';
 import { fauxAssistantMessage, fauxText, fauxThinking, fauxToolCall, registerFauxProvider } from '@mariozechner/pi-ai';
-import { createWorld, type RunOptions } from '../../src/core';
+import { afterEach, describe, expect, it } from 'vitest';
+
 import {
   AgentTrace,
+  type DecisionContext,
   DecisionEngine,
   executeTool,
+  type LLMProvider,
   resolveConfig,
   runAgentGame,
   scriptedFallback,
   systemBlocks,
-  toolsForRole,
-  type DecisionContext,
-  type LLMProvider,
   type ToolResult,
+  toolsForRole,
   type TraceEvent,
 } from '../../src/agent';
-import { redactError, redactJson, redactString, redactValue, REDACTED } from '../../src/agent/redact';
+import { BridgeProvider, type BridgeServerMsg, createBridgeSession, type WsLike } from '../../src/agent/bridge';
 import { ClaudeProvider } from '../../src/agent/providers/claude';
 import { PiProvider } from '../../src/agent/providers/pi';
 import { ScriptedProvider } from '../../src/agent/providers/scripted';
-import { BridgeProvider, createBridgeSession, type BridgeServerMsg, type WsLike } from '../../src/agent/bridge';
+import { REDACTED, redactError, redactJson, redactString, redactValue } from '../../src/agent/redact';
+import { createWorld, type RunOptions } from '../../src/core';
 
 const OPTS: RunOptions = {
   mode: 'endless',
@@ -557,6 +558,7 @@ describe('bridge trace forwarding', () => {
         };
       },
     };
+    // eslint-disable-next-line prefer-const -- 先声明后赋值：send 回调可能在 client 赋值前被创建
     let client!: WsLike;
     const wire: string[] = [];
     const session = createBridgeSession({

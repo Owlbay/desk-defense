@@ -1,5 +1,5 @@
-import { G } from './icons';
 import type { AffixId, Branch, EnemyId, SkillId, Tier, TowerId } from '../core/types';
+import { G } from './icons';
 
 const files = import.meta.glob('../../art/**/*.svg', { query: '?url', import: 'default', eager: true }) as Record<string, string>;
 

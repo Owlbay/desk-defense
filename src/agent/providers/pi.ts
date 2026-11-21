@@ -9,29 +9,30 @@
  * 浏览器里只能经 dynamic import() 加载本文件（见 ../factory.ts），避免把 pi 及其各厂商 SDK 打进首屏包。
  */
 import {
-  Type,
-  StringEnum,
-  streamSimple,
-  getModels,
   type Api,
   type AssistantMessage,
   type Context,
+  getModels,
   type KnownProvider,
   type Message,
   type Model,
-  type TSchema,
+  streamSimple,
+  StringEnum,
   type Tool,
   type ToolResultMessage,
+  type TSchema,
+  Type,
 } from '@mariozechner/pi-ai';
+
 import type { AgentModelConfig, PiApi, ThinkingLevel } from '../config';
 import { PRESETS } from '../config';
-import { keepThinkingInHistory, mayCompactHistory, piThinkingPlan, type PiThinkingPlan } from '../thinking';
-import type { AgentToolDef, JsonSchema } from '../tools';
-import { emptyUsage, type TokenUsage } from '../types';
-import { LIMIT_TEXT, type DecisionContext, type DecisionOutcome, type LLMProvider } from './types';
-import { READ_TOOLS, jsonModeInstructions, parseActions } from './json-mode';
 import { normalizeRelayBase } from '../relay';
+import { keepThinkingInHistory, mayCompactHistory, type PiThinkingPlan, piThinkingPlan } from '../thinking';
+import type { AgentToolDef, JsonSchema } from '../tools';
 import { hostOf } from '../trace';
+import { emptyUsage, type TokenUsage } from '../types';
+import { jsonModeInstructions, parseActions, READ_TOOLS } from './json-mode';
+import { type DecisionContext, type DecisionOutcome, LIMIT_TEXT, type LLMProvider } from './types';
 
 // ───────────────────────── Schema → TypeBox ─────────────────────────
 

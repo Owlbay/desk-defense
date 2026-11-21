@@ -1,5 +1,6 @@
-import Phaser from 'phaser';
-import { ArtAtlas, PAD_MUL } from './assets';
+import type Phaser from 'phaser';
+
+import { type ArtAtlas, PAD_MUL } from './assets';
 import { CELL } from './layout';
 
 /**

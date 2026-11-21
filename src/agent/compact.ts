@@ -7,8 +7,8 @@
  *  - 增量：首次决策发完整观测，之后只发变化的键（塔按 uid 增删改），applyObsDelta 可逐字还原；
  *  - 地图只在地形变化（grid.version）或每 N 次决策时重发；省流模式下地图行用游程编码。
  */
-import { CellKind, type EnemyId, type GameEvent, type IWorld, type TowerState } from '../core/types';
 import { TOWERS } from '../config/towers';
+import { CellKind, type EnemyId, type GameEvent, type IWorld, type TowerState } from '../core/types';
 import { TOWER_CHAR } from './observation';
 import { routeSummary } from './routes';
 

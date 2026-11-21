@@ -2,11 +2,11 @@
  * AI 对局的结算卡片：波数 / 得分 / token / 费用 / 决策数 / 兜底占比，提交 AI 榜，观看回放。
  * 带 AI 标记的成绩只能进 `ai:` 榜（文档 10 §13），这里没有「提交到全服榜」。
  */
-import { usageTotal, type AgentReplay, type TokenUsage, type TraceExport } from '../../agent';
+import { type AgentReplay, type TokenUsage, type TraceExport, usageTotal } from '../../agent';
 import type { IWorld, RunOptions } from '../../core/types';
+import { t } from '../../i18n';
 import { getNickname, initOnline, submitWorldRun } from '../../meta/online';
 import { AI_BOARD_PREFIX, AI_BOT_SHARE_FLAG, boardForOpts, boardLabel } from '../../shared/leaderboard';
-import { t } from '../../i18n';
 import type { App } from '../App';
 import { audio } from '../audio';
 import { copyText, fmtNum, h, setText } from '../dom';
@@ -15,8 +15,8 @@ import { requestLeaderboardTab } from '../online/nav';
 import { askNickname, ensureNickname } from '../online/nickname';
 import { outcomeView, submitText, type SubmitView } from '../online/submit';
 import { fmtCost, fmtTokens } from './format';
+import { type AiGameOverHandlers, type AiGameOverInfo, type AiLaunch, requestAiLaunch } from './launch';
 import { agentMetaOf, aiBoardBlocker } from './meta';
-import { requestAiLaunch, type AiGameOverHandlers, type AiGameOverInfo, type AiLaunch } from './launch';
 import { openLocalReplay } from './replay';
 
 export interface AiRunSummary {

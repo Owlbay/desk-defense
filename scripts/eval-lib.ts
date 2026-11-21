@@ -4,16 +4,17 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { passesPerTower } from '../src/agent/board';
+import { type AgentModelConfig, parseContextMode, parseThinking } from '../src/agent/config';
+import { createProvider } from '../src/agent/factory';
+import { type AgentRunReport, runAgentGame } from '../src/agent/runner';
+import { budgetTokens, type FallbackPolicy } from '../src/agent/types';
+import { TOWERS } from '../src/config/towers';
 import type { Command, DifficultyId, GameEvent, IWorld, MapId, ModeId, RunOptions } from '../src/core';
 import { createWorld } from '../src/core';
-import { TOWERS } from '../src/config/towers';
 import { replaySync } from '../src/meta/midrun';
-import { passesPerTower } from '../src/agent/board';
 import { BOTS, StrategyBot } from './bots';
-import { createProvider } from '../src/agent/factory';
-import { parseContextMode, parseThinking, type AgentModelConfig } from '../src/agent/config';
-import { runAgentGame, type AgentRunReport } from '../src/agent/runner';
-import { budgetTokens, type FallbackPolicy } from '../src/agent/types';
 
 const list = (v: string | undefined): string[] =>
   (v ?? '')

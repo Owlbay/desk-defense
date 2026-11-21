@@ -9,15 +9,16 @@
  *       只有最近 30 张决策卡片是展开的，更早的折叠成一行（点开再渲染），总数超过 300 张丢最旧的；长文本截断显示。
  * 隐私：内容全部来自已脱敏的 AgentTrace（src/agent/trace.ts），只在本机浏览器里。
  */
-import { argsLine, budgetTokens, computeTotals, emptyUsage, type AgentTrace, type TokenUsage, type TraceEvent } from '../../agent';
-import { fmtNumber, onLocaleChange, t } from '../../i18n';
 import '../../styles/ai-trace.css';
+
+import { type AgentTrace, argsLine, budgetTokens, computeTotals, emptyUsage, type TokenUsage, type TraceEvent } from '../../agent';
+import { fmtNumber, onLocaleChange, t } from '../../i18n';
 import { audio } from '../audio';
-import { append, clear, copyText, h, setText, type Child } from '../dom';
+import { append, type Child, clear, copyText, h, setText } from '../dom';
 import { G } from '../icons';
 import { reasonName } from './actions';
 import { fmtCost, fmtTokens, providerLabel } from './format';
-import { opsTotals, type Cell, type DecisionOps, type OpsSource } from './ops';
+import { type Cell, type DecisionOps, type OpsSource, opsTotals } from './ops';
 import { groupSummary, groupTitle, opGold, opIcon, opLine, totalsItems } from './ops-format';
 
 type Ev<K extends TraceEvent['k']> = Extract<TraceEvent, { k: K }>;
@@ -723,7 +724,7 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
     const kb = Math.max(1, Math.round(json.length / 1024));
     const status = h('small.muted', { attrs: { role: 'status' } });
     const name = `desk-defense-ai-trace-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.json`;
-    let url = '';
+    let url: string;
     try {
       url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
     } catch {
@@ -971,7 +972,12 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
     if (!d) return null;
     let n = 0;
     let bad = 0;
-    for (const g of d.groups) for (const op of g.ops) if (op.k !== 'end') op.ok ? n++ : bad++;
+    for (const g of d.groups)
+      for (const op of g.ops)
+        if (op.k !== 'end') {
+          if (op.ok) n++;
+          else bad++;
+        }
     if (!n && !bad) return null;
     return h(
       `span.badge.tr-ops-badge${bad ? '.has-bad' : ''}`,

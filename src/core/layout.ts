@@ -2,11 +2,11 @@
  * 随机地形生成（文档 09 §5）：固定骨架 + 按种子摆放的杂物。
  * 纯函数、确定性；core 与地图选择界面（缩略图）共用。
  */
-import { CellKind, GRID_COLS, GRID_ROWS, type MapId, type Obstacle, type SpawnerState } from './types';
-import { Rng } from './rng';
-import { computeDist, tracePath } from './flowfield';
-import { MAPS, spawnerOpenWave, type MapDef } from '../config/maps';
+import { type MapDef, MAPS, spawnerOpenWave } from '../config/maps';
 import { liveText } from '../config/text';
+import { computeDist, tracePath } from './flowfield';
+import { Rng } from './rng';
+import { CellKind, GRID_COLS, GRID_ROWS, type MapId, type Obstacle, type SpawnerState } from './types';
 
 export const LAYOUT_RULES = {
   minRoute: 14,

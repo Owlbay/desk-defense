@@ -1,6 +1,6 @@
 import type { TowerInfo } from '../../core/types';
-import { t } from '../../i18n';
 import { ui } from '../../game/UiStore';
+import { t } from '../../i18n';
 import { audio } from '../audio';
 import { fmtSec, type GameCtx } from './context';
 

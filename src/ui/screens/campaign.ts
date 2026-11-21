@@ -1,6 +1,7 @@
 import type { DifficultyId, MapId, TowerId } from '../../core/types';
+import { t } from '../../i18n';
 import { campaignDiffUnlocked, campaignStars, chapterCleared, chapterUnlocked, effectiveAutoWave, MAPS } from '../../meta/progress';
-import { screenHeader, type App, type Screen } from '../App';
+import { type App, type Screen, screenHeader } from '../App';
 import { towerIcon } from '../assets';
 import { audio } from '../audio';
 import { MAP_META, TOWER_META } from '../coreMeta';
@@ -8,7 +9,6 @@ import { h, img } from '../dom';
 import { G } from '../icons';
 import { buildRunOptions, loadoutStrip, starRow, switchRow } from './common';
 import { burst, motionOK } from './motion';
-import { t } from '../../i18n';
 
 /** 上次在战役页看到的星数：赢了一局回来时，新得的星星依次弹出 */
 const SEEN_KEY = 'dd.ui.seenStars';

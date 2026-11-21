@@ -1,3 +1,12 @@
+import { PRESETS } from '../config/difficulty';
+import { AFFIXES, ENEMIES } from '../config/enemies';
+import { RANDOM_EVENTS } from '../config/events';
+import { ABILITIES } from '../config/evolution';
+import { MAPS } from '../config/maps';
+import { PERKS } from '../config/perks';
+import { SKILLS } from '../config/skills';
+import { TALENTS } from '../config/talents';
+import { TOWERS } from '../config/towers';
 import type {
   AffixId,
   DifficultyId,
@@ -10,15 +19,6 @@ import type {
   TalentId,
   TowerId,
 } from './types';
-import { RANDOM_EVENTS } from '../config/events';
-import { ABILITIES } from '../config/evolution';
-import { TOWERS } from '../config/towers';
-import { ENEMIES, AFFIXES } from '../config/enemies';
-import { SKILLS } from '../config/skills';
-import { TALENTS } from '../config/talents';
-import { MAPS } from '../config/maps';
-import { PRESETS } from '../config/difficulty';
-import { PERKS } from '../config/perks';
 import type { Rarity } from './types';
 
 export const DIFFICULTY_PRESETS: Record<Exclude<DifficultyId, 'abyss'>, DifficultyParams> = PRESETS;

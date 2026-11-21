@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import type { Command, RunOptions } from '../../src/core/types';
 import { dailyInfo, dailyRunOptions } from '../../src/shared/leaderboard';
 import {

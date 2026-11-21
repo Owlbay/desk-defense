@@ -6,17 +6,17 @@
  *  - mountAiAssistant：设置 →「AI 助手」页面的内容。
  * Key 按玩家选的存放方式读取，只随配置发给所选的模型服务商。
  */
+import { t } from '../../i18n';
 import type { App } from '../App';
 import { audio } from '../audio';
 import { h, setText } from '../dom';
 import { G } from '../icons';
-import { t } from '../../i18n';
-import { getBridge, bridgeProvider } from './bridge-state';
+import { bridgeProvider, getBridge } from './bridge-state';
 import { AI_GLYPH } from './icon';
 import type { AiLaunch, AiRole } from './launch';
-import { mountAiModelConfigForm, type AiModelConfigForm } from './model-form';
 import { buildModelConfig, decisionFor, modelConfigErrors, relayNeedsDetect, sourceLabelOf } from './model-config';
-import { hasSavedSetup, loadSetup, saveSetup, type AiSetupSaved } from './store';
+import { type AiModelConfigForm, mountAiModelConfigForm } from './model-form';
+import { type AiSetupSaved, hasSavedSetup, loadSetup, saveSetup } from './store';
 
 export type ResolveResult = { ok: true; launch: AiLaunch } | { ok: false; reason: string | null };
 

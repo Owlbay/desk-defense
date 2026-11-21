@@ -1,18 +1,19 @@
 import { describe, expect, it } from 'vitest';
+
 import { resolveParams } from '../../src/core/scaling';
+import type { DifficultyId, RunOptions } from '../../src/core/types';
 import { diffKey, leaderKey, runAutoWave } from '../../src/meta/progress';
 import { decodeLogPayload, encodeLog, gzipJsonBase64 } from '../../src/shared/codec';
 import {
-  DAILY_GRACE_MIN,
-  GAME_VERSION,
-  LOG_MAX_RAW_BYTES,
   acceptedDailyDays,
   boardForOpts,
   boardLabel,
   checkLog,
   checkScore,
   checkSubmission,
+  type ClaimedResult,
   computeScore,
+  DAILY_GRACE_MIN,
   dailyBoardKey,
   dailyInfo,
   dailyRunOptions,
@@ -20,14 +21,14 @@ import {
   dayOf,
   effectiveAutoWave,
   endlessBoardKey,
+  GAME_VERSION,
   isValidDay,
+  LOG_MAX_RAW_BYTES,
   parseBoard,
   sanitizeNickname,
   scoreMul,
-  type ClaimedResult,
   type SubmitBody,
 } from '../../src/shared/leaderboard';
-import type { DifficultyId, RunOptions } from '../../src/core/types';
 import { playRun } from './helpers';
 
 const SKILLS: RunOptions['skills'] = ['eraser_strike', 'bell', 'whiteout_zone'];
