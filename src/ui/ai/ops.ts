@@ -13,8 +13,22 @@ import type { Command, CommandResult, GameEvent } from '../../core/types';
 import type { TraceEvent, TraceExport } from '../../agent/trace';
 
 export type OpKind =
-  | 'place' | 'sell' | 'upgrade' | 'branch' | 'evolve' | 'cast' | 'ability' | 'target'
-  | 'perk' | 'reroll' | 'crate' | 'demolish' | 'collect' | 'wave' | 'end' | 'other';
+  | 'place'
+  | 'sell'
+  | 'upgrade'
+  | 'branch'
+  | 'evolve'
+  | 'cast'
+  | 'ability'
+  | 'target'
+  | 'perk'
+  | 'reroll'
+  | 'crate'
+  | 'demolish'
+  | 'collect'
+  | 'wave'
+  | 'end'
+  | 'other';
 
 export interface Cell {
   x: number;
@@ -101,7 +115,10 @@ export interface OpsWorld {
     gold: number;
     wave: number;
     tick: number;
-    towers: Map<number, { uid: number; id: string; cx: number; cy: number; level: number; targetMode?: string; stars?: number; branch?: string | null }>;
+    towers: Map<
+      number,
+      { uid: number; id: string; cx: number; cy: number; level: number; targetMode?: string; stars?: number; branch?: string | null }
+    >;
     spawners?: { id: string; cells: Cell[] }[];
     grid?: { cols: number; rows: number };
   };
@@ -127,7 +144,18 @@ export interface CapturedCmd {
   post: { wave: number; level?: number; stars?: number };
 }
 
-const RELEVANT = new Set<GameEvent['type']>(['place', 'sell', 'levelUp', 'evolve', 'towerAbility', 'skill', 'perkChosen', 'spawnerDrop', 'pickup', 'waveStart']);
+const RELEVANT = new Set<GameEvent['type']>([
+  'place',
+  'sell',
+  'levelUp',
+  'evolve',
+  'towerAbility',
+  'skill',
+  'perkChosen',
+  'spawnerDrop',
+  'pickup',
+  'waveStart',
+]);
 
 const cellOf = (x: number | undefined, y: number | undefined): Cell[] | undefined =>
   typeof x === 'number' && typeof y === 'number' ? [{ x: Math.floor(x), y: Math.floor(y) }] : undefined;
@@ -140,17 +168,28 @@ const roundGold = (g: number): number | undefined => {
 /** 这条事件是不是这条指令自己产生的 */
 function eventOf(c: Command, e: GameEvent): boolean {
   switch (c.type) {
-    case 'place': return e.type === 'place' && e.cx === c.cx && e.cy === c.cy;
-    case 'sell': return e.type === 'sell' && e.uid === c.uid;
-    case 'upgrade': return e.type === 'levelUp' && e.uid === c.uid && !e.byXp;
-    case 'evolve': return e.type === 'evolve' && e.uid === c.uid;
-    case 'towerAbility': return e.type === 'towerAbility' && e.uid === c.uid;
-    case 'cast': return e.type === 'skill' && e.skill === c.skill;
-    case 'choosePerk': return e.type === 'perkChosen';
-    case 'startWave': return e.type === 'waveStart';
-    case 'collect': return e.type === 'pickup' && e.uid === c.uid;
-    case 'demolishSpawner': return e.type === 'spawnerDrop' && e.id === c.id && e.phase === 'demolish';
-    default: return false;
+    case 'place':
+      return e.type === 'place' && e.cx === c.cx && e.cy === c.cy;
+    case 'sell':
+      return e.type === 'sell' && e.uid === c.uid;
+    case 'upgrade':
+      return e.type === 'levelUp' && e.uid === c.uid && !e.byXp;
+    case 'evolve':
+      return e.type === 'evolve' && e.uid === c.uid;
+    case 'towerAbility':
+      return e.type === 'towerAbility' && e.uid === c.uid;
+    case 'cast':
+      return e.type === 'skill' && e.skill === c.skill;
+    case 'choosePerk':
+      return e.type === 'perkChosen';
+    case 'startWave':
+      return e.type === 'waveStart';
+    case 'collect':
+      return e.type === 'pickup' && e.uid === c.uid;
+    case 'demolishSpawner':
+      return e.type === 'spawnerDrop' && e.id === c.id && e.phase === 'demolish';
+    default:
+      return false;
   }
 }
 
@@ -177,15 +216,47 @@ export function opOfCommand(c: CapturedCmd, w?: OpsWorld): Op {
     case 'place':
       return { ...base, k: 'place', tower: cmd.tower, cells: [{ x: cmd.cx, y: cmd.cy }], uid: own?.type === 'place' ? own.uid : undefined };
     case 'sell':
-      return { ...base, k: 'sell', tower: pre.tower?.id ?? (own?.type === 'sell' ? own.tower : undefined), uid: cmd.uid, cells: preCell ?? (own?.type === 'sell' ? [{ x: own.cx, y: own.cy }] : undefined) };
+      return {
+        ...base,
+        k: 'sell',
+        tower: pre.tower?.id ?? (own?.type === 'sell' ? own.tower : undefined),
+        uid: cmd.uid,
+        cells: preCell ?? (own?.type === 'sell' ? [{ x: own.cx, y: own.cy }] : undefined),
+      };
     case 'upgrade': {
       const to = own?.type === 'levelUp' ? own.level : c.post.level;
       const from = pre.tower?.level;
-      if (cmd.branch) return { ...base, k: 'branch', tower: pre.tower?.id, uid: cmd.uid, cells: preCell, branch: cmd.branch, from, to: c.ok ? to : undefined };
-      return { ...base, k: 'upgrade', tower: pre.tower?.id, uid: cmd.uid, cells: preCell, from, to: c.ok ? to ?? (from !== undefined ? from + 1 : undefined) : undefined };
+      if (cmd.branch)
+        return {
+          ...base,
+          k: 'branch',
+          tower: pre.tower?.id,
+          uid: cmd.uid,
+          cells: preCell,
+          branch: cmd.branch,
+          from,
+          to: c.ok ? to : undefined,
+        };
+      return {
+        ...base,
+        k: 'upgrade',
+        tower: pre.tower?.id,
+        uid: cmd.uid,
+        cells: preCell,
+        from,
+        to: c.ok ? (to ?? (from !== undefined ? from + 1 : undefined)) : undefined,
+      };
     }
     case 'evolve':
-      return { ...base, k: 'evolve', tower: pre.tower?.id, uid: cmd.uid, cells: preCell, stars: own?.type === 'evolve' ? own.stars : c.post.stars, mythic: own?.type === 'evolve' ? own.mythic : undefined };
+      return {
+        ...base,
+        k: 'evolve',
+        tower: pre.tower?.id,
+        uid: cmd.uid,
+        cells: preCell,
+        stars: own?.type === 'evolve' ? own.stars : c.post.stars,
+        mythic: own?.type === 'evolve' ? own.mythic : undefined,
+      };
     case 'setTarget':
       return { ...base, k: 'target', tower: pre.tower?.id, uid: cmd.uid, cells: preCell, from: pre.tower?.targetMode, to: cmd.mode };
     case 'cast': {
@@ -198,8 +269,16 @@ export function opOfCommand(c: CapturedCmd, w?: OpsWorld): Op {
       return { ...base, k: 'cast', skill: cmd.skill, uid: cmd.uid, spawner: cmd.spawner, cells: cells?.length ? cells : undefined };
     }
     case 'towerAbility': {
-      const cells = cmd.axis !== undefined && cmd.index !== undefined ? lineCells(w, cmd.axis, cmd.index) : cellOf(cmd.x, cmd.y) ?? preCell;
-      return { ...base, k: 'ability', tower: pre.tower?.id, uid: cmd.uid, ability: own?.type === 'towerAbility' ? own.ability : undefined, cells: cells?.length ? cells : undefined };
+      const cells =
+        cmd.axis !== undefined && cmd.index !== undefined ? lineCells(w, cmd.axis, cmd.index) : (cellOf(cmd.x, cmd.y) ?? preCell);
+      return {
+        ...base,
+        k: 'ability',
+        tower: pre.tower?.id,
+        uid: cmd.uid,
+        ability: own?.type === 'towerAbility' ? own.ability : undefined,
+        cells: cells?.length ? cells : undefined,
+      };
     }
     case 'choosePerk':
       return { ...base, k: 'perk', perk: cmd.id, uid: cmd.uid, branch: cmd.branch, tower: pre.tower?.id, cells: preCell };
@@ -208,9 +287,20 @@ export function opOfCommand(c: CapturedCmd, w?: OpsWorld): Op {
     case 'chooseCrate':
       return { ...base, k: 'crate', option: cmd.option };
     case 'demolishSpawner':
-      return { ...base, k: 'demolish', spawner: cmd.id, cells: pre.spawnerCells ?? (own?.type === 'spawnerDrop' ? [{ x: own.x, y: own.y }] : undefined) };
+      return {
+        ...base,
+        k: 'demolish',
+        spawner: cmd.id,
+        cells: pre.spawnerCells ?? (own?.type === 'spawnerDrop' ? [{ x: own.x, y: own.y }] : undefined),
+      };
     case 'collect':
-      return { ...base, k: 'collect', uid: cmd.uid, pickup: own?.type === 'pickup' ? own.kind : undefined, cells: own?.type === 'pickup' ? cellOf(own.x, own.y) : undefined };
+      return {
+        ...base,
+        k: 'collect',
+        uid: cmd.uid,
+        pickup: own?.type === 'pickup' ? own.kind : undefined,
+        cells: own?.type === 'pickup' ? cellOf(own.x, own.y) : undefined,
+      };
     case 'startWave':
       return { ...base, k: 'wave', wave: own?.type === 'waveStart' ? own.wave : c.post.wave };
   }
@@ -225,18 +315,51 @@ export function opOfEvent(e: GameEvent, w?: OpsWorld): Op | null {
     return t ? [{ x: t.cx, y: t.cy }] : undefined;
   };
   switch (e.type) {
-    case 'place': return { k: 'place', ok: true, src: 'event', tower: e.tower, uid: e.uid, cells: [{ x: e.cx, y: e.cy }] };
-    case 'sell': return { k: 'sell', ok: true, src: 'event', tower: e.tower, uid: e.uid, cells: [{ x: e.cx, y: e.cy }], gold: roundGold(e.refund) };
+    case 'place':
+      return { k: 'place', ok: true, src: 'event', tower: e.tower, uid: e.uid, cells: [{ x: e.cx, y: e.cy }] };
+    case 'sell':
+      return { k: 'sell', ok: true, src: 'event', tower: e.tower, uid: e.uid, cells: [{ x: e.cx, y: e.cy }], gold: roundGold(e.refund) };
     case 'levelUp':
       if (e.byXp) return null;
       return { k: 'upgrade', ok: true, src: 'event', uid: e.uid, tower: tw(e.uid)?.id, cells: at(e.uid), from: e.level - 1, to: e.level };
-    case 'evolve': return { k: 'evolve', ok: true, src: 'event', uid: e.uid, tower: tw(e.uid)?.id, cells: at(e.uid), stars: e.stars, mythic: e.mythic };
-    case 'towerAbility': return { k: 'ability', ok: true, src: 'event', uid: e.uid, tower: tw(e.uid)?.id, ability: e.ability, cells: cellOf(e.x, e.y) ?? at(e.uid) };
-    case 'skill': return { k: 'cast', ok: true, src: 'event', skill: e.skill, cells: e.cx !== undefined && e.cy !== undefined ? [{ x: e.cx, y: e.cy }] : cellOf(e.x, e.y) };
-    case 'perkChosen': return { k: 'perk', ok: true, src: 'event', perk: e.id };
-    case 'spawnerDrop': return e.phase === 'demolish' ? { k: 'demolish', ok: true, src: 'event', spawner: e.id, cells: [{ x: e.x, y: e.y }] } : null;
-    case 'pickup': return e.phase === 'collect' ? { k: 'collect', ok: true, src: 'event', uid: e.uid, pickup: e.kind, gold: e.value ? roundGold(e.value) : undefined, cells: cellOf(e.x, e.y) } : null;
-    default: return null;
+    case 'evolve':
+      return { k: 'evolve', ok: true, src: 'event', uid: e.uid, tower: tw(e.uid)?.id, cells: at(e.uid), stars: e.stars, mythic: e.mythic };
+    case 'towerAbility':
+      return {
+        k: 'ability',
+        ok: true,
+        src: 'event',
+        uid: e.uid,
+        tower: tw(e.uid)?.id,
+        ability: e.ability,
+        cells: cellOf(e.x, e.y) ?? at(e.uid),
+      };
+    case 'skill':
+      return {
+        k: 'cast',
+        ok: true,
+        src: 'event',
+        skill: e.skill,
+        cells: e.cx !== undefined && e.cy !== undefined ? [{ x: e.cx, y: e.cy }] : cellOf(e.x, e.y),
+      };
+    case 'perkChosen':
+      return { k: 'perk', ok: true, src: 'event', perk: e.id };
+    case 'spawnerDrop':
+      return e.phase === 'demolish' ? { k: 'demolish', ok: true, src: 'event', spawner: e.id, cells: [{ x: e.x, y: e.y }] } : null;
+    case 'pickup':
+      return e.phase === 'collect'
+        ? {
+            k: 'collect',
+            ok: true,
+            src: 'event',
+            uid: e.uid,
+            pickup: e.kind,
+            gold: e.value ? roundGold(e.value) : undefined,
+            cells: cellOf(e.x, e.y),
+          }
+        : null;
+    default:
+      return null;
   }
 }
 
@@ -244,20 +367,54 @@ export function opOfEvent(e: GameEvent, w?: OpsWorld): Op | null {
 
 /** act 的底层动作 → 期望的指令类型 */
 const LOW: Record<string, Command['type']> = {
-  place: 'place', upgrade: 'upgrade', branch: 'upgrade', evolve: 'evolve', sell: 'sell', target: 'setTarget',
-  cast_skill: 'cast', tower_ability: 'towerAbility', collect: 'collect', choose_perk: 'choosePerk',
-  reroll_perks: 'rerollPerks', choose_crate: 'chooseCrate', demolish: 'demolishSpawner', start_wave: 'startWave',
+  place: 'place',
+  upgrade: 'upgrade',
+  branch: 'upgrade',
+  evolve: 'evolve',
+  sell: 'sell',
+  target: 'setTarget',
+  cast_skill: 'cast',
+  tower_ability: 'towerAbility',
+  collect: 'collect',
+  choose_perk: 'choosePerk',
+  reroll_perks: 'rerollPerks',
+  choose_crate: 'chooseCrate',
+  demolish: 'demolishSpawner',
+  start_wave: 'startWave',
 };
 /** 底层动作 → 操作种类（参数错误时用） */
 const LOW_KIND: Record<string, OpKind> = {
-  place: 'place', upgrade: 'upgrade', branch: 'branch', evolve: 'evolve', sell: 'sell', target: 'target', cast_skill: 'cast',
-  tower_ability: 'ability', collect: 'collect', choose_perk: 'perk', reroll_perks: 'reroll', choose_crate: 'crate', demolish: 'demolish', start_wave: 'wave',
+  place: 'place',
+  upgrade: 'upgrade',
+  branch: 'branch',
+  evolve: 'evolve',
+  sell: 'sell',
+  target: 'target',
+  cast_skill: 'cast',
+  tower_ability: 'ability',
+  collect: 'collect',
+  choose_perk: 'perk',
+  reroll_perks: 'reroll',
+  choose_crate: 'crate',
+  demolish: 'demolish',
+  start_wave: 'wave',
 };
 /** 旧版细粒度工具名 → 操作种类（参数错误时用） */
 const LEGACY_KIND: Record<string, OpKind> = {
-  place_tower: 'place', upgrade_tower: 'upgrade', choose_branch: 'branch', evolve_tower: 'evolve', sell_tower: 'sell', set_target_mode: 'target',
-  cast_skill: 'cast', tower_ability: 'ability', collect_pickup: 'collect', choose_perk: 'perk', reroll_perks: 'reroll', choose_crate: 'crate',
-  demolish_spawner: 'demolish', start_wave: 'wave',
+  place_tower: 'place',
+  upgrade_tower: 'upgrade',
+  choose_branch: 'branch',
+  evolve_tower: 'evolve',
+  sell_tower: 'sell',
+  set_target_mode: 'target',
+  cast_skill: 'cast',
+  tower_ability: 'ability',
+  collect_pickup: 'collect',
+  choose_perk: 'perk',
+  reroll_perks: 'reroll',
+  choose_crate: 'crate',
+  demolish_spawner: 'demolish',
+  start_wave: 'wave',
 };
 
 const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
@@ -268,35 +425,55 @@ function exact(a: Record<string, unknown>, c: Command): boolean {
   const want = LOW[String(a.do)];
   if (!want || c.type !== want) return false;
   switch (c.type) {
-    case 'place': return c.cx === num(a.x) && c.cy === num(a.y) && (a.tower === undefined || c.tower === a.tower);
-    case 'upgrade': return c.uid === num(a.uid) && (a.do === 'branch') === !!c.branch;
+    case 'place':
+      return c.cx === num(a.x) && c.cy === num(a.y) && (a.tower === undefined || c.tower === a.tower);
+    case 'upgrade':
+      return c.uid === num(a.uid) && (a.do === 'branch') === !!c.branch;
     case 'evolve':
     case 'sell':
     case 'setTarget':
-    case 'towerAbility': return c.uid === num(a.uid);
-    case 'collect': return num(a.uid) === undefined || c.uid === num(a.uid);
-    case 'cast': return c.skill === a.skill;
-    case 'choosePerk': return c.id === a.id;
-    case 'chooseCrate': return c.option === a.option;
-    case 'demolishSpawner': return c.id === (str(a.id) ?? str(a.spawner));
-    default: return true;
+    case 'towerAbility':
+      return c.uid === num(a.uid);
+    case 'collect':
+      return num(a.uid) === undefined || c.uid === num(a.uid);
+    case 'cast':
+      return c.skill === a.skill;
+    case 'choosePerk':
+      return c.id === a.id;
+    case 'chooseCrate':
+      return c.option === a.option;
+    case 'demolishSpawner':
+      return c.id === (str(a.id) ?? str(a.spawner));
+    default:
+      return true;
   }
 }
 
 /** 意图大概会下哪些指令（用于在两个意图之间切分；未知意图什么都收） */
 function fits(intent: string, a: Record<string, unknown>, c: Command): boolean {
   switch (intent) {
-    case 'maze': return c.type === 'place' && c.tower === 'wall';
-    case 'build_near': return (c.type === 'place' && (a.tower === undefined || c.tower === a.tower)) || c.type === 'upgrade';
-    case 'upgrade_best': return c.type === 'upgrade' || c.type === 'evolve';
-    case 'anti_air': return c.type === 'place' || c.type === 'upgrade';
-    case 'save': return false;
-    case 'reclaim': return c.type === 'sell';
-    case 'rebuild_maze': return c.type === 'sell' || (c.type === 'place' && c.tower === 'wall');
-    case 'economy': return c.type === 'place' || c.type === 'upgrade';
-    case 'support': return c.type === 'place' || c.type === 'upgrade';
-    case 'combo': return c.type === 'place' || c.type === 'upgrade';
-    default: return c.type !== 'startWave';
+    case 'maze':
+      return c.type === 'place' && c.tower === 'wall';
+    case 'build_near':
+      return (c.type === 'place' && (a.tower === undefined || c.tower === a.tower)) || c.type === 'upgrade';
+    case 'upgrade_best':
+      return c.type === 'upgrade' || c.type === 'evolve';
+    case 'anti_air':
+      return c.type === 'place' || c.type === 'upgrade';
+    case 'save':
+      return false;
+    case 'reclaim':
+      return c.type === 'sell';
+    case 'rebuild_maze':
+      return c.type === 'sell' || (c.type === 'place' && c.tower === 'wall');
+    case 'economy':
+      return c.type === 'place' || c.type === 'upgrade';
+    case 'support':
+      return c.type === 'place' || c.type === 'upgrade';
+    case 'combo':
+      return c.type === 'place' || c.type === 'upgrade';
+    default:
+      return c.type !== 'startWave';
   }
 }
 
@@ -305,9 +482,19 @@ function invalidOp(kind: OpKind, a: Record<string, unknown>, reason: string): Op
   const x = num(a.x);
   const y = num(a.y);
   return {
-    k: kind, ok: false, invalid: true, src: 'parse', reason: reason.trim().slice(0, 200),
-    tower: str(a.tower), uid: num(a.uid), skill: str(a.skill), perk: kind === 'perk' ? str(a.id) : undefined, option: str(a.option),
-    spawner: kind === 'demolish' ? str(a.id) ?? str(a.spawner) : undefined, branch: str(a.branch), to: kind === 'target' ? str(a.mode) : undefined,
+    k: kind,
+    ok: false,
+    invalid: true,
+    src: 'parse',
+    reason: reason.trim().slice(0, 200),
+    tower: str(a.tower),
+    uid: num(a.uid),
+    skill: str(a.skill),
+    perk: kind === 'perk' ? str(a.id) : undefined,
+    option: str(a.option),
+    spawner: kind === 'demolish' ? (str(a.id) ?? str(a.spawner)) : undefined,
+    branch: str(a.branch),
+    to: kind === 'target' ? str(a.mode) : undefined,
     cells: x !== undefined && y !== undefined ? [{ x, y }] : undefined,
   };
 }
@@ -331,7 +518,9 @@ const MOVED_RE = /^MOVED (\d+),(\d+)/;
  */
 export function alignAct(args: unknown, resultText: string, cmds: CapturedCmd[], w?: OpsWorld): OpGroup[] {
   const a0 = (args && typeof args === 'object' ? args : {}) as Record<string, unknown>;
-  const actions = Array.isArray(a0.actions) ? (a0.actions as unknown[]).filter((x): x is Record<string, unknown> => !!x && typeof x === 'object') : [];
+  const actions = Array.isArray(a0.actions)
+    ? (a0.actions as unknown[]).filter((x): x is Record<string, unknown> => !!x && typeof x === 'object')
+    : [];
   const lines = parseActLines(resultText);
   const groups: OpGroup[] = [];
   let plain: OpGroup | null = null;
@@ -386,7 +575,13 @@ export function alignAct(args: unknown, resultText: string, cmds: CapturedCmd[],
       return;
     }
     // 意图
-    const g: OpGroup = { kind: 'intent', intent: kind, args: intentArgs(a), ops: [], text: line.replace(/^(OK|NOOP)\s*/, '').slice(0, 600) };
+    const g: OpGroup = {
+      kind: 'intent',
+      intent: kind,
+      args: intentArgs(a),
+      ops: [],
+      text: line.replace(/^(OK|NOOP)\s*/, '').slice(0, 600),
+    };
     if (/^NOOP\b/.test(line) || line.startsWith('ERROR')) g.noop = true;
     if (line.startsWith('ERROR')) g.ops.push(invalidOp('other', a, line.replace(/^ERROR\s*/, '')));
     const pm = PATH_RE.exec(line);
@@ -407,7 +602,8 @@ export function alignAct(args: unknown, resultText: string, cmds: CapturedCmd[],
 
 function intentArgs(a: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(a)) if (k !== 'do' && v !== undefined && v !== null && (typeof v === 'string' || typeof v === 'number')) out[k] = v;
+  for (const [k, v] of Object.entries(a))
+    if (k !== 'do' && v !== undefined && v !== null && (typeof v === 'string' || typeof v === 'number')) out[k] = v;
   return out;
 }
 
@@ -484,7 +680,12 @@ export class OpsRecorder implements OpsSource {
   }
 
   export(keep?: (d: number) => boolean): OpsExport {
-    return { v: 1, decisions: this.all().filter((x) => (keep ? keep(x.d) : true)).filter((x) => x.groups.length > 0) };
+    return {
+      v: 1,
+      decisions: this.all()
+        .filter((x) => (keep ? keep(x.d) : true))
+        .filter((x) => x.groups.length > 0),
+    };
   }
 
   private emit(d: number): void {
@@ -546,7 +747,10 @@ export class OpsRecorder implements OpsSource {
         const t = this.tools.get(e.id) ?? { id: e.id, name: e.name, args: undefined, cmds: [] };
         this.tools.delete(e.id);
         if (this.openTool?.id === e.id) this.openTool = null;
-        const groups = e.name === 'act' ? alignAct(t.args, e.text, t.cmds, this.o.world) : [toolGroup(e.name, t.args, e.ok, e.text, t.cmds, this.o.world)].filter((g): g is OpGroup => !!g);
+        const groups =
+          e.name === 'act'
+            ? alignAct(t.args, e.text, t.cmds, this.o.world)
+            : [toolGroup(e.name, t.args, e.ok, e.text, t.cmds, this.o.world)].filter((g): g is OpGroup => !!g);
         if (groups.length) {
           const x = this.dec(e.d);
           for (const g of groups) {
@@ -602,7 +806,13 @@ export class OpsRecorder implements OpsSource {
     try {
       const t2 = uid !== undefined ? st?.towers.get(uid) : undefined;
       const c: CapturedCmd = {
-        cmd, ok: r.ok, code: r.code, reason: r.reason, gold: (st?.gold ?? 0) - pre.gold, pre, events: cap,
+        cmd,
+        ok: r.ok,
+        code: r.code,
+        reason: r.reason,
+        gold: (st?.gold ?? 0) - pre.gold,
+        pre,
+        events: cap,
         post: { wave: st?.wave ?? 0, level: t2?.level, stars: t2?.stars },
       };
       // 不是这条指令产生的事件（兜底机器人之前直接下的指令，这时才被刷出来）

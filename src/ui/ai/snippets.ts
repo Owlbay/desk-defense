@@ -86,13 +86,20 @@ export function bridgeCommands(origin: string): SetupStep[] {
   const extra = /^https:\/\/jjjj\.games$|^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ? '' : ` --origin ${origin}`;
   return [
     { text: t('agent.snippets.bridgeOllama'), code: `npm run agent:bridge -- --provider pi --preset ollama --model qwen3:8b${extra}` },
-    { text: t('agent.snippets.bridgeClaude'), code: `npm run agent:bridge -- --provider claude --model claude-sonnet-5-5 --effort low${extra}` },
+    {
+      text: t('agent.snippets.bridgeClaude'),
+      code: `npm run agent:bridge -- --provider claude --model claude-sonnet-5-5 --effort low${extra}`,
+    },
     { text: t('agent.snippets.bridgeNpx'), code: `npx desk-defense-agent bridge --provider pi --preset ollama --model qwen3:8b${extra}` },
   ];
 }
 
 /** 浏览器 / 网络环境的额外提示（混合内容、Safari、本地网络权限） */
-export function networkNotes(pageProtocol: string, baseUrl: string, ua: string = typeof navigator !== 'undefined' ? navigator.userAgent : ''): string[] {
+export function networkNotes(
+  pageProtocol: string,
+  baseUrl: string,
+  ua: string = typeof navigator !== 'undefined' ? navigator.userAgent : '',
+): string[] {
   const out: string[] = [];
   let u: URL | null = null;
   try {

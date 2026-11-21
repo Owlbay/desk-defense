@@ -1,8 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ABILITY_META, CellKind, DT, EVO, RANDOM_EVENT_IDS, RANDOM_EVENT_META, SKILL_META, checkLayout, createWorld, generateLayout,
-  rawUpgradeCost, stateHash, World,
-  type Command, type GameEvent, type IWorld, type MapId, type RunOptions, type TowerId,
+  ABILITY_META,
+  CellKind,
+  DT,
+  EVO,
+  RANDOM_EVENT_IDS,
+  RANDOM_EVENT_META,
+  SKILL_META,
+  checkLayout,
+  createWorld,
+  generateLayout,
+  rawUpgradeCost,
+  stateHash,
+  World,
+  type Command,
+  type GameEvent,
+  type IWorld,
+  type MapId,
+  type RunOptions,
+  type TowerId,
 } from '../../src/core';
 import { MAPS } from '../../src/config/maps';
 import { EVOLUTION } from '../../src/config/evolution';
@@ -10,7 +26,13 @@ import { EVOLUTION } from '../../src/config/evolution';
 const MAP_IDS: MapId[] = ['ch1', 'ch2', 'ch3'];
 
 const opts = (o: Partial<RunOptions> = {}): RunOptions => ({
-  mode: 'endless', map: 'ch1', difficulty: 'normal', seed: 'dyn', skills: ['eraser_strike', 'bell', 'seal_tape'], fixedLayout: true, ...o,
+  mode: 'endless',
+  map: 'ch1',
+  difficulty: 'normal',
+  seed: 'dyn',
+  skills: ['eraser_strike', 'bell', 'seal_tape'],
+  fixedLayout: true,
+  ...o,
 });
 const custom = (c: RunOptions['custom'], o: Partial<RunOptions> = {}) => opts({ mode: 'custom', custom: c, ...o });
 
@@ -47,7 +69,11 @@ function expectAllReachable(w: IWorld) {
 /** 蛇形墙（能放就放） */
 function buildSnake(w: IWorld) {
   const { cols } = w.state.grid;
-  for (const [y, gap] of [[3, cols - 1], [6, 0], [9, cols - 1]] as [number, number][]) {
+  for (const [y, gap] of [
+    [3, cols - 1],
+    [6, 0],
+    [9, cols - 1],
+  ] as [number, number][]) {
     for (let x = 0; x < cols; x++) if (x !== gap) w.command({ type: 'place', tower: 'wall', cx: x, cy: y });
   }
 }
@@ -77,14 +103,15 @@ describe('random layout (doc 09 §5)', () => {
             expect(Math.max(dx, dy)).toBeGreaterThanOrEqual(2);
           }
         }
-        for (let a = 0; a < L.obstacles.length; a++) for (let b = a + 1; b < L.obstacles.length; b++) {
-          const p = L.obstacles[a];
-          const q = L.obstacles[b];
-          if (!clutter.includes(p) && !clutter.includes(q)) continue;
-          const gx = Math.max(p.x - (q.x + q.w), q.x - (p.x + p.w));
-          const gy = Math.max(p.y - (q.y + q.h), q.y - (p.y + p.h));
-          expect(Math.max(gx, gy)).toBeGreaterThanOrEqual(1);
-        }
+        for (let a = 0; a < L.obstacles.length; a++)
+          for (let b = a + 1; b < L.obstacles.length; b++) {
+            const p = L.obstacles[a];
+            const q = L.obstacles[b];
+            if (!clutter.includes(p) && !clutter.includes(q)) continue;
+            const gx = Math.max(p.x - (q.x + q.w), q.x - (p.x + p.w));
+            const gy = Math.max(p.y - (q.y + q.h), q.y - (p.y + p.h));
+            expect(Math.max(gx, gy)).toBeGreaterThanOrEqual(1);
+          }
         // 杂物尺寸 1×1 ～ 2×3
         for (const o of clutter) expect(Math.min(o.w, o.h) <= 2 && Math.max(o.w, o.h) <= 3).toBe(true);
       }
@@ -219,10 +246,26 @@ describe('auto waves (doc 09 §4)', () => {
 
 describe('replay determinism with auto waves and events', () => {
   function play(seed: string): World {
-    const w = createWorld(custom({ lives: 100000, startGold: 3000, eventRate: 3, eventHostile: 0.5 }, {
-      seed, map: 'ch2', fixedLayout: false, skills: ['eraser_strike', 'seal_tape', 'relocate'],
-    })) as World;
-    const spots: [number, number][] = [[3, 3], [6, 3], [8, 4], [4, 9], [7, 9], [9, 11], [2, 11]];
+    const w = createWorld(
+      custom(
+        { lives: 100000, startGold: 3000, eventRate: 3, eventHostile: 0.5 },
+        {
+          seed,
+          map: 'ch2',
+          fixedLayout: false,
+          skills: ['eraser_strike', 'seal_tape', 'relocate'],
+        },
+      ),
+    ) as World;
+    const spots: [number, number][] = [
+      [3, 3],
+      [6, 3],
+      [8, 4],
+      [4, 9],
+      [7, 9],
+      [9, 11],
+      [2, 11],
+    ];
     for (const [x, y] of spots) w.command({ type: 'place', tower: 'pencil', cx: x, cy: y });
     w.command({ type: 'startWave' });
     for (let tick = 0; tick < 60 * 60 * 12; tick++) {
@@ -264,8 +307,18 @@ describe('replay determinism with auto waves and events', () => {
   it('every random event can run (forced) without throwing; toggles disable events', () => {
     for (const id of RANDOM_EVENT_IDS) {
       expect(RANDOM_EVENT_META[id].name.length).toBeGreaterThan(0);
-      const w = createWorld(custom({ lives: 100000, startGold: 5000, eventRate: 0 }, { seed: `ev-${id}`, map: 'ch3', fixedLayout: false })) as World;
-      for (const [x, y] of [[3, 3], [6, 3], [8, 5], [4, 9], [7, 9], [9, 11]] as [number, number][]) w.command({ type: 'place', tower: 'lamp', cx: x, cy: y });
+      const w = createWorld(
+        custom({ lives: 100000, startGold: 5000, eventRate: 0 }, { seed: `ev-${id}`, map: 'ch3', fixedLayout: false }),
+      ) as World;
+      for (const [x, y] of [
+        [3, 3],
+        [6, 3],
+        [8, 5],
+        [4, 9],
+        [7, 9],
+        [9, 11],
+      ] as [number, number][])
+        w.command({ type: 'place', tower: 'lamp', cx: x, cy: y });
       w.command({ type: 'startWave' });
       run(w, 60 * 5);
       const started = w.forceEvent(id);
@@ -290,7 +343,12 @@ describe('drop spawners (doc 09 §2)', () => {
   it('never block any path; warning cells cannot be built on; land / demolish / seal', () => {
     let landed = 0;
     for (let k = 0; k < 12; k++) {
-      const w = createWorld(custom({ lives: 1e6, startGold: 1e5, maxDrops: 3, eventRate: 0 }, { seed: `drop-${k}`, map: MAP_IDS[k % 3], fixedLayout: k % 2 === 0 })) as World;
+      const w = createWorld(
+        custom(
+          { lives: 1e6, startGold: 1e5, maxDrops: 3, eventRate: 0 },
+          { seed: `drop-${k}`, map: MAP_IDS[k % 3], fixedLayout: k % 2 === 0 },
+        ),
+      ) as World;
       buildSnake(w);
       w.command({ type: 'startWave' });
       run(w, 120);
@@ -307,8 +365,10 @@ describe('drop spawners (doc 09 §2)', () => {
         expect(w.canPlace('wall', c.x, c.y).reason).toBe('出生点即将出现在这里');
         // 预警期间把落点四周都堵上：任何放置都必须保留空降点的出路
         const { cols, rows } = w.state.grid;
-        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) w.command({ type: 'place', tower: 'wall', cx: c.x + dx, cy: c.y + dy });
-        for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) if ((x * 2 + y + d) % 9 === 0) w.command({ type: 'place', tower: 'wall', cx: x, cy: y });
+        for (let dy = -1; dy <= 1; dy++)
+          for (let dx = -1; dx <= 1; dx++) w.command({ type: 'place', tower: 'wall', cx: c.x + dx, cy: c.y + dy });
+        for (let y = 0; y < rows; y++)
+          for (let x = 0; x < cols; x++) if ((x * 2 + y + d) % 9 === 0) w.command({ type: 'place', tower: 'wall', cx: x, cy: y });
         run(w, 60 * 6);
         expect(sp.active).toBe(true);
         expect(w.state.grid.cells[c.y * cols + c.x]).toBe(CellKind.Obstacle);
@@ -369,25 +429,30 @@ describe('drop spawners (doc 09 §2)', () => {
 describe('books fall (doc 09 §3.2)', () => {
   it('never blocks paths and pushes towers to the nearest free cell keeping their level', () => {
     for (let k = 0; k < 15; k++) {
-      const w = createWorld(custom({ lives: 1e6, startGold: 1e5, eventRate: 0 }, { seed: `books-${k}`, map: MAP_IDS[k % 3], fixedLayout: false })) as World;
+      const w = createWorld(
+        custom({ lives: 1e6, startGold: 1e5, eventRate: 0 }, { seed: `books-${k}`, map: MAP_IDS[k % 3], fixedLayout: false }),
+      ) as World;
       buildSnake(w);
       // 再随手放一些升过级的攻击塔
       const { cols, rows } = w.state.grid;
-      for (let y = 1; y < rows - 1; y++) for (let x = 0; x < cols; x++) {
-        if ((x * 7 + y * 3 + k) % 5 !== 0) continue;
-        if (w.command({ type: 'place', tower: 'pencil', cx: x, cy: y }).ok) {
-          const uid = w.state.grid.towerAt[y * cols + x];
-          w.command({ type: 'upgrade', uid });
-          w.command({ type: 'upgrade', uid });
+      for (let y = 1; y < rows - 1; y++)
+        for (let x = 0; x < cols; x++) {
+          if ((x * 7 + y * 3 + k) % 5 !== 0) continue;
+          if (w.command({ type: 'place', tower: 'pencil', cx: x, cy: y }).ok) {
+            const uid = w.state.grid.towerAt[y * cols + x];
+            w.command({ type: 'upgrade', uid });
+            w.command({ type: 'upgrade', uid });
+          }
         }
-      }
       w.command({ type: 'startWave' });
       run(w, 200);
       for (let n = 0; n < 4; n++) {
         const before = new Map([...w.state.towers.values()].map((t) => [t.uid, t.level]));
         const moved: number[] = [];
         if (!w.forceEvent('books_fall')) continue;
-        run(w, 60 * 5, (e) => { if (e.type === 'towerMoved') moved.push(e.uid); });
+        run(w, 60 * 5, (e) => {
+          if (e.type === 'towerMoved') moved.push(e.uid);
+        });
         expectAllReachable(w);
         expect(w.state.towers.size).toBe(before.size);
         for (const t of w.state.towers.values()) {
@@ -419,7 +484,12 @@ describe('books fall (doc 09 §3.2)', () => {
 
 describe('legend evolution (doc 11)', () => {
   function legend(id: TowerId, branch: 'A' | 'B', o: Partial<RunOptions> = {}) {
-    const w = createWorld(custom({ startGold: 1e7, lives: 1e6, eventRate: 0, eliteStart: 1, eliteRate: 1, eliteCap: 1, maxAffix: 2, hpMul: 30 }, { seed: `evo-${id}-${branch}`, ...o }));
+    const w = createWorld(
+      custom(
+        { startGold: 1e7, lives: 1e6, eventRate: 0, eliteStart: 1, eliteRate: 1, eliteCap: 1, maxAffix: 2, hpMul: 30 },
+        { seed: `evo-${id}-${branch}`, ...o },
+      ),
+    );
     expect(w.command({ type: 'place', tower: id, cx: 5, cy: 6 }).ok).toBe(true);
     const uid = w.state.grid.towerAt[6 * 12 + 5];
     for (let L = 1; L <= 9; L++) expect(w.command({ type: 'upgrade', uid, branch }).ok).toBe(true);
@@ -512,11 +582,19 @@ describe('legend evolution (doc 11)', () => {
         expect(ABILITY_META[ab.id].name).toBe(ab.name);
         const tgt = w.state.enemies.find((e) => e.elite && !e.boss && !e.hidden) ?? w.state.enemies.find((e) => !e.hidden)!;
         const cmd: Command = {
-          type: 'towerAbility', uid, x: tgt.x, y: tgt.y, angle: 1, axis: 'row', index: Math.floor(tgt.y),
+          type: 'towerAbility',
+          uid,
+          x: tgt.x,
+          y: tgt.y,
+          angle: 1,
+          axis: 'row',
+          index: Math.floor(tgt.y),
           targetUid: ab.target === 'tower' ? helper : tgt.uid,
         };
         let r: { ok: boolean; reason?: string } = { ok: false };
-        expect(() => { r = w.command(cmd); }).not.toThrow();
+        expect(() => {
+          r = w.command(cmd);
+        }).not.toThrow();
         if (ab.id !== 'eraser_b' || tgt.elite) expect({ id: ab.id, ...r }).toEqual({ id: ab.id, ok: true });
         if (r.ok) {
           const again = w.command(cmd);

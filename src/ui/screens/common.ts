@@ -1,4 +1,14 @@
-import { GRID_COLS, GRID_ROWS, type DifficultyId, type DifficultyParams, type MapId, type ModeId, type RandomEventId, type RunOptions, type SkillId } from '../../core/types';
+import {
+  GRID_COLS,
+  GRID_ROWS,
+  type DifficultyId,
+  type DifficultyParams,
+  type MapId,
+  type ModeId,
+  type RandomEventId,
+  type RunOptions,
+  type SkillId,
+} from '../../core/types';
 import type { Profile } from '../../meta/profile';
 import { effectiveAutoWave, resolveLoadout, skillLevel, unlockReached } from '../../meta/progress';
 import type { App, Route } from '../App';
@@ -66,14 +76,24 @@ export function randomSeed(): string {
 }
 
 /** 开关行（label.switch-row） */
-export function switchRow(title: string, hint: string, checked: boolean, onChange: (v: boolean) => void): { el: HTMLElement; input: HTMLInputElement } {
+export function switchRow(
+  title: string,
+  hint: string,
+  checked: boolean,
+  onChange: (v: boolean) => void,
+): { el: HTMLElement; input: HTMLInputElement } {
   const input = h<HTMLInputElement>('input', { attrs: { type: 'checkbox' } });
   input.checked = checked;
   input.onchange = () => {
     audio.play('click');
     onChange(input.checked);
   };
-  const el = h('label.switch-row', null, h('span', null, h('b', null, title), h('small.muted', null, hint)), h('span.switch', null, input, h('span.knob')));
+  const el = h(
+    'label.switch-row',
+    null,
+    h('span', null, h('b', null, title), h('small.muted', null, hint)),
+    h('span.switch', null, input, h('span.knob')),
+  );
   return { el, input };
 }
 
@@ -105,7 +125,9 @@ export function layoutThumb(map: MapId, seed: string, fixedLayout = false): HTML
   for (let x = 1; x < W; x++) parts.push(`<path d="M${x} 0V${H}" stroke="#3B2F2A" stroke-opacity=".08" stroke-width=".04"/>`);
   for (let y = 1; y < H; y++) parts.push(`<path d="M0 ${y}H${W}" stroke="#3B2F2A" stroke-opacity=".08" stroke-width=".04"/>`);
   for (const o of lay.obstacles) {
-    parts.push(`<rect x="${o.x + 0.06}" y="${o.y + 0.06}" width="${o.w - 0.12}" height="${o.h - 0.12}" rx=".18" fill="${OBST_COLOR[o.kind] ?? '#C9AD80'}" stroke="#3B2F2A" stroke-width=".08"/>`);
+    parts.push(
+      `<rect x="${o.x + 0.06}" y="${o.y + 0.06}" width="${o.w - 0.12}" height="${o.h - 0.12}" rx=".18" fill="${OBST_COLOR[o.kind] ?? '#C9AD80'}" stroke="#3B2F2A" stroke-width=".08"/>`,
+    );
   }
   for (const sp of lay.spawners) {
     const hidden = sp.kind === 'hidden';
@@ -115,7 +137,10 @@ export function layoutThumb(map: MapId, seed: string, fixedLayout = false): HTML
       );
     }
   }
-  for (const e of lay.exits) parts.push(`<rect x="${e.x + 0.1}" y="${e.y + 0.1}" width=".8" height=".8" rx=".15" fill="#2E4A7D" stroke="#3B2F2A" stroke-width=".07"/>`);
+  for (const e of lay.exits)
+    parts.push(
+      `<rect x="${e.x + 0.1}" y="${e.y + 0.1}" width=".8" height=".8" rx=".15" fill="#2E4A7D" stroke="#3B2F2A" stroke-width=".07"/>`,
+    );
   const svg = `<svg viewBox="-0.2 -0.2 ${W + 0.4} ${H + 0.4}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${t('ui.screen.layoutThumb')}">${parts.join('')}</svg>`;
   const names = lay.spawners.filter((s) => s.kind !== 'hidden').map((s) => spawnerName(s.id, lay.spawners));
   return h(
@@ -134,7 +159,10 @@ export function layoutThumb(map: MapId, seed: string, fixedLayout = false): HTML
 }
 
 /** 布局预览卡片（缩略图 + 换一个） */
-export function layoutPicker(o: { map: () => MapId; seed: () => string; onReroll: () => void; fixed?: () => boolean }): { el: HTMLElement; refresh(): void } {
+export function layoutPicker(o: { map: () => MapId; seed: () => string; onReroll: () => void; fixed?: () => boolean }): {
+  el: HTMLElement;
+  refresh(): void;
+} {
   const host = h('div.layout-host');
   const refresh = () => host.replaceChildren(layoutThumb(o.map(), o.seed(), o.fixed?.() ?? false));
   const icon = h('span.gi', { html: G.refresh });
@@ -146,21 +174,29 @@ export function layoutPicker(o: { map: () => MapId; seed: () => string; onReroll
       flipOut.cancel();
     }
     anim(icon, [{ transform: 'rotate(0)' }, { transform: 'rotate(360deg)' }], { duration: DUR.l, easing: EASE_SPRING });
-    const out = anim(host, [{ transform: 'perspective(520px) rotateY(0) scale(1)' }, { transform: 'perspective(520px) rotateY(88deg) scale(0.94)' }], {
-      duration: 120,
-      easing: EASE_IN,
-      fill: 'forwards',
-    });
+    const out = anim(
+      host,
+      [{ transform: 'perspective(520px) rotateY(0) scale(1)' }, { transform: 'perspective(520px) rotateY(88deg) scale(0.94)' }],
+      {
+        duration: 120,
+        easing: EASE_IN,
+        fill: 'forwards',
+      },
+    );
     if (!out) return refresh();
     flipOut = out;
     out.onfinish = () => {
       flipOut = null;
       refresh();
       out.cancel();
-      anim(host, [{ transform: 'perspective(520px) rotateY(-88deg) scale(0.94)' }, { transform: 'perspective(520px) rotateY(0) scale(1)' }], {
-        duration: DUR.m + 60,
-        easing: EASE_SPRING,
-      });
+      anim(
+        host,
+        [{ transform: 'perspective(520px) rotateY(-88deg) scale(0.94)' }, { transform: 'perspective(520px) rotateY(0) scale(1)' }],
+        {
+          duration: DUR.m + 60,
+          easing: EASE_SPRING,
+        },
+      );
     };
   };
   const btn = h(

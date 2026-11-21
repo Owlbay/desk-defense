@@ -62,15 +62,18 @@ export default {
 
   'data.tower.lamp.name': '台灯',
   'data.tower.lamp.role': '穿甲光束',
-  'data.tower.lamp.desc': '持续光束，无视护甲，同一目标越照越强（每秒 +{ramp}，最多 ×{cap}）；侦测 {detect} 格内隐形；{link} 格内的台灯自动联动，把光汇聚到一座主灯',
+  'data.tower.lamp.desc':
+    '持续光束，无视护甲，同一目标越照越强（每秒 +{ramp}，最多 ×{cap}）；侦测 {detect} 格内隐形；{link} 格内的台灯自动联动，把光汇聚到一座主灯',
   'data.tower.lamp.t2.name': '余温',
   'data.tower.lamp.t2.desc': '换目标时保留 {keep} 的递增',
   'data.tower.lamp.t3.name': '双灯头',
   'data.tower.lamp.t3.desc': '分出第二道光束照另一个目标（{v} 秒伤，单独递增）',
   'data.tower.lamp.A.name': '激光笔',
-  'data.tower.lamp.A.desc': '基础秒伤 ×{dmg}，递增加快到每秒 +{ramp}、上限 ×{cap}；作为主灯时汇聚效率 ×{relay}；有激光笔的联动组不限座数，每多一座辅灯伤害继续叠加',
+  'data.tower.lamp.A.desc':
+    '基础秒伤 ×{dmg}，递增加快到每秒 +{ramp}、上限 ×{cap}；作为主灯时汇聚效率 ×{relay}；有激光笔的联动组不限座数，每多一座辅灯伤害继续叠加',
   'data.tower.lamp.B.name': '护眼灯',
-  'data.tower.lamp.B.desc': '基础秒伤 ×{dmg}；整个射程侦测隐形；被照到的敌人受到伤害 +{vuln}；联动组的所有光束都附带标记，作为主灯时光束在目标处分裂出（辅灯数）道 {split} 伤害的短光束',
+  'data.tower.lamp.B.desc':
+    '基础秒伤 ×{dmg}；整个射程侦测隐形；被照到的敌人受到伤害 +{vuln}；联动组的所有光束都附带标记，作为主灯时光束在目标处分裂出（辅灯数）道 {split} 伤害的短光束',
 
   'data.tower.compass.name': '圆规',
   'data.tower.compass.role': '环形切割',
@@ -155,7 +158,8 @@ export default {
   'data.tower.swatter.A.name': '电蚊拍',
   'data.tower.swatter.A.desc': '拍中后放出连锁闪电，在飞行敌人之间弹跳 {chain} 次，每跳伤害 ×{mul}，并让目标麻痹 {stun} 秒',
   'data.tower.swatter.B.name': '捕虫网',
-  'data.tower.swatter.B.desc': '每第 {every} 次攻击改为甩网，把 1 个飞行敌人网到地面 {dur} 秒（Boss 不受影响）；被网住的敌人按迷宫行走、会被地面塔攻击，受到伤害 +{vuln}',
+  'data.tower.swatter.B.desc':
+    '每第 {every} 次攻击改为甩网，把 1 个飞行敌人网到地面 {dur} 秒（Boss 不受影响）；被网住的敌人按迷宫行走、会被地面塔攻击，受到伤害 +{vuln}',
 
   'data.combo.pencil_eraser.name': '带橡皮的铅笔',
   'data.combo.pencil_eraser.desc': '铅笔每次命中 −0.5 护甲',

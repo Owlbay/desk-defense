@@ -25,18 +25,55 @@ import { AgentTrace, type TraceExport } from './trace';
 export * from './types';
 export * from './config';
 export {
-  AGENT_TOOLS, LEGACY_TOOLS, SLIM_TOOLS, ACT_TOOL_V1, ACT_TO_LEGACY, INTENT_KINDS, toolsForRole, legacyToolsForRole, executeTool, validateToolInput, validateAgainst, toCommand, actToLegacy,
-  type AgentToolDef, type ToolContext, type JsonSchema, type ObjectSchema,
+  AGENT_TOOLS,
+  LEGACY_TOOLS,
+  SLIM_TOOLS,
+  ACT_TOOL_V1,
+  ACT_TO_LEGACY,
+  INTENT_KINDS,
+  toolsForRole,
+  legacyToolsForRole,
+  executeTool,
+  validateToolInput,
+  validateAgainst,
+  toCommand,
+  actToLegacy,
+  type AgentToolDef,
+  type ToolContext,
+  type JsonSchema,
+  type ObjectSchema,
 } from './tools';
 export { observe, renderObservation, asciiMap, estimateTokens, MAP_LEGEND, type Observation } from './observation';
 export { compactObservation, diffObs, applyObsDelta, terrainMap, rle, unrle, ENEMY_CODE, type CompactObs } from './compact';
 export {
-  groundRoutes, flightLines, coverage, coverageLines, routeSummary, previewChanges, previewText, compressWaypoints, expandWaypoints,
-  type Route, type FlightLine, type PreviewInput, type PreviewResult,
+  groundRoutes,
+  flightLines,
+  coverage,
+  coverageLines,
+  routeSummary,
+  previewChanges,
+  previewText,
+  compressWaypoints,
+  expandWaypoints,
+  type Route,
+  type FlightLine,
+  type PreviewInput,
+  type PreviewResult,
 } from './routes';
 export { ContextBuilder, Memo, MEMO_MAX_TOKENS } from './context';
 export { Planner, DEFAULT_BRANCH, routeSamples, airLineSamples, type PlannerState, type IntentOutcome } from './planner';
-export { BattleLog, threatEstimate, threatLine, idleLine, eventLine, towerDps, IDLE_GOLD, THREAT_SAFE, THREAT_TIGHT, type ThreatLine } from './battle';
+export {
+  BattleLog,
+  threatEstimate,
+  threatLine,
+  idleLine,
+  eventLine,
+  towerDps,
+  IDLE_GOLD,
+  THREAT_SAFE,
+  THREAT_TIGHT,
+  type ThreatLine,
+} from './battle';
 export { planMaze, type MazePlan } from './maze';
 export { gateDecision, cheapestUsefulAction, inDanger, eventNeedsDecision, EVENT_DECIDE, type GatingLevel } from './gating';
 export { claudeThinkingPlan, piThinkingPlan, keepThinkingInHistory, mayCompactHistory } from './thinking';
@@ -165,25 +202,37 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
     if (pauseMode) session.togglePause(true);
     setStatus('thinking', reasons.join(','));
     const ev = recent.splice(0, recent.length);
-    void engine.decide(point, ev).then((rec) => {
-      detector.done(w);
-      emit({ type: 'decision', record: rec });
-    }).catch((e: unknown) => {
-      emit({ type: 'error', message: e instanceof Error ? e.message : String(e) });
-      detector.done(w);
-    }).finally(() => {
-      busy = false;
-      if (status === 'stopped') return;
-      if (pauseMode && !wasPaused && !userPaused) session.togglePause(false);
-      setStatus(userPaused ? 'paused' : 'running');
-    });
+    void engine
+      .decide(point, ev)
+      .then((rec) => {
+        detector.done(w);
+        emit({ type: 'decision', record: rec });
+      })
+      .catch((e: unknown) => {
+        emit({ type: 'error', message: e instanceof Error ? e.message : String(e) });
+        detector.done(w);
+      })
+      .finally(() => {
+        busy = false;
+        if (status === 'stopped') return;
+        if (pauseMode && !wasPaused && !userPaused) session.togglePause(false);
+        setStatus(userPaused ? 'paused' : 'running');
+      });
   };
 
   return {
-    get status() { return status; },
-    get usage() { return engine?.usage ?? { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, requests: 0 }; },
-    get costUsd() { return engine?.costUsd ?? 0; },
-    get decisions() { return engine?.decisions ?? []; },
+    get status() {
+      return status;
+    },
+    get usage() {
+      return engine?.usage ?? { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, requests: 0 };
+    },
+    get costUsd() {
+      return engine?.costUsd ?? 0;
+    },
+    get decisions() {
+      return engine?.decisions ?? [];
+    },
     trace,
     async start() {
       if (engine) return;
@@ -195,23 +244,27 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
         return;
       }
       engine = new DecisionEngine({
-        world: w, opts: w.state.opts, config, provider,
+        world: w,
+        opts: w.state.opts,
+        config,
+        provider,
         fallback: (o.fallback ?? scriptedFallback)(w),
         sink: (cmd) => session.command(cmd),
         signal: ac.signal,
         onSuggest: (s) => emit({ type: 'suggestion', suggestion: s }),
         onUsage: (u, c) => emit({ type: 'usage', usage: u, costUsd: c }),
         onBudget: (b) => emit({ type: 'budget', budget: b }),
-        onBudgetExceeded: (b) => new Promise<BudgetChoice>((resolve) => {
-          // 暂停并询问：游戏停住（实时模式也停），等玩家选
-          session.togglePause(true);
-          budgetResolve = (c) => {
-            budgetResolve = null;
-            resolve(c);
-          };
-          setStatus('paused', 'budget');
-          emit({ type: 'budget_ask', budget: b });
-        }),
+        onBudgetExceeded: (b) =>
+          new Promise<BudgetChoice>((resolve) => {
+            // 暂停并询问：游戏停住（实时模式也停），等玩家选
+            session.togglePause(true);
+            budgetResolve = (c) => {
+              budgetResolve = null;
+              resolve(c);
+            };
+            setStatus('paused', 'budget');
+            emit({ type: 'budget_ask', budget: b });
+          }),
         trace,
       });
       unsub = session.on((ev) => {
@@ -244,7 +297,9 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
     },
     poll,
     budget: () => engine?.budgetState() ?? null,
-    get budgetPending() { return budgetResolve !== null; },
+    get budgetPending() {
+      return budgetResolve !== null;
+    },
     resolveBudget(choice: BudgetChoice) {
       const r = budgetResolve;
       if (!r) return;

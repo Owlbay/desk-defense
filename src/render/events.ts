@@ -356,7 +356,8 @@ export class EventFx {
         const cx = ev.cx ?? Math.floor((ev.x ?? 1) - 1),
           cy = ev.cy ?? Math.floor((ev.y ?? 1) - 1);
         fx.rectFlash(P(cx), P(cy), CELL * 2, CELL * 2, 0xf7f7f7, 0.45);
-        for (let i = 0; i < 12; i++) fx.mote(P(cx + 1) + (Math.random() - 0.5) * CELL * 2, P(cy + 1) + (Math.random() - 0.5) * CELL * 2, 0xffffff, -30, 0.5, 3, false);
+        for (let i = 0; i < 12; i++)
+          fx.mote(P(cx + 1) + (Math.random() - 0.5) * CELL * 2, P(cy + 1) + (Math.random() - 0.5) * CELL * 2, 0xffffff, -30, 0.5, 3, false);
         break;
       }
       case 'caffeine': {

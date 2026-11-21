@@ -65,7 +65,12 @@ export interface OnlineState {
 }
 
 /** 联网状态文本（读取时按当前语言：core.online.status.<status>） */
-const STATUS_TEXT: Record<OnlineStatus, string> = localize({}, 'core.online.status', ['unknown', 'online', 'offline', 'unavailable'] as const);
+const STATUS_TEXT: Record<OnlineStatus, string> = localize({}, 'core.online.status', [
+  'unknown',
+  'online',
+  'offline',
+  'unavailable',
+] as const);
 
 interface Config {
   fetch: typeof fetch;
@@ -192,7 +197,18 @@ type CallResult<T> =
  * 服务端（Pages Functions）没有 i18n，错误信息固定是简体中文。
  * 简体中文界面直接用服务端的原文（更具体）；其他语言按错误码换成本地化的通用说明（core.api.<code>）。
  */
-const API_CODES = ['bad_request', 'version', 'too_large', 'rate_limited', 'turnstile', 'forbidden', 'not_found', 'method', 'not_configured', 'internal'];
+const API_CODES = [
+  'bad_request',
+  'version',
+  'too_large',
+  'rate_limited',
+  'turnstile',
+  'forbidden',
+  'not_found',
+  'method',
+  'not_configured',
+  'internal',
+];
 function apiMessage(code: string, serverMessage: string | undefined, retryAfter?: number): string | undefined {
   if (getLocale() === 'zh-CN' && serverMessage) return serverMessage;
   if (API_CODES.includes(code)) return t(`core.api.${code}`, { min: Math.max(1, Math.ceil((retryAfter ?? 60) / 60)) });
@@ -222,9 +238,14 @@ async function call<T>(path: string, init?: RequestInit): Promise<CallResult<T>>
   if (res.ok) return { kind: 'ok', status: res.status, data: data as T };
   const err = data as Partial<ApiError>;
   if (typeof err?.error !== 'string') return { kind: 'unavailable', message: STATUS_TEXT.unavailable };
-  if (err.error === 'not_configured') return { kind: 'unavailable', message: apiMessage(err.error, err.message, err.retryAfter) ?? STATUS_TEXT.unavailable };
+  if (err.error === 'not_configured')
+    return { kind: 'unavailable', message: apiMessage(err.error, err.message, err.retryAfter) ?? STATUS_TEXT.unavailable };
   const message = apiMessage(err.error, err.message, err.retryAfter) ?? t('core.online.requestFailed');
-  return { kind: 'api', status: res.status, error: { error: err.error, message, ...(err.retryAfter ? { retryAfter: err.retryAfter } : {}) } };
+  return {
+    kind: 'api',
+    status: res.status,
+    error: { error: err.error, message, ...(err.retryAfter ? { retryAfter: err.retryAfter } : {}) },
+  };
 }
 
 function noteTransport<T>(r: CallResult<T>): void {
@@ -302,7 +323,8 @@ function readQueue(): QueueItem[] {
     if (!Array.isArray(arr)) return [];
     const now = conf().now();
     return arr.filter(
-      (x): x is QueueItem => !!x && typeof x === 'object' && typeof (x as QueueItem).queuedAt === 'number' && now - (x as QueueItem).queuedAt < QUEUE_TTL_MS,
+      (x): x is QueueItem =>
+        !!x && typeof x === 'object' && typeof (x as QueueItem).queuedAt === 'number' && now - (x as QueueItem).queuedAt < QUEUE_TTL_MS,
     );
   } catch {
     return [];
@@ -429,7 +451,10 @@ export function resultFromWorld(
 
 /** 结算时的便捷入口：world 结束后直接调用 */
 export function submitWorldRun(
-  world: { readonly log: readonly LogEntry[]; readonly state: Pick<WorldState, 'score' | 'lives' | 'gold' | 'tick' | 'stats' | 'opts' | 'seed'> },
+  world: {
+    readonly log: readonly LogEntry[];
+    readonly state: Pick<WorldState, 'score' | 'lives' | 'gold' | 'tick' | 'stats' | 'opts' | 'seed'>;
+  },
   o: { wavesSurvived: number; dailyDay?: string | null; nickname?: string; agent?: AgentMeta; aiAssist?: AiAssist | null },
 ): Promise<SubmitOutcome> {
   // 公平性：用过「让 AI 替我玩」的对局不进真人榜 / 每日挑战榜（AI 参战的对局带 agent 标记，只进 AI 榜）

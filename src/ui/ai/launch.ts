@@ -138,7 +138,13 @@ export function createAiSlot(ctx: AiAttachCtx, init: { assist?: AiAssist } = {})
       }
     }
   };
-  let cur: { launch: AiLaunch; dedicated: boolean; hud: AiHudHandle | null; loading: Promise<AiHudHandle | null> | null; gen: number } | null = null;
+  let cur: {
+    launch: AiLaunch;
+    dedicated: boolean;
+    hud: AiHudHandle | null;
+    loading: Promise<AiHudHandle | null> | null;
+    gen: number;
+  } | null = null;
   let gen = 0;
   let dedicatedRole: AiRole | null = null;
   let destroyed = false;
@@ -231,7 +237,13 @@ export function createAiSlot(ctx: AiAttachCtx, init: { assist?: AiAssist } = {})
         if (hud && host.isConnected) host.replaceWith(hud.gameOverCard(d, hd));
         else if (host.isConnected) {
           host.appendChild(
-            h('div.dialog.card', null, h('h2', null, d.won ? t('agent.setup.over.won') : t('agent.setup.over.lost')), h('p.muted', null, t('agent.setup.over.survived', { n: d.wavesSurvived })), h('button.btn.primary.big', { onclick: hd.menu }, t('agent.setup.over.menu'))),
+            h(
+              'div.dialog.card',
+              null,
+              h('h2', null, d.won ? t('agent.setup.over.won') : t('agent.setup.over.lost')),
+              h('p.muted', null, t('agent.setup.over.survived', { n: d.wavesSurvived })),
+              h('button.btn.primary.big', { onclick: hd.menu }, t('agent.setup.over.menu')),
+            ),
           );
         }
       });

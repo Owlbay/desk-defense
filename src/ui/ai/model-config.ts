@@ -4,13 +4,36 @@
  * 「AI 参战」设置页、设置里的「AI 助手」、对局里的 AI 按钮共用这一份：同一份保存的配置在哪里都一样。
  * Key 按玩家选的存放方式读取（store.readKey），只随配置传给模型服务商。
  */
-import { PRESETS, normalizeRelayBase, parseRelayUrl, validateConfigIssues, type AgentModelConfig, type PiApi, type Preset, type RelayApi } from '../../agent';
+import {
+  PRESETS,
+  normalizeRelayBase,
+  parseRelayUrl,
+  validateConfigIssues,
+  type AgentModelConfig,
+  type PiApi,
+  type Preset,
+  type RelayApi,
+} from '../../agent';
 import { t, tOr } from '../../i18n';
 import type { BridgeConn } from './bridge-state';
 import type { AiRole } from './launch';
 import { readKey, type AiSetupSaved, type AiSource, type PerSource } from './store';
 
-export const SOURCE_ORDER: AiSource[] = ['demo', 'relay', 'claude', 'openai', 'google', 'openrouter', 'deepseek', 'ollama', 'lmstudio', 'llamacpp', 'vllm', 'anthropic', 'custom'];
+export const SOURCE_ORDER: AiSource[] = [
+  'demo',
+  'relay',
+  'claude',
+  'openai',
+  'google',
+  'openrouter',
+  'deepseek',
+  'ollama',
+  'lmstudio',
+  'llamacpp',
+  'vllm',
+  'anthropic',
+  'custom',
+];
 
 export const isPreset = (s: AiSource): s is Preset => s !== 'demo' && s !== 'claude';
 export const isLocal = (s: AiSource): boolean => isPreset(s) && PRESETS[s].local;
@@ -20,8 +43,10 @@ export const presetLabel = (s: Preset): string => tOr(`agent.setup.preset.${s}`,
 export const perOf = (st: AiSetupSaved, s: AiSource = st.source): PerSource => (st.per[s] ??= {});
 export const modelOf = (st: AiSetupSaved, s: AiSource = st.source): string =>
   s === 'demo' ? 'scripted-v1' : (st.per[s]?.model ?? (s === 'claude' ? 'claude-sonnet-5-5' : PRESETS[s as Preset].defaultModel));
-export const baseUrlOf = (st: AiSetupSaved, s: AiSource = st.source): string => (isPreset(s) ? (st.per[s]?.baseUrl ?? PRESETS[s].baseUrl) : '');
-export const apiOf = (st: AiSetupSaved, s: AiSource = st.source): PiApi | undefined => (isPreset(s) ? (st.per[s]?.api ?? PRESETS[s].api) : undefined);
+export const baseUrlOf = (st: AiSetupSaved, s: AiSource = st.source): string =>
+  isPreset(s) ? (st.per[s]?.baseUrl ?? PRESETS[s].baseUrl) : '';
+export const apiOf = (st: AiSetupSaved, s: AiSource = st.source): PiApi | undefined =>
+  isPreset(s) ? (st.per[s]?.api ?? PRESETS[s].api) : undefined;
 
 // ── 中转服务 ──
 export const relayMode = (st: AiSetupSaved): 'auto' | RelayApi => st.per.relay?.relayApi ?? 'auto';
@@ -39,13 +64,18 @@ export const relayApiNow = (st: AiSetupSaved): RelayApi => {
   const m = relayMode(st);
   return m !== 'auto' ? m : (relayDetected(st) ?? 'openai-completions');
 };
-export const relayNeedsDetect = (st: AiSetupSaved): boolean => st.tab === 'direct' && st.source === 'relay' && relayMode(st) === 'auto' && !relayDetected(st);
+export const relayNeedsDetect = (st: AiSetupSaved): boolean =>
+  st.tab === 'direct' && st.source === 'relay' && relayMode(st) === 'auto' && !relayDetected(st);
 
 /**
  * 某个角色用的决策方式：AI 参战设置页里由玩家选（decisionMode 原样）；
  * 对局里启用的 AI 军师总是实时（不替玩家暂停游戏）、决策间隔至少 20 秒。
  */
-export function decisionFor(st: AiSetupSaved, role: AiRole, perRole = false): { mode: 'pause' | 'realtime'; waveIntervalSec: number | null } {
+export function decisionFor(
+  st: AiSetupSaved,
+  role: AiRole,
+  perRole = false,
+): { mode: 'pause' | 'realtime'; waveIntervalSec: number | null } {
   if (perRole && role === 'advisor') return { mode: 'realtime', waveIntervalSec: Math.max(20, st.waveIntervalSec ?? 20) };
   return { mode: st.decisionMode, waveIntervalSec: st.waveIntervalSec };
 }
@@ -66,21 +96,40 @@ export function buildModelConfig(st: AiSetupSaved, o: BuildOpts): Partial<AgentM
     ...(st.contextMode !== 'auto' ? { contextMode: st.contextMode } : {}),
     ...(st.thinking !== 'auto' ? { thinking: st.thinking } : {}),
     decision: { mode: dec.mode, ...(dec.waveIntervalSec !== null ? { waveIntervalSec: dec.waveIntervalSec } : {}) },
-    budget: { ...(st.budgetTokens ? { tokens: st.budgetTokens } : {}), ...(st.budgetUsd ? { usd: st.budgetUsd } : {}), mode: st.budgetMode },
+    budget: {
+      ...(st.budgetTokens ? { tokens: st.budgetTokens } : {}),
+      ...(st.budgetUsd ? { usd: st.budgetUsd } : {}),
+      mode: st.budgetMode,
+    },
   };
   if (st.tab === 'bridge') {
     const b = o.bridge;
-    return { ...common, provider: 'bridge', model: b?.provider.model ?? 'bridge', bridge: { url: b?.url ?? st.bridgeUrl, code: b?.code ?? '' } };
+    return {
+      ...common,
+      provider: 'bridge',
+      model: b?.provider.model ?? 'bridge',
+      bridge: { url: b?.url ?? st.bridgeUrl, code: b?.code ?? '' },
+    };
   }
   const s = st.source;
   if (s === 'demo') return { ...common, provider: 'scripted', model: 'scripted-v1' };
   const key = readKey(s).trim();
-  if (s === 'claude') return { ...common, provider: 'claude-native', model: modelOf(st, s).trim(), browser: true, ...(key ? { apiKey: key } : {}) };
+  if (s === 'claude')
+    return { ...common, provider: 'claude-native', model: modelOf(st, s).trim(), browser: true, ...(key ? { apiKey: key } : {}) };
   if (s === 'relay') {
     // 中转服务一律走 pi（不走 Claude 官方 SDK 适配器）；地址按接口类型规范化
     const api = relayApiNow(st);
     const raw = baseUrlOf(st, s).trim();
-    return { ...common, provider: 'pi', preset: 'relay', api, baseUrl: raw ? normalizeRelayBase(raw, api) : '', model: modelOf(st, s).trim(), browser: true, ...(key ? { apiKey: key } : {}) };
+    return {
+      ...common,
+      provider: 'pi',
+      preset: 'relay',
+      api,
+      baseUrl: raw ? normalizeRelayBase(raw, api) : '',
+      model: modelOf(st, s).trim(),
+      browser: true,
+      ...(key ? { apiKey: key } : {}),
+    };
   }
   return {
     ...common,
@@ -120,7 +169,8 @@ export function modelConfigErrors(st: AiSetupSaved, cfg: Partial<AgentModelConfi
 
 /** 界面上显示的模型名，例如「Claude · claude-sonnet-5-5」 */
 export function sourceLabelOf(st: AiSetupSaved, bridge: BridgeConn | null | undefined): string {
-  if (st.tab === 'bridge') return bridge?.alive ? t('agent.setup.label.bridge', { model: bridge.provider.model }) : t('agent.setup.label.bridgeOff');
+  if (st.tab === 'bridge')
+    return bridge?.alive ? t('agent.setup.label.bridge', { model: bridge.provider.model }) : t('agent.setup.label.bridgeOff');
   const s = st.source;
   if (s === 'demo') return t('agent.setup.label.demo');
   return `${s === 'claude' ? 'Claude' : presetLabel(s).replace(/\s*[（(].*[）)]/, '')} · ${modelOf(st, s) || t('agent.setup.label.noModel')}`;

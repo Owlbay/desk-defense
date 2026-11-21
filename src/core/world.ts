@@ -1,10 +1,33 @@
 import {
-  CellKind, DT, GRID_COLS, GRID_ROWS,
-  type Branch, type BuildOption, type Command, type CommandResult, type EnemyId, type GameEvent,
-  type IWorld, type PerkCard, type PlaceCheck, type RunOptions, type SkillId, type SkillState,
-  type TargetMode, type Tier, type TowerId, type TowerInfo, type WorldState,
-  TOWER_IDS, type AffixId, type Obstacle, type RandomEventId, type RandomEventState, type SpawnerState,
-  RANDOM_EVENT_IDS, type TraitLine,
+  CellKind,
+  DT,
+  GRID_COLS,
+  GRID_ROWS,
+  type Branch,
+  type BuildOption,
+  type Command,
+  type CommandResult,
+  type EnemyId,
+  type GameEvent,
+  type IWorld,
+  type PerkCard,
+  type PlaceCheck,
+  type RunOptions,
+  type SkillId,
+  type SkillState,
+  type TargetMode,
+  type Tier,
+  type TowerId,
+  type TowerInfo,
+  type WorldState,
+  TOWER_IDS,
+  type AffixId,
+  type Obstacle,
+  type RandomEventId,
+  type RandomEventState,
+  type SpawnerState,
+  RANDOM_EVENT_IDS,
+  type TraitLine,
 } from './types';
 import { generateLayout } from './layout';
 import { t as tr, type Params } from '../i18n';
@@ -13,15 +36,28 @@ import { liveText } from '../config/text';
 import { RANDOM_EVENTS, EVENT_DIRECTOR, DROP, CRATE_OPTIONS, MONSTER_EVENTS, eventSeverity } from '../config/events';
 import { ABILITIES, ABILITY_FX, EVO, evoBranch } from '../config/evolution';
 import { Rng, makeSeed } from './rng';
-import {
-  armorAt, goldScale, hpScale, rawUpgradeCost, refundRate, resolveParams, speedScale, xpForLevel, xpScale,
-} from './scaling';
+import { armorAt, goldScale, hpScale, rawUpgradeCost, refundRate, resolveParams, speedScale, xpForLevel, xpScale } from './scaling';
 import { computeDist, isPassableKind, nextCell, tracePath } from './flowfield';
 import { assignSpawners, generateWave, type SpawnEntry, type SpawnSlot, type WavePlan } from './wavegen';
 import {
-  C_CALC_PIGGY, C_GLUE_STAPLER, C_LAMP_PEN, C_PENCIL_ERASER, C_RULER_COMPASS,
-  F_AOE, F_BEAM, F_CRIT, F_DOT, F_IGNORE_ARMOR, F_SHIELD2, F_SHIELD3, F_SKILL, F_TRUE,
-  type Enemy, type Proj, type Tower, type Zone,
+  C_CALC_PIGGY,
+  C_GLUE_STAPLER,
+  C_LAMP_PEN,
+  C_PENCIL_ERASER,
+  C_RULER_COMPASS,
+  F_AOE,
+  F_BEAM,
+  F_CRIT,
+  F_DOT,
+  F_IGNORE_ARMOR,
+  F_SHIELD2,
+  F_SHIELD3,
+  F_SKILL,
+  F_TRUE,
+  type Enemy,
+  type Proj,
+  type Tower,
+  type Zone,
 } from './entities';
 import { BRANCH, COMBOS, GROWTH, LAMP, PIGGY_MAX, SWATTER, TIER_NAMES, TOWERS, UNDO_SECONDS, WALL_UPGRADE_COST } from '../config/towers';
 import { AFFIXES, ELITE, ENEMIES, GOLDEN } from '../config/enemies';
@@ -37,7 +73,6 @@ const N8X = [1, -1, 0, 0, 1, 1, -1, -1];
 const N8Y = [0, 0, 1, -1, 1, -1, 1, -1];
 /** 同时进行的波次上限 */
 const MAX_CONCURRENT_WAVES = 3;
-
 
 /** 事件导演的内部数据（每个事件实例） */
 interface EventFx {
@@ -207,7 +242,9 @@ export class World implements IWorld {
       maxLives: lives,
       score: 0,
       grid: {
-        cols, rows, cells,
+        cols,
+        rows,
+        cells,
         towerAt: new Int32Array(cols * rows),
         spawns,
         exits: layout.exits,
@@ -233,7 +270,10 @@ export class World implements IWorld {
       crateChoice: null,
       autoWave: {
         enabled: opts.autoWave ?? opts.difficulty !== 'easy',
-        started: false, nextAt: null, deadline: null, blocked: false,
+        started: false,
+        nextAt: null,
+        deadline: null,
+        blocked: false,
       },
       bossUids: [],
       stats: { kills: 0, leaks: 0, goldEarned: 0, goldSpent: 0, towersBuilt: 0, skillsCast: 0, cleared: 0, bonus: 0 },
@@ -323,11 +363,15 @@ export class World implements IWorld {
       const d = TOWERS[id];
       const cost = this.towerCost(id);
       const o: BuildOption = {
-        id, name: d.name, cost,
+        id,
+        name: d.name,
+        cost,
         affordable: this.state.gold >= cost,
         unlocked: this.state.unlockedTowers.includes(id),
-        hitsAir: d.hitsAir, hitsGround: d.hitsGround,
-        role: d.role, desc: d.desc,
+        hitsAir: d.hitsAir,
+        hitsGround: d.hitsGround,
+        role: d.role,
+        desc: d.desc,
       };
       if (id === 'piggy') o.limitReached = this.countTowers('piggy') >= PIGGY_MAX;
       return o;
@@ -381,9 +425,12 @@ export class World implements IWorld {
     const s = this.state;
     if (s.phase === 'won' || s.phase === 'lost') return fail('gameOver');
     switch (cmd.type) {
-      case 'place': return this.cmdPlace(cmd.tower, cmd.cx, cmd.cy);
-      case 'upgrade': return this.cmdUpgrade(cmd.uid, cmd.branch);
-      case 'sell': return this.cmdSell(cmd.uid);
+      case 'place':
+        return this.cmdPlace(cmd.tower, cmd.cx, cmd.cy);
+      case 'upgrade':
+        return this.cmdUpgrade(cmd.uid, cmd.branch);
+      case 'sell':
+        return this.cmdSell(cmd.uid);
       case 'setTarget': {
         const t = s.towers.get(cmd.uid) as Tower | undefined;
         if (!t) return fail('noTower');
@@ -391,15 +438,24 @@ export class World implements IWorld {
         t.targetMode = cmd.mode;
         return { ok: true };
       }
-      case 'startWave': return this.cmdStartWave();
-      case 'cast': return this.cmdCast(cmd);
-      case 'choosePerk': return this.cmdChoosePerk(cmd.id, cmd.uid, cmd.branch);
-      case 'rerollPerks': return this.cmdReroll();
-      case 'collect': return this.cmdCollect(cmd.uid);
-      case 'chooseCrate': return this.cmdChooseCrate(cmd.option);
-      case 'demolishSpawner': return this.cmdDemolish(cmd.id);
-      case 'evolve': return this.cmdEvolve(cmd.uid);
-      case 'towerAbility': return this.cmdTowerAbility(cmd);
+      case 'startWave':
+        return this.cmdStartWave();
+      case 'cast':
+        return this.cmdCast(cmd);
+      case 'choosePerk':
+        return this.cmdChoosePerk(cmd.id, cmd.uid, cmd.branch);
+      case 'rerollPerks':
+        return this.cmdReroll();
+      case 'collect':
+        return this.cmdCollect(cmd.uid);
+      case 'chooseCrate':
+        return this.cmdChooseCrate(cmd.option);
+      case 'demolishSpawner':
+        return this.cmdDemolish(cmd.id);
+      case 'evolve':
+        return this.cmdEvolve(cmd.uid);
+      case 'towerAbility':
+        return this.cmdTowerAbility(cmd);
     }
     return fail('unknownCommand');
   }
@@ -636,7 +692,10 @@ export class World implements IWorld {
             if (k.kind !== 'drop') continue;
             const dx = k.cells[0].x + 0.5 - cmd.x;
             const dy = k.cells[0].y + 0.5 - cmd.y;
-            if (dx * dx + dy * dy < bd) { bd = dx * dx + dy * dy; sp = k; }
+            if (dx * dx + dy * dy < bd) {
+              bd = dx * dx + dy * dy;
+              sp = k;
+            }
           }
         }
         if (!sp || sp.kind !== 'drop') return fail('pickDrop');
@@ -762,7 +821,10 @@ export class World implements IWorld {
       if (!isPassableKind(cells[ni]) || !(d[ni] < Infinity)) continue;
       if (k >= 4 && (!isPassableKind(cells[y * g.cols + nx]) || !isPassableKind(cells[ny * g.cols + x]))) continue;
       const v = d[ni] + (k >= 4 ? 1.414 : 1);
-      if (v < bv - 1e-4) { bv = v; best = ni; }
+      if (v < bv - 1e-4) {
+        bv = v;
+        best = ni;
+      }
     }
     return best;
   }
@@ -809,7 +871,10 @@ export class World implements IWorld {
         const dx = x + 0.5 - e.x;
         const dy = y + 0.5 - e.y;
         const dd = dx * dx + dy * dy;
-        if (dd < bd - 1e-9) { bd = dd; best = i; }
+        if (dd < bd - 1e-9) {
+          bd = dd;
+          best = i;
+        }
       }
       if (best < 0) continue;
       const bx = best % g.cols;
@@ -868,18 +933,74 @@ export class World implements IWorld {
     const def = TOWERS[id];
     const s = this.state;
     const t: Tower = {
-      uid: this.nextUid++, id, cx, cy, level: 1, tier: 1, branch: null,
-      xp: 0, xpNext: id === 'wall' ? 0 : xpForLevel(1), stars: 0, evoXp: 0, evoXpNext: 0, abilityCd: 0, invested: cost,
-      targetMode: 'first', angle: -Math.PI / 2, lastFire: -999, disabledUntil: 0,
-      placedAt: s.time, undoUntil: s.time + UNDO_SECONDS, kills: 0, damage: 0, comboWith: [],
-      def, cd: 0, attacked: false,
-      dmg: def.damage, dmgFactor: 1, interval: def.interval, range: def.range, inner: def.inner ?? 0, aura: def.aura ?? 0,
-      critChance: 0, critMul: 2, atkMul: 1, xpGainMul: 1, calcCovers: [], combo: 0,
-      slowPct: 0, slowDur: 0, stunChance: 0, inkMax: 3,
-      focusUid: 0, focusStacks: 0, laserUid: 0, laserTime: 0, laserAcc: 0, laserBeamT: 0,
-      beamRamp: 1, beam2Uid: 0, beam2Ramp: 1, beam2Acc: 0, overUntil: 0, prismRole: 0, prismMark: 0,
-      sweepPhase: 0, colorGold: 0, halfLegend: false, lastTape: -99,
-      pierce: 0, abilityUntil: 0, atkCount: 0, piggyMute: 0, piggyCharge: 0, safeLives: false, calcCritUntil: 0, abacusDiscount: false, zapT: 0,
+      uid: this.nextUid++,
+      id,
+      cx,
+      cy,
+      level: 1,
+      tier: 1,
+      branch: null,
+      xp: 0,
+      xpNext: id === 'wall' ? 0 : xpForLevel(1),
+      stars: 0,
+      evoXp: 0,
+      evoXpNext: 0,
+      abilityCd: 0,
+      invested: cost,
+      targetMode: 'first',
+      angle: -Math.PI / 2,
+      lastFire: -999,
+      disabledUntil: 0,
+      placedAt: s.time,
+      undoUntil: s.time + UNDO_SECONDS,
+      kills: 0,
+      damage: 0,
+      comboWith: [],
+      def,
+      cd: 0,
+      attacked: false,
+      dmg: def.damage,
+      dmgFactor: 1,
+      interval: def.interval,
+      range: def.range,
+      inner: def.inner ?? 0,
+      aura: def.aura ?? 0,
+      critChance: 0,
+      critMul: 2,
+      atkMul: 1,
+      xpGainMul: 1,
+      calcCovers: [],
+      combo: 0,
+      slowPct: 0,
+      slowDur: 0,
+      stunChance: 0,
+      inkMax: 3,
+      focusUid: 0,
+      focusStacks: 0,
+      laserUid: 0,
+      laserTime: 0,
+      laserAcc: 0,
+      laserBeamT: 0,
+      beamRamp: 1,
+      beam2Uid: 0,
+      beam2Ramp: 1,
+      beam2Acc: 0,
+      overUntil: 0,
+      prismRole: 0,
+      prismMark: 0,
+      sweepPhase: 0,
+      colorGold: 0,
+      halfLegend: false,
+      lastTape: -99,
+      pierce: 0,
+      abilityUntil: 0,
+      atkCount: 0,
+      piggyMute: 0,
+      piggyCharge: 0,
+      safeLives: false,
+      calcCritUntil: 0,
+      abacusDiscount: false,
+      zapT: 0,
     };
     this.statsDirty = true;
     return t;
@@ -934,7 +1055,8 @@ export class World implements IWorld {
     this.emit({ type: 'evolve', uid: t.uid, stars: t.stars, mythic: t.stars === 3 });
     if (br) {
       if (t.stars === 3) this.toast('core.toast.evolveMythic', 'good', { tower: t.def.name, form: br.ability.form });
-      else this.toast('core.toast.evolveStar', 'good', { tower: t.def.name, stars: t.stars, trait: t.stars === 1 ? br.s1.name : br.s2.name });
+      else
+        this.toast('core.toast.evolveStar', 'good', { tower: t.def.name, stars: t.stars, trait: t.stars === 1 ? br.s1.name : br.s2.name });
     }
   }
 
@@ -1059,7 +1181,12 @@ export class World implements IWorld {
     }
     // 组合技与墙加成（上下左右相邻）
     for (const t of this.towerList) {
-      const ns = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      const ns = [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ];
       for (const [dx, dy] of ns) {
         const nx = t.cx + dx;
         const ny = t.cy + dy;
@@ -1083,7 +1210,12 @@ export class World implements IWorld {
       if (t.id === 'wall') continue;
       // 墙加成
       let wallLv = 0;
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ]) {
         const nx = t.cx + dx;
         const ny = t.cy + dy;
         if (nx < 0 || ny < 0 || nx >= g.cols || ny >= g.rows) continue;
@@ -1111,7 +1243,9 @@ export class World implements IWorld {
           if (this.evo(c, 'B', 2)) t.abacusDiscount = true;
           if (!d.attacks) continue;
           const sup = 1 + EVO.support * c.stars;
-          const bonus = (0.1 + 0.01 * (c.level - 1) + (c.level >= 7 ? 0.15 : 0) + (c.level >= 10 && c.branch === 'B' ? BRANCH.calculator.B.dmg : 0)) * sup;
+          const bonus =
+            (0.1 + 0.01 * (c.level - 1) + (c.level >= 7 ? 0.15 : 0) + (c.level >= 10 && c.branch === 'B' ? BRANCH.calculator.B.dmg : 0)) *
+            sup;
           const spd = (c.level >= 4 ? 0.08 : 0) * sup;
           const rg = c.level >= 7 ? 0.3 : 0;
           if (stack) {
@@ -1130,10 +1264,12 @@ export class World implements IWorld {
             calcCritChance = Math.max(calcCritChance, CA.crit);
             if (c.stars >= 3) {
               t.calcCritUntil = Math.max(t.calcCritUntil, c.abilityUntil);
-              if (c.abilityUntil > s.time) calcCritMul = Math.max(calcCritMul, CA.critDmg + (this.evo(c, 'A', 1) ? CA.s1 : 0) + ABILITY_FX.calculator_a.critDmg);
+              if (c.abilityUntil > s.time)
+                calcCritMul = Math.max(calcCritMul, CA.critDmg + (this.evo(c, 'A', 1) ? CA.s1 : 0) + ABILITY_FX.calculator_a.critDmg);
             }
           }
-          if (c.level >= 10 && c.branch === 'B') calcAbacus = Math.max(calcAbacus, BRANCH.calculator.B.xp + (this.evo(c, 'B', 1) ? BRANCH.calculator.B.s1 : 0));
+          if (c.level >= 10 && c.branch === 'B')
+            calcAbacus = Math.max(calcAbacus, BRANCH.calculator.B.xp + (this.evo(c, 'B', 1) ? BRANCH.calculator.B.s1 : 0));
         }
       }
       t.xpGainMul = (1 + calcAbacus) * (this.hasPerk('notes') ? 1.15 : 1);
@@ -1154,12 +1290,18 @@ export class World implements IWorld {
       const B = L >= 10 && t.branch === 'B';
       switch (t.id) {
         case 'pencil':
-          if (A) { baseIvl *= BRANCH.pencil.A.ivl; baseDmg *= BRANCH.pencil.A.dmg; }
+          if (A) {
+            baseIvl *= BRANCH.pencil.A.ivl;
+            baseDmg *= BRANCH.pencil.A.dmg;
+          }
           if (B) baseDmg *= BRANCH.pencil.B.dmg;
           break;
         case 'stapler':
           if (L >= 7) baseRange += 0.3;
-          if (A) { baseIvl = 0.4; baseDmg *= 0.6; }
+          if (A) {
+            baseIvl = 0.4;
+            baseDmg *= 0.6;
+          }
           break;
         case 'lamp':
           // 台灯的 damage 是秒伤；间隔成长 / 节能灯泡（间隔 ×0.8）在 lampDps 里换算成秒伤
@@ -1170,7 +1312,11 @@ export class World implements IWorld {
         case 'compass':
           if (L >= 4) baseIvl = 0.2;
           if (L >= 7) inner = 0;
-          if (A) { baseRange = 2.5; baseDmg *= 1.5; inner = 0; }
+          if (A) {
+            baseRange = 2.5;
+            baseDmg *= 1.5;
+            inner = 0;
+          }
           break;
         case 'eraser':
           if (B) baseIvl = 0.35;
@@ -1196,7 +1342,10 @@ export class World implements IWorld {
       if (t.id === 'glue') {
         let sp = L >= 7 ? 0.55 + 0.02 * (L - 7) : 0.4 + 0.02 * (L - 1);
         let dur = 1.5;
-        if (this.hasPerk('quickglue')) { sp += 0.1; dur += 0.5; }
+        if (this.hasPerk('quickglue')) {
+          sp += 0.1;
+          dur += 0.5;
+        }
         t.slowPct = Math.min(0.85, sp);
         t.slowDur = dur;
       }
@@ -1405,7 +1554,10 @@ export class World implements IWorld {
     if (!sp) sp = s.spawners.find((k) => k.kind === 'edge' && k.active) ?? s.spawners[0];
     const cell = sp.cells[sp.kind === 'drop' ? 0 : this.rng.int(sp.cells.length)];
     const e = this.createEnemy(en.enemy, aw.plan.wave, aw.plan.effWave, cell.x + 0.5, cell.y + 0.5, cell.x, cell.y, {
-      elite: en.elite, affixes: en.affixes, group: en.group, hpMul: en.hpMul,
+      elite: en.elite,
+      affixes: en.affixes,
+      group: en.group,
+      hpMul: en.hpMul,
     });
     if (sp.kind === 'drop' && !e.flying) {
       const g = s.grid;
@@ -1420,7 +1572,13 @@ export class World implements IWorld {
   }
 
   private createEnemy(
-    id: EnemyId, wave: number, effWave: number, x: number, y: number, ccx: number, ccy: number,
+    id: EnemyId,
+    wave: number,
+    effWave: number,
+    x: number,
+    y: number,
+    ccx: number,
+    ccy: number,
     o: { elite?: boolean; affixes?: AffixId[]; group?: number; hpMul?: number; hpAbs?: number; noSplit?: boolean },
   ): Enemy {
     const s = this.state;
@@ -1456,22 +1614,100 @@ export class World implements IWorld {
     const unstoppable = !!def.unstoppable || affixes.includes('unstoppable');
     const permStealth = !!def.stealthy || affixes.includes('stealth');
     const e: Enemy = {
-      uid: this.nextUid++, id, x, y, angle: Math.PI / 2,
-      hp, maxHp: hp, shield, maxShield: shield, armor, speed, radius, scale,
-      flying: def.flying, boss: def.boss, elite, affixes: affixes.slice(), group: k,
-      hidden: permStealth, stealthy: permStealth,
-      slowPct: 0, slowUntil: 0, stunUntil: 0, rootUntil: 0, inkStacks: 0, bleedStacks: 0, burnUntil: 0, markedUntil: 0,
-      jumping: false, lastHit: -99, spawnedAt: s.time,
-      dead: false, wave, effWave, bounty, xpVal: xp, livesCost: def.lives * Math.min(k, 3), baseSpeed: speed,
-      ccx, ccy, tcx: ccx, tcy: ccy, pcx: ccx, pcy: ccy, remaining: 99,
-      fx0: x, fy0: y, fx1: x, fy1: y, flyLen: 1, flyT: 0, flyPhase: 0,
-      jumpTimer: 0, jumpEnd: 0, abilityT: 0, revealUntil: 0, litUntil: 0, redUntil: 0, shred: 0, stapleReady: 0,
-      burnDps: 0, burnOwner: 0, inkDps: 0, inkUntil: 0, inkOwner: 0, bleedDps: 0, bleedUntil: 0, bleedOwner: 0,
-      debuffers: [], dotT: 0, unstoppable, dodge: def.dodge ?? 0, aoeRadius: radius * (id === 'tape' ? 1.3 : 1),
-      rallied: false, ringUntil: 0, splitDone: false, cloudDone: false, cloudUntil: 0, zoneVuln: 0,
-      permStealth, reflect: affixes.includes('reflect'), crumbHp,
-      poisonDps: 0, poisonUntil: 0, poisonOwner: 0, purpleUntil: 0, measuredUntil: 0,
-      redVuln: 0.2, litVuln: BRANCH.lamp.B.vuln, rootVulnUntil: 0, redGold: false, netUntil: 0, stripUntil: 0, stripVuln: 0,
+      uid: this.nextUid++,
+      id,
+      x,
+      y,
+      angle: Math.PI / 2,
+      hp,
+      maxHp: hp,
+      shield,
+      maxShield: shield,
+      armor,
+      speed,
+      radius,
+      scale,
+      flying: def.flying,
+      boss: def.boss,
+      elite,
+      affixes: affixes.slice(),
+      group: k,
+      hidden: permStealth,
+      stealthy: permStealth,
+      slowPct: 0,
+      slowUntil: 0,
+      stunUntil: 0,
+      rootUntil: 0,
+      inkStacks: 0,
+      bleedStacks: 0,
+      burnUntil: 0,
+      markedUntil: 0,
+      jumping: false,
+      lastHit: -99,
+      spawnedAt: s.time,
+      dead: false,
+      wave,
+      effWave,
+      bounty,
+      xpVal: xp,
+      livesCost: def.lives * Math.min(k, 3),
+      baseSpeed: speed,
+      ccx,
+      ccy,
+      tcx: ccx,
+      tcy: ccy,
+      pcx: ccx,
+      pcy: ccy,
+      remaining: 99,
+      fx0: x,
+      fy0: y,
+      fx1: x,
+      fy1: y,
+      flyLen: 1,
+      flyT: 0,
+      flyPhase: 0,
+      jumpTimer: 0,
+      jumpEnd: 0,
+      abilityT: 0,
+      revealUntil: 0,
+      litUntil: 0,
+      redUntil: 0,
+      shred: 0,
+      stapleReady: 0,
+      burnDps: 0,
+      burnOwner: 0,
+      inkDps: 0,
+      inkUntil: 0,
+      inkOwner: 0,
+      bleedDps: 0,
+      bleedUntil: 0,
+      bleedOwner: 0,
+      debuffers: [],
+      dotT: 0,
+      unstoppable,
+      dodge: def.dodge ?? 0,
+      aoeRadius: radius * (id === 'tape' ? 1.3 : 1),
+      rallied: false,
+      ringUntil: 0,
+      splitDone: false,
+      cloudDone: false,
+      cloudUntil: 0,
+      zoneVuln: 0,
+      permStealth,
+      reflect: affixes.includes('reflect'),
+      crumbHp,
+      poisonDps: 0,
+      poisonUntil: 0,
+      poisonOwner: 0,
+      purpleUntil: 0,
+      measuredUntil: 0,
+      redVuln: 0.2,
+      litVuln: BRANCH.lamp.B.vuln,
+      rootVulnUntil: 0,
+      redGold: false,
+      netUntil: 0,
+      stripUntil: 0,
+      stripVuln: 0,
     };
     if (e.flying) {
       const exits = s.grid.exits;
@@ -1479,7 +1715,10 @@ export class World implements IWorld {
       let bd = Infinity;
       for (const ex of exits) {
         const d = Math.abs(ex.x + 0.5 - x);
-        if (d < bd) { bd = d; best = ex; }
+        if (d < bd) {
+          bd = d;
+          best = ex;
+        }
       }
       e.fx0 = x;
       e.fy0 = y;
@@ -1799,8 +2038,10 @@ export class World implements IWorld {
       const e = s.enemies[i];
       let bx = Math.floor(e.x);
       let by = Math.floor(e.y);
-      if (bx < 0) bx = 0; else if (bx >= cols) bx = cols - 1;
-      if (by < 0) by = 0; else if (by >= rows) by = rows - 1;
+      if (bx < 0) bx = 0;
+      else if (bx >= cols) bx = cols - 1;
+      if (by < 0) by = 0;
+      else if (by >= rows) by = rows - 1;
       const b = by * cols + bx;
       this.bucketNext[i] = this.bucketHead[b];
       this.bucketHead[b] = i;
@@ -2193,14 +2434,23 @@ export class World implements IWorld {
   /** 生成子单位（碎纸机吐纸屑、纸团分裂、分裂词缀） */
   private spawnChild(id: EnemyId, parent: Enemy, o: { hpAbs?: number; affixes?: AffixId[]; elite?: boolean; group?: number }): Enemy {
     const e = this.createEnemy(id, parent.wave, parent.effWave, parent.x, parent.y, parent.ccx, parent.ccy, {
-      hpAbs: o.hpAbs, affixes: o.affixes, elite: o.elite, group: o.group ?? 1, noSplit: true,
+      hpAbs: o.hpAbs,
+      affixes: o.affixes,
+      elite: o.elite,
+      group: o.group ?? 1,
+      noSplit: true,
     });
     const jx = (this.rng.next() - 0.5) * 0.3;
     const jy = (this.rng.next() - 0.5) * 0.3;
     if (parent.flying) {
       e.flying = true;
-      e.fx0 = parent.fx0; e.fy0 = parent.fy0; e.fx1 = parent.fx1; e.fy1 = parent.fy1;
-      e.flyLen = parent.flyLen; e.flyT = parent.flyT; e.flyPhase = parent.flyPhase + jx;
+      e.fx0 = parent.fx0;
+      e.fy0 = parent.fy0;
+      e.fx1 = parent.fx1;
+      e.fy1 = parent.fy1;
+      e.flyLen = parent.flyLen;
+      e.flyT = parent.flyT;
+      e.flyPhase = parent.flyPhase + jx;
     } else {
       e.tcx = parent.tcx;
       e.tcy = parent.tcy;
@@ -2373,7 +2623,8 @@ export class World implements IWorld {
         break;
       }
     }
-    const goldMul = (this.bountyUntil > s.time ? MONSTER_EVENTS.bountyGold : 1) * (this.frenzyUntil > s.time ? MONSTER_EVENTS.frenzyGold : 1);
+    const goldMul =
+      (this.bountyUntil > s.time ? MONSTER_EVENTS.bountyGold : 1) * (this.frenzyUntil > s.time ? MONSTER_EVENTS.frenzyGold : 1);
     if (goldMul !== 1) gold *= goldMul;
     const got = this.addGold(gold, 'kill', e.x, e.y, false);
     s.stats.kills += e.group;
@@ -2407,7 +2658,10 @@ export class World implements IWorld {
       for (let k = 0; k < 3; k++) {
         const aff = e.affixes.filter((a) => a !== 'split');
         this.spawnChild('crumbmini', e, {
-          hpAbs: e.crumbHp * 0.3 * (e.group > 1 ? e.group * 0.9 : 1), affixes: aff, elite: e.elite && aff.length > 0, group: e.group,
+          hpAbs: e.crumbHp * 0.3 * (e.group > 1 ? e.group * 0.9 : 1),
+          affixes: aff,
+          elite: e.elite && aff.length > 0,
+          group: e.group,
         });
       }
     }
@@ -2457,15 +2711,48 @@ export class World implements IWorld {
   // ───────────────────────── 区域 ─────────────────────────
 
   private addZone(
-    kind: Zone['kind'], shape: 'circle' | 'rect', x: number, y: number,
-    o: { r?: number; w?: number; h?: number; angle?: number; until: number; slow?: number; dps?: number; vuln?: number; reveal?: boolean; air?: boolean; towerUid?: number; ink?: number },
+    kind: Zone['kind'],
+    shape: 'circle' | 'rect',
+    x: number,
+    y: number,
+    o: {
+      r?: number;
+      w?: number;
+      h?: number;
+      angle?: number;
+      until: number;
+      slow?: number;
+      dps?: number;
+      vuln?: number;
+      reveal?: boolean;
+      air?: boolean;
+      towerUid?: number;
+      ink?: number;
+    },
   ): Zone {
     const s = this.state;
     const ang = o.angle ?? 0;
     const z: Zone = {
-      uid: this.nextUid++, kind, shape, x, y, until: o.until, createdAt: s.time,
-      towerUid: o.towerUid ?? 0, slow: o.slow ?? 0, dps: o.dps ?? 0, vuln: o.vuln ?? 0, reveal: !!o.reveal, air: !!o.air,
-      tick: 0, ink: o.ink ?? 0, cos: Math.cos(ang), sin: Math.sin(ang), cx: x, cy: y, br: o.r ?? 0,
+      uid: this.nextUid++,
+      kind,
+      shape,
+      x,
+      y,
+      until: o.until,
+      createdAt: s.time,
+      towerUid: o.towerUid ?? 0,
+      slow: o.slow ?? 0,
+      dps: o.dps ?? 0,
+      vuln: o.vuln ?? 0,
+      reveal: !!o.reveal,
+      air: !!o.air,
+      tick: 0,
+      ink: o.ink ?? 0,
+      cos: Math.cos(ang),
+      sin: Math.sin(ang),
+      cx: x,
+      cy: y,
+      br: o.r ?? 0,
     };
     if (shape === 'circle') z.r = o.r ?? 1;
     else {
@@ -2559,16 +2846,23 @@ export class World implements IWorld {
       if (e.uid === exclude || !this.targetable(e) || !this.canHit(t, e)) continue;
       let v: number;
       switch (mode) {
-        case 'last': v = e.remaining; break;
-        case 'strong': v = e.hp + e.shield; break;
-        case 'weak': v = -(e.hp + e.shield); break;
+        case 'last':
+          v = e.remaining;
+          break;
+        case 'strong':
+          v = e.hp + e.shield;
+          break;
+        case 'weak':
+          v = -(e.hp + e.shield);
+          break;
         case 'close': {
           const dx = e.x - x;
           const dy = e.y - y;
           v = -(dx * dx + dy * dy);
           break;
         }
-        default: v = -e.remaining;
+        default:
+          v = -e.remaining;
       }
       if (best === null || v > bv) {
         best = e;
@@ -2600,14 +2894,30 @@ export class World implements IWorld {
       if (t.cd > 0) continue;
       let fired = false;
       switch (t.id) {
-        case 'pencil': fired = this.atkPencil(t); break;
-        case 'stapler': fired = this.atkStapler(t); break;
-        case 'glue': fired = this.atkGlue(t); break;
-        case 'compass': fired = this.atkCompass(t); break;
-        case 'eraser': fired = this.atkEraser(t); break;
-        case 'ruler': fired = this.atkRuler(t); break;
-        case 'pen': fired = this.atkPen(t); break;
-        case 'swatter': fired = this.atkSwatter(t); break;
+        case 'pencil':
+          fired = this.atkPencil(t);
+          break;
+        case 'stapler':
+          fired = this.atkStapler(t);
+          break;
+        case 'glue':
+          fired = this.atkGlue(t);
+          break;
+        case 'compass':
+          fired = this.atkCompass(t);
+          break;
+        case 'eraser':
+          fired = this.atkEraser(t);
+          break;
+        case 'ruler':
+          fired = this.atkRuler(t);
+          break;
+        case 'pen':
+          fired = this.atkPen(t);
+          break;
+        case 'swatter':
+          fired = this.atkSwatter(t);
+          break;
       }
       if (fired) {
         t.cd += t.interval;
@@ -2676,7 +2986,10 @@ export class World implements IWorld {
     let any = false;
     for (let i = 0; i < n; i++) {
       const e = this.qA[i];
-      if (!e.flying && !e.jumping) { any = true; break; }
+      if (!e.flying && !e.jumping) {
+        any = true;
+        break;
+      }
     }
     if (!any) return false;
     const now = this.state.time;
@@ -2740,7 +3053,8 @@ export class World implements IWorld {
       if (e.dead) continue;
       if (this.applySlow(e, slow, dur)) this.addDebuffer(e, t, 'glue');
       if (A && this.rng.next() < BRANCH.glue.A.root) {
-        if (this.applyRoot(e, BRANCH.glue.A.rootDur + (this.evo(t!, 'A', 1) ? BRANCH.glue.A.s1 : 0)) && this.evo(t!, 'A', 2)) e.rootVulnUntil = e.rootUntil;
+        if (this.applyRoot(e, BRANCH.glue.A.rootDur + (this.evo(t!, 'A', 1) ? BRANCH.glue.A.s1 : 0)) && this.evo(t!, 'A', 2))
+          e.rootVulnUntil = e.rootUntil;
       }
     }
     this.emit({ type: 'pulse', x, y, r: 0.8, color: 'cyan' });
@@ -2749,7 +3063,13 @@ export class World implements IWorld {
       const GB = BRANCH.glue.B;
       const zr = 0.8 + (big ? GB.r : 0);
       const zd = 3 + (big ? GB.dur : 0);
-      if (B) this.addZone('hotglue', 'circle', x, y, { r: zr, until: now + zd, dps: GB.dps * t.dmgFactor * (this.evo(t, 'B', 1) ? GB.s1 : 1), towerUid: t.uid });
+      if (B)
+        this.addZone('hotglue', 'circle', x, y, {
+          r: zr,
+          until: now + zd,
+          dps: GB.dps * t.dmgFactor * (this.evo(t, 'B', 1) ? GB.s1 : 1),
+          towerUid: t.uid,
+        });
       else this.addZone('glue', 'circle', x, y, { r: 0.8, until: now + 3, slow, towerUid: t.uid });
     }
   }
@@ -2981,7 +3301,7 @@ export class World implements IWorld {
           }
           continue;
         }
-        const tg = m.laserUid ? this.enemyByUid.get(m.laserUid) ?? null : null;
+        const tg = m.laserUid ? (this.enemyByUid.get(m.laserUid) ?? null) : null;
         if (m === em && helpers.length) {
           m.prismRole = 1;
           m.prismLead = m.uid;
@@ -2995,7 +3315,16 @@ export class World implements IWorld {
     }
   }
 
-  private fireLamp(t: Tower, tg: Enemy, mult: number, capBonus: number, helpers: Tower[] | null, share: number[] | null, mark: number, caff: number): void {
+  private fireLamp(
+    t: Tower,
+    tg: Enemy,
+    mult: number,
+    capBonus: number,
+    helpers: Tower[] | null,
+    share: number[] | null,
+    mark: number,
+    caff: number,
+  ): void {
     const now = this.state.time;
     const cap = this.lampCap(t) + capBonus;
     const over = t.overUntil > now;
@@ -3044,7 +3373,17 @@ export class World implements IWorld {
       t.beam2Acc = 0;
       const x = t.cx + 0.5;
       const y = t.cy + 0.5;
-      this.emit({ type: 'beam', uid: t.uid, x, y, tx: t2.x, ty: t2.y, color: this.lampColor(t), width: 0.07, ramp: (t.beam2Ramp - 1) / Math.max(1e-6, this.lampCap(t) - 1) });
+      this.emit({
+        type: 'beam',
+        uid: t.uid,
+        x,
+        y,
+        tx: t2.x,
+        ty: t2.y,
+        color: this.lampColor(t),
+        width: 0.07,
+        ramp: (t.beam2Ramp - 1) / Math.max(1e-6, this.lampCap(t) - 1),
+      });
       if (mark > 0) this.lampMark(t2, mark);
       this.damage(t2, amt, t, F_BEAM | F_IGNORE_ARMOR);
     }
@@ -3060,14 +3399,36 @@ export class World implements IWorld {
   }
 
   /** 主光束一跳：特效事件、伤害、过载分裂、折射、护眼灯分裂；汇聚时按贡献把伤害统计 / 经验分给辅灯 */
-  private lampHit(t: Tower, tg: Enemy, cap: number, mult: number, helpers: Tower[] | null, share: number[] | null, mark: number, over: boolean): void {
+  private lampHit(
+    t: Tower,
+    tg: Enemy,
+    cap: number,
+    mult: number,
+    helpers: Tower[] | null,
+    share: number[] | null,
+    mark: number,
+    over: boolean,
+  ): void {
     const x = t.cx + 0.5;
     const y = t.cy + 0.5;
     const color = this.lampColor(t);
     const nh = helpers ? helpers.length : 0;
     const ramp = (t.beamRamp - 1) / Math.max(1e-6, cap - 1);
-    this.emit({ type: 'beam', uid: t.uid, x, y, tx: tg.x, ty: tg.y, color, width: Math.min(0.42, 0.09 + 0.1 * ramp + 0.04 * Math.min(5, nh)), ramp, relay: mult, group: nh + 1 });
-    if (helpers) for (const h of helpers) this.emit({ type: 'prismLink', from: h.uid, to: t.uid, x: h.cx + 0.5, y: h.cy + 0.5, tx: x, ty: y });
+    this.emit({
+      type: 'beam',
+      uid: t.uid,
+      x,
+      y,
+      tx: tg.x,
+      ty: tg.y,
+      color,
+      width: Math.min(0.42, 0.09 + 0.1 * ramp + 0.04 * Math.min(5, nh)),
+      ramp,
+      relay: mult,
+      group: nh + 1,
+    });
+    if (helpers)
+      for (const h of helpers) this.emit({ type: 'prismLink', from: h.uid, to: t.uid, x: h.cx + 0.5, y: h.cy + 0.5, tx: x, ty: y });
     const crit = this.rollCrit(t);
     const amt = t.laserAcc * (crit ? t.critMul : 1) * (over ? ABILITY_FX.lamp_a.dmg : 1);
     t.laserAcc = 0;
@@ -3118,7 +3479,10 @@ export class World implements IWorld {
           const dx = o.x - tx0;
           const dy = o.y - ty0;
           const d = dx * dx + dy * dy;
-          if (d < bd) { bd = d; best = o; }
+          if (d < bd) {
+            bd = d;
+            best = o;
+          }
         }
         if (!best) break;
         extra.push(best);
@@ -3138,7 +3502,10 @@ export class World implements IWorld {
       if (o === tg || !this.targetable(o) || skip.includes(o)) continue;
       const dx = o.x - tg.x;
       const dy = o.y - tg.y;
-      if (dx * dx + dy * dy < bd) { bd = dx * dx + dy * dy; best = o; }
+      if (dx * dx + dy * dy < bd) {
+        bd = dx * dx + dy * dy;
+        best = o;
+      }
     }
     return best;
   }
@@ -3236,7 +3603,12 @@ export class World implements IWorld {
     if (A && t && now - t.lastTape >= 2 && !e.flying) {
       t.lastTape = now;
       this.addZone('tape', 'rect', e.x, e.y, {
-        w: this.evo(t, 'A', 1) ? 5 : 3, h: 0.7, angle: e.angle, until: now + 5, vuln: 0.25, towerUid: t.uid,
+        w: this.evo(t, 'A', 1) ? 5 : 3,
+        h: 0.7,
+        angle: e.angle,
+        until: now + 5,
+        vuln: 0.25,
+        towerUid: t.uid,
         slow: this.evo(t, 'A', 2) ? 0.2 : 0,
       });
     }
@@ -3357,7 +3729,10 @@ export class World implements IWorld {
         const dx = o.x - cx;
         const dy = o.y - cy;
         const d = dx * dx + dy * dy;
-        if (d < bd) { bd = d; best = o; }
+        if (d < bd) {
+          bd = d;
+          best = o;
+        }
       }
       if (!best) break;
       dmg *= SWATTER.chainMul;
@@ -3380,7 +3755,11 @@ export class World implements IWorld {
     const now = this.state.time;
     const list = (this.state.enemies as Enemy[]).filter((e) => !e.dead && (e.flying || e.netUntil > now));
     if (!list.length) return;
-    this.emit({ type: 'chain', uid: t.uid, points: [{ x: t.cx + 0.5, y: t.cy + 0.5 }, ...list.slice(0, 12).map((e) => ({ x: e.x, y: e.y }))] });
+    this.emit({
+      type: 'chain',
+      uid: t.uid,
+      points: [{ x: t.cx + 0.5, y: t.cy + 0.5 }, ...list.slice(0, 12).map((e) => ({ x: e.x, y: e.y }))],
+    });
     for (const e of list) {
       if (e.dead) continue;
       this.damage(e, e.maxHp * (e.boss ? fx.bossPct : fx.pct), t, F_TRUE);
@@ -3420,7 +3799,10 @@ export class World implements IWorld {
       const dx = x + 0.5 - e.x;
       const dy = y + 0.5 - e.y;
       const d = dx * dx + dy * dy;
-      if (d < bd - 1e-9) { bd = d; best = i; }
+      if (d < bd - 1e-9) {
+        bd = d;
+        best = i;
+      }
     }
     return best;
   }
@@ -3548,8 +3930,27 @@ export class World implements IWorld {
     let p = this.projPool.pop();
     if (!p) {
       p = {
-        uid: 0, kind, x, y, angle: 0, towerUid: 0, tower: null, targetUid: 0, tx: x, ty: y, speed: 0, dmg: 0, crit: false,
-        vx: 0, vy: 0, travelled: 0, maxDist: 0, hits: [], bounce: 0, dead: false, pierce: 0,
+        uid: 0,
+        kind,
+        x,
+        y,
+        angle: 0,
+        towerUid: 0,
+        tower: null,
+        targetUid: 0,
+        tx: x,
+        ty: y,
+        speed: 0,
+        dmg: 0,
+        crit: false,
+        vx: 0,
+        vy: 0,
+        travelled: 0,
+        maxDist: 0,
+        hits: [],
+        bounce: 0,
+        dead: false,
+        pierce: 0,
       };
     }
     p.uid = this.nextUid++;
@@ -3579,15 +3980,42 @@ export class World implements IWorld {
   }
 
   /** 追踪弹；弹道已满时立即结算 */
-  private spawnProj(t: Tower, kind: Proj['kind'], e: Enemy, speed: number, dmg: number, crit: boolean, from?: { x: number; y: number }): Proj | null {
+  private spawnProj(
+    t: Tower,
+    kind: Proj['kind'],
+    e: Enemy,
+    speed: number,
+    dmg: number,
+    crit: boolean,
+    from?: { x: number; y: number },
+  ): Proj | null {
     const x = from ? from.x : t.cx + 0.5;
     const y = from ? from.y : t.cy + 0.5;
     const p = this.allocProj(t, kind, x, y);
     if (!p) {
       // 立即结算
       const tmp: Proj = {
-        uid: 0, kind, x: e.x, y: e.y, angle: Math.atan2(e.y - y, e.x - x), towerUid: t.uid, tower: t, targetUid: e.uid,
-        tx: e.x, ty: e.y, speed, dmg, crit, vx: 0, vy: 0, travelled: 0, maxDist: 0, hits: [], bounce: 0, dead: false, pierce: 0,
+        uid: 0,
+        kind,
+        x: e.x,
+        y: e.y,
+        angle: Math.atan2(e.y - y, e.x - x),
+        towerUid: t.uid,
+        tower: t,
+        targetUid: e.uid,
+        tx: e.x,
+        ty: e.y,
+        speed,
+        dmg,
+        crit,
+        vx: 0,
+        vy: 0,
+        travelled: 0,
+        maxDist: 0,
+        hits: [],
+        bounce: 0,
+        dead: false,
+        pierce: 0,
       };
       this.projHit(tmp, e);
       return null;
@@ -3710,7 +4138,10 @@ export class World implements IWorld {
               if (hit.includes(o) || !this.targetable(o) || !this.canHit(t, o)) continue;
               const dx = o.x - lx;
               const dy = o.y - ly;
-              if (dx * dx + dy * dy < bd) { bd = dx * dx + dy * dy; best = o; }
+              if (dx * dx + dy * dy < bd) {
+                bd = dx * dx + dy * dy;
+                best = o;
+              }
             }
             if (!best) break;
             hit.push(best);
@@ -3736,7 +4167,10 @@ export class World implements IWorld {
             const dx = o.x - e.x;
             const dy = o.y - e.y;
             const d = dx * dx + dy * dy;
-            if (d < bd) { bd = d; best = o; }
+            if (d < bd) {
+              bd = d;
+              best = o;
+            }
           }
           if (best) {
             const np = this.spawnProj(t, 'eraser', best, p.speed, p.dmg, false, { x: e.x, y: e.y });
@@ -3905,7 +4339,10 @@ export class World implements IWorld {
       const dx = e.x - cmd.x;
       const dy = e.y - cmd.y;
       const d = dx * dx + dy * dy;
-      if (d <= bd) { bd = d; best = e; }
+      if (d <= bd) {
+        bd = d;
+        best = e;
+      }
     }
     return best;
   }
@@ -4010,7 +4447,14 @@ export class World implements IWorld {
         if (cmd.x === undefined || cmd.y === undefined) return fail('pickCell');
         const x0 = Math.max(0, Math.min(s.grid.cols - 3, Math.floor(cmd.x) - 1));
         const y0 = Math.max(0, Math.min(s.grid.rows - 3, Math.floor(cmd.y) - 1));
-        this.addZone('lava', 'rect', x0, y0, { w: 3, h: 3, until: now + a.duration, dps: a.fx.dps * t.dmgFactor, slow: a.fx.slow, towerUid: t.uid });
+        this.addZone('lava', 'rect', x0, y0, {
+          w: 3,
+          h: 3,
+          until: now + a.duration,
+          dps: a.fx.dps * t.dmgFactor,
+          slow: a.fx.slow,
+          towerUid: t.uid,
+        });
         Object.assign(ev, { x: x0 + 1.5, y: y0 + 1.5, r: 1.5 });
         break;
       }
@@ -4045,7 +4489,14 @@ export class World implements IWorld {
             const i = c.y * s.grid.cols + c.x;
             if (seen.has(i)) continue;
             seen.add(i);
-            this.addZone('fullcorrect', 'rect', c.x, c.y, { w: 1, h: 1, until: now + a.duration, vuln: a.fx.vuln, slow: a.fx.slow, towerUid: t.uid });
+            this.addZone('fullcorrect', 'rect', c.x, c.y, {
+              w: 1,
+              h: 1,
+              until: now + a.duration,
+              vuln: a.fx.vuln,
+              slow: a.fx.slow,
+              towerUid: t.uid,
+            });
           }
         }
         Object.assign(ev, { x: tx, y: ty });
@@ -4108,8 +4559,24 @@ export class World implements IWorld {
         const arm = Math.max(1, Math.round(a.fx.arm));
         const cx = Math.max(arm, Math.min(s.grid.cols - 1 - arm, Math.floor(cmd.x)));
         const cy = Math.max(arm, Math.min(s.grid.rows - 1 - arm, Math.floor(cmd.y)));
-        this.addZone('inkcross', 'rect', cx - arm, cy, { w: 2 * arm + 1, h: 1, until: now + a.duration, ink: a.fx.ink, dps: a.fx.dps * t.dmgFactor, towerUid: t.uid, air: true });
-        this.addZone('inkcross', 'rect', cx, cy - arm, { w: 1, h: 2 * arm + 1, until: now + a.duration, ink: a.fx.ink, dps: a.fx.dps * t.dmgFactor, towerUid: t.uid, air: true });
+        this.addZone('inkcross', 'rect', cx - arm, cy, {
+          w: 2 * arm + 1,
+          h: 1,
+          until: now + a.duration,
+          ink: a.fx.ink,
+          dps: a.fx.dps * t.dmgFactor,
+          towerUid: t.uid,
+          air: true,
+        });
+        this.addZone('inkcross', 'rect', cx, cy - arm, {
+          w: 1,
+          h: 2 * arm + 1,
+          until: now + a.duration,
+          ink: a.fx.ink,
+          dps: a.fx.dps * t.dmgFactor,
+          towerUid: t.uid,
+          air: true,
+        });
         Object.assign(ev, { x: cx + 0.5, y: cy + 0.5, r: 1.5 });
         break;
       }
@@ -4341,10 +4808,18 @@ export class World implements IWorld {
         const cx = i % s.grid.cols;
         const cy = (i - cx) / s.grid.cols;
         const dropId = `drop-${++this.dropSeq}`;
-        const sp: SpawnerState = liveText({
-          id: dropId, kind: 'drop', cells: [{ x: cx, y: cy }],
-          active: false, warnUntil: now + warn, demolishCost: this.demolishCost(), icon: this.dropIcon(),
-        } as SpawnerState, { name: () => spawnerName(dropId) });
+        const sp: SpawnerState = liveText(
+          {
+            id: dropId,
+            kind: 'drop',
+            cells: [{ x: cx, y: cy }],
+            active: false,
+            warnUntil: now + warn,
+            demolishCost: this.demolishCost(),
+            icon: this.dropIcon(),
+          } as SpawnerState,
+          { name: () => spawnerName(dropId) },
+        );
         s.spawners.push(sp);
         this.reserved.set(i, 'drop');
         fx.spawner = sp.id;
@@ -4392,7 +4867,9 @@ export class World implements IWorld {
         const t = atk[this.evRng.int(atk.length)];
         area = {
           x: Math.max(0, Math.min(s.grid.cols - 3, t.cx - 1)),
-          y: Math.max(0, Math.min(s.grid.rows - 3, t.cy - 1)), w: 3, h: 3,
+          y: Math.max(0, Math.min(s.grid.rows - 3, t.cy - 1)),
+          w: 3,
+          h: 3,
         };
         fx.area = area;
         break;
@@ -4412,26 +4889,43 @@ export class World implements IWorld {
       }
       case 'secret_door': {
         const g = s.grid;
-        const cands = s.spawners.filter((k) => k.kind === 'hidden' && !k.active && k.cells.every((c) => {
-          const i = c.y * g.cols + c.x;
-          return g.cells[i] === CellKind.Empty && !this.reserved.has(i) && g.dist[i] < Infinity;
-        }));
+        const cands = s.spawners.filter(
+          (k) =>
+            k.kind === 'hidden' &&
+            !k.active &&
+            k.cells.every((c) => {
+              const i = c.y * g.cols + c.x;
+              return g.cells[i] === CellKind.Empty && !this.reserved.has(i) && g.dist[i] < Infinity;
+            }),
+        );
         if (!cands.length) return false;
         const sp = cands[this.evRng.int(cands.length)];
         for (const c of sp.cells) this.reserved.set(c.y * g.cols + c.x, 'door');
         fx.spawner = sp.id;
         const xs = sp.cells.map((c) => c.x);
         const ys = sp.cells.map((c) => c.y);
-        area = { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs) + 1, h: Math.max(...ys) - Math.min(...ys) + 1 };
+        area = {
+          x: Math.min(...xs),
+          y: Math.min(...ys),
+          w: Math.max(...xs) - Math.min(...xs) + 1,
+          h: Math.max(...ys) - Math.min(...ys) + 1,
+        };
         break;
       }
       default:
         break;
     }
-    const ev: RandomEventState = liveText({
-      uid: this.nextUid++, id, tone: d.tone,
-      phase: 'warn', startsAt: now + warn, endsAt: now + warn + d.duration,
-    } as RandomEventState, { name: () => d.name, desc: () => d.desc });
+    const ev: RandomEventState = liveText(
+      {
+        uid: this.nextUid++,
+        id,
+        tone: d.tone,
+        phase: 'warn',
+        startsAt: now + warn,
+        endsAt: now + warn + d.duration,
+      } as RandomEventState,
+      { name: () => d.name, desc: () => d.desc },
+    );
     if (area) ev.area = area;
     s.events.push(ev);
     this.eventFx.set(ev.uid, fx);
@@ -4631,8 +5125,16 @@ export class World implements IWorld {
     }
     let enemy: EnemyId = 'crumb';
     let best = -1;
-    for (const [k, v] of counts) if (v > best) { best = v; enemy = k; }
-    for (const e of aw.plan.entries) if (e.enemy === enemy && e.gi >= 0) { tmpl = e; break; }
+    for (const [k, v] of counts)
+      if (v > best) {
+        best = v;
+        enemy = k;
+      }
+    for (const e of aw.plan.entries)
+      if (e.enemy === enemy && e.gi >= 0) {
+        tmpl = e;
+        break;
+      }
     const n = Math.max(3, Math.min(30, Math.round(total * 0.3)));
     const from = this.pickSpawnSlot(aw.plan.wave);
     this.injectGroup(enemy, n, ENEMIES[enemy].interval * 0.8, from, tmpl?.group ?? 1, tmpl?.hpMul ?? 1);
@@ -4657,7 +5159,10 @@ export class World implements IWorld {
       const at = aw.t + 0.5 + j * ivl;
       add.push({ at, at0: at, enemy, entrance: 0, elite: false, affixes: [], group, hpMul, gi, spawner: from });
     }
-    const tail = aw.plan.entries.splice(aw.idx).concat(add).sort((a, b) => a.at - b.at);
+    const tail = aw.plan.entries
+      .splice(aw.idx)
+      .concat(add)
+      .sort((a, b) => a.at - b.at);
     aw.plan.entries.push(...tail);
     return true;
   }
@@ -4844,7 +5349,8 @@ export class World implements IWorld {
     const g = s.grid;
     const cands: number[] = [];
     for (let i = 0; i < g.cells.length; i++) {
-      if (i === exclude || g.cells[i] !== CellKind.Empty || this.reserved.has(i) || !(g.dist[i] < Infinity) || this.isHiddenCell(i)) continue;
+      if (i === exclude || g.cells[i] !== CellKind.Empty || this.reserved.has(i) || !(g.dist[i] < Infinity) || this.isHiddenCell(i))
+        continue;
       const x = i % g.cols;
       const y = (i - x) / g.cols;
       let near = false;
@@ -5019,11 +5525,15 @@ export class World implements IWorld {
       const y0 = this.evRng.int(g.rows - h + 1);
       const rect = { x: x0, y: y0, w, h };
       let ok = true;
-      for (let y = y0; y < y0 + h && ok; y++) for (let x = x0; x < x0 + w; x++) {
-        const i = y * g.cols + x;
-        const k = g.cells[i];
-        if ((k !== CellKind.Empty && k !== CellKind.Tower) || this.reserved.has(i) || this.isHiddenCell(i)) { ok = false; break; }
-      }
+      for (let y = y0; y < y0 + h && ok; y++)
+        for (let x = x0; x < x0 + w; x++) {
+          const i = y * g.cols + x;
+          const k = g.cells[i];
+          if ((k !== CellKind.Empty && k !== CellKind.Tower) || this.reserved.has(i) || this.isHiddenCell(i)) {
+            ok = false;
+            break;
+          }
+        }
       if (ok && this.booksPlan(rect, false)) return rect;
     }
     return null;
@@ -5038,16 +5548,17 @@ export class World implements IWorld {
     const g = s.grid;
     const tmp = new Uint8Array(this.tempCells(-1, -1));
     const hit: Tower[] = [];
-    for (let y = rect.y; y < rect.y + rect.h; y++) for (let x = rect.x; x < rect.x + rect.w; x++) {
-      const i = y * g.cols + x;
-      const k = g.cells[i];
-      if ((k !== CellKind.Empty && k !== CellKind.Tower) || this.reserved.has(i)) return false;
-      if (k === CellKind.Tower) {
-        const t = s.towers.get(g.towerAt[i]) as Tower | undefined;
-        if (t) hit.push(t);
+    for (let y = rect.y; y < rect.y + rect.h; y++)
+      for (let x = rect.x; x < rect.x + rect.w; x++) {
+        const i = y * g.cols + x;
+        const k = g.cells[i];
+        if ((k !== CellKind.Empty && k !== CellKind.Tower) || this.reserved.has(i)) return false;
+        if (k === CellKind.Tower) {
+          const t = s.towers.get(g.towerAt[i]) as Tower | undefined;
+          if (t) hit.push(t);
+        }
+        tmp[i] = CellKind.Obstacle;
       }
-      tmp[i] = CellKind.Obstacle;
-    }
     const d = new Float32Array(g.cells.length);
     if (this.validate(tmp, d) !== 0) return false;
     const moves: { t: Tower; x: number; y: number }[] = [];
@@ -5064,7 +5575,10 @@ export class World implements IWorld {
       for (const i of order) {
         if (this.enemyOnCell(i)) continue;
         tmp[i] = CellKind.Tower;
-        if (this.validate(tmp, d) === 0) { placed = i; break; }
+        if (this.validate(tmp, d) === 0) {
+          placed = i;
+          break;
+        }
         tmp[i] = CellKind.Empty;
       }
       if (placed < 0) return false;
@@ -5077,11 +5591,12 @@ export class World implements IWorld {
       this.moveTowerTo(m.t, m.x, m.y);
       this.emit({ type: 'towerMoved', uid: m.t.uid, fromX: fx, fromY: fy, cx: m.x, cy: m.y });
     }
-    for (let y = rect.y; y < rect.y + rect.h; y++) for (let x = rect.x; x < rect.x + rect.w; x++) {
-      const i = y * g.cols + x;
-      g.cells[i] = CellKind.Obstacle;
-      g.towerAt[i] = 0;
-    }
+    for (let y = rect.y; y < rect.y + rect.h; y++)
+      for (let x = rect.x; x < rect.x + rect.w; x++) {
+        const i = y * g.cols + x;
+        g.cells[i] = CellKind.Obstacle;
+        g.towerAt[i] = 0;
+      }
     g.obstacles.push({ kind: 'books', x: rect.x, y: rect.y, w: rect.w, h: rect.h });
     this.terrainChanged();
     this.fixEnemies();
@@ -5118,14 +5633,16 @@ export class World implements IWorld {
     const special: { x: number; y: number }[] = [...g.exits];
     for (const sp of s.spawners) special.push(...sp.cells);
     const { to } = td;
-    for (let y = to.y; y < to.y + to.h; y++) for (let x = to.x; x < to.x + to.w; x++) {
-      const i = y * g.cols + x;
-      const own = this.inRect(td.from, x, y);
-      if (!own && (g.cells[i] !== CellKind.Empty || this.reserved.has(i) || this.isHiddenCell(i) || this.enemyOnCell(i))) return false;
-      for (const c of special) if (Math.abs(c.x - x) <= 1 && Math.abs(c.y - y) <= 1) return false;
-    }
+    for (let y = to.y; y < to.y + to.h; y++)
+      for (let x = to.x; x < to.x + to.w; x++) {
+        const i = y * g.cols + x;
+        const own = this.inRect(td.from, x, y);
+        if (!own && (g.cells[i] !== CellKind.Empty || this.reserved.has(i) || this.isHiddenCell(i) || this.enemyOnCell(i))) return false;
+        for (const c of special) if (Math.abs(c.x - x) <= 1 && Math.abs(c.y - y) <= 1) return false;
+      }
     const tmp = new Uint8Array(this.tempCells(-1, -1));
-    for (let y = td.from.y; y < td.from.y + td.from.h; y++) for (let x = td.from.x; x < td.from.x + td.from.w; x++) tmp[y * g.cols + x] = CellKind.Empty;
+    for (let y = td.from.y; y < td.from.y + td.from.h; y++)
+      for (let x = td.from.x; x < td.from.x + td.from.w; x++) tmp[y * g.cols + x] = CellKind.Empty;
     for (let y = to.y; y < to.y + to.h; y++) for (let x = to.x; x < to.x + to.w; x++) tmp[y * g.cols + x] = CellKind.Obstacle;
     return this.validate(tmp, this.distScratch) === 0;
   }
@@ -5149,8 +5666,12 @@ export class World implements IWorld {
     const base = this.lampDps(t);
     const cap = this.lampCap(t);
     stats.push({ label: tr('core.stat.beamDps'), value: tr('core.stat.beamDpsValue', { dps: fmt(base), max: fmt(base * cap) }) });
-    stats.push({ label: tr('core.stat.ramp'), value: tr('core.stat.rampValue', { rate: `${Math.round(this.lampRate(t) * 100)}%`, cap: fmt(cap) }) });
-    if (t.level >= 7) stats.push({ label: tr('core.stat.secondBeam'), value: tr('core.stat.secondBeamValue', { dps: fmt(base * LAMP.second) }) });
+    stats.push({
+      label: tr('core.stat.ramp'),
+      value: tr('core.stat.rampValue', { rate: `${Math.round(this.lampRate(t) * 100)}%`, cap: fmt(cap) }),
+    });
+    if (t.level >= 7)
+      stats.push({ label: tr('core.stat.secondBeam'), value: tr('core.stat.secondBeamValue', { dps: fmt(base * LAMP.second) }) });
     stats.push({ label: tr('core.stat.range'), value: tr('core.unit.cells', { n: fmt(t.range) }) });
     stats.push({ label: tr('core.stat.prismLink'), value: tr('core.unit.cells', { n: fmt(LAMP.link) }) });
     this.computePrism(this.state.time);
@@ -5167,8 +5688,19 @@ export class World implements IWorld {
       const capB = Math.min(LAMP.capMax, LAMP.capPer * others.length);
       let unlimited = false;
       for (const l of this.prismOrder) if (l.prism === t.prism && this.isLaser(l)) unlimited = true;
-      const role = t.prismRole === 1 ? tr('core.stat.prismEmitter', { relay: fmt(t.prismRelay ?? 1) }) : t.prismRole === 2 ? tr('core.stat.prismHelper') : '';
-      stats.push({ label: tr('core.stat.prismGroup'), value: tr('core.stat.prismGroupValue', { n, relay: fmt(relay), cap: fmt(capB) }) + (unlimited ? tr('core.stat.prismUnlimited') : '') + role });
+      const role =
+        t.prismRole === 1
+          ? tr('core.stat.prismEmitter', { relay: fmt(t.prismRelay ?? 1) })
+          : t.prismRole === 2
+            ? tr('core.stat.prismHelper')
+            : '';
+      stats.push({
+        label: tr('core.stat.prismGroup'),
+        value:
+          tr('core.stat.prismGroupValue', { n, relay: fmt(relay), cap: fmt(capB) }) +
+          (unlimited ? tr('core.stat.prismUnlimited') : '') +
+          role,
+      });
     }
     if (t.critChance > 0) stats.push({ label: tr('core.stat.crit'), value: `${Math.round(t.critChance * 100)}% ×${fmt(t.critMul)}` });
   }
@@ -5206,7 +5738,9 @@ export class World implements IWorld {
       case 'piggy': {
         stats.push({
           label: tr('core.stat.perWave'),
-          value: tr('core.stat.piggyOutput', { n: this.piggyOutput(t) }) + (t.piggyMute > 0 ? tr('core.stat.piggyMuted', { n: t.piggyMute }) : ''),
+          value:
+            tr('core.stat.piggyOutput', { n: this.piggyOutput(t) }) +
+            (t.piggyMute > 0 ? tr('core.stat.piggyMuted', { n: t.piggyMute }) : ''),
         });
         if (t.level >= 4) stats.push({ label: tr('core.stat.interestCap'), value: this.evo(t, 'A', 1) ? '+15' : '+5' });
         break;
@@ -5216,10 +5750,15 @@ export class World implements IWorld {
         break;
       }
       default: {
-        if (t.id === 'pen') stats.push({ label: tr('core.stat.damage'), value: tr('core.stat.penDamageValue', { dmg: fmt(t.dmg), ink: fmt(6 * t.dmgFactor * ((t.combo & C_LAMP_PEN) ? 1.3 : 1)) }) });
+        if (t.id === 'pen')
+          stats.push({
+            label: tr('core.stat.damage'),
+            value: tr('core.stat.penDamageValue', { dmg: fmt(t.dmg), ink: fmt(6 * t.dmgFactor * (t.combo & C_LAMP_PEN ? 1.3 : 1)) }),
+          });
         else stats.push({ label: tr('core.stat.damage'), value: fmt(t.dmg) });
         stats.push({ label: tr('core.stat.interval'), value: tr('core.unit.seconds', { n: fmt(t.interval, 2) }) });
-        if (t.id === 'compass') stats.push({ label: tr('core.stat.area'), value: tr('core.unit.cellsRange', { a: fmt(t.inner), b: fmt(t.range) }) });
+        if (t.id === 'compass')
+          stats.push({ label: tr('core.stat.area'), value: tr('core.unit.cellsRange', { a: fmt(t.inner), b: fmt(t.range) }) });
         else stats.push({ label: tr('core.stat.range'), value: tr('core.unit.cells', { n: fmt(t.range) }) });
         {
           let dps = t.dmg / Math.max(0.05, t.interval / t.atkMul);
@@ -5228,24 +5767,52 @@ export class World implements IWorld {
           if (t.id === 'swatter' && t.level >= 7) dps *= 2;
           if (t.id === 'pen') {
             // 钢笔的主要输出是墨迹：按满层墨迹计入
-            const ink = 6 * t.dmgFactor * ((t.combo & C_LAMP_PEN) ? 1.3 : 1);
-            stats.push({ label: tr('core.stat.inkDps'), value: tr('core.stat.inkDpsValue', { ink: fmt(ink), max: t.inkMax, total: fmt(ink * t.inkMax) }) });
+            const ink = 6 * t.dmgFactor * (t.combo & C_LAMP_PEN ? 1.3 : 1);
+            stats.push({
+              label: tr('core.stat.inkDps'),
+              value: tr('core.stat.inkDpsValue', { ink: fmt(ink), max: t.inkMax, total: fmt(ink * t.inkMax) }),
+            });
             dps += ink * t.inkMax;
           }
-          stats.push({ label: tr('core.stat.dps'), value: fmt(dps) + (t.id === 'stapler' || t.id === 'compass' || t.id === 'ruler' || t.id === 'swatter' ? ' ×N' : t.id === 'pen' ? tr('core.stat.dpsInkNote') : '') });
+          stats.push({
+            label: tr('core.stat.dps'),
+            value:
+              fmt(dps) +
+              (t.id === 'stapler' || t.id === 'compass' || t.id === 'ruler' || t.id === 'swatter'
+                ? ' ×N'
+                : t.id === 'pen'
+                  ? tr('core.stat.dpsInkNote')
+                  : ''),
+          });
         }
         if (t.critChance > 0) stats.push({ label: tr('core.stat.crit'), value: `${Math.round(t.critChance * 100)}% ×${fmt(t.critMul)}` });
-        if (t.id === 'glue') stats.push({ label: tr('core.stat.slow'), value: `${Math.round(t.slowPct * 100)}% / ${tr('core.unit.seconds', { n: fmt(t.slowDur) })}` });
-        if (t.id === 'stapler' && t.stunChance > 0) stats.push({ label: tr('core.stat.stunChance'), value: `${Math.round(t.stunChance * 100)}%` });
-        if (t.id === 'eraser') stats.push({ label: tr('core.stat.armorBreak'), value: tr('core.stat.armorBreakValue', { n: t.level >= 7 ? 2 : 1 }) });
+        if (t.id === 'glue')
+          stats.push({
+            label: tr('core.stat.slow'),
+            value: `${Math.round(t.slowPct * 100)}% / ${tr('core.unit.seconds', { n: fmt(t.slowDur) })}`,
+          });
+        if (t.id === 'stapler' && t.stunChance > 0)
+          stats.push({ label: tr('core.stat.stunChance'), value: `${Math.round(t.stunChance * 100)}%` });
+        if (t.id === 'eraser')
+          stats.push({ label: tr('core.stat.armorBreak'), value: tr('core.stat.armorBreakValue', { n: t.level >= 7 ? 2 : 1 }) });
         if (t.pierce > 0) stats.push({ label: tr('core.stat.armorPierce'), value: tr('core.stat.armorPierceValue', { n: t.pierce }) });
         if (t.id === 'swatter') {
           stats.push({ label: tr('core.stat.target'), value: tr('core.stat.airOnly') });
-          stats.push({ label: tr('core.stat.swatArea'), value: tr('core.unit.cells', { n: fmt(this.swatRadius(t)) }) + (t.level >= 7 ? tr('core.stat.doubleSwat') : '') });
-          if (t.level >= 4) stats.push({ label: tr('core.stat.airflow'), value: tr('core.stat.airflowValue', { pct: Math.round(SWATTER.airSlow * 100), dur: fmt(SWATTER.airSlowDur) }) });
+          stats.push({
+            label: tr('core.stat.swatArea'),
+            value: tr('core.unit.cells', { n: fmt(this.swatRadius(t)) }) + (t.level >= 7 ? tr('core.stat.doubleSwat') : ''),
+          });
+          if (t.level >= 4)
+            stats.push({
+              label: tr('core.stat.airflow'),
+              value: tr('core.stat.airflowValue', { pct: Math.round(SWATTER.airSlow * 100), dur: fmt(SWATTER.airSlowDur) }),
+            });
           if (A) {
             const n = SWATTER.chain + (this.evo(t, 'A', 1) ? SWATTER.chainS1 : 0);
-            stats.push({ label: tr('core.stat.chain'), value: tr('core.stat.chainValue', { n, mul: SWATTER.chainMul }) + (this.evo(t, 'A', 2) ? tr('core.stat.chainGround') : '') });
+            stats.push({
+              label: tr('core.stat.chain'),
+              value: tr('core.stat.chainValue', { n, mul: SWATTER.chainMul }) + (this.evo(t, 'A', 2) ? tr('core.stat.chainGround') : ''),
+            });
           } else if (t.level >= 10 && t.branch === 'B') {
             const every = this.evo(t, 'B', 2) ? SWATTER.netEveryS2 : SWATTER.netEvery;
             const dur = SWATTER.netDur + (this.evo(t, 'B', 1) ? SWATTER.netS1 : 0);
@@ -5269,7 +5836,12 @@ export class World implements IWorld {
     for (let ci = 0; ci < COMBOS.length; ci++) {
       const cb = COMBOS[ci];
       if (cb.a !== t.id && cb.b !== t.id) continue;
-      traits.push({ name: tr('core.info.comboTrait', { name: cb.name }), desc: cb.desc, unlockLevel: 1, unlocked: (t.combo & (1 << ci)) !== 0 });
+      traits.push({
+        name: tr('core.info.comboTrait', { name: cb.name }),
+        desc: cb.desc,
+        unlockLevel: 1,
+        unlocked: (t.combo & (1 << ci)) !== 0,
+      });
     }
     const cost = this.upgradeCost(t);
     const modes = this.targetModes(t);
@@ -5280,14 +5852,28 @@ export class World implements IWorld {
       evoTraits.push({ name: `★2 ${evb.s2.name}`, desc: evb.s2.desc, unlockLevel: 12, unlocked: t.stars >= 2 });
     }
     const info: TowerInfo = {
-      uid: t.uid, id: t.id, name: d.name, level: t.level, maxLevel, tier: t.tier, tierName,
-      branch: t.branch, xp: Math.floor(t.xp), xpNext: t.xpNext,
-      xpCapped: !isWall && ((t.level === 9 && t.xp >= t.xpNext) || (t.level >= 10 && (!evb || t.stars >= 3 || (t.stars === 2 && t.evoXp >= t.evoXpNext)))),
-      stars: t.stars, evoXp: Math.floor(t.evoXp), evoXpNext: t.evoXpNext,
-      evolveCost: evoCost, evolveDiscount: this.evoDiscount(t),
+      uid: t.uid,
+      id: t.id,
+      name: d.name,
+      level: t.level,
+      maxLevel,
+      tier: t.tier,
+      tierName,
+      branch: t.branch,
+      xp: Math.floor(t.xp),
+      xpNext: t.xpNext,
+      xpCapped:
+        !isWall &&
+        ((t.level === 9 && t.xp >= t.xpNext) || (t.level >= 10 && (!evb || t.stars >= 3 || (t.stars === 2 && t.evoXp >= t.evoXpNext)))),
+      stars: t.stars,
+      evoXp: Math.floor(t.evoXp),
+      evoXpNext: t.evoXpNext,
+      evolveCost: evoCost,
+      evolveDiscount: this.evoDiscount(t),
       canAffordEvolve: evoCost !== null && this.state.gold >= evoCost,
       evoTraits,
-      stats, traits,
+      stats,
+      traits,
       range: d.attacks ? t.range : 0,
       upgradeCost: cost,
       upgradeDiscount: this.xpDiscount(t),
@@ -5310,8 +5896,12 @@ export class World implements IWorld {
       const a = evb.ability;
       const ready = t.stars >= 3 && (a.chargeWaves ? (t.abilityCharges ?? 0) > 0 : t.abilityCd <= 0);
       info.ability = {
-        id: a.id, name: a.name, desc: a.desc,
-        cd: t.stars >= 3 ? Math.max(0, t.abilityCd) : a.cd, cdMax: a.cd, ready,
+        id: a.id,
+        name: a.name,
+        desc: a.desc,
+        cd: t.stars >= 3 ? Math.max(0, t.abilityCd) : a.cd,
+        cdMax: a.cd,
+        ready,
         target: a.target,
       };
       if (a.radius !== undefined) info.ability.radius = a.radius;
@@ -5333,17 +5923,59 @@ export function stateHash(w: IWorld): string {
     h ^= x;
     h = Math.imul(h, 16777619) >>> 0;
   };
-  mix(s.tick); mix(s.gold); mix(s.lives); mix(s.wave); mix(s.score);
-  mix(s.enemies.length); mix(s.projectiles.length); mix(s.zones.length);
-  for (const e of s.enemies) { mix(e.uid); mix(e.x); mix(e.y); mix(e.hp); mix(e.shield); mix(e.armor); }
-  for (const t of s.towers.values()) { mix(t.uid); mix(t.cx); mix(t.cy); mix(t.level); mix(t.xp); mix(t.damage); }
-  for (const p of s.projectiles) { mix(p.x); mix(p.y); }
-  for (const k of s.skills) { mix(k.cd); mix(k.charges ?? 0); }
-  for (const t of s.towers.values()) { mix(t.stars); mix(t.evoXp); mix(t.abilityCd); }
-  for (const sp of s.spawners) { mix(sp.active ? 1 : 0); mix(sp.cells[0].x); mix(sp.cells[0].y); }
-  for (const ev of s.events) { mix(ev.uid); mix(ev.startsAt); }
-  for (const p of s.pickups) { mix(p.uid); mix(p.x); mix(p.y); }
-  mix(s.grid.version); mix(s.autoWave.nextAt ?? -1);
+  mix(s.tick);
+  mix(s.gold);
+  mix(s.lives);
+  mix(s.wave);
+  mix(s.score);
+  mix(s.enemies.length);
+  mix(s.projectiles.length);
+  mix(s.zones.length);
+  for (const e of s.enemies) {
+    mix(e.uid);
+    mix(e.x);
+    mix(e.y);
+    mix(e.hp);
+    mix(e.shield);
+    mix(e.armor);
+  }
+  for (const t of s.towers.values()) {
+    mix(t.uid);
+    mix(t.cx);
+    mix(t.cy);
+    mix(t.level);
+    mix(t.xp);
+    mix(t.damage);
+  }
+  for (const p of s.projectiles) {
+    mix(p.x);
+    mix(p.y);
+  }
+  for (const k of s.skills) {
+    mix(k.cd);
+    mix(k.charges ?? 0);
+  }
+  for (const t of s.towers.values()) {
+    mix(t.stars);
+    mix(t.evoXp);
+    mix(t.abilityCd);
+  }
+  for (const sp of s.spawners) {
+    mix(sp.active ? 1 : 0);
+    mix(sp.cells[0].x);
+    mix(sp.cells[0].y);
+  }
+  for (const ev of s.events) {
+    mix(ev.uid);
+    mix(ev.startsAt);
+  }
+  for (const p of s.pickups) {
+    mix(p.uid);
+    mix(p.x);
+    mix(p.y);
+  }
+  mix(s.grid.version);
+  mix(s.autoWave.nextAt ?? -1);
   return (h >>> 0).toString(16);
 }
 

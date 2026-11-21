@@ -42,16 +42,23 @@ const SID: JsonSchema = { type: 'string', description: 'session id returned by n
 const META_TOOLS: McpToolSpec[] = [
   {
     name: 'new_game',
-    description: 'Start a new Desk Defense game and return its session_id, the rules summary (first call only) and the first observation. You then play with the action tools and call advance to let time pass.',
+    description:
+      'Start a new Desk Defense game and return its session_id, the rules summary (first call only) and the first observation. You then play with the action tools and call advance to let time pass.',
     inputSchema: {
-      type: 'object', additionalProperties: false, required: [],
+      type: 'object',
+      additionalProperties: false,
+      required: [],
       properties: {
         mode: { type: 'string', enum: ['endless', 'campaign'], description: 'default endless' },
         map: { type: 'string', enum: ['ch1', 'ch2', 'ch3'], description: 'default ch1' },
         difficulty: { type: 'string', enum: ['easy', 'normal', 'hard', 'nightmare', 'abyss'], description: 'default normal' },
         abyss_level: { type: 'integer', description: '1..10 when difficulty=abyss' },
         seed: { type: 'string', description: 'random seed (same seed = same game)' },
-        skills: { type: 'array', items: { type: 'string', enum: SKILL_IDS }, description: '3 skills, default eraser_strike,bell,whiteout_zone' },
+        skills: {
+          type: 'array',
+          items: { type: 'string', enum: SKILL_IDS },
+          description: '3 skills, default eraser_strike,bell,whiteout_zone',
+        },
         auto_wave: { type: 'boolean', description: 'auto-start waves after the first (default: difficulty default)' },
         wave_interval: { type: 'integer', description: 'seconds between decision points during a wave (default 10)' },
         max_waves: { type: 'integer', description: 'endless: stop after this wave' },
@@ -63,16 +70,28 @@ const META_TOOLS: McpToolSpec[] = [
   {
     name: 'observe',
     description: 'Current state of a game (compact JSON + ASCII map). detail=full adds prices, paths and nearest enemies.',
-    inputSchema: { type: 'object', additionalProperties: false, required: ['session_id'], properties: { session_id: SID, detail: { type: 'string', enum: ['compact', 'full'] } } },
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['session_id'],
+      properties: { session_id: SID, detail: { type: 'string', enum: ['compact', 'full'] } },
+    },
   },
   {
     name: 'advance',
-    description: 'Let the game run. Without seconds: run until the next decision point (build phase, every few seconds of a wave, event warning, boss, perk offer, crate) and return the observation. With seconds: run exactly that long (max 120). Perk offers and manual-start build phases block until you act.',
-    inputSchema: { type: 'object', additionalProperties: false, required: ['session_id'], properties: { session_id: SID, seconds: { type: 'number', description: 'game seconds to run' } } },
+    description:
+      'Let the game run. Without seconds: run until the next decision point (build phase, every few seconds of a wave, event warning, boss, perk offer, crate) and return the observation. With seconds: run exactly that long (max 120). Perk offers and manual-start build phases block until you act.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['session_id'],
+      properties: { session_id: SID, seconds: { type: 'number', description: 'game seconds to run' } },
+    },
   },
   {
     name: 'get_replay',
-    description: 'Replay JSON (seed + options + command log + tick) usable with the game\'s replay code; tagged as an agent run for the AI leaderboard only.',
+    description:
+      "Replay JSON (seed + options + command log + tick) usable with the game's replay code; tagged as an agent run for the AI leaderboard only.",
     inputSchema: { type: 'object', additionalProperties: false, required: ['session_id'], properties: { session_id: SID } },
   },
   {
@@ -97,7 +116,11 @@ const GAME_TOOLS: McpToolSpec[] = [
 ].map((t) => ({
   name: t.name,
   description: t.description,
-  inputSchema: { ...t.input_schema, properties: { session_id: SID, ...t.input_schema.properties }, required: ['session_id', ...t.input_schema.required] },
+  inputSchema: {
+    ...t.input_schema,
+    properties: { session_id: SID, ...t.input_schema.properties },
+    required: ['session_id', ...t.input_schema.required],
+  },
 }));
 
 const text = (t: string, isError = false): McpCallResult => ({ content: [{ type: 'text', text: t }], ...(isError ? { isError } : {}) });
@@ -129,7 +152,18 @@ export class McpGameServer {
     if (errs.length) return text(`invalid input: ${errs.join('; ')}`, true);
     if (name === 'new_game') return this.newGame(args);
     if (name === 'list_sessions') {
-      return text(JSON.stringify([...this.sessions.values()].map((g) => ({ session_id: g.id, mode: g.opts.mode, map: g.opts.map, difficulty: g.opts.difficulty, wave: g.world.state.wave, phase: g.world.state.phase }))));
+      return text(
+        JSON.stringify(
+          [...this.sessions.values()].map((g) => ({
+            session_id: g.id,
+            mode: g.opts.mode,
+            map: g.opts.map,
+            difficulty: g.opts.difficulty,
+            wave: g.world.state.wave,
+            phase: g.world.state.phase,
+          })),
+        ),
+      );
     }
     const g = this.sessions.get(String(args.session_id));
     if (!g) return text(`no session ${String(args.session_id)} (call new_game)`, true);
@@ -143,7 +177,8 @@ export class McpGameServer {
         const replay: AgentReplay = { ...makeMidRun(g.world), agent: { provider: 'mcp', model: g.agentName, role: 'player' } };
         return text(JSON.stringify({ board: aiBoardKey(g.opts), replay }));
       }
-      case 'advance': return this.advance(g, args.seconds as number | undefined);
+      case 'advance':
+        return this.advance(g, args.seconds as number | undefined);
     }
     const { session_id: _sid, ...input } = args;
     void _sid;
@@ -170,20 +205,27 @@ export class McpGameServer {
     } catch (e) {
       return text(`cannot create game: ${e instanceof Error ? e.message : String(e)}`, true);
     }
-    const sched = new AgentScheduler(world, { mode: 'pause', waveIntervalSec: (a.wave_interval as number | undefined) ?? 10, maxWaves: a.max_waves as number | undefined });
+    const sched = new AgentScheduler(world, {
+      mode: 'pause',
+      waveIntervalSec: (a.wave_interval as number | undefined) ?? 10,
+      maxWaves: a.max_waves as number | undefined,
+    });
     const g: GameSession = { id, opts, world, sched, point: null, agentName: (a.agent_name as string | undefined) ?? 'external' };
     g.point = sched.advance(0);
     this.sessions.set(id, g);
     const rules = (a.include_rules ?? !this.rulesSent) ? `${systemBlocks('player').join('\n\n')}\n\n` : '';
     this.rulesSent = true;
-    return text(`${rules}session_id: ${id}\n${runHeader(opts, world)}\nPlay with act (batch of actions, pass session_id) or the single-action tools, then call advance (act's end does not advance time).\n${this.obs(g)}`);
+    return text(
+      `${rules}session_id: ${id}\n${runHeader(opts, world)}\nPlay with act (batch of actions, pass session_id) or the single-action tools, then call advance (act's end does not advance time).\n${this.obs(g)}`,
+    );
   }
 
   private advance(g: GameSession, seconds?: number): McpCallResult {
     const s = g.world.state;
     if (g.sched.stopped) return text(`game over: ${g.sched.stopped}\n${this.obs(g)}`);
     if (s.phase === 'perk') return text(`blocked: choose_perk first (offer: ${s.perkChoices?.map((c) => c.id).join(', ')})`, true);
-    if (s.phase === 'build' && !(s.autoWave.enabled && s.autoWave.started)) return text('blocked: waves start manually — call start_wave when ready', true);
+    if (s.phase === 'build' && !(s.autoWave.enabled && s.autoWave.started))
+      return text('blocked: waves start manually — call start_wave when ready', true);
     g.sched.markDecided();
     if (seconds !== undefined) {
       g.sched.run(Math.max(0, Math.min(120, seconds)));

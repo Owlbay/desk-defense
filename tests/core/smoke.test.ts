@@ -2,12 +2,31 @@ import { describe, expect, it } from 'vitest';
 import { createWorld, type IWorld, type RunOptions, type TowerId } from '../../src/core';
 
 /** 简单机器人：蛇形墙迷宫 + 沿路线贪心摆攻击塔，空闲金币升级，冷却好就放技能，增益选第一张 */
-const ROTATION: TowerId[] = ['pencil', 'pencil', 'stapler', 'glue', 'pencil', 'lamp', 'compass', 'stapler', 'eraser', 'ruler', 'pen', 'lamp', 'calculator', 'piggy'];
+const ROTATION: TowerId[] = [
+  'pencil',
+  'pencil',
+  'stapler',
+  'glue',
+  'pencil',
+  'lamp',
+  'compass',
+  'stapler',
+  'eraser',
+  'ruler',
+  'pen',
+  'lamp',
+  'calculator',
+  'piggy',
+];
 
 function wallPlan(w: IWorld): [number, number][] {
   const out: [number, number][] = [];
   const { cols } = w.state.grid;
-  const rows: [number, number][] = [[4, cols - 1], [7, 0], [10, cols - 1]];
+  const rows: [number, number][] = [
+    [4, cols - 1],
+    [7, 0],
+    [10, cols - 1],
+  ];
   for (const [y, gap] of rows) for (let x = 0; x < cols; x++) if (x !== gap) out.push([x, y]);
   return out;
 }
@@ -89,7 +108,8 @@ function playBot(opts: RunOptions, maxWave: number, maxTicks = 60 * 60 * 150): {
         const towers = [...s.towers.values()].filter((t) => t.id !== 'wall' && t.id !== 'piggy').sort((a, b) => a.level - b.level);
         for (const t of towers) {
           const info = w.getTowerInfo(t.uid)!;
-          if (info.upgradeCost !== null && info.upgradeCost < s.gold - cost) w.command({ type: 'upgrade', uid: t.uid, branch: t.uid % 2 ? 'A' : 'B' });
+          if (info.upgradeCost !== null && info.upgradeCost < s.gold - cost)
+            w.command({ type: 'upgrade', uid: t.uid, branch: t.uid % 2 ? 'A' : 'B' });
         }
       }
     }
@@ -107,7 +127,10 @@ function playBot(opts: RunOptions, maxWave: number, maxTicks = 60 * 60 * 150): {
       }
     }
     if (s.phase === 'build') {
-      if ((globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.BOT_DEBUG) console.log(`w${s.wave} lives ${s.lives} gold ${s.gold} towers ${[...s.towers.values()].map((t) => t.id[0] + t.level).join('')} len ${w.currentPaths()[0].length}`);
+      if ((globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.BOT_DEBUG)
+        console.log(
+          `w${s.wave} lives ${s.lives} gold ${s.gold} towers ${[...s.towers.values()].map((t) => t.id[0] + t.level).join('')} len ${w.currentPaths()[0].length}`,
+        );
       if (s.wave >= maxWave) break;
       w.command({ type: 'startWave' });
     }
@@ -121,24 +144,47 @@ function playBot(opts: RunOptions, maxWave: number, maxTicks = 60 * 60 * 150): {
 describe('smoke', () => {
   it('endless normal bot survives the engine for 40+ waves', () => {
     const t0 = performance.now();
-    const r = playBot({ mode: 'endless', map: 'ch1', difficulty: 'normal', seed: 'smoke-1', skills: ['eraser_strike', 'bell', 'whiteout_zone'] }, 60);
+    const r = playBot(
+      { mode: 'endless', map: 'ch1', difficulty: 'normal', seed: 'smoke-1', skills: ['eraser_strike', 'bell', 'whiteout_zone'] },
+      60,
+    );
     const ms = performance.now() - t0;
-    console.log(`[smoke] endless normal ch1: reached wave ${r.wave} (${r.phase}), lives ${r.w.state.lives}, kills ${r.w.state.stats.kills}, towers ${r.w.state.towers.size}, score ${r.w.state.score}, ${Math.round(ms)}ms`);
+    console.log(
+      `[smoke] endless normal ch1: reached wave ${r.wave} (${r.phase}), lives ${r.w.state.lives}, kills ${r.w.state.stats.kills}, towers ${r.w.state.towers.size}, score ${r.w.state.score}, ${Math.round(ms)}ms`,
+    );
     expect(r.wave).toBeGreaterThanOrEqual(1);
   }, 120000);
 
   it('endless (high lives) runs at least 40 waves without throwing, on every map', () => {
     for (const map of ['ch1', 'ch2', 'ch3'] as const) {
-      const r = playBot({ mode: 'custom', map, difficulty: 'normal', custom: { lives: 100000 }, seed: 'smoke-' + map, skills: ['eraser_strike', 'magnifier', 'caffeine', 'inspiration'], talents: { bigbag: 1, collector: 1, luckydraw: 1 } }, 45);
-      console.log(`[smoke] custom ${map}: reached wave ${r.wave} (${r.phase}), enemies on field ${r.w.state.enemies.length}, kills ${r.w.state.stats.kills}, perks ${r.w.state.perks.join(',')}`);
+      const r = playBot(
+        {
+          mode: 'custom',
+          map,
+          difficulty: 'normal',
+          custom: { lives: 100000 },
+          seed: 'smoke-' + map,
+          skills: ['eraser_strike', 'magnifier', 'caffeine', 'inspiration'],
+          talents: { bigbag: 1, collector: 1, luckydraw: 1 },
+        },
+        45,
+      );
+      console.log(
+        `[smoke] custom ${map}: reached wave ${r.wave} (${r.phase}), enemies on field ${r.w.state.enemies.length}, kills ${r.w.state.stats.kills}, perks ${r.w.state.perks.join(',')}`,
+      );
       expect(r.wave).toBeGreaterThanOrEqual(40);
     }
   }, 300000);
 
   it('campaign runs to completion or loss', () => {
     for (const map of ['ch1', 'ch2', 'ch3'] as const) {
-      const r = playBot({ mode: 'campaign', map, difficulty: 'normal', seed: 'camp-' + map, skills: ['eraser_strike', 'bell', 'whiteout_zone'] }, 20);
-      console.log(`[smoke] campaign ${map}: wave ${r.wave}, phase ${r.phase}, lives ${r.w.state.lives}/${r.w.state.maxLives}, score ${r.w.state.score}`);
+      const r = playBot(
+        { mode: 'campaign', map, difficulty: 'normal', seed: 'camp-' + map, skills: ['eraser_strike', 'bell', 'whiteout_zone'] },
+        20,
+      );
+      console.log(
+        `[smoke] campaign ${map}: wave ${r.wave}, phase ${r.phase}, lives ${r.w.state.lives}/${r.w.state.maxLives}, score ${r.w.state.score}`,
+      );
       expect(['won', 'lost']).toContain(r.phase);
     }
   }, 300000);

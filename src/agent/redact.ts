@@ -11,9 +11,30 @@ export const REDACTED = '•••';
 
 /** 键名（不区分大小写、忽略 - 和 _）完全匹配时整值替换 */
 const SECRET_KEYS = new Set([
-  'authorization', 'proxyauthorization', 'xapikey', 'xgoogapikey', 'apikey', 'key', 'accesstoken', 'refreshtoken', 'idtoken',
-  'clientsecret', 'secret', 'password', 'cookie', 'setcookie', 'sessiontoken', 'bearer', 'token', 'authtoken', 'xauthtoken',
-  'openaiapikey', 'anthropicapikey', 'anthropicauthtoken', 'googleapikey', 'geminiapikey',
+  'authorization',
+  'proxyauthorization',
+  'xapikey',
+  'xgoogapikey',
+  'apikey',
+  'key',
+  'accesstoken',
+  'refreshtoken',
+  'idtoken',
+  'clientsecret',
+  'secret',
+  'password',
+  'cookie',
+  'setcookie',
+  'sessiontoken',
+  'bearer',
+  'token',
+  'authtoken',
+  'xauthtoken',
+  'openaiapikey',
+  'anthropicapikey',
+  'anthropicauthtoken',
+  'googleapikey',
+  'geminiapikey',
 ]);
 
 export function isSecretKey(k: string): boolean {
@@ -35,7 +56,10 @@ const PATTERNS: [RegExp, string][] = [
   // URL 查询参数：?key=… &api_key=… &access_token=…
   [/([?&](?:key|api[_-]?key|apikey|access[_-]?token|token|auth|secret)=)(?!•••)[^&#\s"'<>]+/gi, `$1${REDACTED}`],
   // 错误文本 / 头部转储里的 "x-api-key: …"、"apiKey=…"、"\"authorization\":\"…\""
-  [/((?:^|[\s{,;"'])(?:x-api-key|x-goog-api-key|api[_-]?key|apikey|authorization|access[_-]?token|client[_-]?secret|password)["']?\s*[:=]\s*["']?)(?!•••|Bearer\b|Basic\b)([^"',;\s}&]+)/gi, `$1${REDACTED}`],
+  [
+    /((?:^|[\s{,;"'])(?:x-api-key|x-goog-api-key|api[_-]?key|apikey|authorization|access[_-]?token|client[_-]?secret|password)["']?\s*[:=]\s*["']?)(?!•••|Bearer\b|Basic\b)([^"',;\s}&]+)/gi,
+    `$1${REDACTED}`,
+  ],
 ];
 
 /** 字符串脱敏；secrets = 已知的真实密钥（长度 ≥ 6 才参与，避免误伤普通数字） */
@@ -62,7 +86,8 @@ export function redactValue(v: unknown, secrets: readonly string[] = [], depth =
   if (typeof (v as { entries?: unknown }).entries === 'function' && !(v as object).constructor?.name?.startsWith('Object')) {
     try {
       const o: Record<string, unknown> = {};
-      for (const [k, x] of (v as Map<string, unknown>).entries()) o[String(k)] = isSecretKey(String(k)) ? REDACTED : redactValue(x, secrets, depth + 1, seen);
+      for (const [k, x] of (v as Map<string, unknown>).entries())
+        o[String(k)] = isSecretKey(String(k)) ? REDACTED : redactValue(x, secrets, depth + 1, seen);
       return o;
     } catch {
       /* 不是可迭代的键值对：按普通对象处理 */
@@ -93,12 +118,17 @@ export function redactJson(v: unknown, secrets: readonly string[] = [], maxChars
 
 /** 错误 → 脱敏后的文字 */
 export function redactError(e: unknown, secrets: readonly string[] = []): string {
-  const s = e instanceof Error ? `${e.name && e.name !== 'Error' ? `${e.name}: ` : ''}${e.message}` : typeof e === 'string' ? e : (() => {
-    try {
-      return JSON.stringify(e);
-    } catch {
-      return String(e);
-    }
-  })();
+  const s =
+    e instanceof Error
+      ? `${e.name && e.name !== 'Error' ? `${e.name}: ` : ''}${e.message}`
+      : typeof e === 'string'
+        ? e
+        : (() => {
+            try {
+              return JSON.stringify(e);
+            } catch {
+              return String(e);
+            }
+          })();
   return redactString(s, secrets);
 }

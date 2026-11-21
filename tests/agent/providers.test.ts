@@ -3,8 +3,15 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { fauxAssistantMessage, fauxText, fauxToolCall, registerFauxProvider } from '@mariozechner/pi-ai';
 import { createWorld, type RunOptions } from '../../src/core';
 import {
-  executeTool, resolveConfig, runAgentGame, systemBlocks, toolsForRole, testConnection,
-  type DecisionContext, type LLMProvider, type ToolResult,
+  executeTool,
+  resolveConfig,
+  runAgentGame,
+  systemBlocks,
+  toolsForRole,
+  testConnection,
+  type DecisionContext,
+  type LLMProvider,
+  type ToolResult,
 } from '../../src/agent';
 import { ClaudeProvider } from '../../src/agent/providers/claude';
 import { PiProvider, toTypeBox } from '../../src/agent/providers/pi';
@@ -12,7 +19,14 @@ import { extractJsonObject, parseActions } from '../../src/agent/providers/json-
 import { BridgeProvider, createBridgeSession, originAllowed, type BridgeServerMsg, type WsLike } from '../../src/agent/bridge';
 import { McpGameServer } from '../../src/agent/mcp';
 
-const OPTS: RunOptions = { mode: 'endless', map: 'ch1', difficulty: 'normal', seed: 'prov', skills: ['eraser_strike', 'bell', 'whiteout_zone'], pure: true };
+const OPTS: RunOptions = {
+  mode: 'endless',
+  map: 'ch1',
+  difficulty: 'normal',
+  seed: 'prov',
+  skills: ['eraser_strike', 'bell', 'whiteout_zone'],
+  pure: true,
+};
 
 function ctxFor(world = createWorld(OPTS), extra: Partial<DecisionContext> = {}): DecisionContext & { calls: string[] } {
   const calls: string[] = [];
@@ -55,7 +69,11 @@ describe('claude-native adapter (mocked SDK client, no network)', () => {
           create: async (p: Anthropic.Beta.MessageCreateParamsNonStreaming) => {
             seen.push(structuredClone(p));
             const r = replies.shift()!;
-            return { ...r, stop_details: null, usage: { input_tokens: 100, output_tokens: 20, cache_read_input_tokens: 4000, cache_creation_input_tokens: 0 } };
+            return {
+              ...r,
+              stop_details: null,
+              usage: { input_tokens: 100, output_tokens: 20, cache_read_input_tokens: 4000, cache_creation_input_tokens: 0 },
+            };
           },
         },
       },
@@ -91,7 +109,19 @@ describe('claude-native adapter (mocked SDK client, no network)', () => {
   it('haiku has no server-side fallback; refusal becomes an error (→ bot fallback)', async () => {
     const seen: Record<string, unknown>[] = [];
     const client = {
-      beta: { messages: { create: async (p: Record<string, unknown>) => { seen.push(p); return { content: [], stop_reason: 'refusal', stop_details: { type: 'refusal', category: 'cyber' }, usage: { input_tokens: 5, output_tokens: 0 } }; } } },
+      beta: {
+        messages: {
+          create: async (p: Record<string, unknown>) => {
+            seen.push(p);
+            return {
+              content: [],
+              stop_reason: 'refusal',
+              stop_details: { type: 'refusal', category: 'cyber' },
+              usage: { input_tokens: 5, output_tokens: 0 },
+            };
+          },
+        },
+      },
     } as unknown as Anthropic;
     const out = await new ClaudeProvider({ client, model: 'claude-haiku-5-5' }).decide(ctxFor());
     expect(seen[0].fallbacks).toBeUndefined();
@@ -101,7 +131,10 @@ describe('claude-native adapter (mocked SDK client, no network)', () => {
 
 describe('pi adapter (faux provider, no network)', () => {
   let unregister: (() => void) | null = null;
-  afterEach(() => { unregister?.(); unregister = null; });
+  afterEach(() => {
+    unregister?.();
+    unregister = null;
+  });
 
   it('maps tools to TypeBox and runs the native tool loop', async () => {
     const reg = registerFauxProvider();
@@ -120,7 +153,10 @@ describe('pi adapter (faux provider, no network)', () => {
     expect(out.ended).toBe(true);
     expect(w.state.towers.size).toBe(1);
     expect(out.usage.requests).toBe(2);
-    const tb = toTypeBox(toolsForRole('player').find((t) => t.name === 'act')!.input_schema) as unknown as { properties: Record<string, { items?: { properties: Record<string, { enum?: string[] }>; required: string[] } }>; required: string[] };
+    const tb = toTypeBox(toolsForRole('player').find((t) => t.name === 'act')!.input_schema) as unknown as {
+      properties: Record<string, { items?: { properties: Record<string, { enum?: string[] }>; required: string[] } }>;
+      required: string[];
+    };
     expect(tb.required).toEqual(['actions']);
     expect(tb.properties.actions.items!.required).toEqual(['do']);
     expect(tb.properties.actions.items!.properties.tower.enum).toContain('pencil');
@@ -132,7 +168,11 @@ describe('pi adapter (faux provider, no network)', () => {
     unregister = reg.unregister;
     reg.setResponses([
       fauxAssistantMessage([fauxText('```json\n{"actions":[{"tool":"preview_placement","args":{"tower":"wall","x":5,"y":5}}]}\n```')]),
-      fauxAssistantMessage([fauxText('{"actions":[{"tool":"place_tower","args":{"tower":"pencil","x":0,"y":6}},{"tool":"bogus","args":{}},{"tool":"end_turn","args":{}}],"note":"ok"}')]),
+      fauxAssistantMessage([
+        fauxText(
+          '{"actions":[{"tool":"place_tower","args":{"tower":"pencil","x":0,"y":6}},{"tool":"bogus","args":{}},{"tool":"end_turn","args":{}}],"note":"ok"}',
+        ),
+      ]),
     ]);
     const cfg = resolveConfig({ provider: 'pi', preset: 'ollama', toolMode: 'json' });
     const p = new PiProvider({ config: cfg, model: reg.getModel() });
@@ -173,17 +213,36 @@ describe('bridge protocol (in-memory sockets)', () => {
   it('pairs with a one-time code and relays tool calls back to the game', async () => {
     // 桥接器侧用一个会下两个指令的假模型
     const remote: LLMProvider = {
-      id: 'remote', model: 'm1',
+      id: 'remote',
+      model: 'm1',
       async decide(ctx) {
         await ctx.callTool('place_tower', { tower: 'pencil', x: 0, y: 6 });
         const alive = await ctx.afterRequest(5);
         const r = await ctx.callTool('end_turn', { note: alive ? 'alive' : 'dead' });
-        return { usage: { inputTokens: 10, outputTokens: 2, cacheReadTokens: 0, cacheWriteTokens: 0, requests: 1 }, costUsd: 0, toolCalls: 2, ended: !!r.endTurn, note: r.note };
+        return {
+          usage: { inputTokens: 10, outputTokens: 2, cacheReadTokens: 0, cacheWriteTokens: 0, requests: 1 },
+          costUsd: 0,
+          toolCalls: 2,
+          ended: !!r.endTurn,
+          note: r.note,
+        };
       },
     };
     let client!: WsLike;
-    const session = createBridgeSession({ provider: remote, code: '123456', send: (m: BridgeServerMsg) => queueMicrotask(() => client.onmessage?.({ data: JSON.stringify(m) })) });
-    client = { readyState: 1, onopen: null, onmessage: null, onclose: null, onerror: null, close: () => {}, send: (d: string) => queueMicrotask(() => session.handle(d)) };
+    const session = createBridgeSession({
+      provider: remote,
+      code: '123456',
+      send: (m: BridgeServerMsg) => queueMicrotask(() => client.onmessage?.({ data: JSON.stringify(m) })),
+    });
+    client = {
+      readyState: 1,
+      onopen: null,
+      onmessage: null,
+      onclose: null,
+      onerror: null,
+      close: () => {},
+      send: (d: string) => queueMicrotask(() => session.handle(d)),
+    };
     // 错误配对码
     const errs: string[] = [];
     client.onmessage = (ev) => errs.push(String(ev.data));
@@ -220,9 +279,11 @@ describe('MCP handlers', () => {
   it('new_game → actions → advance → replay', () => {
     const srv = new McpGameServer();
     const names = srv.listTools().map((t) => t.name);
-    for (const n of ['new_game', 'observe', 'advance', 'get_replay', 'place_tower', 'cast_skill', 'choose_perk', 'start_wave']) expect(names).toContain(n);
+    for (const n of ['new_game', 'observe', 'advance', 'get_replay', 'place_tower', 'cast_skill', 'choose_perk', 'start_wave'])
+      expect(names).toContain(n);
     expect(names).not.toContain('end_turn');
-    for (const t of srv.listTools()) if (!['new_game', 'list_sessions'].includes(t.name)) expect(t.inputSchema.required).toContain('session_id');
+    for (const t of srv.listTools())
+      if (!['new_game', 'list_sessions'].includes(t.name)) expect(t.inputSchema.required).toContain('session_id');
 
     const ng = srv.callTool('new_game', { seed: 'mcp1', auto_wave: true, include_rules: true, agent_name: 'claude-test' });
     expect(ng.isError).toBeUndefined();
@@ -254,7 +315,9 @@ describe('runner with the pi adapter end to end (faux)', () => {
     const reg = registerFauxProvider();
     try {
       reg.setResponses([
-        fauxAssistantMessage([fauxToolCall('place_tower', { tower: 'pencil', x: 5, y: 3 }), fauxToolCall('end_turn', {})], { stopReason: 'toolUse' }),
+        fauxAssistantMessage([fauxToolCall('place_tower', { tower: 'pencil', x: 5, y: 3 }), fauxToolCall('end_turn', {})], {
+          stopReason: 'toolUse',
+        }),
       ]);
       const cfg = resolveConfig({ provider: 'pi', preset: 'custom', baseUrl: 'http://127.0.0.1:9/v1', model: 'faux' });
       const r = await runAgentGame(OPTS, { config: cfg, provider: new PiProvider({ config: cfg, model: reg.getModel() }), maxWaves: 2 });
@@ -281,7 +344,13 @@ describe('browser controller (real Session, no DOM)', () => {
       pausedDuringDecision = session.paused;
       return orig(ctx);
     };
-    const ctl = createAgentController({ config: { provider: 'scripted' }, session, provider, pollMs: 0, onEvent: (e) => events.push(e.type === 'status' ? `status:${e.status}` : e.type) });
+    const ctl = createAgentController({
+      config: { provider: 'scripted' },
+      session,
+      provider,
+      pollMs: 0,
+      onEvent: (e) => events.push(e.type === 'status' ? `status:${e.status}` : e.type),
+    });
     await ctl.start();
     expect(ctl.status).toBe('running');
     for (let i = 0; i < 1500; i++) {

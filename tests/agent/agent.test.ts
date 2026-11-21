@@ -2,19 +2,63 @@ import { describe, expect, it } from 'vitest';
 import { createWorld, stateHash, type Command, type RunOptions } from '../../src/core';
 import { replaySync } from '../../src/meta/midrun';
 import {
-  AGENT_TOOLS, AgentScheduler, executeTool, observe, renderObservation, asciiMap, estimateTokens, runAgentGame,
-  toCommand, toolsForRole, validateToolInput, ScriptedProvider, scriptedFallback, systemBlocks, resolveConfig, validateConfig, saveableConfig,
-  type DecisionReason, type JsonSchema, type LLMProvider, type DecisionContext,
+  AGENT_TOOLS,
+  AgentScheduler,
+  executeTool,
+  observe,
+  renderObservation,
+  asciiMap,
+  estimateTokens,
+  runAgentGame,
+  toCommand,
+  toolsForRole,
+  validateToolInput,
+  ScriptedProvider,
+  scriptedFallback,
+  systemBlocks,
+  resolveConfig,
+  validateConfig,
+  saveableConfig,
+  type DecisionReason,
+  type JsonSchema,
+  type LLMProvider,
+  type DecisionContext,
 } from '../../src/agent';
 import { emptyUsage } from '../../src/agent/types';
 
-const OPTS: RunOptions = { mode: 'endless', map: 'ch1', difficulty: 'normal', seed: 'agent-test', skills: ['eraser_strike', 'bell', 'whiteout_zone'], pure: true };
+const OPTS: RunOptions = {
+  mode: 'endless',
+  map: 'ch1',
+  difficulty: 'normal',
+  seed: 'agent-test',
+  skills: ['eraser_strike', 'bell', 'whiteout_zone'],
+  pure: true,
+};
 
 describe('observation', () => {
   it('has the documented shape and a 12×14 map', () => {
     const w = createWorld(OPTS);
     const o = observe(w);
-    for (const k of ['t', 'tick', 'phase', 'wave', 'gold', 'lives', 'score', 'autoWave', 'path', 'towers', 'enemies', 'next', 'skills', 'events', 'spawners', 'pickups', 'owned', 'build']) {
+    for (const k of [
+      't',
+      'tick',
+      'phase',
+      'wave',
+      'gold',
+      'lives',
+      'score',
+      'autoWave',
+      'path',
+      'towers',
+      'enemies',
+      'next',
+      'skills',
+      'events',
+      'spawners',
+      'pickups',
+      'owned',
+      'build',
+    ]) {
       expect(o).toHaveProperty(k);
     }
     expect(o.skills.length).toBe(3);
@@ -31,8 +75,12 @@ describe('observation', () => {
     expect(early).toBeLessThan(1500);
     let late = 0;
     await runAgentGame(OPTS, {
-      config: { provider: 'scripted' }, provider: new ScriptedProvider(), maxWaves: 14,
-      onDecision: (_r, w) => { late = Math.max(late, estimateTokens(renderObservation(w))); },
+      config: { provider: 'scripted' },
+      provider: new ScriptedProvider(),
+      maxWaves: 14,
+      onDecision: (_r, w) => {
+        late = Math.max(late, estimateTokens(renderObservation(w)));
+      },
     });
     expect(late).toBeGreaterThan(early);
     expect(late).toBeLessThan(3000);
@@ -80,7 +128,9 @@ describe('tools', () => {
 
   it('every action tool maps to a valid Command', () => {
     const w = createWorld(OPTS);
-    const actions = AGENT_TOOLS.filter((t) => t.kind === 'action').map((t) => t.name).sort();
+    const actions = AGENT_TOOLS.filter((t) => t.kind === 'action')
+      .map((t) => t.name)
+      .sort();
     expect(actions).toEqual(Object.keys(valid).sort());
     for (const [name, [input, type]] of Object.entries(valid)) {
       expect(validateToolInput(name, input), name).toEqual([]);
@@ -93,12 +143,37 @@ describe('tools', () => {
 
   it('cast_skill picks the right target fields per skill', () => {
     const w = createWorld(OPTS);
-    expect(toCommand(w, 'cast_skill', { skill: 'eraser_strike', x: 4, y: 6 })).toEqual({ type: 'cast', skill: 'eraser_strike', x: 4.5, y: 6.5 });
-    expect(toCommand(w, 'cast_skill', { skill: 'whiteout_zone', x: 4, y: 6 })).toEqual({ type: 'cast', skill: 'whiteout_zone', cx: 4, cy: 6 });
+    expect(toCommand(w, 'cast_skill', { skill: 'eraser_strike', x: 4, y: 6 })).toEqual({
+      type: 'cast',
+      skill: 'eraser_strike',
+      x: 4.5,
+      y: 6.5,
+    });
+    expect(toCommand(w, 'cast_skill', { skill: 'whiteout_zone', x: 4, y: 6 })).toEqual({
+      type: 'cast',
+      skill: 'whiteout_zone',
+      cx: 4,
+      cy: 6,
+    });
     expect(toCommand(w, 'cast_skill', { skill: 'bell' })).toEqual({ type: 'cast', skill: 'bell' });
-    expect(toCommand(null, 'cast_skill', { skill: 'ruler_sweep', axis: 'col', index: 3 })).toEqual({ type: 'cast', skill: 'ruler_sweep', axis: 'col', cx: 3 });
-    expect(toCommand(null, 'cast_skill', { skill: 'relocate', uid: 2, x: 1, y: 1 })).toEqual({ type: 'cast', skill: 'relocate', uid: 2, cx: 1, cy: 1 });
-    expect(toCommand(null, 'cast_skill', { skill: 'seal_tape', spawner: 'drop-2' })).toEqual({ type: 'cast', skill: 'seal_tape', spawner: 'drop-2' });
+    expect(toCommand(null, 'cast_skill', { skill: 'ruler_sweep', axis: 'col', index: 3 })).toEqual({
+      type: 'cast',
+      skill: 'ruler_sweep',
+      axis: 'col',
+      cx: 3,
+    });
+    expect(toCommand(null, 'cast_skill', { skill: 'relocate', uid: 2, x: 1, y: 1 })).toEqual({
+      type: 'cast',
+      skill: 'relocate',
+      uid: 2,
+      cx: 1,
+      cy: 1,
+    });
+    expect(toCommand(null, 'cast_skill', { skill: 'seal_tape', spawner: 'drop-2' })).toEqual({
+      type: 'cast',
+      skill: 'seal_tape',
+      spawner: 'drop-2',
+    });
     expect(toCommand(w, 'cast_skill', { skill: 'eraser_strike' })).toHaveProperty('error');
   });
 
@@ -233,10 +308,13 @@ describe('runner', () => {
     expect(r.agent.provider).toBe('baseline');
   });
 
-  function fakeProvider(fn: (ctx: DecisionContext, n: number) => Promise<Partial<ReturnType<typeof emptyUsage>> | 'error' | 'hang'>): LLMProvider {
+  function fakeProvider(
+    fn: (ctx: DecisionContext, n: number) => Promise<Partial<ReturnType<typeof emptyUsage>> | 'error' | 'hang'>,
+  ): LLMProvider {
     let n = 0;
     return {
-      id: 'fake', model: 'fake-1',
+      id: 'fake',
+      model: 'fake-1',
       async decide(ctx) {
         const r = await fn(ctx, n++);
         if (r === 'error') return { usage: emptyUsage(), costUsd: 0, toolCalls: 0, ended: false, error: 'boom' };
@@ -252,7 +330,11 @@ describe('runner', () => {
 
   it('token budget exhaustion hands the rest to the fallback bot', async () => {
     const p = fakeProvider(async () => ({ inputTokens: 600, outputTokens: 100 }));
-    const r = await runAgentGame(OPTS, { config: { provider: 'scripted', contextMode: 'full', budget: { tokens: 2000, mode: 'hard' } }, provider: p, maxWaves: 3 });
+    const r = await runAgentGame(OPTS, {
+      config: { provider: 'scripted', contextMode: 'full', budget: { tokens: 2000, mode: 'hard' } },
+      provider: p,
+      maxWaves: 3,
+    });
     const agentDecisions = r.decisions.filter((d) => d.by === 'agent').length;
     expect(agentDecisions).toBe(3);
     expect(r.decisions.some((d) => d.fallbackReason?.includes('budget'))).toBe(true);
@@ -277,7 +359,8 @@ describe('runner', () => {
   it('realtime mode advances the world while the model "thinks"', async () => {
     const ticks: number[] = [];
     const p: LLMProvider = {
-      id: 'rt', model: 'rt',
+      id: 'rt',
+      model: 'rt',
       async decide(ctx) {
         const before = ctx.world?.state.tick ?? 0;
         await ctx.afterRequest(0);

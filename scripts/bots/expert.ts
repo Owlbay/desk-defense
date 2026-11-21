@@ -7,9 +7,14 @@ import type { MapId, ModeId } from '../../src/core';
 import { campaignSkills } from './loadout';
 
 export function expert(ctx: { mode: ModeId; map: MapId }): BotParams {
-  const skills = ctx.mode === 'campaign'
-    ? (ctx.map === 'ch1' ? campaignSkills('ch1') : ctx.map === 'ch2' ? ['bell', 'caffeine', 'eraser_strike'] : ['bell', 'caffeine', 'scholarship'])
-    : ['eraser_strike', 'bell', 'caffeine'];
+  const skills =
+    ctx.mode === 'campaign'
+      ? ctx.map === 'ch1'
+        ? campaignSkills('ch1')
+        : ctx.map === 'ch2'
+          ? ['bell', 'caffeine', 'eraser_strike']
+          : ['bell', 'caffeine', 'scholarship']
+      : ['eraser_strike', 'bell', 'caffeine'];
   return {
     name: 'expert',
     skills: skills as BotParams['skills'],
@@ -17,8 +22,31 @@ export function expert(ctx: { mode: ModeId; map: MapId }): BotParams {
     mazeSegments: () => 99,
     wallShare: 0.5,
     rotation: [
-      'pencil', 'pencil', 'eraser', 'pencil', 'pencil', 'lamp', 'pencil', 'pencil', 'glue', 'pencil', 'lamp', 'pencil', 'eraser',
-      'pencil', 'calculator', 'pencil', 'compass', 'pencil', 'piggy', 'lamp', 'pencil', 'stapler', 'pencil', 'calculator', 'piggy',
+      'pencil',
+      'pencil',
+      'eraser',
+      'pencil',
+      'pencil',
+      'lamp',
+      'pencil',
+      'pencil',
+      'glue',
+      'pencil',
+      'lamp',
+      'pencil',
+      'eraser',
+      'pencil',
+      'calculator',
+      'pencil',
+      'compass',
+      'pencil',
+      'piggy',
+      'lamp',
+      'pencil',
+      'stapler',
+      'pencil',
+      'calculator',
+      'piggy',
     ],
     maxTowers: (w) => Math.min(8 + w * 1.5, 48),
     upgrade: 'value',
@@ -26,10 +54,39 @@ export function expert(ctx: { mode: ModeId; map: MapId }): BotParams {
     reserve: () => 0,
     skillUse: 'smart',
     perkPriority: [
-      'legend', 'promotion', 'sale', 'compound', 'timemgmt', 'notes', 'sharpener', 'quickreview', 'scholaraura', 'safe',
-      'drafting', 'bulb', 'pocket', 'pocketmoney', 'staples', 'quickglue', 'inkplenty', 'earlybird', 'thickcover', 'tradein',
+      'legend',
+      'promotion',
+      'sale',
+      'compound',
+      'timemgmt',
+      'notes',
+      'sharpener',
+      'quickreview',
+      'scholaraura',
+      'safe',
+      'drafting',
+      'bulb',
+      'pocket',
+      'pocketmoney',
+      'staples',
+      'quickglue',
+      'inkplenty',
+      'earlybird',
+      'thickcover',
+      'tradein',
     ],
-    branches: { pencil: 'A', stapler: 'B', glue: 'B', lamp: 'A', compass: 'B', eraser: 'A', ruler: 'B', pen: 'B', calculator: 'A', piggy: 'A' },
+    branches: {
+      pencil: 'A',
+      stapler: 'B',
+      glue: 'B',
+      lamp: 'A',
+      compass: 'B',
+      eraser: 'A',
+      ruler: 'B',
+      pen: 'B',
+      calculator: 'A',
+      piggy: 'A',
+    },
     combos: true,
     wallUpgrades: true,
     earlyStart: true,

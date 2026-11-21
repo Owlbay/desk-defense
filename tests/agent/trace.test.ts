@@ -3,8 +3,18 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { fauxAssistantMessage, fauxText, fauxThinking, fauxToolCall, registerFauxProvider } from '@mariozechner/pi-ai';
 import { createWorld, type RunOptions } from '../../src/core';
 import {
-  AgentTrace, DecisionEngine, executeTool, resolveConfig, runAgentGame, scriptedFallback, systemBlocks, toolsForRole,
-  type DecisionContext, type LLMProvider, type ToolResult, type TraceEvent,
+  AgentTrace,
+  DecisionEngine,
+  executeTool,
+  resolveConfig,
+  runAgentGame,
+  scriptedFallback,
+  systemBlocks,
+  toolsForRole,
+  type DecisionContext,
+  type LLMProvider,
+  type ToolResult,
+  type TraceEvent,
 } from '../../src/agent';
 import { redactError, redactJson, redactString, redactValue, REDACTED } from '../../src/agent/redact';
 import { ClaudeProvider } from '../../src/agent/providers/claude';
@@ -12,7 +22,14 @@ import { PiProvider } from '../../src/agent/providers/pi';
 import { ScriptedProvider } from '../../src/agent/providers/scripted';
 import { BridgeProvider, createBridgeSession, type BridgeServerMsg, type WsLike } from '../../src/agent/bridge';
 
-const OPTS: RunOptions = { mode: 'endless', map: 'ch1', difficulty: 'normal', seed: 'trace', skills: ['eraser_strike', 'bell', 'whiteout_zone'], pure: true };
+const OPTS: RunOptions = {
+  mode: 'endless',
+  map: 'ch1',
+  difficulty: 'normal',
+  seed: 'trace',
+  skills: ['eraser_strike', 'bell', 'whiteout_zone'],
+  pure: true,
+};
 
 const KEYS = {
   anthropic: 'sk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcdefXYZ',
@@ -45,7 +62,17 @@ function ctxFor(world = createWorld(OPTS), trace?: DecisionContext['trace']): De
 /** 一个"收集器"：模拟引擎给适配器的 ctx.trace */
 function collector() {
   const t = new AgentTrace();
-  const sink = t.begin({ k: 'decision_start', trigger: ['game_start'], wave: 0, time: 0, tick: 0, phase: 'build', provider: 'x', model: 'x', role: 'player' });
+  const sink = t.begin({
+    k: 'decision_start',
+    trigger: ['game_start'],
+    wave: 0,
+    time: 0,
+    tick: 0,
+    phase: 'build',
+    provider: 'x',
+    model: 'x',
+    role: 'player',
+  });
   return { t, sink, kinds: () => t.events().map((e) => e.k) };
 }
 
@@ -56,8 +83,20 @@ const noKey = (s: string): void => {
 describe('redaction', () => {
   it('redacts secret-looking header and body fields', () => {
     const v = redactValue({
-      headers: { Authorization: `Bearer ${KEYS.openai}`, 'x-api-key': KEYS.anthropic, 'X-Goog-Api-Key': KEYS.google, 'content-type': 'application/json' },
-      body: { apiKey: KEYS.custom, api_key: 'abc', nested: [{ access_token: 'tok' }], model: 'claude-opus-5-5', max_tokens: 100, input_tokens: 5 },
+      headers: {
+        Authorization: `Bearer ${KEYS.openai}`,
+        'x-api-key': KEYS.anthropic,
+        'X-Goog-Api-Key': KEYS.google,
+        'content-type': 'application/json',
+      },
+      body: {
+        apiKey: KEYS.custom,
+        api_key: 'abc',
+        nested: [{ access_token: 'tok' }],
+        model: 'claude-opus-5-5',
+        max_tokens: 100,
+        input_tokens: 5,
+      },
     }) as { headers: Record<string, string>; body: Record<string, unknown> };
     expect(v.headers.Authorization).toBe(REDACTED);
     expect(v.headers['x-api-key']).toBe(REDACTED);
@@ -91,7 +130,9 @@ describe('redaction', () => {
     expect(redactString('relay said: hunter2-but-long-enough!!', ['hunter2-but-long-enough!!'])).toBe(`relay said: ${REDACTED}`);
     expect(redactError(new Error(`connection failed for ${KEYS.anthropic}`))).not.toContain(KEYS.anthropic);
     // 普通内容不受影响
-    expect(redactString('place_tower tower=pencil x=3 y=5; max_tokens=1024; task-list ok')).toBe('place_tower tower=pencil x=3 y=5; max_tokens=1024; task-list ok');
+    expect(redactString('place_tower tower=pencil x=3 y=5; max_tokens=1024; task-list ok')).toBe(
+      'place_tower tower=pencil x=3 y=5; max_tokens=1024; task-list ok',
+    );
   });
 
   it('caps huge JSON', () => {
@@ -104,8 +145,27 @@ describe('redaction', () => {
   it('trace store redacts registered secrets everywhere', () => {
     const t = new AgentTrace();
     t.addSecret(KEYS.custom);
-    const sink = t.begin({ k: 'decision_start', trigger: [], wave: 0, time: 0, tick: 0, phase: 'build', provider: 'p', model: 'm', role: 'player', observation: `obs ${KEYS.custom}` });
-    sink({ k: 'request', n: 1, provider: 'p', api: 'a', model: 'm', headers: { authorization: `Bearer ${KEYS.custom}` }, raw: { apiKey: KEYS.custom, note: `k=${KEYS.custom}` } });
+    const sink = t.begin({
+      k: 'decision_start',
+      trigger: [],
+      wave: 0,
+      time: 0,
+      tick: 0,
+      phase: 'build',
+      provider: 'p',
+      model: 'm',
+      role: 'player',
+      observation: `obs ${KEYS.custom}`,
+    });
+    sink({
+      k: 'request',
+      n: 1,
+      provider: 'p',
+      api: 'a',
+      model: 'm',
+      headers: { authorization: `Bearer ${KEYS.custom}` },
+      raw: { apiKey: KEYS.custom, note: `k=${KEYS.custom}` },
+    });
     sink({ k: 'thinking', n: 1, text: `I should not say ${KEYS.custom}` });
     sink({ k: 'error', message: `HTTP 401 for key ${KEYS.custom}` });
     const all = JSON.stringify(t.export());
@@ -119,10 +179,27 @@ describe('ring buffer', () => {
     const seen: string[] = [];
     t.subscribe((e) => e.k === 'thinking' && seen.push(e.text));
     for (let i = 0; i < 50; i++) {
-      const s = t.begin({ k: 'decision_start', trigger: [], wave: i, time: 0, tick: 0, phase: 'build', provider: 'p', model: 'm', role: 'player' });
+      const s = t.begin({
+        k: 'decision_start',
+        trigger: [],
+        wave: i,
+        time: 0,
+        tick: 0,
+        phase: 'build',
+        provider: 'p',
+        model: 'm',
+        role: 'player',
+      });
       s({ k: 'thinking', n: 1, text: 'a' });
       s({ k: 'thinking', n: 1, text: 'b' });
-      s({ k: 'decision_end', by: 'agent', ms: 1, usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, requests: 0 }, costUsd: 0, toolCalls: 0 });
+      s({
+        k: 'decision_end',
+        by: 'agent',
+        ms: 1,
+        usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, requests: 0 },
+        costUsd: 0,
+        toolCalls: 0,
+      });
     }
     // 每次决策 3 条（两段思路合并为一条）
     expect(t.events().length).toBeLessThanOrEqual(100);
@@ -135,8 +212,24 @@ describe('ring buffer', () => {
 
     const t2 = new AgentTrace({ maxEvents: 1e6, maxChars: 50_000 });
     for (let i = 0; i < 40; i++) {
-      const s = t2.begin({ k: 'decision_start', trigger: [], wave: i, time: 0, tick: 0, phase: 'build', provider: 'p', model: 'm', role: 'player' });
-      s({ k: 'response', n: 1, usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0, requests: 1 }, ms: 5, raw: { body: 'y'.repeat(5000) } });
+      const s = t2.begin({
+        k: 'decision_start',
+        trigger: [],
+        wave: i,
+        time: 0,
+        tick: 0,
+        phase: 'build',
+        provider: 'p',
+        model: 'm',
+        role: 'player',
+      });
+      s({
+        k: 'response',
+        n: 1,
+        usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0, requests: 1 },
+        ms: 5,
+        raw: { body: 'y'.repeat(5000) },
+      });
     }
     expect(t2.size.chars).toBeLessThanOrEqual(50_000);
     expect(t2.dropped).toBeGreaterThan(0);
@@ -146,7 +239,19 @@ describe('ring buffer', () => {
     const t = new AgentTrace();
     const sys = 'RULES '.repeat(2000);
     for (let i = 0; i < 20; i++) {
-      const s = t.begin({ k: 'decision_start', trigger: [], wave: i, time: 0, tick: 0, phase: 'build', provider: 'p', model: 'm', role: 'player', system: sys, observation: `obs ${i}` });
+      const s = t.begin({
+        k: 'decision_start',
+        trigger: [],
+        wave: i,
+        time: 0,
+        tick: 0,
+        phase: 'build',
+        provider: 'p',
+        model: 'm',
+        role: 'player',
+        system: sys,
+        observation: `obs ${i}`,
+      });
       s({ k: 'request', n: 1, provider: 'p', api: 'a', model: 'm', raw: { pad: 'z'.repeat(3000) } });
     }
     const x = t.export();
@@ -162,7 +267,14 @@ describe('scripted provider trace (no keys, offline demo)', () => {
   it('emits a full synthetic decision sequence through the engine', async () => {
     const w = createWorld({ ...OPTS, autoWave: false });
     const trace = new AgentTrace();
-    const engine = new DecisionEngine({ world: w, opts: w.state.opts, config: resolveConfig({ provider: 'scripted' }), provider: new ScriptedProvider(), fallback: scriptedFallback(w), trace });
+    const engine = new DecisionEngine({
+      world: w,
+      opts: w.state.opts,
+      config: resolveConfig({ provider: 'scripted' }),
+      provider: new ScriptedProvider(),
+      fallback: scriptedFallback(w),
+      trace,
+    });
     await engine.decide({ seq: 1, tick: 0, time: 0, wave: 0, phase: 'build', reasons: ['game_start'] }, []);
     const ev = trace.events();
     const kinds = ev.map((e) => e.k);
@@ -189,7 +301,10 @@ describe('scripted provider trace (no keys, offline demo)', () => {
     const place = ev.find((e) => e.k === 'tool_result' && e.name === 'place_tower' && e.ok) as Extract<TraceEvent, { k: 'tool_result' }>;
     expect(place.effect).toMatch(/金币 .*→/);
     expect(place.cell).toBeTruthy();
-    const thinking = ev.filter((e) => e.k === 'thinking').map((e) => (e as { text: string }).text).join('');
+    const thinking = ev
+      .filter((e) => e.k === 'thinking')
+      .map((e) => (e as { text: string }).text)
+      .join('');
     expect(thinking).toMatch(/建塔|迷宫|兵力/);
     const end = ev[ev.length - 1] as Extract<TraceEvent, { k: 'decision_end' }>;
     expect(end.by).toBe('agent');
@@ -200,8 +315,21 @@ describe('scripted provider trace (no keys, offline demo)', () => {
   it('records error + fallback when the provider fails', async () => {
     const w = createWorld(OPTS);
     const trace = new AgentTrace();
-    const bad: LLMProvider = { id: 'bad', model: 'm', decide: async () => { throw new Error(`boom ${KEYS.openai}`); } };
-    const engine = new DecisionEngine({ world: w, opts: w.state.opts, config: resolveConfig({ provider: 'scripted' }), provider: bad, fallback: scriptedFallback(w), trace });
+    const bad: LLMProvider = {
+      id: 'bad',
+      model: 'm',
+      decide: async () => {
+        throw new Error(`boom ${KEYS.openai}`);
+      },
+    };
+    const engine = new DecisionEngine({
+      world: w,
+      opts: w.state.opts,
+      config: resolveConfig({ provider: 'scripted' }),
+      provider: bad,
+      fallback: scriptedFallback(w),
+      trace,
+    });
     await engine.decide({ seq: 1, tick: 0, time: 0, wave: 0, phase: 'build', reasons: ['game_start'] }, []);
     const kinds = trace.events().map((e) => e.k);
     expect(kinds).toEqual(expect.arrayContaining(['decision_start', 'error', 'fallback', 'decision_end']));
@@ -219,13 +347,23 @@ describe('scripted provider trace (no keys, offline demo)', () => {
 
 describe('pi adapter trace (faux provider)', () => {
   let unregister: (() => void) | null = null;
-  afterEach(() => { unregister?.(); unregister = null; });
+  afterEach(() => {
+    unregister?.();
+    unregister = null;
+  });
 
   it('streams thinking + text, reports request/response and tool call ids', async () => {
     const reg = registerFauxProvider();
     unregister = reg.unregister;
     reg.setResponses([
-      fauxAssistantMessage([fauxThinking('The left lane is open; a pencil at (0,6) covers it.'), fauxText('Placing a pencil.'), fauxToolCall('place_tower', { tower: 'pencil', x: 0, y: 6 })], { stopReason: 'toolUse' }),
+      fauxAssistantMessage(
+        [
+          fauxThinking('The left lane is open; a pencil at (0,6) covers it.'),
+          fauxText('Placing a pencil.'),
+          fauxToolCall('place_tower', { tower: 'pencil', x: 0, y: 6 }),
+        ],
+        { stopReason: 'toolUse' },
+      ),
       fauxAssistantMessage([fauxThinking('Done for now.'), fauxToolCall('end_turn', { note: 'n1' })], { stopReason: 'toolUse' }),
     ]);
     const cfg = resolveConfig({ provider: 'pi', preset: 'custom', baseUrl: 'http://127.0.0.1:9/v1', model: 'faux', apiKey: KEYS.custom });
@@ -236,7 +374,10 @@ describe('pi adapter trace (faux provider)', () => {
     const w = createWorld(OPTS);
     const ctx = ctxFor(w, c.sink);
     const orig = ctx.callTool;
-    ctx.callTool = async (n, i, meta) => { ids.push(meta?.id); return orig(n, i, meta); };
+    ctx.callTool = async (n, i, meta) => {
+      ids.push(meta?.id);
+      return orig(n, i, meta);
+    };
     const out = await p.decide(ctx);
     expect(out.error).toBeUndefined();
     const ev = c.t.events();
@@ -274,25 +415,48 @@ describe('pi adapter trace (faux provider)', () => {
 describe('claude adapter trace (injected fake client)', () => {
   const usage = { input_tokens: 100, output_tokens: 20, cache_read_input_tokens: 4000, cache_creation_input_tokens: 10 };
   const turn1 = {
-    id: 'msg_1', type: 'message', role: 'assistant', model: 'claude-opus-5-5',
+    id: 'msg_1',
+    type: 'message',
+    role: 'assistant',
+    model: 'claude-opus-5-5',
     content: [
       { type: 'thinking', thinking: 'Summary: build a pencil near the exit.', signature: 'sig' },
       { type: 'text', text: 'Placing one pencil.' },
       { type: 'tool_use', id: 'toolu_01', name: 'place_tower', input: { tower: 'pencil', x: 0, y: 6 } },
     ],
-    stop_reason: 'tool_use', stop_details: null, usage,
+    stop_reason: 'tool_use',
+    stop_details: null,
+    usage,
   };
-  const turn2 = { ...turn1, id: 'msg_2', content: [{ type: 'tool_use', id: 'toolu_02', name: 'end_turn', input: { note: 'ok' } }], stop_reason: 'tool_use' };
+  const turn2 = {
+    ...turn1,
+    id: 'msg_2',
+    content: [{ type: 'tool_use', id: 'toolu_02', name: 'end_turn', input: { note: 'ok' } }],
+    stop_reason: 'tool_use',
+  };
 
   it('non-streaming client: summarized thinking, tool_use ids, usage per response', async () => {
     const replies = [turn1, turn2];
     const seen: Record<string, unknown>[] = [];
-    const client = { baseURL: 'https://api.anthropic.com', beta: { messages: { create: async (p: Record<string, unknown>) => { seen.push(p); return replies.shift(); } } } } as unknown as Anthropic;
+    const client = {
+      baseURL: 'https://api.anthropic.com',
+      beta: {
+        messages: {
+          create: async (p: Record<string, unknown>) => {
+            seen.push(p);
+            return replies.shift();
+          },
+        },
+      },
+    } as unknown as Anthropic;
     const c = collector();
     const ids: (string | undefined)[] = [];
     const ctx = ctxFor(createWorld(OPTS), c.sink);
     const orig = ctx.callTool;
-    ctx.callTool = async (n, i, meta) => { ids.push(meta?.id); return orig(n, i, meta); };
+    ctx.callTool = async (n, i, meta) => {
+      ids.push(meta?.id);
+      return orig(n, i, meta);
+    };
     const out = await new ClaudeProvider({ client, model: 'claude-opus-5-5', effort: 'low', apiKey: KEYS.anthropic }).decide(ctx);
     expect(out.error).toBeUndefined();
     expect(seen[0].thinking).toEqual({ type: 'adaptive', display: 'summarized' });
@@ -330,13 +494,17 @@ describe('claude adapter trace (injected fake client)', () => {
     const client = {
       beta: {
         messages: {
-          create: async () => { throw new Error('should stream'); },
+          create: async () => {
+            throw new Error('should stream');
+          },
           stream: (p: Record<string, unknown>) => {
             params = p;
             const evs = deltas.shift()!;
             const msg = replies.shift();
             return {
-              async *[Symbol.asyncIterator]() { for (const e of evs) yield e; },
+              async *[Symbol.asyncIterator]() {
+                for (const e of evs) yield e;
+              },
               finalMessage: async () => msg,
             };
           },
@@ -359,22 +527,56 @@ describe('claude adapter trace (injected fake client)', () => {
 describe('bridge trace forwarding', () => {
   it('forwards remote request/thinking/response over the socket, redacted, with tool ids', async () => {
     const remote: LLMProvider = {
-      id: 'claude-native', model: 'm1',
+      id: 'claude-native',
+      model: 'm1',
       async decide(ctx) {
-        ctx.trace?.({ k: 'request', n: 1, provider: 'claude-native', api: 'anthropic-messages', model: 'm1', headers: { 'x-api-key': KEYS.anthropic }, raw: { key: KEYS.anthropic } });
+        ctx.trace?.({
+          k: 'request',
+          n: 1,
+          provider: 'claude-native',
+          api: 'anthropic-messages',
+          model: 'm1',
+          headers: { 'x-api-key': KEYS.anthropic },
+          raw: { key: KEYS.anthropic },
+        });
         ctx.trace?.({ k: 'thinking', n: 1, text: `thinking… ${KEYS.anthropic}` });
-        ctx.trace?.({ k: 'response', n: 1, usage: { inputTokens: 3, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0, requests: 1 }, ms: 7, stop: 'tool_use' });
+        ctx.trace?.({
+          k: 'response',
+          n: 1,
+          usage: { inputTokens: 3, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0, requests: 1 },
+          ms: 7,
+          stop: 'tool_use',
+        });
         const r = await ctx.callTool('end_turn', { note: 'via bridge' }, { id: 'toolu_bridge' });
-        return { usage: { inputTokens: 3, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0, requests: 1 }, costUsd: 0, toolCalls: 1, ended: !!r.endTurn, note: r.note };
+        return {
+          usage: { inputTokens: 3, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0, requests: 1 },
+          costUsd: 0,
+          toolCalls: 1,
+          ended: !!r.endTurn,
+          note: r.note,
+        };
       },
     };
     let client!: WsLike;
     const wire: string[] = [];
     const session = createBridgeSession({
-      provider: remote, code: '654321', secrets: [KEYS.anthropic],
-      send: (m: BridgeServerMsg) => { wire.push(JSON.stringify(m)); queueMicrotask(() => client.onmessage?.({ data: JSON.stringify(m) })); },
+      provider: remote,
+      code: '654321',
+      secrets: [KEYS.anthropic],
+      send: (m: BridgeServerMsg) => {
+        wire.push(JSON.stringify(m));
+        queueMicrotask(() => client.onmessage?.({ data: JSON.stringify(m) }));
+      },
     });
-    client = { readyState: 1, onopen: null, onmessage: null, onclose: null, onerror: null, close: () => {}, send: (d: string) => queueMicrotask(() => session.handle(d)) };
+    client = {
+      readyState: 1,
+      onopen: null,
+      onmessage: null,
+      onclose: null,
+      onerror: null,
+      close: () => {},
+      send: (d: string) => queueMicrotask(() => session.handle(d)),
+    };
     const welcome = await new Promise<BridgeServerMsg>((res) => {
       client.onmessage = (ev) => res(JSON.parse(String(ev.data)));
       client.send(JSON.stringify({ t: 'hello', code: '654321', client: 't', v: 1 }));
@@ -383,11 +585,27 @@ describe('bridge trace forwarding', () => {
     // 走真正的引擎：tool_call / tool_result 由网页这边的引擎记录，并带上桥接器传来的 id
     const w = createWorld(OPTS);
     const trace = new AgentTrace();
-    const engine = new DecisionEngine({ world: w, opts: w.state.opts, config: resolveConfig({ provider: 'scripted' }), provider: bp, fallback: scriptedFallback(w), trace });
+    const engine = new DecisionEngine({
+      world: w,
+      opts: w.state.opts,
+      config: resolveConfig({ provider: 'scripted' }),
+      provider: bp,
+      fallback: scriptedFallback(w),
+      trace,
+    });
     await engine.decide({ seq: 1, tick: 0, time: 0, wave: 0, phase: 'build', reasons: ['game_start'] }, []);
     const ev = trace.events();
     // 模型没开波 → 引擎的推进保证自动开波，记作一条 fallback
-    expect(ev.map((e) => e.k)).toEqual(['decision_start', 'request', 'thinking', 'response', 'tool_call', 'tool_result', 'fallback', 'decision_end']);
+    expect(ev.map((e) => e.k)).toEqual([
+      'decision_start',
+      'request',
+      'thinking',
+      'response',
+      'tool_call',
+      'tool_result',
+      'fallback',
+      'decision_end',
+    ]);
     expect((ev[6] as Extract<TraceEvent, { k: 'fallback' }>).reason).toBe('auto start_wave');
     const req = ev[1] as Extract<TraceEvent, { k: 'request' }>;
     expect(req.provider).toBe('bridge:claude-native');

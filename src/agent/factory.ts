@@ -12,13 +12,20 @@ export async function createProvider(c: Partial<AgentModelConfig>): Promise<LLMP
   switch (cfg.provider) {
     case 'scripted': {
       const { ScriptedProvider } = await import('./providers/scripted');
-      return new ScriptedProvider({ intents: cfg.model === 'scripted-intents' || cfg.model === 'scripted-tactics', tactics: cfg.model === 'scripted-tactics' });
+      return new ScriptedProvider({
+        intents: cfg.model === 'scripted-intents' || cfg.model === 'scripted-tactics',
+        tactics: cfg.model === 'scripted-tactics',
+      });
     }
     case 'claude-native': {
       const { ClaudeProvider } = await import('./providers/claude');
       return new ClaudeProvider({
-        model: cfg.model, thinking: cfg.thinking, apiKey: cfg.apiKey, browser: cfg.browser,
-        maxOutputTokens: cfg.maxOutputTokens, refusalFallback: cfg.refusalFallback,
+        model: cfg.model,
+        thinking: cfg.thinking,
+        apiKey: cfg.apiKey,
+        browser: cfg.browser,
+        maxOutputTokens: cfg.maxOutputTokens,
+        refusalFallback: cfg.refusalFallback,
       });
     }
     case 'pi': {

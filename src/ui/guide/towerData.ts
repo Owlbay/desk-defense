@@ -18,7 +18,16 @@ export interface TowerSheet {
 const cache = new Map<string, TowerSheet | null>();
 
 function scratch(seed: string): IWorld {
-  const w = createWorld({ mode: 'endless', map: 'ch1', difficulty: 'normal', seed, skills: [], pure: true, fixedLayout: true, autoWave: false });
+  const w = createWorld({
+    mode: 'endless',
+    map: 'ch1',
+    difficulty: 'normal',
+    seed,
+    skills: [],
+    pure: true,
+    fixedLayout: true,
+    autoWave: false,
+  });
   w.state.gold = 1e9;
   return w;
 }

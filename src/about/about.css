@@ -5,8 +5,9 @@
 @import '../styles/tokens.css';
 
 :root {
-  --font: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Hiragino Sans', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC',
-    'Helvetica Neue', Arial, sans-serif;
+  --font:
+    -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Hiragino Sans', 'Microsoft YaHei', 'Noto Sans CJK SC',
+    'Noto Sans SC', 'Helvetica Neue', Arial, sans-serif;
   --radius: 14px;
   --bw: 2px;
   --gutter: clamp(16px, 4vw, 32px);

@@ -44,7 +44,7 @@ export function parseRelayUrl(input: string): RelayUrlParts | null {
   if (!u.hostname) return null;
   let path = u.pathname.replace(/\/+$/, '');
   // 可能粘贴了多层，如 …/v1/messages/ 或 …/v1/chat/completions
-  for (let changed = true; changed; ) {
+  for (let changed = true; changed;) {
     changed = false;
     for (const suf of ENDPOINT_SUFFIXES) {
       if (path.toLowerCase().endsWith(suf)) {
@@ -127,7 +127,11 @@ const parseIds = (j: unknown): string[] => {
 };
 
 /** GET {根}/v1/models：先 Bearer，再 x-api-key + anthropic-version */
-export async function listRelayModels(url: string, apiKey: string | undefined, fetchImpl: typeof fetch = fetch): Promise<RelayModelListing> {
+export async function listRelayModels(
+  url: string,
+  apiKey: string | undefined,
+  fetchImpl: typeof fetch = fetch,
+): Promise<RelayModelListing> {
   const p = parseRelayUrl(url);
   if (!p) return { ok: false, models: [], error: t('agent.relay.badUrl') };
   const endpoint = `${normalizeRelayBase(url, 'openai-completions')}/models`;
@@ -157,13 +161,14 @@ export async function listRelayModels(url: string, apiKey: string | undefined, f
     }
   }
   const status = /HTTP (\d+)/.exec(lastErr)?.[1];
-  const hint = network && !status
-    ? relayCorsHint()
-    : status === '401' || status === '403'
-      ? t('agent.relay.keyRejected')
-      : status === '404'
-        ? t('agent.relay.noModelList')
-        : undefined;
+  const hint =
+    network && !status
+      ? relayCorsHint()
+      : status === '401' || status === '403'
+        ? t('agent.relay.keyRejected')
+        : status === '404'
+          ? t('agent.relay.noModelList')
+          : undefined;
   return { ok: false, models: [], error: lastErr || t('agent.relay.unknownError'), hint };
 }
 
@@ -172,7 +177,8 @@ export async function listRelayModels(url: string, apiKey: string | undefined, f
 export type RelayFailure = 'stale' | 'cors' | 'auth' | 'not_found' | 'model' | 'rate' | 'no_tools' | 'other';
 
 /** 页面是旧版本、去加载已被新部署替换掉的 AI 分包（不是中转站的问题） */
-export const STALE_CHUNK_RE = /dynamically imported module|importing a module script failed|error loading dynamically imported|failed to load module script|chunkloaderror|loading chunk \S+ failed/i;
+export const STALE_CHUNK_RE =
+  /dynamically imported module|importing a module script failed|error loading dynamically imported|failed to load module script|chunkloaderror|loading chunk \S+ failed/i;
 
 export interface RelayAttempt {
   api: RelayApi;
@@ -204,7 +210,8 @@ export function relayProbeOrder(model: string): RelayApi[] {
 }
 
 const NET_RE = /connection error|failed to fetch|networkerror|load failed|fetch failed|cors|econnrefused|enotfound|err_|network/i;
-const MODEL_RE = /model[_ ]?not[_ ]?found|no such model|unknown model|invalid model|model .*(not found|does not exist|not exist|not supported|unavailable|不存在)|not_found_error.*model|无可用渠道|no available (channel|distributor)|模型.*(不存在|不可用|未开放)/i;
+const MODEL_RE =
+  /model[_ ]?not[_ ]?found|no such model|unknown model|invalid model|model .*(not found|does not exist|not exist|not supported|unavailable|不存在)|not_found_error.*model|无可用渠道|no available (channel|distributor)|模型.*(不存在|不可用|未开放)/i;
 
 /** 按错误文本分类（pi / OpenAI SDK / Anthropic SDK 的错误信息都以 "401 …" 之类开头） */
 export function classifyRelayError(error: string | undefined, reachable: boolean, tokens = 0): RelayFailure {
@@ -213,7 +220,12 @@ export function classifyRelayError(error: string | undefined, reachable: boolean
   if (STALE_CHUNK_RE.test(e)) return 'stale';
   if (MODEL_RE.test(e)) return 'model';
   const status = /(?:^|\D)(401|403|404|405|429)(?:\D|$)/.exec(e)?.[1];
-  if (status === '401' || status === '403' || /unauthori[sz]ed|invalid.*(api[ _-]?key|token)|api[ _-]?key.*invalid|令牌|无效的?\s*key/i.test(e)) return 'auth';
+  if (
+    status === '401' ||
+    status === '403' ||
+    /unauthori[sz]ed|invalid.*(api[ _-]?key|token)|api[ _-]?key.*invalid|令牌|无效的?\s*key/i.test(e)
+  )
+    return 'auth';
   if (status === '404' || status === '405' || /not found|no route|invalid url|unknown (url|endpoint|path)/i.test(e)) return 'not_found';
   if (status === '429' || /rate limit|quota|insufficient|余额|额度/i.test(e)) return 'rate';
   if (tokens === 0 && NET_RE.test(e)) return 'cors';
@@ -275,16 +287,36 @@ export async function detectRelayApi(cfg: Partial<AgentModelConfig>, opts: Detec
         budget: {},
       });
     } catch (e) {
-      d = { ok: false, reachable: false, toolCalling: false, latencyMs: 0, model: cfg.model ?? '', provider: 'pi', tokens: 0, error: e instanceof Error ? e.message : String(e) };
+      d = {
+        ok: false,
+        reachable: false,
+        toolCalling: false,
+        latencyMs: 0,
+        model: cfg.model ?? '',
+        provider: 'pi',
+        tokens: 0,
+        error: e instanceof Error ? e.message : String(e),
+      };
     }
     // 报了错、一个 token 都没收到 ⇒ 实际上没有连通
     const reachable = d.reachable && !(d.error && d.tokens === 0 && !d.toolCalling);
     const ok = d.ok && d.toolCalling;
     attempts.push({
-      api, baseUrl, ok, reachable, latencyMs: d.latencyMs, tokens: d.tokens,
+      api,
+      baseUrl,
+      ok,
+      reachable,
+      latencyMs: d.latencyMs,
+      tokens: d.tokens,
       ...(ok ? {} : { failure: classifyRelayError(d.error, reachable, d.tokens), error: d.error }),
     });
-    if (ok) return { ok: true, api, attempts, message: t('agent.relay.detected', { api: RELAY_API_LABEL[api], s: (d.latencyMs / 1000).toFixed(1) }) };
+    if (ok)
+      return {
+        ok: true,
+        api,
+        attempts,
+        message: t('agent.relay.detected', { api: RELAY_API_LABEL[api], s: (d.latencyMs / 1000).toFixed(1) }),
+      };
   }
   const failure = mainFailure(attempts);
   const partial = attempts.find((a) => a.failure === 'no_tools');

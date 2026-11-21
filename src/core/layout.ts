@@ -37,7 +37,9 @@ function spawnerStates(def: MapDef, campaign: boolean): SpawnerState[] {
   return def.spawners.map((d) => {
     const open = spawnerOpenWave(d, campaign);
     const st: SpawnerState = {
-      id: d.id, kind: d.kind, cells: d.cells.map((c) => ({ x: c.x, y: c.y })),
+      id: d.id,
+      kind: d.kind,
+      cells: d.cells.map((c) => ({ x: c.x, y: c.y })),
       active: d.kind === 'edge' && open === 1,
     };
     // 显示名按当前语言实时读取（只用于展示）
@@ -96,10 +98,11 @@ export function checkLayout(map: MapId, obstacles: readonly Obstacle[], campaign
   for (let i = 0; i < cells.length; i++) if (cells[i] === CellKind.Empty) empty++;
   const buildable = empty / cells.length;
   const gaps = countGaps(cells);
-  const ok = reachable
-    && routes.every((r) => r >= LAYOUT_RULES.minRoute && r <= LAYOUT_RULES.maxRoute)
-    && buildable >= LAYOUT_RULES.minBuildable
-    && gaps <= LAYOUT_RULES.maxGaps;
+  const ok =
+    reachable &&
+    routes.every((r) => r >= LAYOUT_RULES.minRoute && r <= LAYOUT_RULES.maxRoute) &&
+    buildable >= LAYOUT_RULES.minBuildable &&
+    gaps <= LAYOUT_RULES.maxGaps;
   return { ok, reachable, routes, buildable, gaps };
 }
 
@@ -123,20 +126,22 @@ function tryGenerate(def: MapDef, rng: Rng): Obstacle[] | null {
   // 禁放区：出生点（含隐藏）与出口周围 1 格
   const forbid = new Uint8Array(cols * rows);
   const mark = (cx: number, cy: number) => {
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-      const x = cx + dx;
-      const y = cy + dy;
-      if (x >= 0 && y >= 0 && x < cols && y < rows) forbid[y * cols + x] = 1;
-    }
+    for (let dy = -1; dy <= 1; dy++)
+      for (let dx = -1; dx <= 1; dx++) {
+        const x = cx + dx;
+        const y = cy + dy;
+        if (x >= 0 && y >= 0 && x < cols && y < rows) forbid[y * cols + x] = 1;
+      }
   };
   for (const sp of def.spawners) for (const c of sp.cells) mark(c.x, c.y);
   for (const c of def.exits) mark(c.x, c.y);
   // 已有障碍（骨架标志物）周围 1 格：杂物之间至少隔 1 格
   const near = new Uint8Array(cols * rows);
   const markObst = (o: Obstacle) => {
-    for (let y = o.y - 1; y <= o.y + o.h; y++) for (let x = o.x - 1; x <= o.x + o.w; x++) {
-      if (x >= 0 && y >= 0 && x < cols && y < rows) near[y * cols + x] = 1;
-    }
+    for (let y = o.y - 1; y <= o.y + o.h; y++)
+      for (let x = o.x - 1; x <= o.x + o.w; x++) {
+        if (x >= 0 && y >= 0 && x < cols && y < rows) near[y * cols + x] = 1;
+      }
   };
   for (const o of def.landmarks) markObst(o);
 
@@ -158,10 +163,14 @@ function tryGenerate(def: MapDef, rng: Rng): Obstacle[] | null {
       const x0 = rng.int(cols - w + 1);
       const y0 = rng.int(rows - h + 1);
       let ok = true;
-      for (let y = y0; y < y0 + h && ok; y++) for (let x = x0; x < x0 + w; x++) {
-        const i = y * cols + x;
-        if (cells[i] !== CellKind.Empty || forbid[i] || near[i]) { ok = false; break; }
-      }
+      for (let y = y0; y < y0 + h && ok; y++)
+        for (let x = x0; x < x0 + w; x++) {
+          const i = y * cols + x;
+          if (cells[i] !== CellKind.Empty || forbid[i] || near[i]) {
+            ok = false;
+            break;
+          }
+        }
       if (!ok) continue;
       for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) cells[y * cols + x] = CellKind.Obstacle;
       if (!routesWithinMax(def, cells)) {
@@ -186,7 +195,8 @@ export function generateLayout(map: MapId, seed: string, fixedLayout = false, ca
   const exits = def.exits.map((e) => ({ x: e.x, y: e.y }));
   const fallback = (): LayoutResult => ({
     obstacles: [...def.landmarks, ...def.defaultClutter].map((o) => ({ ...o })),
-    spawners, exits,
+    spawners,
+    exits,
   });
   if (fixedLayout) return fallback();
   for (let attempt = 0; attempt < LAYOUT_RULES.attempts; attempt++) {

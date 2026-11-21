@@ -57,7 +57,13 @@ export function nicknameError(raw: string): string | null {
 export function fmtTime(ms: number): string {
   const d = new Date(ms);
   if (!Number.isFinite(d.getTime())) return '';
-  return new Intl.DateTimeFormat(getLocale(), { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
+  return new Intl.DateTimeFormat(getLocale(), {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(d);
 }
 
 /** 存档里的日期（YYYY-MM-DD）按当前语言显示；格式不对就原样返回 */
@@ -76,7 +82,10 @@ export interface ReplayFeeder {
   readonly next: number;
 }
 
-export function makeFeeder(world: { state: { tick: number }; command(c: Command): unknown }, log: readonly { tick: number; cmd: Command }[]): ReplayFeeder {
+export function makeFeeder(
+  world: { state: { tick: number }; command(c: Command): unknown },
+  log: readonly { tick: number; cmd: Command }[],
+): ReplayFeeder {
   let next = 0;
   return {
     feed() {

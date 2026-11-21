@@ -66,18 +66,32 @@ import { bridgeCommands, detectOs, localGuides, networkNotes, OS_NAME, type OsId
 import { forgetKey, keyModeOf, loadSetup, readKey, saveSetup, writeKey, type AiSetupSaved, type AiSource, type KeyMode } from './store';
 
 /** 服务商预设的说明：src/agent 里是中文，这里按 id 取本地化文字（没有翻译时用原文） */
-const presetNotes = (s: Preset): string | undefined => (PRESETS[s].notes ? tOr(`agent.setup.presetNote.${s}`, PRESETS[s].notes) : undefined);
+const presetNotes = (s: Preset): string | undefined =>
+  PRESETS[s].notes ? tOr(`agent.setup.presetNote.${s}`, PRESETS[s].notes) : undefined;
 const SOURCE_LABEL = (s: AiSource): string =>
-  s === 'demo' ? t('agent.setup.source.demo') : s === 'claude' ? t('agent.setup.source.claude') : s === 'anthropic' ? t('agent.setup.source.anthropic') : presetLabel(s);
+  s === 'demo'
+    ? t('agent.setup.source.demo')
+    : s === 'claude'
+      ? t('agent.setup.source.claude')
+      : s === 'anthropic'
+        ? t('agent.setup.source.anthropic')
+        : presetLabel(s);
 const API_LABEL = (a: PiApi): string =>
-  a === 'openai-completions' ? t('agent.setup.api.openaiCompat') : a === 'anthropic-messages' ? 'Anthropic Messages' : a === 'openai-responses' ? 'OpenAI Responses' : 'Google Generative AI';
+  a === 'openai-completions'
+    ? t('agent.setup.api.openaiCompat')
+    : a === 'anthropic-messages'
+      ? 'Anthropic Messages'
+      : a === 'openai-responses'
+        ? 'OpenAI Responses'
+        : 'Google Generative AI';
 const API_IDS: PiApi[] = ['anthropic-messages', 'openai-completions', 'openai-responses', 'google-generative-ai'];
 const thinkingLabel = (l: ThinkingLevel): string => tOr(`agent.setup.thinking.${l}`, THINKING_LABEL[l]);
 const ctxLabel = (m: ContextMode): string => tOr(`agent.setup.ctx.${m}`, CONTEXT_MODE_LABEL[m]);
 const ctxDesc = (m: ContextMode): string => tOr(`agent.setup.ctxDesc.${m}`, CONTEXT_MODES[m].desc);
 const familyLabel = (f: keyof typeof FAMILY_LABEL): string => tOr(`agent.setup.family.${f}`, FAMILY_LABEL[f]);
 /** 思考等级的选项：很高 / 最高只对 Claude 开放 */
-const thinkingOptions = (claude: boolean): ThinkingLevel[] => (claude ? ['off', 'low', 'medium', 'high', 'xhigh', 'max'] : ['off', 'low', 'medium', 'high']);
+const thinkingOptions = (claude: boolean): ThinkingLevel[] =>
+  claude ? ['off', 'low', 'medium', 'high', 'xhigh', 'max'] : ['off', 'low', 'medium', 'high'];
 
 const NET_ERR_RE = /connection error|failed to fetch|networkerror|load failed|fetch failed|econnrefused|enotfound|timed? ?out|abort/i;
 
@@ -124,7 +138,13 @@ export interface Seg {
   paint(): void;
 }
 
-export function segs<T extends string>(items: readonly (readonly [T, string, string?])[], get: () => T, set: (v: T) => void, label: string, cls = ''): Seg {
+export function segs<T extends string>(
+  items: readonly (readonly [T, string, string?])[],
+  get: () => T,
+  set: (v: T) => void,
+  label: string,
+  cls = '',
+): Seg {
   const el = h(`div.seg-grid.ai-seg${cls}`, { attrs: { role: 'group', 'aria-label': label } });
   const paint = (): void => {
     clear(el);
@@ -153,7 +173,13 @@ export function segs<T extends string>(items: readonly (readonly [T, string, str
 }
 
 export const field = (label: string, control: HTMLElement, hint?: string | HTMLElement): HTMLElement =>
-  h('div.field.ai-field', null, h('span.ai-label', null, label), control, hint ? (typeof hint === 'string' ? h('small.muted', null, hint) : hint) : null);
+  h(
+    'div.field.ai-field',
+    null,
+    h('span.ai-label', null, label),
+    control,
+    hint ? (typeof hint === 'string' ? h('small.muted', null, hint) : hint) : null,
+  );
 
 export interface AiModelConfigFormOptions {
   /** 共用的设置对象（缺省读取保存的设置）；表单改动会写回并保存 */
@@ -229,7 +255,14 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
   const paintErrors = (show = false): string[] => {
     const errs = formErrors();
     clear(errBox);
-    if (show && errs.length) errBox.appendChild(h('ul', null, errs.map((e) => h('li', null, e))));
+    if (show && errs.length)
+      errBox.appendChild(
+        h(
+          'ul',
+          null,
+          errs.map((e) => h('li', null, e)),
+        ),
+      );
     return errs;
   };
 
@@ -238,11 +271,20 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
   const paintDiag = (): void => {
     clear(diagBox);
     if (busy === 'test') {
-      diagBox.appendChild(h('div.ai-diag-card.pending', null, h('span.ai-spinner', { attrs: { 'aria-hidden': 'true' } }), t('agent.setup.diag.testing')));
+      diagBox.appendChild(
+        h('div.ai-diag-card.pending', null, h('span.ai-spinner', { attrs: { 'aria-hidden': 'true' } }), t('agent.setup.diag.testing')),
+      );
       return;
     }
     if (busy === 'detect') {
-      diagBox.appendChild(h('div.ai-diag-card.pending', null, h('span.ai-spinner', { attrs: { 'aria-hidden': 'true' } }), `${t('agent.setup.diag.detecting')}${relayProgress}`));
+      diagBox.appendChild(
+        h(
+          'div.ai-diag-card.pending',
+          null,
+          h('span.ai-spinner', { attrs: { 'aria-hidden': 'true' } }),
+          `${t('agent.setup.diag.detecting')}${relayProgress}`,
+        ),
+      );
       return;
     }
     const line = (ok: boolean, text: string) => h(`li.${ok ? 'ok' : 'bad'}`, null, h('span.gi', { html: ok ? G.check : G.close }), text);
@@ -266,13 +308,34 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
       h(
         `div.ai-diag-card.${d.ok ? 'good' : d.reachable ? 'warn' : 'bad'}`,
         null,
-        h('b', null, d.ok ? t('agent.setup.diag.ok') : d.reachable ? t('agent.setup.diag.noTools') : d.network ? t('agent.setup.diag.netFail') : t('agent.setup.diag.refused')),
+        h(
+          'b',
+          null,
+          d.ok
+            ? t('agent.setup.diag.ok')
+            : d.reachable
+              ? t('agent.setup.diag.noTools')
+              : d.network
+                ? t('agent.setup.diag.netFail')
+                : t('agent.setup.diag.refused'),
+        ),
         h(
           'ul.ai-diag-list',
           null,
           line(d.reachable, d.reachable ? t('agent.setup.diag.reached', { model: d.model }) : t('agent.setup.diag.unreached')),
-          line(d.toolCalling, d.toolCalling ? t('agent.setup.diag.tools') : st.toolMode === 'json' ? t('agent.setup.diag.noJson') : t('agent.setup.diag.noToolCall')),
-          h('li.info', null, `${t('agent.setup.diag.latency', { s: fmtNumber(d.latencyMs / 1000, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) })}${d.tokens ? ` · ${t('agent.setup.diag.tokens', { n: fmtNum(d.tokens) })}` : ''}`),
+          line(
+            d.toolCalling,
+            d.toolCalling
+              ? t('agent.setup.diag.tools')
+              : st.toolMode === 'json'
+                ? t('agent.setup.diag.noJson')
+                : t('agent.setup.diag.noToolCall'),
+          ),
+          h(
+            'li.info',
+            null,
+            `${t('agent.setup.diag.latency', { s: fmtNumber(d.latencyMs / 1000, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) })}${d.tokens ? ` · ${t('agent.setup.diag.tokens', { n: fmtNum(d.tokens) })}` : ''}`,
+          ),
         ),
         d.error ? h('p.ai-diag-err', null, t('agent.setup.diag.error', { msg: d.error })) : null,
         d.advice ? h('p', null, d.advice) : null,
@@ -308,12 +371,23 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
     return h(
       `div.ai-diag-card.${r.ok ? 'good' : partial ? 'warn' : 'bad'}`,
       null,
-      h('b', null, r.ok && r.api ? t('agent.setup.relay.done', { api: RELAY_API_LABEL[r.api] }) : partial ? t('agent.setup.diag.noTools') : t('agent.setup.relay.failed')),
+      h(
+        'b',
+        null,
+        r.ok && r.api
+          ? t('agent.setup.relay.done', { api: RELAY_API_LABEL[r.api] })
+          : partial
+            ? t('agent.setup.diag.noTools')
+            : t('agent.setup.relay.failed'),
+      ),
       h(
         'ul.ai-diag-list.ai-relay-attempts',
         null,
         r.attempts.map((a) =>
-          line(a.ok, `${RELAY_API_LABEL[a.api]} · ${a.ok ? t('agent.setup.relay.secs', { s: fmtNumber(a.latencyMs / 1000, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }) : SHORT_FAIL(a.failure ?? 'other')}`),
+          line(
+            a.ok,
+            `${RELAY_API_LABEL[a.api]} · ${a.ok ? t('agent.setup.relay.secs', { s: fmtNumber(a.latencyMs / 1000, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }) : SHORT_FAIL(a.failure ?? 'other')}`,
+          ),
         ),
       ),
       h('p', null, r.message),
@@ -339,7 +413,10 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
   const paintCtxHint = (): void => {
     const m = st.contextMode === 'auto' ? autoCtx() : st.contextMode;
     const sp = CONTEXT_MODES[m];
-    setText(ctxHint, `${st.contextMode === 'auto' ? t('agent.setup.ctx.autoArrow', { mode: ctxLabel(m) }) : ''}${t('agent.setup.ctx.estimate', { n: fmtNum(sp.estTokensPerWave) })}${ctxDesc(m)}`);
+    setText(
+      ctxHint,
+      `${st.contextMode === 'auto' ? t('agent.setup.ctx.autoArrow', { mode: ctxLabel(m) }) : ''}${t('agent.setup.ctx.estimate', { n: fmtNum(sp.estTokensPerWave) })}${ctxDesc(m)}`,
+    );
   };
   const ctxSeg = segs(
     [
@@ -366,7 +443,8 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
   // 思考等级：自动 / 无思考 / 低 / 中 / 高（Claude 另有 很高 / 最高）；提示按服务商与模型给出
   const thinkingSel = h<HTMLSelectElement>('select.input', { attrs: { 'aria-label': t('agent.setup.thinking.label') } });
   const thinkingHint = h('small.muted');
-  const autoThinking = (): ThinkingLevel => (st.source === 'relay' ? 'low' : isLocal(st.source) ? 'off' : st.source === 'demo' ? 'off' : 'medium');
+  const autoThinking = (): ThinkingLevel =>
+    st.source === 'relay' ? 'low' : isLocal(st.source) ? 'off' : st.source === 'demo' ? 'off' : 'medium';
   const thinkingNote = (lv: ThinkingLevel): string => {
     const s = st.source;
     if (s === 'demo') return t('agent.setup.thinking.demo');
@@ -384,7 +462,13 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
     if (st.thinking !== 'auto' && !opts.includes(st.thinking)) st.thinking = 'high';
     clear(thinkingSel);
     const auto = autoThinking();
-    thinkingSel.appendChild(h('option', { attrs: { value: 'auto', selected: st.thinking === 'auto' } }, t('agent.setup.thinking.auto', { v: thinkingLabel(auto) })));
+    thinkingSel.appendChild(
+      h(
+        'option',
+        { attrs: { value: 'auto', selected: st.thinking === 'auto' } },
+        t('agent.setup.thinking.auto', { v: thinkingLabel(auto) }),
+      ),
+    );
     for (const e of opts) thinkingSel.appendChild(h('option', { attrs: { value: e, selected: e === st.thinking } }, thinkingLabel(e)));
     setText(thinkingHint, thinkingNote(st.thinking === 'auto' ? auto : st.thinking));
   };
@@ -414,12 +498,24 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
     });
     return el;
   };
-  const intervalInput = numInput(st.waveIntervalSec, { min: 3, max: 120, step: 1, placeholder: t('agent.setup.interval.placeholder'), 'aria-label': t('agent.setup.interval.label') }, (v) => {
-    st.waveIntervalSec = v === null ? null : Math.max(3, Math.min(120, Math.round(v)));
-    intervalInput.value = st.waveIntervalSec === null ? '' : String(st.waveIntervalSec);
-  });
-  const tokenInput = numInput(st.budgetTokens, { min: 1000, step: 1000, placeholder: t('agent.setup.unlimited'), 'aria-label': t('agent.setup.budget.tokensAria') }, (v) => (st.budgetTokens = v ? Math.round(v) : null));
-  const usdInput = numInput(st.budgetUsd, { min: 0.01, step: 0.01, placeholder: t('agent.setup.unlimited'), 'aria-label': t('agent.setup.budget.usdAria') }, (v) => (st.budgetUsd = v));
+  const intervalInput = numInput(
+    st.waveIntervalSec,
+    { min: 3, max: 120, step: 1, placeholder: t('agent.setup.interval.placeholder'), 'aria-label': t('agent.setup.interval.label') },
+    (v) => {
+      st.waveIntervalSec = v === null ? null : Math.max(3, Math.min(120, Math.round(v)));
+      intervalInput.value = st.waveIntervalSec === null ? '' : String(st.waveIntervalSec);
+    },
+  );
+  const tokenInput = numInput(
+    st.budgetTokens,
+    { min: 1000, step: 1000, placeholder: t('agent.setup.unlimited'), 'aria-label': t('agent.setup.budget.tokensAria') },
+    (v) => (st.budgetTokens = v ? Math.round(v) : null),
+  );
+  const usdInput = numInput(
+    st.budgetUsd,
+    { min: 0.01, step: 0.01, placeholder: t('agent.setup.unlimited'), 'aria-label': t('agent.setup.budget.usdAria') },
+    (v) => (st.budgetUsd = v),
+  );
 
   const paintDirect = (): void => {
     clear(directBox);
@@ -472,7 +568,10 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
         const ep = (api: RelayApi): string =>
           `${normalizeRelayBase(raw, api)}${api === 'anthropic-messages' ? '/v1/messages' : api === 'openai-responses' ? '/responses' : '/chat/completions'}`;
         if (relayMode(st) !== 'auto' || relayDetected(st)) return t('agent.setup.relay.willRequest', { url: ep(relayApiNow(st)) });
-        return t('agent.setup.relay.normalize', { openai: normalizeRelayBase(raw, 'openai-completions'), anthropic: ep('anthropic-messages') });
+        return t('agent.setup.relay.normalize', {
+          openai: normalizeRelayBase(raw, 'openai-completions'),
+          anthropic: ep('anthropic-messages'),
+        });
       };
       directBox.appendChild(
         h(
@@ -484,7 +583,14 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
         ),
       );
       const urlInput = h<HTMLInputElement>('input.input', {
-        attrs: { type: 'url', inputmode: 'url', autocomplete: 'off', spellcheck: 'false', placeholder: t('agent.setup.relay.urlPlaceholder'), 'aria-label': t('agent.setup.relay.url') },
+        attrs: {
+          type: 'url',
+          inputmode: 'url',
+          autocomplete: 'off',
+          spellcheck: 'false',
+          placeholder: t('agent.setup.relay.urlPlaceholder'),
+          'aria-label': t('agent.setup.relay.url'),
+        },
       });
       urlInput.value = baseUrlOf(st, s);
       const urlHint = h('small.muted');
@@ -546,7 +652,14 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
       };
       directBox.appendChild(field(t('agent.setup.apiType'), apiSel, s === 'custom' ? undefined : t('agent.setup.apiTypeAuto')));
       const urlInput = h<HTMLInputElement>('input.input', {
-        attrs: { type: 'url', inputmode: 'url', autocomplete: 'off', spellcheck: 'false', placeholder: PRESETS[s].baseUrl, 'aria-label': 'Base URL' },
+        attrs: {
+          type: 'url',
+          inputmode: 'url',
+          autocomplete: 'off',
+          spellcheck: 'false',
+          placeholder: PRESETS[s].baseUrl,
+          'aria-label': 'Base URL',
+        },
       });
       urlInput.value = baseUrlOf(st, s);
       urlInput.addEventListener('change', () => {
@@ -568,7 +681,14 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
     };
     fillList();
     const modelInput = h<HTMLInputElement>('input.input', {
-      attrs: { type: 'text', list: listId, autocomplete: 'off', spellcheck: 'false', placeholder: s === 'claude' ? 'claude-sonnet-5-5' : PRESETS[s].defaultModel || t('agent.setup.modelName'), 'aria-label': t('agent.setup.model') },
+      attrs: {
+        type: 'text',
+        list: listId,
+        autocomplete: 'off',
+        spellcheck: 'false',
+        placeholder: s === 'claude' ? 'claude-sonnet-5-5' : PRESETS[s].defaultModel || t('agent.setup.modelName'),
+        'aria-label': t('agent.setup.model'),
+      },
     });
     modelInput.value = modelOf(st, s);
     modelInput.addEventListener('change', () => {
@@ -590,7 +710,13 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
       paintPicker();
     };
     const pickerFilter = h<HTMLInputElement>('input.input', {
-      attrs: { type: 'search', autocomplete: 'off', spellcheck: 'false', placeholder: t('agent.setup.modelSearchPlaceholder'), 'aria-label': t('agent.setup.modelSearch') },
+      attrs: {
+        type: 'search',
+        autocomplete: 'off',
+        spellcheck: 'false',
+        placeholder: t('agent.setup.modelSearchPlaceholder'),
+        'aria-label': t('agent.setup.modelSearch'),
+      },
     });
     const pickerList = h('div.ai-model-groups');
     function paintPicker(): void {
@@ -611,7 +737,11 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
               'div.ai-model-chips',
               null,
               g.models.map((m) =>
-                h(`button.ai-model-chip${m === cur ? '.on' : ''}`, { attrs: { type: 'button', 'aria-pressed': m === cur ? 'true' : 'false' }, onclick: () => pickModel(m) }, m),
+                h(
+                  `button.ai-model-chip${m === cur ? '.on' : ''}`,
+                  { attrs: { type: 'button', 'aria-pressed': m === cur ? 'true' : 'false' }, onclick: () => pickModel(m) },
+                  m,
+                ),
               ),
             ),
           ),
@@ -632,7 +762,12 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
           busy = 'models';
           listBtn.disabled = true;
           setText(listMsg, t('agent.setup.models.loading'));
-          const r = await listModels(buildConfig()).catch((e: unknown) => ({ ok: false, models: [] as string[], error: e instanceof Error ? e.message : String(e), hint: undefined }));
+          const r = await listModels(buildConfig()).catch((e: unknown) => ({
+            ok: false,
+            models: [] as string[],
+            error: e instanceof Error ? e.message : String(e),
+            hint: undefined,
+          }));
           busy = null;
           if (disposed) return;
           listBtn.disabled = false;
@@ -640,7 +775,12 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
             models.set(s, r.models);
             fillList();
             paintPicker();
-            setText(listMsg, s === 'relay' ? t('agent.setup.models.foundRelay', { n: r.models.length }) : t('agent.setup.models.found', { n: r.models.length }));
+            setText(
+              listMsg,
+              s === 'relay'
+                ? t('agent.setup.models.foundRelay', { n: r.models.length })
+                : t('agent.setup.models.found', { n: r.models.length }),
+            );
             if (s !== 'relay' && (!modelInput.value.trim() || !r.models.includes(modelInput.value.trim()))) {
               if (isLocal(s) || !modelInput.value.trim()) {
                 modelInput.value = r.models[0];
@@ -650,7 +790,12 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
               }
             }
           } else {
-            setText(listMsg, r.ok ? t('agent.setup.models.empty') : `${r.error ? t('agent.setup.models.failedWith', { msg: r.error }) : t('agent.setup.models.failed')}${r.hint ? ` ${r.hint}` : ''}`);
+            setText(
+              listMsg,
+              r.ok
+                ? t('agent.setup.models.empty')
+                : `${r.error ? t('agent.setup.models.failedWith', { msg: r.error }) : t('agent.setup.models.failed')}${r.hint ? ` ${r.hint}` : ''}`,
+            );
           }
         },
       },
@@ -716,7 +861,11 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
       h(
         'div.ai-key',
         null,
-        field(local ? t('agent.setup.key.optional') : 'API Key', h('div.ai-inline', null, keyInput, forgetBtn), s === 'relay' ? keyDest : undefined),
+        field(
+          local ? t('agent.setup.key.optional') : 'API Key',
+          h('div.ai-inline', null, keyInput, forgetBtn),
+          s === 'relay' ? keyDest : undefined,
+        ),
         keySeg.el,
         localWarn,
         h('p.ai-warn', null, h('span.gi', { html: G.warn }), h('span', null, tOr('agent.setup.key.byoWarning', BYO_KEY_WARNING))),
@@ -733,7 +882,10 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
           osSeg.appendChild(
             h(
               `button.seg${os === o ? '.on' : ''}`,
-              { attrs: { type: 'button', 'aria-pressed': os === o ? 'true' : 'false' }, onclick: () => (audio.play('click'), (os = o), paintGuide()) },
+              {
+                attrs: { type: 'button', 'aria-pressed': os === o ? 'true' : 'false' },
+                onclick: () => (audio.play('click'), (os = o), paintGuide()),
+              },
               OS_NAME[o],
             ),
           );
@@ -742,7 +894,12 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
         const guides = localGuides(origin, os);
         const ordered = [...guides.filter((g) => g.id === s), ...guides.filter((g) => g.id !== s)];
         for (const g of ordered) {
-          const d = h<HTMLDetailsElement>('details.ai-guide-item', null, h('summary', null, g.name), ...g.steps.map((x) => codeBlock(app, x)));
+          const d = h<HTMLDetailsElement>(
+            'details.ai-guide-item',
+            null,
+            h('summary', null, g.name),
+            ...g.steps.map((x) => codeBlock(app, x)),
+          );
           d.open = g.id === s;
           guideBody.appendChild(d);
         }
@@ -751,7 +908,12 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
       };
       paintGuide();
       directBox.appendChild(
-        h('details.ai-guide', null, h('summary', null, h('span.gi', { html: G.list }), t('agent.setup.guide.title', { origin })), guideBody),
+        h(
+          'details.ai-guide',
+          null,
+          h('summary', null, h('span.gi', { html: G.list }), t('agent.setup.guide.title', { origin })),
+          guideBody,
+        ),
       );
     }
 
@@ -784,7 +946,16 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
             raw = await testConnection({ ...buildConfig(), decisionTimeoutMs: 45_000, budget: {} });
           } catch (e) {
             const c = resolveConfig(buildConfig());
-            raw = { ok: false, reachable: false, toolCalling: false, latencyMs: 0, model: c.model, provider: c.provider, tokens: 0, error: e instanceof Error ? e.message : String(e) };
+            raw = {
+              ok: false,
+              reachable: false,
+              toolCalling: false,
+              latencyMs: 0,
+              model: c.model,
+              provider: c.provider,
+              tokens: 0,
+              error: e instanceof Error ? e.message : String(e),
+            };
           }
           const d = normalizeDiag(raw);
           busy = null;
@@ -806,7 +977,12 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
       t('agent.setup.test'),
     );
     directBox.appendChild(
-      h('div.ai-test-row', null, testBtn, h('small.muted', null, s === 'relay' && relayMode(st) === 'auto' ? t('agent.setup.testHintRelay') : t('agent.setup.testHint'))),
+      h(
+        'div.ai-test-row',
+        null,
+        testBtn,
+        h('small.muted', null, s === 'relay' && relayMode(st) === 'auto' ? t('agent.setup.testHintRelay') : t('agent.setup.testHint')),
+      ),
     );
   };
 
@@ -861,7 +1037,14 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
   const paintBridge = (): void => {
     clear(bridgeBox);
     const urlInput = h<HTMLInputElement>('input.input', {
-      attrs: { type: 'text', inputmode: 'url', autocomplete: 'off', spellcheck: 'false', placeholder: 'ws://127.0.0.1:8787', 'aria-label': t('agent.setup.bridge.url') },
+      attrs: {
+        type: 'text',
+        inputmode: 'url',
+        autocomplete: 'off',
+        spellcheck: 'false',
+        placeholder: 'ws://127.0.0.1:8787',
+        'aria-label': t('agent.setup.bridge.url'),
+      },
     });
     urlInput.value = st.bridgeUrl;
     urlInput.addEventListener('change', () => {
@@ -869,7 +1052,14 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
       persist();
     });
     const codeInput = h<HTMLInputElement>('input.input.ai-code-input', {
-      attrs: { type: 'text', inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 12, placeholder: t('agent.setup.bridge.codePlaceholder'), 'aria-label': t('agent.setup.bridge.code') },
+      attrs: {
+        type: 'text',
+        inputmode: 'numeric',
+        autocomplete: 'one-time-code',
+        maxlength: 12,
+        placeholder: t('agent.setup.bridge.codePlaceholder'),
+        'aria-label': t('agent.setup.bridge.code'),
+      },
     });
     const msg = h('p.ai-bridge-msg', { attrs: { role: 'status', 'aria-live': 'polite' } });
     const paintState = (): void => {
@@ -877,7 +1067,10 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
       const bridge = getBridge();
       if (bridge?.alive) {
         msg.className = 'ai-bridge-msg good';
-        msg.append(h('span.gi', { html: G.check }), t('agent.setup.bridge.connected', { id: bridge.provider.id.replace(/^bridge:/, ''), model: bridge.provider.model }));
+        msg.append(
+          h('span.gi', { html: G.check }),
+          t('agent.setup.bridge.connected', { id: bridge.provider.id.replace(/^bridge:/, ''), model: bridge.provider.model }),
+        );
       } else if (bridge && !bridge.alive) {
         msg.className = 'ai-bridge-msg warn';
         msg.append(t('agent.setup.bridge.lost'));
@@ -897,8 +1090,8 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
           if (busy) return;
           const url = urlInput.value.trim() || 'ws://127.0.0.1:8787';
           const code = codeInput.value.trim();
-          if (!/^wss?:\/\//.test(url)) return audio.play('error'), app.toast(t('agent.setup.bridge.badUrl'), 'warn');
-          if (!code) return audio.play('error'), app.toast(t('agent.setup.bridge.needCode'), 'warn');
+          if (!/^wss?:\/\//.test(url)) return (audio.play('error'), app.toast(t('agent.setup.bridge.badUrl'), 'warn'));
+          if (!code) return (audio.play('error'), app.toast(t('agent.setup.bridge.needCode'), 'warn'));
           audio.play('click');
           busy = 'bridge';
           connectBtn.disabled = true;
@@ -929,7 +1122,10 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
             paintState();
             msg.className = 'ai-bridge-msg bad';
             const notes = networkNotes(pageProtocol, url.replace(/^ws/, 'http'));
-            msg.replaceChildren(t('agent.setup.bridge.failed', { msg: e instanceof Error ? e.message : String(e) }), ...notes.map((n) => h('small.muted', null, n)));
+            msg.replaceChildren(
+              t('agent.setup.bridge.failed', { msg: e instanceof Error ? e.message : String(e) }),
+              ...notes.map((n) => h('small.muted', null, n)),
+            );
             return;
           }
           busy = null;
@@ -956,14 +1152,15 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
       t('agent.setup.bridge.disconnect'),
     );
     bridgeBox.append(
-      h(
-        'div.ai-note',
-        null,
-        h('b', null, t('agent.setup.bridge.title')),
-        h('p', null, t('agent.setup.bridge.desc')),
-      ),
+      h('div.ai-note', null, h('b', null, t('agent.setup.bridge.title')), h('p', null, t('agent.setup.bridge.desc'))),
       ...bridgeCommands(origin).map((x) => codeBlock(app, x)),
-      h('div.ai-bridge-form', null, field(t('agent.setup.bridge.url'), urlInput), field(t('agent.setup.bridge.code'), codeInput), h('div.ai-bridge-actions', null, connectBtn, dropBtn)),
+      h(
+        'div.ai-bridge-form',
+        null,
+        field(t('agent.setup.bridge.url'), urlInput),
+        field(t('agent.setup.bridge.code'), codeInput),
+        h('div.ai-bridge-actions', null, connectBtn, dropBtn),
+      ),
       msg,
       h('p.muted.small', null, t('agent.setup.bridge.note')),
     );
@@ -1011,7 +1208,16 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
     field(t('agent.setup.thinking.label'), thinkingSel, thinkingHint),
   );
 
-  const modelCard = h('section.card.section.ai-card', null, h('h3', null, t('agent.setup.model')), tabBox, directBox, bridgeBox, diagBox, modelOpts);
+  const modelCard = h(
+    'section.card.section.ai-card',
+    null,
+    h('h3', null, t('agent.setup.model')),
+    tabBox,
+    directBox,
+    bridgeBox,
+    diagBox,
+    modelOpts,
+  );
   const decisionCard = h(
     'section.card.section.ai-card',
     null,

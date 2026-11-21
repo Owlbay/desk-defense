@@ -9,9 +9,19 @@
  * 浏览器里只能经 dynamic import() 加载本文件（见 ../factory.ts），避免把 pi 及其各厂商 SDK 打进首屏包。
  */
 import {
-  Type, StringEnum, streamSimple, getModels,
-  type Api, type AssistantMessage, type Context, type KnownProvider, type Message, type Model, type TSchema,
-  type Tool, type ToolResultMessage,
+  Type,
+  StringEnum,
+  streamSimple,
+  getModels,
+  type Api,
+  type AssistantMessage,
+  type Context,
+  type KnownProvider,
+  type Message,
+  type Model,
+  type TSchema,
+  type Tool,
+  type ToolResultMessage,
 } from '@mariozechner/pi-ai';
 import type { AgentModelConfig, PiApi, ThinkingLevel } from '../config';
 import { PRESETS } from '../config';
@@ -28,11 +38,16 @@ import { hostOf } from '../trace';
 export function toTypeBox(s: JsonSchema): TSchema {
   const d = s.description ? { description: s.description } : {};
   switch (s.type) {
-    case 'string': return s.enum ? StringEnum(s.enum, d) : Type.String(d);
-    case 'integer': return Type.Integer(d);
-    case 'number': return Type.Number(d);
-    case 'boolean': return Type.Boolean(d);
-    case 'array': return Type.Array(toTypeBox(s.items), d);
+    case 'string':
+      return s.enum ? StringEnum(s.enum, d) : Type.String(d);
+    case 'integer':
+      return Type.Integer(d);
+    case 'number':
+      return Type.Number(d);
+    case 'boolean':
+      return Type.Boolean(d);
+    case 'array':
+      return Type.Array(toTypeBox(s.items), d);
     case 'object': {
       const props: Record<string, TSchema> = {};
       for (const [k, v] of Object.entries(s.properties)) props[k] = s.required.includes(k) ? toTypeBox(v) : Type.Optional(toTypeBox(v));
@@ -47,7 +62,13 @@ export function toPiTools(tools: AgentToolDef[]): Tool[] {
 
 // ───────────────────────── 模型 ─────────────────────────
 
-const KNOWN: Partial<Record<string, KnownProvider>> = { anthropic: 'anthropic', openai: 'openai', google: 'google', openrouter: 'openrouter', deepseek: 'deepseek' };
+const KNOWN: Partial<Record<string, KnownProvider>> = {
+  anthropic: 'anthropic',
+  openai: 'openai',
+  google: 'google',
+  openrouter: 'openrouter',
+  deepseek: 'deepseek',
+};
 
 /** 配置 → pi Model：已知厂商优先用 pi 内置的模型表（含价格），否则构造自定义模型（本地服务 / 未收录的模型） */
 export function buildPiModel(c: AgentModelConfig): Model<Api> {
@@ -74,7 +95,12 @@ export function buildPiModel(c: AgentModelConfig): Model<Api> {
     maxTokens: c.maxOutputTokens ?? 8192,
   };
   if (info.local && api === 'openai-completions') {
-    (m as Model<'openai-completions'>).compat = { supportsDeveloperRole: false, supportsReasoningEffort: false, supportsStore: false, supportsStrictMode: false };
+    (m as Model<'openai-completions'>).compat = {
+      supportsDeveloperRole: false,
+      supportsReasoningEffort: false,
+      supportsStore: false,
+      supportsStrictMode: false,
+    };
   }
   return m;
 }
@@ -112,7 +138,11 @@ export function buildRelayModel(c: AgentModelConfig, api: PiApi = c.api ?? 'open
     const thinkingFormat = id.includes('deepseek') ? 'deepseek' : id.includes('qwen') ? 'qwen' : undefined;
     m.reasoning = true;
     (m as Model<'openai-completions'>).compat = {
-      supportsStore: false, supportsDeveloperRole: false, supportsReasoningEffort: true, supportsStrictMode: false, maxTokensField: 'max_tokens',
+      supportsStore: false,
+      supportsDeveloperRole: false,
+      supportsReasoningEffort: true,
+      supportsStrictMode: false,
+      maxTokensField: 'max_tokens',
       ...(thinkingFormat ? { thinkingFormat } : {}),
     };
   } else if (api === 'openai-responses') {
@@ -135,7 +165,11 @@ export function compactToolResults(messages: Message[], maxChars: number): numbe
   if (total <= maxChars) return 0;
   // 最近一条助手消息之后的工具结果是模型马上要读的，保留
   let lastAssistant = -1;
-  for (let i = messages.length - 1; i >= 0; i--) if (messages[i].role === 'assistant') { lastAssistant = i; break; }
+  for (let i = messages.length - 1; i >= 0; i--)
+    if (messages[i].role === 'assistant') {
+      lastAssistant = i;
+      break;
+    }
   let n = 0;
   for (let i = 0; i < lastAssistant && total > maxChars; i++) {
     const m = messages[i];
@@ -194,7 +228,9 @@ export class PiProvider implements LLMProvider {
 
   /** 按思考设置调整 model.reasoning（例如 responses 的 off 不能让 pi 发 effort:'none'） */
   private modelFor(plan: PiThinkingPlan): Model<Api> {
-    return plan.modelReasoning === undefined || plan.modelReasoning === this.m.reasoning ? this.m : { ...this.m, reasoning: plan.modelReasoning };
+    return plan.modelReasoning === undefined || plan.modelReasoning === this.m.reasoning
+      ? this.m
+      : { ...this.m, reasoning: plan.modelReasoning };
   }
 
   private options(ctx: DecisionContext, plan: PiThinkingPlan) {
@@ -221,13 +257,18 @@ export class PiProvider implements LLMProvider {
     return ctx.system[1] ? `${ctx.system[0]}\n\n${ctx.system[1]}` : ctx.system[0];
   }
 
-
   /**
    * 一次模型请求（流式）：pi 的事件流里 thinking_delta（Anthropic 思考摘要 / OpenAI responses 推理摘要 /
    * completions 的 reasoning_content / Gemini thoughts）与 text_delta 边到边报给面板；
    * onPayload 拿到真正发出的请求体（脱敏后存档），onResponse 拿到 HTTP 状态与响应头。
    */
-  private async request(context: Context, ctx: DecisionContext, n: number, api: string, compacted = 0): Promise<{ msg: AssistantMessage; ms: number }> {
+  private async request(
+    context: Context,
+    ctx: DecisionContext,
+    n: number,
+    api: string,
+    compacted = 0,
+  ): Promise<{ msg: AssistantMessage; ms: number }> {
     const tr = ctx.trace;
     const plan = this.thinkingPlan(ctx);
     const model = this.modelFor(plan);
@@ -236,11 +277,24 @@ export class PiProvider implements LLMProvider {
     let http: { status: number; headers: Record<string, string> } | undefined;
     if (tr) {
       tr({
-        k: 'request', n, provider: this.id, api, model: this.m.id, host: hostOf(this.m.baseUrl), effort: plan.reasoning,
-        thinking: plan.effective, ...(plan.note ? { thinkingNote: plan.note } : {}), ...(compacted ? { compacted } : {}),
+        k: 'request',
+        n,
+        provider: this.id,
+        api,
+        model: this.m.id,
+        host: hostOf(this.m.baseUrl),
+        effort: plan.reasoning,
+        thinking: plan.effective,
+        ...(plan.note ? { thinkingNote: plan.note } : {}),
+        ...(compacted ? { compacted } : {}),
         params: {
-          maxTokens: opts.maxTokens, temperature: opts.temperature, reasoning: opts.reasoning ?? null, cacheRetention: opts.cacheRetention,
-          toolMode: this.c.toolMode ?? 'native', contextMode: this.c.contextMode ?? 'balanced', baseUrl: this.m.baseUrl,
+          maxTokens: opts.maxTokens,
+          temperature: opts.temperature,
+          reasoning: opts.reasoning ?? null,
+          cacheRetention: opts.cacheRetention,
+          toolMode: this.c.toolMode ?? 'native',
+          contextMode: this.c.contextMode ?? 'balanced',
+          baseUrl: this.m.baseUrl,
         },
         system: context.systemPrompt,
         toolDefs: context.tools ? ctx.tools : undefined,
@@ -248,7 +302,13 @@ export class PiProvider implements LLMProvider {
         messages: context.messages.length,
         headers: { authorization: this.c.apiKey ? 'Bearer •••' : '(无)', 'content-type': 'application/json' },
         // 真正的请求体在 onPayload 里补一条（各家格式不同）；这里先放 pi 的上下文
-        raw: { model: this.m.id, api: this.m.api, systemPrompt: '(见「系统提示词」)', messages: context.messages, tools: context.tools?.map((t) => t.name) },
+        raw: {
+          model: this.m.id,
+          api: this.m.api,
+          systemPrompt: '(见「系统提示词」)',
+          messages: context.messages,
+          tools: context.tools?.map((t) => t.name),
+        },
       });
     }
     const stream = streamSimple(model, context, {
@@ -275,8 +335,18 @@ export class PiProvider implements LLMProvider {
     if (tr) {
       if (msg.stopReason === 'error' && msg.errorMessage) tr({ k: 'error', n, message: msg.errorMessage });
       tr({
-        k: 'response', n, stop: msg.stopReason, ms, costUsd: msg.usage.cost.total,
-        usage: { inputTokens: msg.usage.input, outputTokens: msg.usage.output, cacheReadTokens: msg.usage.cacheRead, cacheWriteTokens: msg.usage.cacheWrite, requests: 1 },
+        k: 'response',
+        n,
+        stop: msg.stopReason,
+        ms,
+        costUsd: msg.usage.cost.total,
+        usage: {
+          inputTokens: msg.usage.input,
+          outputTokens: msg.usage.output,
+          cacheReadTokens: msg.usage.cacheRead,
+          cacheWriteTokens: msg.usage.cacheWrite,
+          requests: 1,
+        },
         raw: { http, message: msg },
       });
     }
@@ -299,7 +369,8 @@ export class PiProvider implements LLMProvider {
     for (let req = 0; req < ctx.maxToolCalls + 2; req++) {
       let msg: AssistantMessage;
       let ms: number;
-      const compacted = req > 0 && ctx.historyCompactChars && mayCompactHistory(api) ? compactToolResults(context.messages, ctx.historyCompactChars) : 0;
+      const compacted =
+        req > 0 && ctx.historyCompactChars && mayCompactHistory(api) ? compactToolResults(context.messages, ctx.historyCompactChars) : 0;
       try {
         ({ msg, ms } = await this.request(context, ctx, req + 1, this.m.api, compacted));
       } catch (e) {
@@ -314,7 +385,10 @@ export class PiProvider implements LLMProvider {
       }
       for (const b of msg.content) if (b.type === 'text' && b.text.trim()) texts.push(b.text.trim());
       const calls = msg.content.filter((b) => b.type === 'toolCall');
-      if (msg.stopReason === 'length' && calls.length) { out.error = 'output length reached inside a tool call'; break; }
+      if (msg.stopReason === 'length' && calls.length) {
+        out.error = 'output length reached inside a tool call';
+        break;
+      }
       // 因长度被截断、还没有任何动作：追问一次，要求直接行动（只回了一段文字 = 本回合不做事，直接结束，不再追问）
       if (!calls.length && alive && msg.stopReason === 'length' && !nudged && !ctx.signal.aborted) {
         nudged = true;
@@ -339,9 +413,19 @@ export class PiProvider implements LLMProvider {
           const r = await ctx.callTool(call.name, call.arguments, { id: call.id });
           text = r.text;
           isError = !r.ok;
-          if (r.endTurn) { out.ended = true; out.note = r.note; }
+          if (r.endTurn) {
+            out.ended = true;
+            out.note = r.note;
+          }
         }
-        const tr: ToolResultMessage = { role: 'toolResult', toolCallId: call.id, toolName: call.name, content: [{ type: 'text', text }], isError, timestamp: Date.now() };
+        const tr: ToolResultMessage = {
+          role: 'toolResult',
+          toolCallId: call.id,
+          toolName: call.name,
+          content: [{ type: 'text', text }],
+          isError,
+          timestamp: Date.now(),
+        };
         context.messages.push(tr);
       }
       if (out.ended || out.toolCalls >= ctx.maxToolCalls || ctx.signal.aborted) break;
@@ -374,18 +458,29 @@ export class PiProvider implements LLMProvider {
       const text = msg.content.map((b) => (b.type === 'text' ? b.text : '')).join('');
       texts.push(text.slice(0, 500));
       if (!alive) break;
-      messages.push(keepThinkingInHistory(this.m.api as PiApi, (this.m as Model<'openai-completions'>).compat?.thinkingFormat) ? msg : stripThinking(msg));
+      messages.push(
+        keepThinkingInHistory(this.m.api as PiApi, (this.m as Model<'openai-completions'>).compat?.thinkingFormat)
+          ? msg
+          : stripThinking(msg),
+      );
       const parsed = parseActions(text, ctx.tools);
       if (parsed.note) out.note = parsed.note;
       const results: string[] = [...parsed.errors.map((e) => `ERROR ${e}`)];
       let readUsed = false;
       for (const a of parsed.actions) {
-        if (out.toolCalls >= ctx.maxToolCalls) { results.push(LIMIT_TEXT); break; }
+        if (out.toolCalls >= ctx.maxToolCalls) {
+          results.push(LIMIT_TEXT);
+          break;
+        }
         out.toolCalls++;
         const r = await ctx.callTool(a.tool, a.args, { id: `json_${round + 1}_${out.toolCalls}` });
         results.push(`${a.tool}: ${r.text}`);
         if (READ_TOOLS.has(a.tool)) readUsed = true;
-        if (r.endTurn) { out.ended = true; if (r.note) out.note = r.note; break; }
+        if (r.endTurn) {
+          out.ended = true;
+          if (r.note) out.note = r.note;
+          break;
+        }
       }
       const retry = parsed.actions.length === 0 && parsed.errors.length > 0;
       // 有动作且没有读取类工具 → 本回合结束；只有读取 / 解析失败 → 把结果回给模型再来一轮

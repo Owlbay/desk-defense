@@ -19,7 +19,8 @@ export default {
   'ui.assist.roleAdvisor': 'AI 軍師',
   'ui.assist.fairnessShort': 'AI に代わりにプレイさせた対局は全体ランキングとデイリーランキングに載りません。軍師だけなら影響なし。',
   'ui.assist.markedNote': 'この対局は「AI 補助」です：報酬は通常どおり、全体 / デイリーランキングには送信しません。',
-  'ui.assist.dedicatedNote': 'これは「AI 参戦」の対局で、AI が第 1 ウェーブから操作します。役割を変えるには「AI 参戦」から始め直してください。',
+  'ui.assist.dedicatedNote':
+    'これは「AI 参戦」の対局で、AI が第 1 ウェーブから操作します。役割を変えるには「AI 参戦」から始め直してください。',
   'ui.assist.badge': 'AI 補助',
   'ui.assist.badgeAdvisor': 'AI 軍師',
   'ui.assist.badgeTip': 'この対局では AI が代わりにプレイしました：報酬は通常どおり、全体ランキングとデイリーランキングには載りません',
@@ -37,21 +38,28 @@ export default {
   'ui.assist.needDetect': '中継サービスの API 種別をまだ検出していません（設定で一度「接続テスト」を押してください）',
   'ui.assist.needConfig': '先にモデル設定を完了してください',
   'ui.assist.configTitle': 'AI アシスタント · モデル設定',
-  'ui.assist.configIntro': 'この設定は端末に保存され、対局中の AI ボタンと「AI 参戦」で共用します。API キーは選んだ方法で保存され、選んだモデル提供元にだけ送信されます。',
+  'ui.assist.configIntro':
+    'この設定は端末に保存され、対局中の AI ボタンと「AI 参戦」で共用します。API キーは選んだ方法で保存され、選んだモデル提供元にだけ送信されます。',
   'ui.assist.saveEnable': '保存して有効化（{role}）',
   'ui.assist.done': '完了',
-  'ui.assist.decisionHint': '「AI プレイヤー」用：一時停止モードでは AI の思考中ゲームが止まります。軍師は常にリアルタイム（邪魔しません）、間隔は 20 秒以上。',
-  'ui.assist.settingsHint': 'モデルを一度設定すれば、どのモードでも上部バーの AI ボタン（ショートカット I）で AI に代わりにプレイさせたり助言をもらったりできます。',
+  'ui.assist.decisionHint':
+    '「AI プレイヤー」用：一時停止モードでは AI の思考中ゲームが止まります。軍師は常にリアルタイム（邪魔しません）、間隔は 20 秒以上。',
+  'ui.assist.settingsHint':
+    'モデルを一度設定すれば、どのモードでも上部バーの AI ボタン（ショートカット I）で AI に代わりにプレイさせたり助言をもらったりできます。',
   'ui.assist.openSettings': 'モデル設定…',
   'ui.assist.howTitle': '使い方',
-  'ui.assist.howPlayer': 'AI が現在の局面から操作を引き継ぎます。対局は「AI 補助」になり、キャンペーン進行・星・インクは通常どおり。全体 / デイリーランキングには載らず、ローカルランキングでは別枠になります。',
+  'ui.assist.howPlayer':
+    'AI が現在の局面から操作を引き継ぎます。対局は「AI 補助」になり、キャンペーン進行・星・インクは通常どおり。全体 / デイリーランキングには載らず、ローカルランキングでは別枠になります。',
   'ui.assist.howAdvisor': 'AI は提案カードを出すだけで、「採用」を押すまで何も起きません。成績や送信に影響しません。',
   'ui.assist.howButtonTitle': '対局中の AI ボタン',
-  'ui.assist.howButton': '上部バーの AI ボタン（ショートカット I）：いつでも有効化・役割の切り替え・停止ができ、停止すると操作はすべて戻ります。',
-  'ui.assist.fairness': 'AI に第 1 ウェーブから本気で戦わせて AI ランキングに載せたい場合は、メインメニューの「AI 参戦」から始めてください。',
+  'ui.assist.howButton':
+    '上部バーの AI ボタン（ショートカット I）：いつでも有効化・役割の切り替え・停止ができ、停止すると操作はすべて戻ります。',
+  'ui.assist.fairness':
+    'AI に第 1 ウェーブから本気で戦わせて AI ランキングに載せたい場合は、メインメニューの「AI 参戦」から始めてください。',
   'ui.assist.notUploaded': 'この対局は全体ランキングに送信しません',
   'ui.assist.notUploadedDaily': 'この対局はデイリーランキングに送信しません',
-  'ui.assist.notUploadedWhy': 'この対局では AI が代わりにプレイしました。全体ランキングとデイリーランキングは人間の成績のみです。AI を正式に競わせるなら「AI 参戦」（AI ランキング）をどうぞ。',
+  'ui.assist.notUploadedWhy':
+    'この対局では AI が代わりにプレイしました。全体ランキングとデイリーランキングは人間の成績のみです。AI を正式に競わせるなら「AI 参戦」（AI ランキング）をどうぞ。',
   'ui.assist.blockedShort': 'AI が代わりにプレイした対局は人間のランキングに送信しません',
   'ui.assist.goNote': 'この対局では AI が代わりにプレイしました：報酬は通常どおり、成績は AI 補助として記録します。',
   'ui.assist.goNoteAdvisor': 'この対局では AI 軍師に助言してもらいました。成績に影響はありません。',

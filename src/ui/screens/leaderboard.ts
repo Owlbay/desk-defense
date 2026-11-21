@@ -23,14 +23,19 @@ export function leaderboardScreen(app: App): Screen {
   // 默认选中有记录的第一个难度
   const keys = allDiffKeys();
   const count = (k: string) =>
-    [false, true].reduce((n, pure) => n + [false, true].reduce((m, auto) => m + (p.leaderboard[leaderKey(k, pure, auto)]?.length ?? 0), 0), 0);
+    [false, true].reduce(
+      (n, pure) => n + [false, true].reduce((m, auto) => m + (p.leaderboard[leaderKey(k, pure, auto)]?.length ?? 0), 0),
+      0,
+    );
   const firstKey = keys.find((k) => count(k) > 0) ?? 'normal';
   const state = {
     tab: (req?.tab ?? 'local') as Tab,
     key: firstKey,
     pure: false,
     // 默认显示有记录的开波方式（优先自动）
-    auto: (p.leaderboard[leaderKey(firstKey, false, true)]?.length ?? 0) > 0 || (p.leaderboard[leaderKey(firstKey, false, false)]?.length ?? 0) === 0,
+    auto:
+      (p.leaderboard[leaderKey(firstKey, false, true)]?.length ?? 0) > 0 ||
+      (p.leaderboard[leaderKey(firstKey, false, false)]?.length ?? 0) === 0,
     /** 本地榜：显示 AI 协助（「让 AI 替我玩」）的成绩（默认不显示） */
     showAi: false,
   };
@@ -176,9 +181,15 @@ export function leaderboardScreen(app: App): Screen {
       );
     }
     clear(pureSeg);
-    for (const pure of [false, true]) pureSeg.appendChild(seg(state.pure === pure, pure ? t('ui.leaderboard.pure') : t('ui.leaderboard.talents'), () => (state.pure = pure)));
+    for (const pure of [false, true])
+      pureSeg.appendChild(
+        seg(state.pure === pure, pure ? t('ui.leaderboard.pure') : t('ui.leaderboard.talents'), () => (state.pure = pure)),
+      );
     clear(autoSeg);
-    for (const auto of [true, false]) autoSeg.appendChild(seg(state.auto === auto, auto ? t('ui.leaderboard.autoWave') : t('ui.leaderboard.manualWave'), () => (state.auto = auto)));
+    for (const auto of [true, false])
+      autoSeg.appendChild(
+        seg(state.auto === auto, auto ? t('ui.leaderboard.autoWave') : t('ui.leaderboard.manualWave'), () => (state.auto = auto)),
+      );
 
     const board = leaderKey(state.key, state.pure, state.auto);
     if (state.tab === 'ai') {
@@ -202,7 +213,9 @@ export function leaderboardScreen(app: App): Screen {
     aiToggleInput.checked = state.showAi;
     const list = leaderView(all, state.showAi);
     if (list.length === 0) {
-      table.appendChild(h('div.empty-state', null, h('p', null, t('ui.leaderboard.noRecord')), h('small.muted', null, t('ui.leaderboard.noRecordHint'))));
+      table.appendChild(
+        h('div.empty-state', null, h('p', null, t('ui.leaderboard.noRecord')), h('small.muted', null, t('ui.leaderboard.noRecordHint'))),
+      );
     } else {
       table.appendChild(
         h(
@@ -222,8 +235,18 @@ export function leaderboardScreen(app: App): Screen {
             `div.lb-row${i < 3 ? `.top${i + 1}` : ''}`,
             null,
             h('span.rank', null, String(i + 1)),
-            h('span.score', null, fmtNumber(Math.round(e.score)), e.ai ? h('small.badge.ai-assist-badge', { title: t('ui.assist.badgeTip') }, t('ui.assist.badge')) : null),
-            h('span', null, t('ui.leaderboard.waves', { n: e.wave }), h(`small.wave-mode${e.auto ? '.auto' : ''}`, null, e.auto ? t('ui.leaderboard.auto') : t('ui.leaderboard.manual'))),
+            h(
+              'span.score',
+              null,
+              fmtNumber(Math.round(e.score)),
+              e.ai ? h('small.badge.ai-assist-badge', { title: t('ui.assist.badgeTip') }, t('ui.assist.badge')) : null,
+            ),
+            h(
+              'span',
+              null,
+              t('ui.leaderboard.waves', { n: e.wave }),
+              h(`small.wave-mode${e.auto ? '.auto' : ''}`, null, e.auto ? t('ui.leaderboard.auto') : t('ui.leaderboard.manual')),
+            ),
             h('span.hide-narrow', null, MAP_META[e.map]?.name ?? e.map),
             h('span.hide-narrow.muted', null, fmtDay(e.date)),
             h(

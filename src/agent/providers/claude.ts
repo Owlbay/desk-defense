@@ -67,9 +67,11 @@ export class ClaudeProvider implements LLMProvider {
     this.thinking = o.thinking ?? o.effort ?? 'medium';
     this.maxOut = o.maxOutputTokens ?? 16000;
     this.fallback = (o.refusalFallback ?? true) && FALLBACK_MODELS.has(this.model);
-    this.client = o.client ?? (o.apiKey
-      ? new Anthropic({ apiKey: o.apiKey, dangerouslyAllowBrowser: !!o.browser, maxRetries: 2 })
-      : new Anthropic({ maxRetries: 2 }));
+    this.client =
+      o.client ??
+      (o.apiKey
+        ? new Anthropic({ apiKey: o.apiKey, dangerouslyAllowBrowser: !!o.browser, maxRetries: 2 })
+        : new Anthropic({ maxRetries: 2 }));
   }
 
   async decide(ctx: DecisionContext): Promise<DecisionOutcome> {
@@ -121,21 +123,37 @@ export class ClaudeProvider implements LLMProvider {
           // 服务端清理较早的工具结果（不算改写历史，保留思考块有效）；阈值按 ~3.5 字符/token 换算
           betas.push('context-management-2025-06-27');
           params.context_management = {
-            edits: [{
-              type: 'clear_tool_uses_20250919',
-              trigger: { type: 'input_tokens', value: Math.max(4000, Math.round(ctx.historyCompactChars / 3.5) + 3000) },
-              keep: { type: 'tool_uses', value: 2 },
-            }],
+            edits: [
+              {
+                type: 'clear_tool_uses_20250919',
+                trigger: { type: 'input_tokens', value: Math.max(4000, Math.round(ctx.historyCompactChars / 3.5) + 3000) },
+                keep: { type: 'tool_uses', value: 2 },
+              },
+            ],
           };
         }
         if (betas.length) params.betas = betas;
         if (tr) {
           tr({
-            k: 'request', n, provider: this.id, api: 'anthropic-messages', model: this.model, host, effort: plan.effort,
-            thinking: plan.effective, ...(plan.note ? { thinkingNote: plan.note } : {}),
+            k: 'request',
+            n,
+            provider: this.id,
+            api: 'anthropic-messages',
+            model: this.model,
+            host,
+            effort: plan.effort,
+            thinking: plan.effective,
+            ...(plan.note ? { thinkingNote: plan.note } : {}),
             params: {
-              max_tokens: params.max_tokens, thinking: params.thinking ?? null, output_config: params.output_config, tool_choice: params.tool_choice,
-              cache_control: params.cache_control, betas: params.betas, fallbacks: params.fallbacks, context_management: params.context_management, stream: this.canStream(),
+              max_tokens: params.max_tokens,
+              thinking: params.thinking ?? null,
+              output_config: params.output_config,
+              tool_choice: params.tool_choice,
+              cache_control: params.cache_control,
+              betas: params.betas,
+              fallbacks: params.fallbacks,
+              context_management: params.context_management,
+              stream: this.canStream(),
             },
             system: JSON.stringify(system, null, 2),
             toolDefs: tools,
@@ -157,12 +175,21 @@ export class ClaudeProvider implements LLMProvider {
           // 非流式（测试注入的客户端）：思路 / 文字在这里一次性补上
           for (const b of res.message.content) {
             if (b.type === 'thinking' && !res.streamedThinking && b.thinking) tr({ k: 'thinking', n, text: b.thinking });
-            else if (b.type === 'redacted_thinking' && !res.streamedThinking) tr({ k: 'thinking', n, text: '[这段思考被安全过滤器加密，内容不可见]' });
+            else if (b.type === 'redacted_thinking' && !res.streamedThinking)
+              tr({ k: 'thinking', n, text: '[这段思考被安全过滤器加密，内容不可见]' });
             else if (b.type === 'text' && !res.streamedText && b.text) tr({ k: 'text', n, text: b.text });
           }
           const u1 = emptyUsage();
           addClaudeUsage(u1, res.message.usage);
-          tr({ k: 'response', n, stop: res.message.stop_reason ?? undefined, usage: u1, ms, costUsd: claudeCost(this.model, u1), raw: res.message });
+          tr({
+            k: 'response',
+            n,
+            stop: res.message.stop_reason ?? undefined,
+            usage: u1,
+            ms,
+            costUsd: claudeCost(this.model, u1),
+            raw: res.message,
+          });
         }
         const alive = await ctx.afterRequest(ms);
         for (const b of res.message.content) if (b.type === 'text' && b.text.trim()) texts.push(b.text.trim());
@@ -189,7 +216,10 @@ export class ClaudeProvider implements LLMProvider {
           out.toolCalls++;
           const r = await ctx.callTool(u.name, u.input, { id: u.id });
           results.push({ type: 'tool_result', tool_use_id: u.id, content: r.text, is_error: !r.ok });
-          if (r.endTurn) { out.ended = true; out.note = r.note; }
+          if (r.endTurn) {
+            out.ended = true;
+            out.note = r.note;
+          }
         }
         messages.push({ role: 'user', content: results });
         if (out.ended || out.toolCalls >= ctx.maxToolCalls || ctx.signal.aborted) break;
@@ -263,7 +293,8 @@ function addClaudeUsage(u: TokenUsage, r: Anthropic.Beta.BetaUsage): void {
 /** 最具体的错误类优先（可重试与不可重试区分开写进报告） */
 export function describeClaudeError(err: unknown): string {
   if (err instanceof Anthropic.APIUserAbortError) return 'aborted';
-  if (err instanceof Anthropic.AuthenticationError) return 'auth: 没有可用的 Anthropic 凭据（设置 ANTHROPIC_API_KEY 或运行 ant auth login）';
+  if (err instanceof Anthropic.AuthenticationError)
+    return 'auth: 没有可用的 Anthropic 凭据（设置 ANTHROPIC_API_KEY 或运行 ant auth login）';
   if (err instanceof Anthropic.PermissionDeniedError) return `permission: ${err.message}`;
   if (err instanceof Anthropic.NotFoundError) return `not_found: ${err.message}`;
   if (err instanceof Anthropic.RateLimitError) return `rate_limited: ${err.message}`;

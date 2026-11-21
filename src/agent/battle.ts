@@ -87,7 +87,12 @@ export class BattleLog {
       const m = /^\d+ (REJECTED|ERROR)(.*)$/.exec(line);
       if (m) {
         this.stats.rejected++;
-        this.rejected.push(m[2].replace(/\{[^}]*"cx":(\d+),"cy":(\d+)[^}]*\}/, '$1,$2').trim().slice(0, 60));
+        this.rejected.push(
+          m[2]
+            .replace(/\{[^}]*"cx":(\d+),"cy":(\d+)[^}]*\}/, '$1,$2')
+            .trim()
+            .slice(0, 60),
+        );
       }
       if (/MOVED/.test(line)) this.stats.recovered++;
     }
@@ -99,17 +104,37 @@ export class BattleLog {
     for (const t of s.towers.values()) {
       if (!TOWERS[t.id].attacks) continue;
       // old：上次汇报前就在（或本窗口开始时已在）且放了 10 秒以上——这样的塔 0 伤害才算"放错了地方"
-      rows.push({ uid: t.uid, id: t.id, d: Math.round(t.damage - (this.dmg0.get(t.uid) ?? t.damage)), old: this.dmg0.has(t.uid) && s.time - t.placedAt > 10 });
+      rows.push({
+        uid: t.uid,
+        id: t.id,
+        d: Math.round(t.damage - (this.dmg0.get(t.uid) ?? t.damage)),
+        old: this.dmg0.has(t.uid) && s.time - t.placedAt > 10,
+      });
     }
     this.dmg0 = new Map([...s.towers.values()].map((t) => [t.uid, t.damage]));
     rows.sort((a, b) => b.d - a.d || a.uid - b.uid);
     const a = this.acc;
     const leaks = [...a.leaks.values()].reduce((x, y) => x + y, 0);
     const waves = a.waves.length ? `w${a.waves.join(',')}` : `w${s.wave}`;
-    const parts = [`BR ${waves}: ${leaks ? `LEAK ${leaks} ${[...a.leaks].map(([k, v]) => k.replace('@', `×${v}@`)).join(' ')}` : 'no leaks'}`, `kills ${a.kills}`];
-    if (rows.length) parts.push(`dmg ${rows.slice(0, 4).map((r) => `#${r.uid}${r.id}:${r.d}`).join(' ')}`);
+    const parts = [
+      `BR ${waves}: ${leaks ? `LEAK ${leaks} ${[...a.leaks].map(([k, v]) => k.replace('@', `×${v}@`)).join(' ')}` : 'no leaks'}`,
+      `kills ${a.kills}`,
+    ];
+    if (rows.length)
+      parts.push(
+        `dmg ${rows
+          .slice(0, 4)
+          .map((r) => `#${r.uid}${r.id}:${r.d}`)
+          .join(' ')}`,
+      );
     const zero = rows.filter((r) => r.d === 0 && r.old);
-    if (zero.length) parts.push(`0dmg ${zero.slice(0, 5).map((r) => `#${r.uid}`).join(',')} (out of reach?)`);
+    if (zero.length)
+      parts.push(
+        `0dmg ${zero
+          .slice(0, 5)
+          .map((r) => `#${r.uid}`)
+          .join(',')} (out of reach?)`,
+      );
     if (this.idle.length) parts.push(`idle@build ${Math.round(this.idle.reduce((x, y) => x + y, 0) / this.idle.length)}g`);
     if (this.rejected.length) parts.push(`rejected ${this.rejected.length}: ${this.rejected.slice(-2).join('; ')}`);
     this.pending = parts.join(' | ');
@@ -198,7 +223,8 @@ export function threatEstimate(w: IWorld): ThreatLine[] {
         for (const l of ls) {
           const n = Math.max(1, Math.ceil(l.len / 0.25));
           let c = 0;
-          for (let i = 0; i <= n; i++) if (inRange(q, l.from.x + ((l.to.x - l.from.x) * i) / n, l.from.y + ((l.to.y - l.from.y) * i) / n)) c++;
+          for (let i = 0; i <= n; i++)
+            if (inRange(q, l.from.x + ((l.to.x - l.from.x) * i) / n, l.from.y + ((l.to.y - l.from.y) * i) / n)) c++;
           len += (l.len * c) / (n + 1);
         }
         if (len > 0) reach.set(q.key, len / Math.max(1, ls.length));
@@ -232,7 +258,10 @@ export function threatEstimate(w: IWorld): ThreatLine[] {
     }
     const ratio = hp > 0 ? cap / hp : 99;
     out.push({
-      id: k, hp: Math.round(hp), cap: Math.round(cap), ratio: Math.round(ratio * 10) / 10,
+      id: k,
+      hp: Math.round(hp),
+      cap: Math.round(cap),
+      ratio: Math.round(ratio * 10) / 10,
       verdict: ratio >= THREAT_SAFE ? '安全' : ratio >= THREAT_TIGHT ? '吃紧' : '危险',
       enemies: groups.map((g) => `${code(g.enemy)}×${g.count}`).join(' '),
     });
@@ -321,13 +350,19 @@ export function eventLine(w: IWorld): string | undefined {
     if (e.phase === 'done') continue;
     const h = EVENT_HINT[e.id];
     if (!h) continue;
-    const left = e.phase === 'warn' ? `in ${Math.ceil(Math.max(0, e.startsAt - s.time))}s` : `${Math.ceil(Math.max(0, e.endsAt - s.time))}s`;
+    const left =
+      e.phase === 'warn' ? `in ${Math.ceil(Math.max(0, e.startsAt - s.time))}s` : `${Math.ceil(Math.max(0, e.endsAt - s.time))}s`;
     parts.push(`${e.id} ${left}: ${h}`);
   }
   const gold = s.enemies.filter((e) => e.hp > 0 && (e.id === 'goldbag' || e.affixes.includes('golden')));
   if (gold.length) {
     const ready = s.skills.filter((k) => k.ready && (k.target === 'circle' || k.target === 'line')).map((k) => k.id);
-    parts.push(`coin targets ${gold.slice(0, 3).map((e) => `${code(e.id)}#${e.uid} ${Math.round(e.x)},${Math.round(e.y)} ${Math.round(e.hp + e.shield)}hp`).join(', ')}: focus${ready.length ? ` (${ready.join('/')} R)` : ''}`);
+    parts.push(
+      `coin targets ${gold
+        .slice(0, 3)
+        .map((e) => `${code(e.id)}#${e.uid} ${Math.round(e.x)},${Math.round(e.y)} ${Math.round(e.hp + e.shield)}hp`)
+        .join(', ')}: focus${ready.length ? ` (${ready.join('/')} R)` : ''}`,
+    );
   }
   return parts.length ? `EVT ${parts.join(' | ')}` : undefined;
 }

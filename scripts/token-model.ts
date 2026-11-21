@@ -54,7 +54,11 @@ class TokenModel implements LLMProvider {
   readonly model = 'token-model';
   private warm = false;
   msgTokens: number[] = [];
-  constructor(private readonly legacy: boolean, private readonly out: { first: number; fix: number }, private readonly opts: RunOptions) {}
+  constructor(
+    private readonly legacy: boolean,
+    private readonly out: { first: number; fix: number },
+    private readonly opts: RunOptions,
+  ) {}
 
   async decide(ctx: DecisionContext): Promise<DecisionOutcome> {
     const w = ctx.world!;
@@ -65,18 +69,25 @@ class TokenModel implements LLMProvider {
       results.push({ name, ok: r.ok, text: r.text });
       return r;
     };
-    const legacyMsg = this.legacy
-      ? decisionMessage(runHeader(this.opts, w), ctx.point, renderObservation(w, { recent: [] }))
-      : '';
+    const legacyMsg = this.legacy ? decisionMessage(runHeader(this.opts, w), ctx.point, renderObservation(w, { recent: [] })) : '';
     await scriptedTurn(w, call, ctx.point.reasons);
     const prefix = this.legacy
-      ? LEGACY_RULES_TOKENS + estimateTokens(`# Reference data (static)\n${catalogText('all')}`) + estimateTokens(JSON.stringify(LEGACY_TOOLS.map(({ name, description, input_schema }) => ({ name, description, input_schema }))))
-      : estimateTokens(ctx.system.join('\n\n')) + estimateTokens(JSON.stringify(ctx.tools.map(({ name, description, input_schema }) => ({ name, description, input_schema }))));
+      ? LEGACY_RULES_TOKENS +
+        estimateTokens(`# Reference data (static)\n${catalogText('all')}`) +
+        estimateTokens(JSON.stringify(LEGACY_TOOLS.map(({ name, description, input_schema }) => ({ name, description, input_schema }))))
+      : estimateTokens(ctx.system.join('\n\n')) +
+        estimateTokens(JSON.stringify(ctx.tools.map(({ name, description, input_schema }) => ({ name, description, input_schema }))));
     const msg = estimateTokens(this.legacy ? legacyMsg : ctx.message);
     this.msgTokens.push(msg);
     const add = (cached: number, fresh: number, outTok: number) => {
       u.requests++;
-      if (!this.warm) { u.inputTokens += cached + fresh; this.warm = true; } else { u.cacheReadTokens += cached; u.inputTokens += fresh; }
+      if (!this.warm) {
+        u.inputTokens += cached + fresh;
+        this.warm = true;
+      } else {
+        u.cacheReadTokens += cached;
+        u.inputTokens += fresh;
+      }
       u.outputTokens += outTok;
     };
     const resTok = estimateTokens(results.map((r) => r.text).join('\n'));
@@ -98,8 +109,19 @@ class TokenModel implements LLMProvider {
   }
 }
 
-export async function tokenRun(mode: ContextMode | 'before', thinking: 'low' | 'off', o: { waves?: number; seed?: string; map?: MapId } = {}): Promise<TokenRun> {
-  const opts: RunOptions = { mode: 'endless', map: o.map ?? 'ch1', difficulty: 'normal', seed: o.seed ?? 'tok-1', skills: ['eraser_strike', 'bell', 'whiteout_zone'], pure: true };
+export async function tokenRun(
+  mode: ContextMode | 'before',
+  thinking: 'low' | 'off',
+  o: { waves?: number; seed?: string; map?: MapId } = {},
+): Promise<TokenRun> {
+  const opts: RunOptions = {
+    mode: 'endless',
+    map: o.map ?? 'ch1',
+    difficulty: 'normal',
+    seed: o.seed ?? 'tok-1',
+    skills: ['eraser_strike', 'bell', 'whiteout_zone'],
+    pure: true,
+  };
   const legacy = mode === 'before';
   const provider = new TokenModel(legacy, OUTPUT_PER_REQUEST[thinking], opts);
   const rep = await runAgentGame(opts, {
@@ -116,17 +138,34 @@ export async function tokenRun(mode: ContextMode | 'before', thinking: 'low' | '
   const weighted = budgetTokens(rep.usage);
   const w0 = createWorld(opts);
   const prefixTokens = legacy
-    ? LEGACY_RULES_TOKENS + estimateTokens(catalogText('all')) + estimateTokens(JSON.stringify(LEGACY_TOOLS.map(({ name, description, input_schema }) => ({ name, description, input_schema }))))
-    : estimateTokens(systemBlocks('player').join('\n\n')) + estimateTokens(JSON.stringify(SLIM_TOOLS.filter((t) => t.roles.includes('player')).map(({ name, description, input_schema }) => ({ name, description, input_schema }))));
+    ? LEGACY_RULES_TOKENS +
+      estimateTokens(catalogText('all')) +
+      estimateTokens(JSON.stringify(LEGACY_TOOLS.map(({ name, description, input_schema }) => ({ name, description, input_schema }))))
+    : estimateTokens(systemBlocks('player').join('\n\n')) +
+      estimateTokens(
+        JSON.stringify(
+          SLIM_TOOLS.filter((t) => t.roles.includes('player')).map(({ name, description, input_schema }) => ({
+            name,
+            description,
+            input_schema,
+          })),
+        ),
+      );
   void w0;
   return {
     label: mode === 'before' ? '优化前' : `${({ saver: '省流', balanced: '均衡', full: '完整' } as const)[mode]}`,
-    waves: rep.result.cleared, decisionPoints: rep.decisions.length, called, skipped,
-    requests: rep.usage.requests, usage: rep.usage, raw, weighted,
-    perWaveRaw: Math.round(raw / waves), perWaveWeighted: Math.round(weighted / waves),
+    waves: rep.result.cleared,
+    decisionPoints: rep.decisions.length,
+    called,
+    skipped,
+    requests: rep.usage.requests,
+    usage: rep.usage,
+    raw,
+    weighted,
+    perWaveRaw: Math.round(raw / waves),
+    perWaveWeighted: Math.round(weighted / waves),
     reqPerDecision: called ? Math.round((rep.usage.requests / called) * 100) / 100 : 0,
     prefixTokens,
     avgMessageTokens: Math.round(provider.msgTokens.reduce((a, b) => a + b, 0) / Math.max(1, provider.msgTokens.length)),
   };
 }
-

@@ -69,23 +69,14 @@ export function talentsScreen(app: App): Screen {
           null,
           h('div.talent-head', null, icoEl, h('div', null, h('h3', null, m.name), pips)),
           h('p', null, m.desc, m.max > 1 ? h('small.muted', null, t('ui.talents.perLevel', { n: m.max })) : null),
-          maxed ? h('span.badge.good', null, t('ui.talents.maxed')) : h('div.row.buy-row', null, buy('star'), h('span.muted.or', null, t('ui.talents.or')), buy('ink')),
+          maxed
+            ? h('span.badge.good', null, t('ui.talents.maxed'))
+            : h('div.row.buy-row', null, buy('star'), h('span.muted.or', null, t('ui.talents.or')), buy('ink')),
         ),
       );
     }
     justBought = null;
-    el.appendChild(
-      h(
-        'div.screen-body',
-        null,
-        h(
-          'p.muted.center',
-          null,
-          t('ui.talents.intro', { n: totalStarsEarned(p) }),
-        ),
-        grid,
-      ),
-    );
+    el.appendChild(h('div.screen-body', null, h('p.muted.center', null, t('ui.talents.intro', { n: totalStarsEarned(p) })), grid));
   };
   render();
   return { el };

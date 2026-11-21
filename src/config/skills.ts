@@ -29,8 +29,16 @@ export const SKILLS: Record<SkillId, SkillDef> = {
 };
 
 export const SKILL_IDS: SkillId[] = [
-  'eraser_strike', 'bell', 'whiteout_zone', 'caffeine', 'ruler_sweep',
-  'scholarship', 'relocate', 'inspiration', 'magnifier', 'seal_tape',
+  'eraser_strike',
+  'bell',
+  'whiteout_zone',
+  'caffeine',
+  'ruler_sweep',
+  'scholarship',
+  'relocate',
+  'inspiration',
+  'magnifier',
+  'seal_tape',
 ];
 
 export const SKILL_LEVEL = { cdPerLevel: 0.08, effectPerLevel: 0.15, maxLevel: 3 };

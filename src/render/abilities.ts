@@ -22,7 +22,13 @@ const BUFF: Partial<Record<string, { dur: number; kind: 'aura' | 'spin' | 'rainb
  * 按「塔 id + 分支」识别，不依赖 core 的 ability 字符串；事件里缺的坐标从塔 / 目标敌人推出。
  * 持续区域（熔胶海、十字墨迹、全面修改）由 core 以 zone 形式给出，见 shots.ts。
  */
-export function abilityFx(ctx: RenderCtx, towers: TowerLayer, field: FieldLayer, ev: AbilityEv, shake: (ms: number, k: number) => void): void {
+export function abilityFx(
+  ctx: RenderCtx,
+  towers: TowerLayer,
+  field: FieldLayer,
+  ev: AbilityEv,
+  shake: (ms: number, k: number) => void,
+): void {
   const st = ctx.session.world.state;
   const fx = ctx.fx;
   const t = st.towers.get(ev.uid);
@@ -31,7 +37,7 @@ export function abilityFx(ctx: RenderCtx, towers: TowerLayer, field: FieldLayer,
   const id: TowerId | string = t?.id ?? ev.ability.split(/[_:]/)[0];
   const br = t?.branch ?? (/_b$|_B$/.test(ev.ability) ? 'B' : 'A');
   const key = `${id}_${br}`;
-  const tp = t ? towers.pos(t.uid) ?? { x: P(t.cx + 0.5), y: P(t.cy + 0.5) } : null;
+  const tp = t ? (towers.pos(t.uid) ?? { x: P(t.cx + 0.5), y: P(t.cy + 0.5) }) : null;
   const tx = tp?.x ?? BOARD_W / 2,
     ty = tp?.y ?? BOARD_H / 2;
   const col = branchColor(br === 'B' ? 'B' : 'A');
@@ -65,10 +71,10 @@ export function abilityFx(ctx: RenderCtx, towers: TowerLayer, field: FieldLayer,
     }
     case 'stapler_A': {
       // 连环钉：沿方向射出 12 枚
-      const ang = ev.angle ?? (ev.x !== undefined ? Math.atan2(ay - ty, ax - tx) : t?.angle ?? 0);
+      const ang = ev.angle ?? (ev.x !== undefined ? Math.atan2(ay - ty, ax - tx) : (t?.angle ?? 0));
       const L = Math.hypot(BOARD_W, BOARD_H);
       for (let i = 0; i < 12; i++) {
-        const sp = (i % 3 - 1) * 0.04;
+        const sp = ((i % 3) - 1) * 0.04;
         const a = ang + sp;
         fx.bolt(tx, ty, tx + Math.cos(a) * L, ty + Math.sin(a) * L, C.metal, 3, 14, 0.55, i * 0.05);
       }
@@ -106,7 +112,8 @@ export function abilityFx(ctx: RenderCtx, towers: TowerLayer, field: FieldLayer,
       fx.bolt(tx, ty, ax, ay, C.lamp, 5, 16, 0.25);
       fx.ring(ax, ay, r * 0.2, r * 1.2, C.lamp, 0.5, 8, true, 0.2);
       fx.shatter(ax, ay, C.alarmRed, 10, 4);
-      for (let i = 0; i < (low ? 6 : 14); i++) fx.mote(ax + (Math.random() - 0.5) * r * 2, ay + (Math.random() - 0.5) * r * 2, C.lamp, -30, 0.9, 3);
+      for (let i = 0; i < (low ? 6 : 14); i++)
+        fx.mote(ax + (Math.random() - 0.5) * r * 2, ay + (Math.random() - 0.5) * r * 2, C.lamp, -30, 0.9, 3);
       break;
     }
     case 'lamp_A': {
@@ -167,7 +174,7 @@ export function abilityFx(ctx: RenderCtx, towers: TowerLayer, field: FieldLayer,
     }
     case 'ruler_A': {
       const axis = ev.axis ?? 'row';
-      const idx = ev.index ?? (axis === 'row' ? Math.floor(ev.y ?? (t?.cy ?? 0)) : Math.floor(ev.x ?? (t?.cx ?? 0)));
+      const idx = ev.index ?? (axis === 'row' ? Math.floor(ev.y ?? t?.cy ?? 0) : Math.floor(ev.x ?? t?.cx ?? 0));
       if (axis === 'row') {
         const y = P(idx + 0.5);
         fx.sweepLine(0, y, BOARD_W, y, true, CELL * 1.3);
@@ -193,7 +200,8 @@ export function abilityFx(ctx: RenderCtx, towers: TowerLayer, field: FieldLayer,
       const L = P(ev.r ?? 1.5);
       fx.stroke(ax - L, ay, ax + L, ay, C.inkBlue, 14, 0.5);
       fx.later(0.12, () => fx.stroke(ax, ay - L, ax, ay + L, C.inkBlue, 14, 0.5));
-      for (let i = 0; i < (low ? 5 : 10); i++) fx.mote(ax + (Math.random() - 0.5) * L * 2, ay + (Math.random() - 0.5) * L * 2, C.inkBlue, 10, 0.6, 3, false);
+      for (let i = 0; i < (low ? 5 : 10); i++)
+        fx.mote(ax + (Math.random() - 0.5) * L * 2, ay + (Math.random() - 0.5) * L * 2, C.inkBlue, 10, 0.6, 3, false);
       break;
     }
     case 'pen_B': {

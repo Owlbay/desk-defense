@@ -19,7 +19,13 @@ function row(id: string, iconEl: HTMLElement | null, name: string, desc: string,
 export const skillTab: TabModule = {
   entries(): Entry[] {
     return [
-      ...SKILL_IDS.map((id): Entry => ({ tab: 'skill', id: `skill-${id}`, title: SKILL_META[id].name, text: SKILL_META[id].desc, icon: skillIcon(id) })),
+      ...SKILL_IDS.map((id): Entry => ({
+        tab: 'skill',
+        id: `skill-${id}`,
+        title: SKILL_META[id].name,
+        text: SKILL_META[id].desc,
+        icon: skillIcon(id),
+      })),
       ...PERK_META.map((p): Entry => ({ tab: 'skill', id: `perk-${p.id}`, title: p.name, text: p.desc })),
       ...TALENT_IDS.map((id): Entry => ({ tab: 'skill', id: `talent-${id}`, title: TALENT_META[id].name, text: TALENT_META[id].desc })),
     ];
@@ -54,7 +60,9 @@ export const skillTab: TabModule = {
           h(
             'div.guide-rows',
             null,
-            PERK_META.filter((p) => p.rarity === r).map((p) => row(`perk-${p.id}`, null, p.name, p.desc, [p.needsTower ? tag(t('guide.perk.needsTower')) : null], `.g-rarity-${r}`)),
+            PERK_META.filter((p) => p.rarity === r).map((p) =>
+              row(`perk-${p.id}`, null, p.name, p.desc, [p.needsTower ? tag(t('guide.perk.needsTower')) : null], `.g-rarity-${r}`),
+            ),
           ),
         ]),
       ),
@@ -67,7 +75,10 @@ export const skillTab: TabModule = {
           null,
           TALENT_IDS.map((id) => {
             const m = TALENT_META[id];
-            return row(`talent-${id}`, null, m.name, m.desc, [tag(t('guide.talent.max', { n: m.max })), tag(t('guide.talent.price', { star: m.star, ink: m.ink }))]);
+            return row(`talent-${id}`, null, m.name, m.desc, [
+              tag(t('guide.talent.max', { n: m.max })),
+              tag(t('guide.talent.price', { star: m.star, ink: m.ink })),
+            ]);
           }),
         ),
         rich('p.muted', t('guide.talent.tip')),

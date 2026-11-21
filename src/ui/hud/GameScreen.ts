@@ -116,7 +116,11 @@ export function gameScreen(app: App, route: Route): Screen {
   wavePanel.el.classList.add('g-wave');
   const side = h('div.side', null, topBar.el, buildBar.el, info.el, skillBar.el, wavePanel.el);
   // 金币飞入顶栏的特效层（不接收输入）
-  const goldFx = new GoldFx(boardHost, () => topBar.goldIcon, (n) => topBar.goldArrive(n));
+  const goldFx = new GoldFx(
+    boardHost,
+    () => topBar.goldIcon,
+    (n) => topBar.goldArrive(n),
+  );
   game.append(boardWrap, side, goldFx.el, modals);
   // AI 助手：每局一个 AI 插槽（任何模式都能中途启用 / 停用）。公平性标记随中途存档恢复
   const aiSlot = createAiSlot({ app, session, opts, game, modals }, { assist: route.resume?.aiAssist });
@@ -307,7 +311,10 @@ export function gameScreen(app: App, route: Route): Screen {
       case 'evolve': {
         const ti = world.getTowerInfo(ev.uid);
         const name = ti?.name ?? t('ui.game.tower');
-        overlay.toast(ev.mythic ? t('ui.game.becameMythic', { name, tier: ti?.tierName ?? '' }) : t('ui.game.evolvedStars', { name, n: ev.stars }), 'good');
+        overlay.toast(
+          ev.mythic ? t('ui.game.becameMythic', { name, tier: ti?.tierName ?? '' }) : t('ui.game.evolvedStars', { name, n: ev.stars }),
+          'good',
+        );
         break;
       }
       case 'sell':
@@ -387,24 +394,29 @@ export function gameScreen(app: App, route: Route): Screen {
     aiMenu.end();
     if (!dedicatedAi) aiSlot.gameOver({ won, wave, wavesSurvived, score }, { again: () => {}, menu: () => {} });
     let rewards: Rewards = { stars: 0, starsBest: 0, ink: 0, rank: 0, newRecord: false };
-    if (!aiSlot.noSettle) app.store.update((p) => {
-      rewards = settleRun(p, opts, {
-        won,
-        wavesSurvived,
-        score,
-        kills: st.stats.kills,
-        lives: st.lives,
-        maxLives: st.maxLives,
-        seed: st.seed,
-        perks: st.perks.slice(),
-        autoWave: st.autoWave ? !!st.autoWave.enabled : undefined,
-        // 用过「让 AI 替我玩」：本地排行榜条目打上 AI 协助标记（进度 / 星星 / 墨水照常发放）
-        aiAssisted: isAiAssisted(aiSlot.assist),
+    if (!aiSlot.noSettle)
+      app.store.update((p) => {
+        rewards = settleRun(p, opts, {
+          won,
+          wavesSurvived,
+          score,
+          kills: st.stats.kills,
+          lives: st.lives,
+          maxLives: st.maxLives,
+          seed: st.seed,
+          perks: st.perks.slice(),
+          autoWave: st.autoWave ? !!st.autoWave.enabled : undefined,
+          // 用过「让 AI 替我玩」：本地排行榜条目打上 AI 协助标记（进度 / 星星 / 墨水照常发放）
+          aiAssisted: isAiAssisted(aiSlot.assist),
+        });
       });
-    });
     ui.clear();
     audio.setIntensity(0);
-    overlay.bigText(won ? t('ui.game.victory') : t('ui.game.defeat'), won ? t('ui.game.victorySub') : t('ui.game.defeatSub'), won ? 'win' : 'lose');
+    overlay.bigText(
+      won ? t('ui.game.victory') : t('ui.game.defeat'),
+      won ? t('ui.game.victorySub') : t('ui.game.defeatSub'),
+      won ? 'win' : 'lose',
+    );
     setTimeout(() => {
       if (destroyed) return;
       pauseEl?.remove();
@@ -413,27 +425,35 @@ export function gameScreen(app: App, route: Route): Screen {
         // AI 参战局：换成 AI 报告卡片（没有「提交到全服榜」，只能进 AI 榜）
         gameOverEl = aiSlot.gameOver(
           { won, wave, wavesSurvived, score },
-          { again: () => (audio.play('select'), app.go({ name: 'game', opts: restartOpts(), userSeed })), menu: () => (audio.play('click'), app.go({ name: 'menu' })) },
+          {
+            again: () => (audio.play('select'), app.go({ name: 'game', opts: restartOpts(), userSeed })),
+            menu: () => (audio.play('click'), app.go({ name: 'menu' })),
+          },
         );
         if (gameOverEl) {
           modals.appendChild(gameOverEl);
           return;
         }
       }
-      const view = () => gameOverView(ctx, { won, wave, wavesSurvived, score, st, rewards }, {
-        again: () => {
-          audio.play('select');
-          app.go({ name: 'game', opts: restartOpts(), userSeed });
-        },
-        changeDifficulty: () => {
-          audio.play('click');
-          app.go({ name: opts.mode });
-        },
-        menu: () => {
-          audio.play('click');
-          app.go({ name: 'menu' });
-        },
-      });
+      const view = () =>
+        gameOverView(
+          ctx,
+          { won, wave, wavesSurvived, score, st, rewards },
+          {
+            again: () => {
+              audio.play('select');
+              app.go({ name: 'game', opts: restartOpts(), userSeed });
+            },
+            changeDifficulty: () => {
+              audio.play('click');
+              app.go({ name: opts.mode });
+            },
+            menu: () => {
+              audio.play('click');
+              app.go({ name: 'menu' });
+            },
+          },
+        );
       rebuildGameOver = () => {
         const next = view();
         gameOverEl?.replaceWith(next);
@@ -557,7 +577,7 @@ export function gameScreen(app: App, route: Route): Screen {
         ui.set({ selected: null });
         sel = null;
       }
-      const bo: BuildOption | null = ui.state.build ? opts2.find((o) => o.id === ui.state.build) ?? null : null;
+      const bo: BuildOption | null = ui.state.build ? (opts2.find((o) => o.id === ui.state.build) ?? null) : null;
       info.update(ti, bo);
       game.classList.toggle('has-selection', !!ti);
       const targeting = ui.state.perkTargeting ?? perkPending;

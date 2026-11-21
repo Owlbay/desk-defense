@@ -40,7 +40,11 @@ export function dailyScreen(app: App): Screen {
       stat(t('ui.daily.wave'), me ? t('ui.daily.waves', { n: me.wave }) : '—'),
       stat(
         t('ui.daily.rank'),
-        me ? `${fmtNumber(me.rank)} / ${fmtNumber(d?.total ?? 0)}` : d ? t('ui.daily.players', { n: d.total, total: fmtNumber(d.total) }) : '—',
+        me
+          ? `${fmtNumber(me.rank)} / ${fmtNumber(d?.total ?? 0)}`
+          : d
+            ? t('ui.daily.players', { n: d.total, total: fmtNumber(d.total) })
+            : '—',
       ),
     );
   }
@@ -135,7 +139,23 @@ export function dailyScreen(app: App): Screen {
       ),
       loadoutStrip(app, { name: 'daily' }),
       h('div.start-bar', null, startBtn),
-      h('section.card.section', null, h('div.online-bar', null, h('h3', null, t('ui.daily.todayBoard')), nicknameChip(() => list.reload()), h('button.btn.small', { attrs: { type: 'button' }, onclick: () => (audio.play('click'), list.reload()) }, h('span.gi', { html: G.refresh }), t('ui.daily.refresh'))), list.el),
+      h(
+        'section.card.section',
+        null,
+        h(
+          'div.online-bar',
+          null,
+          h('h3', null, t('ui.daily.todayBoard')),
+          nicknameChip(() => list.reload()),
+          h(
+            'button.btn.small',
+            { attrs: { type: 'button' }, onclick: () => (audio.play('click'), list.reload()) },
+            h('span.gi', { html: G.refresh }),
+            t('ui.daily.refresh'),
+          ),
+        ),
+        list.el,
+      ),
     ),
   );
 

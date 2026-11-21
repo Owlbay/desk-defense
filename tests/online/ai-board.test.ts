@@ -35,11 +35,20 @@ const ORIGIN = 'https://desk-defense.pages.dev';
 const NOW = Date.parse('2026-11-20T04:00:00Z');
 const SKILLS: RunOptions['skills'] = ['eraser_strike', 'bell', 'whiteout_zone'];
 const dev = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
-const AGENT: AgentMeta = { provider: 'claude-native', model: 'claude-sonnet-5-5', mode: 'pause', botShare: 0.05, decisions: 40, tokens: 123456, costUsd: 0.42 };
+const AGENT: AgentMeta = {
+  provider: 'claude-native',
+  model: 'claude-sonnet-5-5',
+  mode: 'pause',
+  botShare: 0.05,
+  decisions: 40,
+  tokens: 123456,
+  costUsd: 0.42,
+};
 
 const cache = new Map<string, PlayedRun>();
 function played(seed: string): PlayedRun {
-  if (!cache.has(seed)) cache.set(seed, playRun({ mode: 'endless', map: 'ch1', difficulty: 'normal', seed, skills: SKILLS, autoWave: true }));
+  if (!cache.has(seed))
+    cache.set(seed, playRun({ mode: 'endless', map: 'ch1', difficulty: 'normal', seed, skills: SKILLS, autoWave: true }));
   return cache.get(seed)!;
 }
 
@@ -58,7 +67,11 @@ async function body(run: PlayedRun, o: { device?: number; board?: string; agent?
 }
 
 const post = (b: unknown, ip = '9.9.9.9') =>
-  new Request(`${ORIGIN}/api/runs`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': ip, Origin: ORIGIN }, body: JSON.stringify(b) });
+  new Request(`${ORIGIN}/api/runs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': ip, Origin: ORIGIN },
+    body: JSON.stringify(b),
+  });
 const get = (path: string) => new Request(`${ORIGIN}${path}`);
 
 let db: FakeD1;
@@ -124,12 +137,21 @@ describe('checkSubmission：AI 与真人隔离', () => {
 
   it('AI 榜键必须与开局参数一致；每日挑战没有 AI 榜', async () => {
     const run = played('ai-iso');
-    expect(checkSubmission(await body(run, { board: 'ai:hard:auto' }), { now: NOW })).toMatchObject({ ok: false, message: '排行榜与开局参数不一致' });
+    expect(checkSubmission(await body(run, { board: 'ai:hard:auto' }), { now: NOW })).toMatchObject({
+      ok: false,
+      message: '排行榜与开局参数不一致',
+    });
     expect(checkSubmission(await body(run, { board: 'ai:nope' }), { now: NOW })).toMatchObject({ ok: false, message: '排行榜不存在' });
     const info = dailyInfo(dayOf(NOW));
     const daily = playRun(dailyRunOptions(info, SKILLS), 60 * 60 * 3);
-    expect(checkSubmission(await body(daily, { board: info.board }), { now: NOW })).toMatchObject({ ok: false, message: 'AI 对局的成绩只能提交到 AI 榜' });
-    expect(checkSubmission(await body(daily, { board: `ai:${info.board}` }), { now: NOW })).toMatchObject({ ok: false, message: '排行榜不存在' });
+    expect(checkSubmission(await body(daily, { board: info.board }), { now: NOW })).toMatchObject({
+      ok: false,
+      message: 'AI 对局的成绩只能提交到 AI 榜',
+    });
+    expect(checkSubmission(await body(daily, { board: `ai:${info.board}` }), { now: NOW })).toMatchObject({
+      ok: false,
+      message: '排行榜不存在',
+    });
     expect(checkSubmission(await body(run, { agent: { ...AGENT, mode: 'x' } }), { now: NOW }).ok).toBe(false);
   });
 });
@@ -142,7 +164,13 @@ describe('POST /api/runs → AI 榜', () => {
     const data = (await res.json()) as SubmitResponse;
     expect(data).toMatchObject({ rank: 1, total: 1, improved: true });
     const row = db.sqlite.prepare('SELECT * FROM runs WHERE id = ?').get(data.id) as Record<string, unknown>;
-    expect(row).toMatchObject({ board: 'ai:normal:auto', agent_provider: 'claude-native', agent_model: 'claude-sonnet-5-5', agent_mode: 'pause', agent_bot_share: 0.05 });
+    expect(row).toMatchObject({
+      board: 'ai:normal:auto',
+      agent_provider: 'claude-native',
+      agent_model: 'claude-sonnet-5-5',
+      agent_mode: 'pause',
+      agent_bot_share: 0.05,
+    });
     expect(JSON.parse(row.agent_json as string)).toEqual(AGENT);
     // 去重键不是真人榜用的设备哈希
     expect(row.device_hash).not.toBe(await hashDevice('test-salt', dev(1)));
@@ -151,7 +179,13 @@ describe('POST /api/runs → AI 榜', () => {
     expect(human.rows).toHaveLength(0);
     const ai = (await (await handleLeaderboard(get('/api/leaderboard?board=ai:normal:auto'), deps)).json()) as LeaderboardResponse;
     expect(ai.rows).toHaveLength(1);
-    expect(ai.rows[0].agent).toEqual({ provider: 'claude-native', model: 'claude-sonnet-5-5', mode: 'pause', botShare: 0.05, botAssisted: false });
+    expect(ai.rows[0].agent).toEqual({
+      provider: 'claude-native',
+      model: 'claude-sonnet-5-5',
+      mode: 'pause',
+      botShare: 0.05,
+      botAssisted: false,
+    });
 
     const d = (await (await handleGetRun(get(`/api/runs/${data.id}`), deps, data.id)).json()) as RunDetail;
     expect(d.board).toBe('ai:normal:auto');
@@ -183,7 +217,9 @@ describe('POST /api/runs → AI 榜', () => {
     await handleSubmit(post(await body(a)), deps);
     await handleSubmit(post(await body(b)), deps);
     await handleSubmit(post(await body(a, { agent: { ...AGENT, provider: 'pi:ollama', model: 'qwen3:8b', botShare: 0.5 } })), deps);
-    const ai = (await (await handleLeaderboard(get(`/api/leaderboard?board=ai:normal:auto&around=${dev(1)}`), deps)).json()) as LeaderboardResponse;
+    const ai = (await (
+      await handleLeaderboard(get(`/api/leaderboard?board=ai:normal:auto&around=${dev(1)}`), deps)
+    ).json()) as LeaderboardResponse;
     expect(ai.total).toBe(2);
     expect(ai.me).toBeNull();
     const models = ai.rows.map((r) => r.agent?.model).sort();
@@ -194,7 +230,10 @@ describe('POST /api/runs → AI 榜', () => {
 
   it('内置策略（scripted）标注为机器人代打', async () => {
     const run = played('ai-a');
-    await handleSubmit(post(await body(run, { agent: { provider: 'scripted', model: 'scripted-v1', mode: 'pause', botShare: 0, decisions: 12 } })), deps);
+    await handleSubmit(
+      post(await body(run, { agent: { provider: 'scripted', model: 'scripted-v1', mode: 'pause', botShare: 0, decisions: 12 } })),
+      deps,
+    );
     const ai = (await (await handleLeaderboard(get('/api/leaderboard?board=ai:normal:auto'), deps)).json()) as LeaderboardResponse;
     expect(ai.rows[0].agent).toMatchObject({ provider: 'scripted', botShare: 1, botAssisted: true });
   });
@@ -210,7 +249,12 @@ describe('客户端 buildSubmitBody', () => {
     _resetOnlineForTests();
     const mem = new Map<string, string>();
     configureOnline({
-      storage: { get: (k: string) => mem.get(k) ?? null, set: (k: string, v: string) => (mem.set(k, v), true), remove: (k: string) => void mem.delete(k), persistent: true },
+      storage: {
+        get: (k: string) => mem.get(k) ?? null,
+        set: (k: string, v: string) => (mem.set(k, v), true),
+        remove: (k: string) => void mem.delete(k),
+        persistent: true,
+      },
       now: () => NOW,
     });
     const run = played('ai-a');

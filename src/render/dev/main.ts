@@ -3,7 +3,17 @@
  * - 若 src/core/index.ts 已存在则用真实 core（URL 加 ?mock=1 强制使用假 World）。
  * - 自带一个与 Session 接口一致的 DevSession，避免依赖 core 是否就绪。
  */
-import { DT, RANDOM_EVENT_IDS, TOWER_IDS, type Command, type CommandResult, type GameEvent, type IWorld, type RunOptions, type SkillId } from '../../core/types';
+import {
+  DT,
+  RANDOM_EVENT_IDS,
+  TOWER_IDS,
+  type Command,
+  type CommandResult,
+  type GameEvent,
+  type IWorld,
+  type RunOptions,
+  type SkillId,
+} from '../../core/types';
 import type { Session } from '../../game/Session';
 import { ui } from '../../game/UiStore';
 import { mountBoard, setRenderQuality, getRenderQuality } from '../index';
@@ -67,7 +77,17 @@ const world: IWorld = mock
       mode: 'endless',
       map: 'ch1',
       difficulty: 'normal',
-      skills: ['eraser_strike', 'bell', 'whiteout_zone', 'ruler_sweep', 'relocate', 'inspiration', 'magnifier', 'caffeine', 'scholarship'] as SkillId[],
+      skills: [
+        'eraser_strike',
+        'bell',
+        'whiteout_zone',
+        'ruler_sweep',
+        'relocate',
+        'inspiration',
+        'magnifier',
+        'caffeine',
+        'scholarship',
+      ] as SkillId[],
     });
 const dev: MockDev | null = mock ? mock.dev : null;
 if (!useMock) (world.state as { gold: number }).gold = 99999;
@@ -90,14 +110,19 @@ function btn(label: string, fn: () => void): HTMLButtonElement {
 const sep = () => panel.appendChild(document.createElement('hr'));
 
 info.textContent = useMock ? '使用假 World（mock）' : '使用真实 core';
-TOWER_IDS.forEach((id, i) => btn(`${i < 9 ? i + 1 : (['0', '-', '='][i - 9] ?? '')} ${id}`, () => ui.set({ build: ui.state.build === id ? null : id, pending: null, aiming: null })));
+TOWER_IDS.forEach((id, i) =>
+  btn(`${i < 9 ? i + 1 : (['0', '-', '='][i - 9] ?? '')} ${id}`, () =>
+    ui.set({ build: ui.state.build === id ? null : id, pending: null, aiming: null }),
+  ),
+);
 sep();
-for (const s of world.state.skills) btn(`技能 ${s.id}`, () => {
-  if (s.target === 'none') {
-    const r = session.command({ type: 'cast', skill: s.id });
-    if (!r.ok) console.warn(r.reason);
-  } else ui.set({ aiming: ui.state.aiming === s.id ? null : s.id, build: null, pending: null, relocateFrom: null });
-});
+for (const s of world.state.skills)
+  btn(`技能 ${s.id}`, () => {
+    if (s.target === 'none') {
+      const r = session.command({ type: 'cast', skill: s.id });
+      if (!r.ok) console.warn(r.reason);
+    } else ui.set({ aiming: ui.state.aiming === s.id ? null : s.id, build: null, pending: null, relocateFrom: null });
+  });
 btn('轴向 R', () => ui.set({ aimAxis: ui.state.aimAxis === 'row' ? 'col' : 'row' }));
 sep();
 // 文档 11：进化 / 主动能力
@@ -137,9 +162,12 @@ sep();
 if (dev) for (const id of RANDOM_EVENT_IDS) btn(`事件 ${id}`, () => dev.triggerEvent(id));
 sep();
 btn('开波 ␣', () => session.command({ type: 'startWave' }));
-btn('速度 F', () => (session.speed = (((session.speed % 3) + 1) as 1 | 2 | 3)));
+btn('速度 F', () => (session.speed = ((session.speed % 3) + 1) as 1 | 2 | 3));
 btn('暂停 P', () => (session.paused = !session.paused));
-btn('升级 U', () => ui.state.selected !== null && session.command({ type: 'upgrade', uid: ui.state.selected, branch: Math.random() < 0.5 ? 'A' : 'B' }));
+btn(
+  '升级 U',
+  () => ui.state.selected !== null && session.command({ type: 'upgrade', uid: ui.state.selected, branch: Math.random() < 0.5 ? 'A' : 'B' }),
+);
 btn('出售 S', () => ui.state.selected !== null && session.command({ type: 'sell', uid: ui.state.selected }) && ui.set({ selected: null }));
 btn('画质', () => setRenderQuality(getRenderQuality() === 'high' ? 'low' : 'high'));
 btn('重挂载', () => {
@@ -160,7 +188,7 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === 'r' || e.key === 'R') ui.set({ aimAxis: ui.state.aimAxis === 'row' ? 'col' : 'row' });
   else if (e.key === ' ') session.command({ type: 'startWave' });
   else if (e.key === 'p') session.paused = !session.paused;
-  else if (e.key === 'f') session.speed = (((session.speed % 3) + 1) as 1 | 2 | 3);
+  else if (e.key === 'f') session.speed = ((session.speed % 3) + 1) as 1 | 2 | 3;
   else if (e.key === 'a') abilityKey();
   else if (e.key === 'e' && ui.state.selected !== null) session.command({ type: 'evolve', uid: ui.state.selected });
   else if (e.key === 'u' && ui.state.selected !== null) session.command({ type: 'upgrade', uid: ui.state.selected, branch: 'B' });
@@ -189,21 +217,65 @@ function drive(n: number, dt = 1000 / 60): number {
 }
 function scenario(): void {
   const st = world.state;
-  const ids = ['crumb', 'inkdot', 'paperclip', 'plane', 'paperball', 'sticky', 'rubberband', 'whiteout', 'ant', 'invisink', 'tape', 'moth', 'crumbmini', 'boss_coffee', 'boss_coffee_small', 'boss_shredder', 'boss_inkbottle', 'boss_alarm'] as const;
+  const ids = [
+    'crumb',
+    'inkdot',
+    'paperclip',
+    'plane',
+    'paperball',
+    'sticky',
+    'rubberband',
+    'whiteout',
+    'ant',
+    'invisink',
+    'tape',
+    'moth',
+    'crumbmini',
+    'boss_coffee',
+    'boss_coffee_small',
+    'boss_shredder',
+    'boss_inkbottle',
+    'boss_alarm',
+  ] as const;
   let u = 9000;
   ids.forEach((id, i) => {
     const boss = id.startsWith('boss');
     const x = boss ? 1.2 + ((i - 13) % 3) * 3.5 : 1 + (i % 6) * 2;
     const y = boss ? 9 + Math.floor((i - 13) / 3) * 3 : 1.5 + Math.floor(i / 6) * 2.3;
     st.enemies.push({
-      uid: u++, id, x, y, angle: Math.PI / 2, hp: i % 2 ? 50 : 100, maxHp: 100, shield: id === 'sticky' ? 40 : 0, maxShield: 40, armor: 0, speed: 0,
-      radius: boss ? 0.7 : id === 'crumbmini' ? 0.16 : 0.27, scale: i === 2 ? 1.2 : 1, flying: id === 'plane', boss,
-      elite: i === 2 || i === 5, affixes: i === 2 ? ['hard', 'shield', 'rally'] : i === 5 ? ['swift', 'stealth'] : [], group: i === 7 ? 5 : 1,
-      hidden: id === 'invisink', stealthy: id === 'invisink' || i === 5, slowPct: 0.4, slowUntil: i === 0 ? 999 : 0, stunUntil: i === 1 ? 999 : 0,
-      rootUntil: i === 3 ? 999 : 0, inkStacks: i === 4 ? 4 : 0, bleedStacks: 0, burnUntil: 0, markedUntil: i === 6 ? 999 : 0,
+      uid: u++,
+      id,
+      x,
+      y,
+      angle: Math.PI / 2,
+      hp: i % 2 ? 50 : 100,
+      maxHp: 100,
+      shield: id === 'sticky' ? 40 : 0,
+      maxShield: 40,
+      armor: 0,
+      speed: 0,
+      radius: boss ? 0.7 : id === 'crumbmini' ? 0.16 : 0.27,
+      scale: i === 2 ? 1.2 : 1,
+      flying: id === 'plane',
+      boss,
+      elite: i === 2 || i === 5,
+      affixes: i === 2 ? ['hard', 'shield', 'rally'] : i === 5 ? ['swift', 'stealth'] : [],
+      group: i === 7 ? 5 : 1,
+      hidden: id === 'invisink',
+      stealthy: id === 'invisink' || i === 5,
+      slowPct: 0.4,
+      slowUntil: i === 0 ? 999 : 0,
+      stunUntil: i === 1 ? 999 : 0,
+      rootUntil: i === 3 ? 999 : 0,
+      inkStacks: i === 4 ? 4 : 0,
+      bleedStacks: 0,
+      burnUntil: 0,
+      markedUntil: i === 6 ? 999 : 0,
       // 飞蛾：演示被捕虫网网在地上
       netUntil: id === 'moth' ? 999 : 0,
-      jumping: id === 'rubberband', lastHit: -1, spawnedAt: -10,
+      jumping: id === 'rubberband',
+      lastHit: -1,
+      spawnedAt: -10,
     });
   });
   session.paused = true;
@@ -217,11 +289,38 @@ function bench(n = 150): string {
   for (let i = 0; i < n; i++) {
     const id = ids[i % ids.length];
     st.enemies.push({
-      uid: u++, id, x: 0.5 + (i % 12) * 0.95, y: 1 + Math.floor(i / 12) * 0.9, angle: Math.PI / 2, hp: 5e8, maxHp: 1e9, shield: 0, maxShield: 0, armor: 0, speed: 0,
-      radius: 0.27, scale: 1, flying: id === 'plane' || id === 'moth', boss: false, elite: i % 20 === 0, affixes: [], group: 1,
-      hidden: false, stealthy: false, slowPct: 0.4, slowUntil: i % 5 === 0 ? 1e9 : 0, stunUntil: i % 7 === 0 ? 1e9 : 0,
-      rootUntil: 0, inkStacks: i % 6 === 0 ? 3 : 0, bleedStacks: i % 9 === 0 ? 2 : 0, burnUntil: i % 8 === 0 ? 1e9 : 0, markedUntil: i % 10 === 0 ? 1e9 : 0,
-      netUntil: 0, jumping: false, lastHit: -1, spawnedAt: -10,
+      uid: u++,
+      id,
+      x: 0.5 + (i % 12) * 0.95,
+      y: 1 + Math.floor(i / 12) * 0.9,
+      angle: Math.PI / 2,
+      hp: 5e8,
+      maxHp: 1e9,
+      shield: 0,
+      maxShield: 0,
+      armor: 0,
+      speed: 0,
+      radius: 0.27,
+      scale: 1,
+      flying: id === 'plane' || id === 'moth',
+      boss: false,
+      elite: i % 20 === 0,
+      affixes: [],
+      group: 1,
+      hidden: false,
+      stealthy: false,
+      slowPct: 0.4,
+      slowUntil: i % 5 === 0 ? 1e9 : 0,
+      stunUntil: i % 7 === 0 ? 1e9 : 0,
+      rootUntil: 0,
+      inkStacks: i % 6 === 0 ? 3 : 0,
+      bleedStacks: i % 9 === 0 ? 2 : 0,
+      burnUntil: i % 8 === 0 ? 1e9 : 0,
+      markedUntil: i % 10 === 0 ? 1e9 : 0,
+      netUntil: 0,
+      jumping: false,
+      lastHit: -1,
+      spawnedAt: -10,
     });
   }
   session.paused = false;

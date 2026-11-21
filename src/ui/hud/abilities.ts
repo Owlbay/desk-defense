@@ -8,13 +8,27 @@ type Ability = NonNullable<TowerInfo['ability']>;
 
 /** 能力目标说明（getter：按当前语言翻译） */
 export const ABILITY_TARGET_TEXT: Record<Ability['target'], string> = {
-  get none() { return t('ui.game.abilityTarget.none'); },
-  get circle() { return t('ui.game.abilityTarget.circle'); },
-  get rect3() { return t('ui.game.abilityTarget.rect3'); },
-  get direction() { return t('ui.game.abilityTarget.direction'); },
-  get axis() { return t('ui.game.abilityTarget.axis'); },
-  get enemy() { return t('ui.game.abilityTarget.enemy'); },
-  get tower() { return t('ui.game.abilityTarget.tower'); },
+  get none() {
+    return t('ui.game.abilityTarget.none');
+  },
+  get circle() {
+    return t('ui.game.abilityTarget.circle');
+  },
+  get rect3() {
+    return t('ui.game.abilityTarget.rect3');
+  },
+  get direction() {
+    return t('ui.game.abilityTarget.direction');
+  },
+  get axis() {
+    return t('ui.game.abilityTarget.axis');
+  },
+  get enemy() {
+    return t('ui.game.abilityTarget.enemy');
+  },
+  get tower() {
+    return t('ui.game.abilityTarget.tower');
+  },
 };
 
 /**
@@ -33,7 +47,12 @@ export function castTowerAbility(ctx: GameCtx, uid: number, info?: TowerInfo | n
   if (!ab.ready) {
     audio.play('error');
     const charged = ab.maxCharges !== undefined;
-    ctx.toast(charged && (ab.charges ?? 0) <= 0 ? t('ui.game.noCharges', { name: ab.name }) : t('ui.game.cooldown', { name: ab.name, s: fmtSec(ab.cd) }), 'warn');
+    ctx.toast(
+      charged && (ab.charges ?? 0) <= 0
+        ? t('ui.game.noCharges', { name: ab.name })
+        : t('ui.game.cooldown', { name: ab.name, s: fmtSec(ab.cd) }),
+      'warn',
+    );
     return;
   }
   if (ab.target === 'none') {

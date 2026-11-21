@@ -16,7 +16,12 @@ import { leaderKey, leaderView, settleRun } from '../../src/meta/progress';
 import type { AiAttachCtx, AiLaunch } from '../../src/ui/ai/launch';
 
 // ── AI 面板替身：记录挂载 / 销毁；AI 玩家挂上后像真面板一样把棋盘设为只读 ──
-const hudLog: { mounted: AiLaunch[]; destroyed: number; finished: number; tookOver: number } = { mounted: [], destroyed: 0, finished: 0, tookOver: 0 };
+const hudLog: { mounted: AiLaunch[]; destroyed: number; finished: number; tookOver: number } = {
+  mounted: [],
+  destroyed: 0,
+  finished: 0,
+  tookOver: 0,
+};
 vi.mock('../../src/ui/ai/hud', () => ({
   mountAiHud: (_ctx: AiAttachCtx, launch: AiLaunch) => {
     hudLog.mounted.push(launch);
@@ -33,15 +38,35 @@ vi.mock('../../src/ui/ai/hud', () => ({
   },
 }));
 
-const OPTS: RunOptions = { mode: 'campaign', map: 'ch1', difficulty: 'normal', seed: 'assist-test', skills: ['eraser_strike', 'bell'], autoWave: false };
-const ENDLESS: RunOptions = { mode: 'endless', map: 'ch1', difficulty: 'normal', seed: 'assist-endless', skills: ['eraser_strike'], pure: true, autoWave: true };
+const OPTS: RunOptions = {
+  mode: 'campaign',
+  map: 'ch1',
+  difficulty: 'normal',
+  seed: 'assist-test',
+  skills: ['eraser_strike', 'bell'],
+  autoWave: false,
+};
+const ENDLESS: RunOptions = {
+  mode: 'endless',
+  map: 'ch1',
+  difficulty: 'normal',
+  seed: 'assist-endless',
+  skills: ['eraser_strike'],
+  pure: true,
+  autoWave: true,
+};
 
 function fakeGame() {
   const cls = new Set<string>();
   return {
     cls,
     el: {
-      classList: { add: (...c: string[]) => c.forEach((x) => cls.add(x)), remove: (...c: string[]) => c.forEach((x) => cls.delete(x)), toggle: () => false, contains: (c: string) => cls.has(c) },
+      classList: {
+        add: (...c: string[]) => c.forEach((x) => cls.add(x)),
+        remove: (...c: string[]) => c.forEach((x) => cls.delete(x)),
+        toggle: () => false,
+        contains: (c: string) => cls.has(c),
+      },
       querySelector: () => null,
     } as unknown as HTMLElement,
   };
@@ -51,17 +76,36 @@ function makeCtx(opts = OPTS) {
   const session = new Session(opts);
   const g = fakeGame();
   const toasts: string[] = [];
-  const ctx: AiAttachCtx = { app: { toast: (s: string) => void toasts.push(s) } as unknown as AiAttachCtx['app'], session, opts, game: g.el, modals: g.el };
+  const ctx: AiAttachCtx = {
+    app: { toast: (s: string) => void toasts.push(s) } as unknown as AiAttachCtx['app'],
+    session,
+    opts,
+    game: g.el,
+    modals: g.el,
+  };
   return { ctx, session, g, toasts };
 }
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
-const launch = (role: 'player' | 'advisor', mode: 'pause' | 'realtime' = 'pause', label = '离线演示'): AiLaunch => ({ config: { provider: 'scripted', model: 'scripted-v1', role }, role, mode, label });
+const launch = (role: 'player' | 'advisor', mode: 'pause' | 'realtime' = 'pause', label = '离线演示'): AiLaunch => ({
+  config: { provider: 'scripted', model: 'scripted-v1', role },
+  role,
+  mode,
+  label,
+});
 
 /** 对局状态指纹：挂上 / 摘下 AI 不能改动对局本身 */
 const fingerprint = (s: Session) => {
   const st = s.world.state;
-  return JSON.stringify({ tick: st.tick, wave: st.wave, gold: st.gold, lives: st.lives, phase: st.phase, towers: [...st.towers.keys()], log: s.world.log.length });
+  return JSON.stringify({
+    tick: st.tick,
+    wave: st.wave,
+    gold: st.gold,
+    lives: st.lives,
+    phase: st.phase,
+    towers: [...st.towers.keys()],
+    log: s.world.log.length,
+  });
 };
 
 describe('AI 插槽：对局中挂上 / 摘下', () => {
@@ -280,7 +324,12 @@ describe('模型设置：一份配置到处用', () => {
     const ok = resolveAssistLaunch('player');
     expect(ok.ok).toBe(true);
     if (!ok.ok) return;
-    expect(ok.launch.config).toMatchObject({ provider: 'claude-native', model: 'claude-sonnet-5-5', role: 'player', apiKey: 'sk-ant-TEST' });
+    expect(ok.launch.config).toMatchObject({
+      provider: 'claude-native',
+      model: 'claude-sonnet-5-5',
+      role: 'player',
+      apiKey: 'sk-ant-TEST',
+    });
     expect(ok.launch.label).toContain('claude-sonnet-5-5');
     // Key 只在内存（默认存放方式），保存的设置里没有
     expect(mem.get(AI_SETUP_KEY)).not.toContain('sk-ant-TEST');

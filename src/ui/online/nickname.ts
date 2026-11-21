@@ -19,7 +19,14 @@ function host(parent?: HTMLElement | null): HTMLElement {
 export function askNickname(o: { parent?: HTMLElement | null; title?: string; hint?: string } = {}): Promise<string | null> {
   return new Promise((resolve) => {
     const input = h<HTMLInputElement>('input.input', {
-      attrs: { type: 'text', maxlength: NICK_MAX * 2, placeholder: t('ui.online.nickPlaceholder', { max: NICK_MAX }), autocomplete: 'nickname', spellcheck: 'false', enterkeyhint: 'done' },
+      attrs: {
+        type: 'text',
+        maxlength: NICK_MAX * 2,
+        placeholder: t('ui.online.nickPlaceholder', { max: NICK_MAX }),
+        autocomplete: 'nickname',
+        spellcheck: 'false',
+        enterkeyhint: 'done',
+      },
     });
     input.value = getNickname();
     const msg = h('small.form-msg', { attrs: { 'aria-live': 'polite' } });
@@ -78,14 +85,18 @@ export function askNickname(o: { parent?: HTMLElement | null; title?: string; hi
       audio.play('click');
       close(null);
     };
-    const overlay = h('div.overlay.nick-overlay', {
-      onclick: (e: Event) => {
-        if (e.target === overlay) {
-          audio.play('click');
-          close(null);
-        }
+    const overlay = h(
+      'div.overlay.nick-overlay',
+      {
+        onclick: (e: Event) => {
+          if (e.target === overlay) {
+            audio.play('click');
+            close(null);
+          }
+        },
       },
-    }, form);
+      form,
+    );
     document.addEventListener('keydown', onKey, true);
     host(o.parent).appendChild(overlay);
     setTimeout(() => input.focus(), 30);

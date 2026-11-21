@@ -24,12 +24,20 @@ export interface ParsedActions {
 
 function sig(s: JsonSchema): string {
   switch (s.type) {
-    case 'string': return s.enum ? s.enum.join('|') : 'string';
-    case 'integer': return 'int';
-    case 'number': return 'number';
-    case 'boolean': return 'bool';
-    case 'array': return `[${sig(s.items)}]`;
-    case 'object': return `{${Object.entries(s.properties).map(([k, v]) => `${k}${s.required.includes(k) ? '' : '?'}:${sig(v)}`).join(', ')}}`;
+    case 'string':
+      return s.enum ? s.enum.join('|') : 'string';
+    case 'integer':
+      return 'int';
+    case 'number':
+      return 'number';
+    case 'boolean':
+      return 'bool';
+    case 'array':
+      return `[${sig(s.items)}]`;
+    case 'object':
+      return `{${Object.entries(s.properties)
+        .map(([k, v]) => `${k}${s.required.includes(k) ? '' : '?'}:${sig(v)}`)
+        .join(', ')}}`;
   }
 }
 
@@ -38,7 +46,9 @@ export function jsonModeInstructions(tools: AgentToolDef[]): string {
   const act = tools.find((t) => t.name === 'act');
   const reads = tools.filter((t) => t.kind === 'read' || t.name === 'suggest');
   const lines = reads.map((t) => `- ${t.name} ${sig(t.input_schema)}`);
-  const actLine = act ? `Game actions: {"do":"place","tower":"pencil","x":3,"y":5} — same fields as the act tool: ${act.description.split('Fields per do: ')[1] ?? ''}` : '';
+  const actLine = act
+    ? `Game actions: {"do":"place","tower":"pencil","x":3,"y":5} — same fields as the act tool: ${act.description.split('Fields per do: ')[1] ?? ''}`
+    : '';
   return `# Output format (JSON action mode)
 You cannot call tools natively. Reply with ONLY one JSON object, no prose, no code fences:
 {"actions":[{"do":"place","tower":"pencil","x":3,"y":5},{"do":"start_wave"}],"end":{"plan":"…"}}
@@ -98,7 +108,10 @@ export function parseActions(text: string, allowed: AgentToolDef[]): ParsedActio
   if (names.has('act')) for (const t of LEGACY_TOOLS) if (t.roles.includes('player')) names.add(t.name);
   let group: Record<string, unknown>[] | null = null;
   for (const [i, a] of list.entries()) {
-    if (typeof a !== 'object' || a === null) { out.errors.push(`actions[${i}] is not an object`); continue; }
+    if (typeof a !== 'object' || a === null) {
+      out.errors.push(`actions[${i}] is not an object`);
+      continue;
+    }
     if (typeof (a as { do?: unknown }).do === 'string' && names.has('act')) {
       // {"do":…} 动作：连续的合并成一次 act 调用
       if (!group) {
@@ -110,10 +123,16 @@ export function parseActions(text: string, allowed: AgentToolDef[]): ParsedActio
     }
     group = null;
     const { tool, args } = a as { tool?: unknown; args?: unknown };
-    if (typeof tool !== 'string' || !names.has(tool)) { out.errors.push(`actions[${i}].tool "${String(tool)}" is not an available tool`); continue; }
+    if (typeof tool !== 'string' || !names.has(tool)) {
+      out.errors.push(`actions[${i}].tool "${String(tool)}" is not an available tool`);
+      continue;
+    }
     const input = (args ?? {}) as Record<string, unknown>;
     const errs = validateToolInput(tool, input);
-    if (errs.length) { out.errors.push(`actions[${i}] ${tool}: ${errs.join('; ')}`); continue; }
+    if (errs.length) {
+      out.errors.push(`actions[${i}] ${tool}: ${errs.join('; ')}`);
+      continue;
+    }
     out.actions.push({ tool, args: input });
   }
   for (const a of out.actions) {

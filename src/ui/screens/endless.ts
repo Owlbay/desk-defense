@@ -31,7 +31,7 @@ export function endlessScreen(app: App): Screen {
   const last = p.lastEndless;
   const abyssMax = maxAbyssLevel(p);
   const state = {
-    map: (last && maps.includes(last.map) ? last.map : maps[0] ?? 'ch1') as MapId,
+    map: (last && maps.includes(last.map) ? last.map : (maps[0] ?? 'ch1')) as MapId,
     diff: (last && difficultyUnlocked(p, last.difficulty, last.abyssLevel) ? last.difficulty : 'normal') as DifficultyId,
     abyss: Math.max(1, Math.min(abyssMax || 1, last?.abyssLevel ?? abyssMax ?? 1)),
     pure: last?.pure ?? false,
@@ -56,7 +56,7 @@ export function endlessScreen(app: App): Screen {
           `button.seg${state.map === m ? '.on' : ''}${ok ? '' : '.locked'}`,
           {
             onclick: () => {
-              if (!ok) return audio.play('error'), app.toast(t('ui.endless.mapLocked'), 'warn');
+              if (!ok) return (audio.play('error'), app.toast(t('ui.endless.mapLocked'), 'warn'));
               audio.play('click');
               state.map = m;
               renderAll();
@@ -79,7 +79,7 @@ export function endlessScreen(app: App): Screen {
           `button.diff-card.${d}${state.diff === d ? '.on' : ''}${ok ? '' : '.locked'}`,
           {
             onclick: () => {
-              if (!ok) return audio.play('error'), app.toast(t('ui.endless.unlockCond', { hint: unlockHint(d, 1) }), 'warn');
+              if (!ok) return (audio.play('error'), app.toast(t('ui.endless.unlockCond', { hint: unlockHint(d, 1) }), 'warn'));
               audio.play('click');
               state.diff = d;
               renderAll();
@@ -88,7 +88,14 @@ export function endlessScreen(app: App): Screen {
           },
           h('span.diff-title', null, DIFF_NAME[d]),
           h('small', null, ok ? diffBlurb(d) : unlockHint(d, 1)),
-          ok ? h('span.diff-meta', null, bw > 0 ? t('ui.endless.bestWave', { n: bw }) : t('ui.endless.noRecord'), ` · ${t('ui.endless.inkMul', { x: INK_FACTOR[d] })}`) : h('span.gi.lock', { html: G.lock }),
+          ok
+            ? h(
+                'span.diff-meta',
+                null,
+                bw > 0 ? t('ui.endless.bestWave', { n: bw }) : t('ui.endless.noRecord'),
+                ` · ${t('ui.endless.inkMul', { x: INK_FACTOR[d] })}`,
+              )
+            : h('span.gi.lock', { html: G.lock }),
         ),
       );
     }
@@ -104,7 +111,7 @@ export function endlessScreen(app: App): Screen {
             {
               title: ok ? t('ui.endless.abyssTip', { lv: roman(i), n: bestWave(p, `abyss${i}`) }) : unlockHint('abyss', i),
               onclick: () => {
-                if (!ok) return audio.play('error'), app.toast(t('ui.endless.unlockCond', { hint: unlockHint('abyss', i) }), 'warn');
+                if (!ok) return (audio.play('error'), app.toast(t('ui.endless.unlockCond', { hint: unlockHint('abyss', i) }), 'warn'));
                 audio.play('click');
                 state.abyss = i;
                 renderAll();
@@ -128,10 +135,21 @@ export function endlessScreen(app: App): Screen {
         [t('ui.endless.param.gold'), fmtNumber(params.startGold)],
         [t('ui.endless.param.lives'), fmtNumber(params.lives)],
         [t('ui.endless.param.hp'), `×${fmtNumber(params.hpMul, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-        [t('ui.endless.param.elite'), params.eliteStart > 999 || params.eliteStart <= 0 ? t('ui.endless.param.eliteNone') : t('ui.endless.param.eliteFrom', { n: Math.round(params.eliteStart) })],
+        [
+          t('ui.endless.param.elite'),
+          params.eliteStart > 999 || params.eliteStart <= 0
+            ? t('ui.endless.param.eliteNone')
+            : t('ui.endless.param.eliteFrom', { n: Math.round(params.eliteStart) }),
+        ],
         [t('ui.endless.param.score'), `×${fmtNumber(params.scoreMul)}`],
       ];
-      infoBox.appendChild(h('dl.param-list', null, lines.map(([a, b]) => h('div', null, h('dt', null, a), h('dd', null, b)))));
+      infoBox.appendChild(
+        h(
+          'dl.param-list',
+          null,
+          lines.map(([a, b]) => h('div', null, h('dt', null, a), h('dd', null, b))),
+        ),
+      );
     } catch {
       /* core 未就绪时不显示 */
     }
@@ -141,7 +159,14 @@ export function endlessScreen(app: App): Screen {
   };
 
   const seedInput = h<HTMLInputElement>('input.input', {
-    attrs: { type: 'text', placeholder: t('ui.endless.seedPlaceholder'), maxlength: 24, inputmode: 'text', autocomplete: 'off', spellcheck: 'false' },
+    attrs: {
+      type: 'text',
+      placeholder: t('ui.endless.seedPlaceholder'),
+      maxlength: 24,
+      inputmode: 'text',
+      autocomplete: 'off',
+      spellcheck: 'false',
+    },
   });
   const runSeed = () => seedInput.value.trim() || state.layoutSeed;
   const layout = layoutPicker({

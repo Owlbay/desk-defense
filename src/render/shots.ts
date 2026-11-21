@@ -193,7 +193,14 @@ interface Rec {
   color: number;
 }
 
-const TRAIL: Partial<Record<ProjectileState['kind'], boolean>> = { graphite: true, color: true, ink: true, eraser: true, glue: true, nail: true };
+const TRAIL: Partial<Record<ProjectileState['kind'], boolean>> = {
+  graphite: true,
+  color: true,
+  ink: true,
+  eraser: true,
+  glue: true,
+  nail: true,
+};
 
 /** 投射物 → 所属塔的颜色（拖尾与命中火花） */
 function shotColor(p: ProjectileState): number {
@@ -400,7 +407,7 @@ function drawProjectile(g: Phaser.GameObjects.Graphics, p: ProjectileState, x: n
     }
     case 'graphite':
     case 'color': {
-      const col = p.kind === 'color' ? COLOR_SHOT[p.color ?? 'red'] ?? C.alarmRed : C.lead;
+      const col = p.kind === 'color' ? (COLOR_SHOT[p.color ?? 'red'] ?? C.alarmRed) : C.lead;
       const L = 6,
         W = 2.4;
       const pts = [

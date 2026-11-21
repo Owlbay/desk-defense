@@ -2,7 +2,6 @@ import type { Dict } from '../../index';
 
 // 命名空间 agent（ja）
 export default {
-
   // ───── 名前空間 agent · AI 参戦設定（ja） ─────
   'agent.setup.source.demo': 'オフラインデモ（内蔵戦略・キー不要）',
   'agent.setup.source.claude': 'Claude（公式 SDK・おすすめ）',
@@ -18,7 +17,8 @@ export default {
   'agent.setup.presetNote.lmstudio': 'ブラウザから直接接続するには Server 設定で Enable CORS をオン',
   'agent.setup.presetNote.llamacpp': '起動オプションに --jinja を付けるとツール呼び出しが有効になります',
   'agent.setup.presetNote.vllm': '--enable-auto-tool-choice --tool-call-parser hermes が必要',
-  'agent.setup.presetNote.relay': '中継サービスの URL とキーを入力するだけ。リクエストはブラウザから中継サービスへ直接送られ（当サイトのサーバーは経由しません）、中継側で CORS を許可している必要があります',
+  'agent.setup.presetNote.relay':
+    '中継サービスの URL とキーを入力するだけ。リクエストはブラウザから中継サービスへ直接送られ（当サイトのサーバーは経由しません）、中継側で CORS を許可している必要があります',
   'agent.setup.thinking.off': '思考なし',
   'agent.setup.thinking.low': '低',
   'agent.setup.thinking.medium': '中',
@@ -28,8 +28,10 @@ export default {
   'agent.setup.ctx.saver': '節約',
   'agent.setup.ctx.balanced': 'バランス',
   'agent.setup.ctx.full': 'フル',
-  'agent.setup.ctxDesc.saver': '変化したフィールドだけを送り、マップは地形が変わったときだけ送信。新しい行動に使えるお金がなく危険もないときはモデルを呼びません。ローカルの小型モデルや節約向け。',
-  'agent.setup.ctxDesc.balanced': '初回はフル、以降は差分。4 回の判断ごとにマップを再送し、買える有効な行動がなければスキップ。クラウドモデルにおすすめ。',
+  'agent.setup.ctxDesc.saver':
+    '変化したフィールドだけを送り、マップは地形が変わったときだけ送信。新しい行動に使えるお金がなく危険もないときはモデルを呼びません。ローカルの小型モデルや節約向け。',
+  'agent.setup.ctxDesc.balanced':
+    '初回はフル、以降は差分。4 回の判断ごとにマップを再送し、買える有効な行動がなければスキップ。クラウドモデルにおすすめ。',
   'agent.setup.ctxDesc.full': '毎回フルの観測＋マップを送り、すべての判断ポイントでモデルを呼びます。最も安定、最も高コスト。',
   'agent.setup.family.claude': 'Claude',
   'agent.setup.family.gpt': 'GPT / OpenAI',
@@ -41,7 +43,8 @@ export default {
   'agent.setup.copy': 'コピー',
   'agent.setup.role.aria': 'AI の役割',
   'agent.setup.role.player': 'AI プレイヤー',
-  'agent.setup.role.playerDesc': 'モデルが自分で建設・強化・スキル使用を行い、あなたは観戦。スコアは AI ランキングに入り、人間のランキングには入りません。',
+  'agent.setup.role.playerDesc':
+    'モデルが自分で建設・強化・スキル使用を行い、あなたは観戦。スコアは AI ランキングに入り、人間のランキングには入りません。',
   'agent.setup.role.advisor': 'AI 軍師',
   'agent.setup.role.advisorDesc': 'あなたがプレイし、モデルが横からアドバイス。「採用」をタップすると即実行。',
   'agent.setup.seedPlaceholder': '空欄でランダム',
@@ -57,7 +60,8 @@ export default {
   'agent.setup.diffLocked': 'この難易度はまだ解放されていません',
   'agent.setup.abyssLevel': '魔境レベル',
   'agent.setup.abyssN': '魔境 {lv}',
-  'agent.setup.runNote.endless': 'AI のプレイではインクを獲得できず、ローカル・全体の人間ランキングにも入りません。エンドレスでは「AI プレイヤー」のスコアを AI ランキングに送信できます。',
+  'agent.setup.runNote.endless':
+    'AI のプレイではインクを獲得できず、ローカル・全体の人間ランキングにも入りません。エンドレスでは「AI プレイヤー」のスコアを AI ランキングに送信できます。',
   'agent.setup.runNote.campaign': 'AI が代わりにプレイしたキャンペーンでは星を獲得できず、ランキングにも載りません。',
   'agent.setup.tabsAria': 'モデルの接続方法',
   'agent.setup.err.noBridge': 'ブリッジ未接続：アドレスとペアリングコードを入力して「接続」をタップ',
@@ -70,8 +74,10 @@ export default {
   'agent.setup.label.noModel': 'モデル未選択',
   'agent.setup.diag.testing': '接続テスト中：小さなリクエストを送信しています…',
   'agent.setup.diag.detecting': 'API を検出中…',
-  'agent.setup.diag.localDown': 'ローカルサービスに接続できません。起動していること、このサイトからのクロスオリジンを許可していることを確認してください（下の設定方法を参照）。',
-  'agent.setup.diag.cors': 'このプロバイダーはブラウザからの直接アクセス（CORS）を許可していない可能性があります。「ローカルブリッジを使う」なら、PC 上のブリッジが代わりに呼び出すので CORS の問題がなく、キーもページに入りません。',
+  'agent.setup.diag.localDown':
+    'ローカルサービスに接続できません。起動していること、このサイトからのクロスオリジンを許可していることを確認してください（下の設定方法を参照）。',
+  'agent.setup.diag.cors':
+    'このプロバイダーはブラウザからの直接アクセス（CORS）を許可していない可能性があります。「ローカルブリッジを使う」なら、PC 上のブリッジが代わりに呼び出すので CORS の問題がなく、キーもページに入りません。',
   'agent.setup.diag.rejected': 'サービスは応答しましたがリクエストを拒否しました。API キーとモデル名、アカウントの残高を確認してください。',
   'agent.setup.diag.ok': '接続 OK。開始できます',
   'agent.setup.diag.noTools': '接続できましたが、モデルが指示どおりにツールを呼び出しませんでした',
@@ -97,7 +103,8 @@ export default {
   'agent.setup.relay.failed': 'API の検出に失敗',
   'agent.setup.relay.secs': '{s} 秒',
   'agent.setup.relay.remembered': '記憶しました：{host} とこのモデルでは今後 {api} を使用します（URL やモデルを変えると再検出）。',
-  'agent.setup.relay.corsTip': 'ヒント：中継サービスのドキュメントには通常、ブラウザからの直接呼び出しに対応しているか書かれています。非対応なら「ローカルブリッジを使う」で PC 上のブリッジに代行させましょう。',
+  'agent.setup.relay.corsTip':
+    'ヒント：中継サービスのドキュメントには通常、ブラウザからの直接呼び出しに対応しているか書かれています。非対応なら「ローカルブリッジを使う」で PC 上のブリッジに代行させましょう。',
   'agent.setup.tool.native': 'ネイティブのツール呼び出し',
   'agent.setup.tool.nativeHint': 'モデル自身がツールを呼び出す（おすすめ）',
   'agent.setup.tool.json': 'JSON アクション',
@@ -118,7 +125,8 @@ export default {
   'agent.setup.thinking.claudeOff': '思考オフ：{v}',
   'agent.setup.thinking.claudeOn': '適応型思考 + effort。高いほど遅く、高コスト。',
   'agent.setup.thinking.relayOff': 'DeepSeek / Qwen 系には「思考オフ」を送信し、その他のモデルには推論パラメータを送りません。',
-  'agent.setup.thinking.relayOn': '推論モデルにはレベルに応じて reasoning_effort を送信（DeepSeek / Qwen はそれぞれのスイッチ）。中継のデフォルトは「低」。',
+  'agent.setup.thinking.relayOn':
+    '推論モデルにはレベルに応じて reasoning_effort を送信（DeepSeek / Qwen はそれぞれのスイッチ）。中継のデフォルトは「低」。',
   'agent.setup.thinking.local': 'ローカルの小型モデルは通常、推論パラメータに非対応。デフォルトは思考なし。',
   'agent.setup.thinking.otherOff': '推論パラメータを送りません（対応モデルでは明示的にオフ）。',
   'agent.setup.thinking.otherOn': 'プロバイダーが対応する方法で推論強度を送信します。',
@@ -137,18 +145,22 @@ export default {
   'agent.setup.budget.usdAria': '費用予算（米ドル）',
   'agent.setup.service': 'モデルサービス',
   'agent.setup.demo.title': 'オフラインデモ',
-  'agent.setup.demo.desc': '通信なし・費用なし：ゲーム内蔵のスクリプト戦略がモデルの代わりに指示を出します。流れも画面も本物のモデルとまったく同じ。AI 参戦がどんなものか試すのに最適です。',
+  'agent.setup.demo.desc':
+    '通信なし・費用なし：ゲーム内蔵のスクリプト戦略がモデルの代わりに指示を出します。流れも画面も本物のモデルとまったく同じ。AI 参戦がどんなものか試すのに最適です。',
   'agent.setup.demo.board': 'スコアは AI ランキングに送信できますが、「内蔵戦略」と表示されます。',
   'agent.setup.key.dest': 'キーは {host} にのみ送信されます',
   'agent.setup.key.destNone': 'サービス URL を入力すると、キーはその URL にのみ送信されます',
   'agent.setup.relay.willRequest': '{url} にリクエストします',
   'agent.setup.relay.normalize': '自動で正規化：OpenAI 系は {openai}、Anthropic は {anthropic}',
   'agent.setup.relay.title': '中継サービス',
-  'agent.setup.relay.desc': '中継サービス（API 代理業者）の URL とキーでそのままプレイ。OpenAI Chat Completions、OpenAI Responses、Anthropic Messages の 3 種類に対応し、デフォルトで自動検出します。',
-  'agent.setup.relay.cors': 'リクエストはブラウザから中継サービスへ直接送られ、当サイトのサーバーは経由しません。そのため中継側でクロスオリジン（CORS）を許可している必要があります。',
+  'agent.setup.relay.desc':
+    '中継サービス（API 代理業者）の URL とキーでそのままプレイ。OpenAI Chat Completions、OpenAI Responses、Anthropic Messages の 3 種類に対応し、デフォルトで自動検出します。',
+  'agent.setup.relay.cors':
+    'リクエストはブラウザから中継サービスへ直接送られ、当サイトのサーバーは経由しません。そのため中継側でクロスオリジン（CORS）を許可している必要があります。',
   'agent.setup.relay.urlPlaceholder': 'https://中継サービスの URL（/v1 の有無は問いません）',
   'agent.setup.relay.url': 'サービス URL',
-  'agent.setup.relay.urlHint': '中継サービスのドキュメントにある URL を貼り付けるだけ。例：https://example.com や https://example.com/v1。…/v1/chat/completions の完全な形でも OK',
+  'agent.setup.relay.urlHint':
+    '中継サービスのドキュメントにある URL を貼り付けるだけ。例：https://example.com や https://example.com/v1。…/v1/chat/completions の完全な形でも OK',
   'agent.setup.relay.urlBad': 'URL の形式が正しくありません。https://example.com/v1 のような形式にしてください',
   'agent.setup.relay.api': 'API の種類',
   'agent.setup.relay.apiAuto': '自動検出（おすすめ）',
@@ -176,15 +188,19 @@ export default {
   'agent.setup.key.session': 'このタブで記憶',
   'agent.setup.key.sessionHint': 'sessionStorage に保存：再読み込みしても残り、タブを閉じると消去',
   'agent.setup.key.local': 'この端末に記憶（非推奨）',
-  'agent.setup.key.localHint': 'このブラウザの localStorage に保存：次回も残りますが、このサイトのストレージを読めるスクリプトや拡張機能なら取得できます',
+  'agent.setup.key.localHint':
+    'このブラウザの localStorage に保存：次回も残りますが、このサイトのストレージを読めるスクリプトや拡張機能なら取得できます',
   'agent.setup.key.modeLabel': 'キーの保存方法',
-  'agent.setup.key.localWarn': 'キーをこの端末のブラウザに平文で保存する設定です。自分の PC でのみ使い、利用上限を設定した専用キーを使ってください。',
+  'agent.setup.key.localWarn':
+    'キーをこの端末のブラウザに平文で保存する設定です。自分の PC でのみ使い、利用上限を設定した専用キーを使ってください。',
   'agent.setup.key.forgotten': 'このサービスのキーを消去しました',
   'agent.setup.key.forget': 'キーを消去',
   'agent.setup.key.optional': 'キー／トークン（任意）',
-  'agent.setup.key.byoWarning': 'API キーはこのページのメモリにのみ保持され（「このタブで記憶」を選ぶと sessionStorage に保存され、タブを閉じると消去）、ブラウザからモデルのプロバイダーへ直接送られます。当サイトのサーバーは経由しません。ただし、このページでスクリプトを実行できる拡張機能なら読み取れる可能性があります。利用上限を設定した専用キーを使い、使い終わったらプロバイダーの管理画面で無効化してください。',
+  'agent.setup.key.byoWarning':
+    'API キーはこのページのメモリにのみ保持され（「このタブで記憶」を選ぶと sessionStorage に保存され、タブを閉じると消去）、ブラウザからモデルのプロバイダーへ直接送られます。当サイトのサーバーは経由しません。ただし、このページでスクリプトを実行できる拡張機能なら読み取れる可能性があります。利用上限を設定した専用キーを使い、使い終わったらプロバイダーの管理画面で無効化してください。',
   'agent.setup.os': 'OS',
-  'agent.setup.guide.mobile': 'スマホ／タブレットから PC 上のモデルを使う場合：https のページから http://192.168.x.x には直接アクセスできません。認証付きの HTTPS トンネルを使うか、「ローカルブリッジを使う」に切り替えてください。',
+  'agent.setup.guide.mobile':
+    'スマホ／タブレットから PC 上のモデルを使う場合：https のページから http://192.168.x.x には直接アクセスできません。認証付きの HTTPS トンネルを使うか、「ローカルブリッジを使う」に切り替えてください。',
   'agent.setup.guide.title': 'ブラウザをローカルモデルに接続（{origin} からの CORS を許可）',
   'agent.setup.toast.jsonRetry': 'モデルがツールを呼び出さなかったため「JSON アクション」に切り替えました。もう一度テストしてください',
   'agent.setup.test': '接続テスト',
@@ -205,8 +221,10 @@ export default {
   'agent.setup.bridge.connect': '接続',
   'agent.setup.bridge.disconnect': '切断',
   'agent.setup.bridge.title': 'ローカルブリッジ',
-  'agent.setup.bridge.desc': '自分の PC で小さなプログラムを動かし、それがモデルを呼び出します（ローカルの Ollama、または環境変数のキーでクラウドモデル）。CORS の問題がなく、キーがページに入ることもありません。',
-  'agent.setup.bridge.note': 'ブリッジはローカル（127.0.0.1）のみで待ち受け、ペアリングコードは 1 回限り有効です。スマホから PC のブリッジに接続するには、認証付きの HTTPS トンネルで公開し、wss:// のアドレスを入力してください。',
+  'agent.setup.bridge.desc':
+    '自分の PC で小さなプログラムを動かし、それがモデルを呼び出します（ローカルの Ollama、または環境変数のキーでクラウドモデル）。CORS の問題がなく、キーがページに入ることもありません。',
+  'agent.setup.bridge.note':
+    'ブリッジはローカル（127.0.0.1）のみで待ち受け、ペアリングコードは 1 回限り有効です。スマホから PC のブリッジに接続するには、認証付きの HTTPS トンネルで公開し、wss:// のアドレスを入力してください。',
   'agent.setup.tab.direct': '直接接続',
   'agent.setup.tab.bridge': 'ローカルブリッジを使う',
   'agent.setup.toast.noApi': '使える API が検出されませんでした。「モデル」欄の診断を確認してください',
@@ -221,7 +239,8 @@ export default {
   'agent.setup.decision.fieldHint': '一時停止して待つ：結果はモデルの判断だけで決まり、回線速度に左右されません',
   'agent.setup.interval.hint': '空欄＝コンテキストモードに従う（節約 30／バランス 15／フル 10）。ローカルの小型モデルは 20〜30 を推奨',
   'agent.setup.budget.tokens': 'トークン予算（1 ゲーム、換算）',
-  'agent.setup.budget.tokensHint': '換算＝新規入力＋出力＋キャッシュ書き込み×1.25＋キャッシュ読み取り×0.1（キャッシュ読み取りは安いので 1 割のみ）',
+  'agent.setup.budget.tokensHint':
+    '換算＝新規入力＋出力＋キャッシュ書き込み×1.25＋キャッシュ読み取り×0.1（キャッシュ読み取りは安いので 1 割のみ）',
   'agent.setup.budget.overHint': 'デフォルト：70% で節約、90% で思考オフ。使い切ったらコンテキストを圧縮し最も節約するモードで続行',
   'agent.setup.budget.usd': '費用予算（米ドル・概算）',
   'agent.setup.budget.usdHint': '公開価格からの概算です。正確な金額はプロバイダーの請求をご確認ください',
@@ -326,7 +345,8 @@ export default {
   'agent.snippets.ollamaRestartMac': 'その後メニューバーから Ollama を終了して再起動してください（再起動しないと反映されません）。',
   'agent.snippets.tryOnce': '一時的に試すだけなら：',
   'agent.snippets.winSetx': 'PowerShell でユーザー環境変数を設定：',
-  'agent.snippets.ollamaRestartWin': 'その後タスクバーで Ollama を右クリックして終了し、再起動してください（システム設定 → 環境変数 で同名の変数を作成しても構いません）。',
+  'agent.snippets.ollamaRestartWin':
+    'その後タスクバーで Ollama を右クリックして終了し、再起動してください（システム設定 → 環境変数 で同名の変数を作成しても構いません）。',
   'agent.snippets.tryOncePs': '一時的に試すだけなら（PowerShell）：',
   'agent.snippets.systemd': 'systemd で動かしている Ollama：',
   'agent.snippets.addToFile': '開いたファイルに次を追加：',
@@ -335,14 +355,18 @@ export default {
   'agent.snippets.lmstudio': 'LM Studio の Developer → Server 設定で Enable CORS をオンにし、サーバーを起動します（既定ポート 1234）。',
   'agent.snippets.lmstudioCli': 'コマンドラインから起動することもできます：',
   'agent.snippets.llamacpp': 'ツール呼び出しには --jinja を付けて起動します（新しいバージョンは既定で CORS 許可）：',
-  'agent.snippets.llamacppProxy': 'リバースプロキシを挟む場合は、レスポンスヘッダー Access-Control-Allow-Origin: {origin} を追加してください',
+  'agent.snippets.llamacppProxy':
+    'リバースプロキシを挟む場合は、レスポンスヘッダー Access-Control-Allow-Origin: {origin} を追加してください',
   'agent.snippets.vllm': 'ツール呼び出しを有効にし、このサイトの CORS を許可して起動：',
   'agent.snippets.bridgeOllama': 'ゲームのプロジェクトフォルダで実行（ローカルの Ollama モデル）：',
   'agent.snippets.bridgeClaude': 'または Claude を使用（キーはローカルの環境変数 / ant auth から読み込まれ、Web ページからは見えません）：',
   'agent.snippets.bridgeNpx': '公開後はプロジェクトをダウンロードせずに直接実行できます：',
-  'agent.snippets.mixedContent': 'このページは https のため、ブラウザは http:// の LAN アドレスへのリクエストをブロックします（混在コンテンツ）。HTTPS トンネル（cloudflared / tailscale serve、認証付き）か、ローカルブリッジを使ってください。',
-  'agent.snippets.safari': 'Safari は https ページから http://localhost へのアクセスをブロックすることがあります。ローカルブリッジを使うか、Chrome / Edge / Firefox をお使いください。',
-  'agent.snippets.localNetwork': 'Chrome / Edge は初めてローカルサービスにアクセスする際「ローカルネットワークへのアクセスを許可」を求めます。許可してください。',
+  'agent.snippets.mixedContent':
+    'このページは https のため、ブラウザは http:// の LAN アドレスへのリクエストをブロックします（混在コンテンツ）。HTTPS トンネル（cloudflared / tailscale serve、認証付き）か、ローカルブリッジを使ってください。',
+  'agent.snippets.safari':
+    'Safari は https ページから http://localhost へのアクセスをブロックすることがあります。ローカルブリッジを使うか、Chrome / Edge / Firefox をお使いください。',
+  'agent.snippets.localNetwork':
+    'Chrome / Edge は初めてローカルサービスにアクセスする際「ローカルネットワークへのアクセスを許可」を求めます。許可してください。',
   'agent.replay.speed': '再生速度',
   'agent.replay.pause': '一時停止',
   'agent.replay.resume': '再開',
@@ -624,22 +648,30 @@ export default {
   'agent.cfg.err.range': '{field} の範囲は {range} です',
   'agent.cfg.err.negative': '{field} は負の値にできません',
   'agent.cfg.err.positive': '{field} は正の値にしてください',
-  'agent.relay.cors': 'ブラウザがこのアドレスに接続できませんでした。アドレスの誤りか、この中継サービスがウェブページからのクロスオリジンアクセス（CORS）を許可していない可能性があります。このゲームはサーバーを経由せず、ブラウザから中継サービスへ直接リクエストを送るため、中継サービス側で CORS を許可する必要があります。「ローカルブリッジを使う」に切り替えることもできます。',
+  'agent.relay.cors':
+    'ブラウザがこのアドレスに接続できませんでした。アドレスの誤りか、この中継サービスがウェブページからのクロスオリジンアクセス（CORS）を許可していない可能性があります。このゲームはサーバーを経由せず、ブラウザから中継サービスへ直接リクエストを送るため、中継サービス側で CORS を許可する必要があります。「ローカルブリッジを使う」に切り替えることもできます。',
   'agent.relay.badUrl': 'サービス URL が正しい http(s) URL ではありません',
   'agent.relay.keyRejected': 'キーが拒否されました：API キーが正しいか、残高があるかを確認してください。',
   'agent.relay.noModelList': 'この中継サービスにはモデル一覧のエンドポイント（/v1/models）がありません。モデル名を手入力してください。',
   'agent.relay.unknownError': '不明なエラー',
   'agent.relay.detected': '中継サービスは {api} に対応しています（{s} 秒）',
-  'agent.relay.fail.stale': 'ゲームが更新されたばかりで、このページは古いバージョンのため新しい AI モジュールを読み込めません。ページを再読み込みして（PC は Cmd/Ctrl+Shift+R、スマホは下に引っぱって更新）もう一度お試しください。中継サービスの問題ではありません。',
-  'agent.relay.fail.auth': 'キーが拒否されました（401 / 403）：API キーが正しいか、期限切れでないか、残高があるか、このモデルが有効になっているかを確認してください。',
-  'agent.relay.fail.not_found': 'エンドポイントがありません（404）：この中継サービスがこれらの API に非対応か、アドレスのパスの接頭辞が多すぎる / 足りない可能性があります。中継サービスのドキュメントで「サービス URL」を確認してください。',
+  'agent.relay.fail.stale':
+    'ゲームが更新されたばかりで、このページは古いバージョンのため新しい AI モジュールを読み込めません。ページを再読み込みして（PC は Cmd/Ctrl+Shift+R、スマホは下に引っぱって更新）もう一度お試しください。中継サービスの問題ではありません。',
+  'agent.relay.fail.auth':
+    'キーが拒否されました（401 / 403）：API キーが正しいか、期限切れでないか、残高があるか、このモデルが有効になっているかを確認してください。',
+  'agent.relay.fail.not_found':
+    'エンドポイントがありません（404）：この中継サービスがこれらの API に非対応か、アドレスのパスの接頭辞が多すぎる / 足りない可能性があります。中継サービスのドキュメントで「サービス URL」を確認してください。',
   'agent.relay.fail.model': '中継サービスがこのモデルを認識していません：「モデル一覧を取得」から選ぶか、別のモデル名を試してください。',
-  'agent.relay.fail.rate': 'レート制限または残高不足です（429 / quota）：しばらくしてから再試行するか、中継サービスの管理画面で残高を確認してください。',
-  'agent.relay.fail.no_tools': '接続できましたが、モデルが指示どおりにツールを呼び出しませんでした：ツール呼び出し対応のモデルに替えるか、「ツールモード」を「JSON アクション」にしてください。',
+  'agent.relay.fail.rate':
+    'レート制限または残高不足です（429 / quota）：しばらくしてから再試行するか、中継サービスの管理画面で残高を確認してください。',
+  'agent.relay.fail.no_tools':
+    '接続できましたが、モデルが指示どおりにツールを呼び出しませんでした：ツール呼び出し対応のモデルに替えるか、「ツールモード」を「JSON アクション」にしてください。',
   'agent.relay.fail.other': 'リクエストに失敗しました：アドレス、キー、モデル名を確認してください。',
-  'agent.diag.localHint': 'ローカルモデルに接続できません：サーバーが起動していて、このサイトのクロスオリジンを許可しているか確認してください（Ollama: OLLAMA_ORIGINS、LM Studio: Enable CORS、llama.cpp / vLLM: --allowed-origins）。Chrome で「ローカルネットワークへのアクセス」を求められたら許可してください。ローカルブリッジを使うこともできます。',
+  'agent.diag.localHint':
+    'ローカルモデルに接続できません：サーバーが起動していて、このサイトのクロスオリジンを許可しているか確認してください（Ollama: OLLAMA_ORIGINS、LM Studio: Enable CORS、llama.cpp / vLLM: --allowed-origins）。Chrome で「ローカルネットワークへのアクセス」を求められたら許可してください。ローカルブリッジを使うこともできます。',
   'agent.diag.bridgeModels': 'bridge: モデル一覧はブリッジが提供します',
-  'agent.diag.noToolCall': 'モデルがツールを呼び出しませんでした：ツール呼び出し対応のモデル（例：Qwen3 8B 以上 / Llama 3.1 8B Instruct）にするか、toolMode を json にしてください。',
+  'agent.diag.noToolCall':
+    'モデルがツールを呼び出しませんでした：ツール呼び出し対応のモデル（例：Qwen3 8B 以上 / Llama 3.1 8B Instruct）にするか、toolMode を json にしてください。',
   'agent.diag.noJsonAction': 'JSON モードでも解析できるアクションが得られませんでした：モデルが小さすぎる可能性があります。',
   'agent.budget.stage1': '予算の 70% を使用：節約モードに切り替えました',
   'agent.budget.stage2': '予算の 90% を使用：節約＋低思考、建設フェーズ / イベント時のみ判断します',
@@ -658,7 +690,8 @@ export default {
   'agent.think.notSent': '{param} は送信しません（思考なし）',
   'agent.think.nonReasoning': '非推論モデル（reasoning は送信しません）',
   'agent.think.serverDefault': 'thinking は送信しません（サーバー既定の適応型）',
-  'agent.think.piNoEffort': 'pi 経由では Claude 5.x の effort を設定できないため、サーバー既定を使います。細かく制御するには Claude 公式アダプターを使ってください',
+  'agent.think.piNoEffort':
+    'pi 経由では Claude 5.x の effort を設定できないため、サーバー既定を使います。細かく制御するには Claude 公式アダプターを使ってください',
   'agent.think.piCantOff': '{model} は pi 経由で思考をオフにできないため、サーバー既定の適応型を使います',
   'agent.think.googleOff': 'thinkingBudget 0 / 最低の thinkingLevel',
 } satisfies Dict;

@@ -34,7 +34,14 @@ export class Ambience {
       .setDisplaySize(BOARD_W * 1.1, BOARD_W * 1.1)
       .setAlpha(0)
       .setDepth(DEPTH.bg + 0.5);
-    for (let i = 0; i < MOTES; i++) this.motes.push(sc.add.image(0, 0, TEX.disc).setTint(C.white).setVisible(false).setDepth(DEPTH.fx - 1));
+    for (let i = 0; i < MOTES; i++)
+      this.motes.push(
+        sc.add
+          .image(0, 0, TEX.disc)
+          .setTint(C.white)
+          .setVisible(false)
+          .setDepth(DEPTH.fx - 1),
+      );
   }
 
   sync(): void {

@@ -24,7 +24,16 @@ export interface RandomEventDef {
 const rev = (d: Omit<RandomEventDef, 'name' | 'desc'>): RandomEventDef => localize(d, `data.event.${d.id}`, ['name', 'desc'] as const);
 
 export const RANDOM_EVENTS: Record<RandomEventId, RandomEventDef> = {
-  drop_box: rev({ id: 'drop_box', tone: 'bad', weight: 10, minWave: 6, cooldown: 5, warn: 'drop', duration: 0, tags: ['terrain', 'spawner'] }),
+  drop_box: rev({
+    id: 'drop_box',
+    tone: 'bad',
+    weight: 10,
+    minWave: 6,
+    cooldown: 5,
+    warn: 'drop',
+    duration: 0,
+    tags: ['terrain', 'spawner'],
+  }),
   lamp_outage: rev({ id: 'lamp_outage', tone: 'bad', weight: 6, minWave: 6, cooldown: 4, warn: 3, duration: 8, tags: ['towers'] }),
   fan: rev({ id: 'fan', tone: 'bad', weight: 6, minWave: 7, cooldown: 4, warn: 3, duration: 12, tags: ['air'] }),
   books_fall: rev({ id: 'books_fall', tone: 'bad', weight: 6, minWave: 5, cooldown: 6, warn: 4, duration: 0, tags: ['terrain'] }),
@@ -45,7 +54,16 @@ export const RANDOM_EVENTS: Record<RandomEventId, RandomEventDef> = {
   training: rev({ id: 'training', tone: 'good', weight: 6, minWave: 4, cooldown: 4, warn: 0, duration: 20, tags: ['xp'] }),
   tidy: rev({ id: 'tidy', tone: 'neutral', weight: 6, minWave: 3, cooldown: 4, warn: 2, duration: 0, tags: ['terrain'] }),
   wind: rev({ id: 'wind', tone: 'neutral', weight: 6, minWave: 5, cooldown: 4, warn: 3, duration: 15, tags: ['air'] }),
-  secret_door: rev({ id: 'secret_door', tone: 'neutral', weight: 4, minWave: 12, cooldown: 8, warn: 3, duration: 0, tags: ['terrain', 'spawner'] }),
+  secret_door: rev({
+    id: 'secret_door',
+    tone: 'neutral',
+    weight: 4,
+    minWave: 12,
+    cooldown: 8,
+    warn: 3,
+    duration: 0,
+    tags: ['terrain', 'spawner'],
+  }),
   frenzy: rev({ id: 'frenzy', tone: 'neutral', weight: 5, minWave: 5, cooldown: 4, warn: 2, duration: 12, tags: ['gold', 'speed'] }),
 };
 

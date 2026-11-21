@@ -312,9 +312,11 @@ export default {
   'ui.tutorial.tip-event.title': '隨機事件',
   'ui.tutorial.tip-event.body': '書桌上會突然發生事件：紅色是壞事，綠色是好事。頂部橫幅會提前預警並倒數；硬幣和補給箱要點一下才能收集。',
   'ui.tutorial.tip-drop.title': '空降紙箱！',
-  'ui.tutorial.tip-drop.body': '虛線圈裡很快會落下一個紙箱，變成新的出生點，路線也會跟著改變。點紙箱可以花金幣拆除，技能「{tape}」也能直接封住。',
+  'ui.tutorial.tip-drop.body':
+    '虛線圈裡很快會落下一個紙箱，變成新的出生點，路線也會跟著改變。點紙箱可以花金幣拆除，技能「{tape}」也能直接封住。',
   'ui.tutorial.tip-evolve.title': '傳奇進化',
-  'ui.tutorial.tip-evolve.body': '傳奇塔之後獲得的經驗會計入進化。累積經驗或花金幣升星：★1、★2 解鎖分支特性，★3 成為神話並獲得主動能力（選取後按 A 施放）。',
+  'ui.tutorial.tip-evolve.body':
+    '傳奇塔之後獲得的經驗會計入進化。累積經驗或花金幣升星：★1、★2 解鎖分支特性，★3 成為神話並獲得主動能力（選取後按 A 施放）。',
 
   // ───── 命名空间 ui · 菜单 / 战役 / 书包 / 技能 / 自定义（zh-TW） ─────
   'ui.menu.mode.campaign': '戰役',
@@ -381,7 +383,8 @@ export default {
   'ui.talents.perLevel': '（每級，最高 {n} 級）',
   'ui.talents.maxed': '已滿級',
   'ui.talents.or': '或',
-  'ui.talents.intro': '永久天賦。星星來自戰役評星（已累計獲得 {n} 顆），墨水來自無盡和自訂模式。天賦都是小幅加成；開局選擇「純淨模式」可以關閉它們。',
+  'ui.talents.intro':
+    '永久天賦。星星來自戰役評星（已累計獲得 {n} 顆），墨水來自無盡和自訂模式。天賦都是小幅加成；開局選擇「純淨模式」可以關閉它們。',
   'ui.skills.title': '技能',
   'ui.skills.target.none': '全場 · 立即施放',
   'ui.skills.target.circle': '圓形範圍',

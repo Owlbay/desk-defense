@@ -5,7 +5,9 @@
   --radius: 14px;
   --radius-s: 10px;
   --bw: 2px;
-  --font: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC', 'Helvetica Neue', Arial, sans-serif;
+  --font:
+    -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC',
+    'Source Han Sans SC', 'Helvetica Neue', Arial, sans-serif;
   --sat: env(safe-area-inset-top, 0px);
   --sab: env(safe-area-inset-bottom, 0px);
   --sal: env(safe-area-inset-left, 0px);
@@ -270,7 +272,9 @@ kbd {
   gap: 4px;
   padding: 0 6px;
   line-height: 1.15;
-  transition: background-color 0.15s, transform 0.08s;
+  transition:
+    background-color 0.15s,
+    transform 0.08s;
 }
 
 .seg.on {
@@ -2045,11 +2049,15 @@ textarea.input.code {
 }
 
 .tower-info.t4.br-A .info-ico {
-  box-shadow: 0 0 0 2px var(--cyan), 0 0 14px var(--cyan);
+  box-shadow:
+    0 0 0 2px var(--cyan),
+    0 0 14px var(--cyan);
 }
 
 .tower-info.t4.br-B .info-ico {
-  box-shadow: 0 0 0 2px var(--magenta), 0 0 14px var(--magenta);
+  box-shadow:
+    0 0 0 2px var(--magenta),
+    0 0 14px var(--magenta);
 }
 
 .info-title {
@@ -4251,11 +4259,17 @@ textarea.input.code {
 }
 
 .tower-info.t5.br-A .info-ico {
-  box-shadow: 0 0 0 2px var(--gold), 0 0 0 4px var(--cyan), 0 0 18px var(--cyan);
+  box-shadow:
+    0 0 0 2px var(--gold),
+    0 0 0 4px var(--cyan),
+    0 0 18px var(--cyan);
 }
 
 .tower-info.t5.br-B .info-ico {
-  box-shadow: 0 0 0 2px var(--gold), 0 0 0 4px var(--magenta), 0 0 18px var(--magenta);
+  box-shadow:
+    0 0 0 2px var(--gold),
+    0 0 0 4px var(--magenta),
+    0 0 18px var(--magenta);
 }
 
 .t5 .tier-badge {
@@ -4512,34 +4526,34 @@ kbd.key-hint.inline {
  * 新增亮底元素时把选择器加进来，或直接给元素加 class="on-bright"。
  */
 :is(
-    .on-bright,
-    .btn.primary,
-    .btn.on,
-    .seg.on,
-    .logo-en,
-    .menu-btn.primary,
-    .tab.on,
-    .is-paused .pause-btn,
-    .build-btn.on,
-    .t3 .tier-badge,
-    .t4.br-A .tier-badge,
-    .t5 .tier-badge,
-    .btn.upgrade .disc,
-    .btn.sell.undo,
-    .skill-lv,
-    .axis-btn,
-    .wave-tag.air,
-    .banner.win,
-    .board-hint,
-    .go-reward,
-    .coach,
-    .coach-arrow,
-    .evo-traits .trait-lv,
-    .ability-card.ready .ability-cast,
-    .ai-model-chip.on,
-    .stat-pop,
-    .badge.today
-  ) {
+  .on-bright,
+  .btn.primary,
+  .btn.on,
+  .seg.on,
+  .logo-en,
+  .menu-btn.primary,
+  .tab.on,
+  .is-paused .pause-btn,
+  .build-btn.on,
+  .t3 .tier-badge,
+  .t4.br-A .tier-badge,
+  .t5 .tier-badge,
+  .btn.upgrade .disc,
+  .btn.sell.undo,
+  .skill-lv,
+  .axis-btn,
+  .wave-tag.air,
+  .banner.win,
+  .board-hint,
+  .go-reward,
+  .coach,
+  .coach-arrow,
+  .evo-traits .trait-lv,
+  .ability-card.ready .ability-cast,
+  .ai-model-chip.on,
+  .stat-pop,
+  .badge.today
+) {
   color-scheme: light;
   --surface: #fbf8f1;
   --surface-2: #f4eddf;
@@ -4571,12 +4585,70 @@ kbd.key-hint.inline {
 }
 
 /* 深色主题下，亮色块里没有自己写 color 的元素要改用深色字（特异性压到最低，只盖过 button{color:inherit}） */
-html:where([data-theme='dark']) :where(.on-bright, .btn.primary, .btn.on, .seg.on, .logo-en, .menu-btn.primary, .tab.on, .is-paused .pause-btn, .build-btn.on, .t3 .tier-badge, .t4.br-A .tier-badge, .t5 .tier-badge, .btn.upgrade .disc, .btn.sell.undo, .skill-lv, .axis-btn, .wave-tag.air, .banner.win, .board-hint, .go-reward, .coach, .coach-arrow, .evo-traits .trait-lv, .ability-card.ready .ability-cast, .ai-model-chip.on, .stat-pop, .badge.today) {
+html:where([data-theme='dark'])
+  :where(
+    .on-bright,
+    .btn.primary,
+    .btn.on,
+    .seg.on,
+    .logo-en,
+    .menu-btn.primary,
+    .tab.on,
+    .is-paused .pause-btn,
+    .build-btn.on,
+    .t3 .tier-badge,
+    .t4.br-A .tier-badge,
+    .t5 .tier-badge,
+    .btn.upgrade .disc,
+    .btn.sell.undo,
+    .skill-lv,
+    .axis-btn,
+    .wave-tag.air,
+    .banner.win,
+    .board-hint,
+    .go-reward,
+    .coach,
+    .coach-arrow,
+    .evo-traits .trait-lv,
+    .ability-card.ready .ability-cast,
+    .ai-model-chip.on,
+    .stat-pop,
+    .badge.today
+  ) {
   color: var(--ink);
 }
 
 @media (prefers-color-scheme: dark) {
-  html:where(:not([data-theme='light'])) :where(.on-bright, .btn.primary, .btn.on, .seg.on, .logo-en, .menu-btn.primary, .tab.on, .is-paused .pause-btn, .build-btn.on, .t3 .tier-badge, .t4.br-A .tier-badge, .t5 .tier-badge, .btn.upgrade .disc, .btn.sell.undo, .skill-lv, .axis-btn, .wave-tag.air, .banner.win, .board-hint, .go-reward, .coach, .coach-arrow, .evo-traits .trait-lv, .ability-card.ready .ability-cast, .ai-model-chip.on, .stat-pop, .badge.today) {
+  html:where(:not([data-theme='light']))
+    :where(
+      .on-bright,
+      .btn.primary,
+      .btn.on,
+      .seg.on,
+      .logo-en,
+      .menu-btn.primary,
+      .tab.on,
+      .is-paused .pause-btn,
+      .build-btn.on,
+      .t3 .tier-badge,
+      .t4.br-A .tier-badge,
+      .t5 .tier-badge,
+      .btn.upgrade .disc,
+      .btn.sell.undo,
+      .skill-lv,
+      .axis-btn,
+      .wave-tag.air,
+      .banner.win,
+      .board-hint,
+      .go-reward,
+      .coach,
+      .coach-arrow,
+      .evo-traits .trait-lv,
+      .ability-card.ready .ability-cast,
+      .ai-model-chip.on,
+      .stat-pop,
+      .badge.today
+    ) {
     color: var(--ink);
   }
 }

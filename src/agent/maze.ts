@@ -20,7 +20,12 @@ export interface MazePlan {
 }
 
 /** 路线采样点；f 为沿路线的进度 0（入口）..1（出口） */
-export interface Sample { x: number; y: number; w: number; f?: number }
+export interface Sample {
+  x: number;
+  y: number;
+  w: number;
+  f?: number;
+}
 
 const planCache = new Map<string, MazePlan>();
 
@@ -54,14 +59,18 @@ export function dropStart(w: IWorld, c: { x: number; y: number }, cells: Uint8Ar
   const g = w.state.grid;
   let best = -1;
   let bv = Infinity;
-  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-    const x = c.x + dx;
-    const y = c.y + dy;
-    if ((dx === 0 && dy === 0) || x < 0 || y < 0 || x >= g.cols || y >= g.rows) continue;
-    const i = y * g.cols + x;
-    if (cells[i] === CellKind.Obstacle || cells[i] === CellKind.Tower || !(d[i] < Infinity)) continue;
-    if (d[i] < bv) { bv = d[i]; best = i; }
-  }
+  for (let dy = -1; dy <= 1; dy++)
+    for (let dx = -1; dx <= 1; dx++) {
+      const x = c.x + dx;
+      const y = c.y + dy;
+      if ((dx === 0 && dy === 0) || x < 0 || y < 0 || x >= g.cols || y >= g.rows) continue;
+      const i = y * g.cols + x;
+      if (cells[i] === CellKind.Obstacle || cells[i] === CellKind.Tower || !(d[i] < Infinity)) continue;
+      if (d[i] < bv) {
+        bv = d[i];
+        best = i;
+      }
+    }
   return best;
 }
 
@@ -72,7 +81,10 @@ export function entranceGroups(w: IWorld): { x: number; y: number }[][] {
 
 /** 出生点集合签名（变化后需要重新采样） */
 export function spawnerKey(w: IWorld): string {
-  return w.state.spawners.filter((sp) => sp.active).map((sp) => sp.id).join(',');
+  return w.state.spawners
+    .filter((sp) => sp.active)
+    .map((sp) => sp.id)
+    .join(',');
 }
 
 function rowSets(minRow: number, maxRow: number): number[][] {
@@ -109,7 +121,14 @@ function applySeq(w: IWorld, cells: Uint8Array, list: number[], scratch: Float32
 }
 
 /** 一种挡板布局：每道挡板 = 一行（横向）或一列（纵向）上除缺口外的空格，缺口在两端交替 */
-function barrierLayout(w: IWorld, base: Uint8Array, lines: number[], vertical: boolean, startFar: boolean, scratch: Float32Array): { segs: number[][]; len: number; n: number } | null {
+function barrierLayout(
+  w: IWorld,
+  base: Uint8Array,
+  lines: number[],
+  vertical: boolean,
+  startFar: boolean,
+  scratch: Float32Array,
+): { segs: number[][]; len: number; n: number } | null {
   const g = w.state.grid;
   const { cols, rows } = g;
   const cells = base.slice();
@@ -120,8 +139,19 @@ function barrierLayout(w: IWorld, base: Uint8Array, lines: number[], vertical: b
   for (const line of lines) {
     // 缺口：靠一侧的第一个空格（障碍物 / 出生格 / 出口当作墙的一部分，不另花钱）
     let gap = -1;
-    if (far) { for (let k = span - 1; k >= 0; k--) if (base[at(line, k)] === CellKind.Empty) { gap = k; break; } }
-    else { for (let k = 0; k < span; k++) if (base[at(line, k)] === CellKind.Empty) { gap = k; break; } }
+    if (far) {
+      for (let k = span - 1; k >= 0; k--)
+        if (base[at(line, k)] === CellKind.Empty) {
+          gap = k;
+          break;
+        }
+    } else {
+      for (let k = 0; k < span; k++)
+        if (base[at(line, k)] === CellKind.Empty) {
+          gap = k;
+          break;
+        }
+    }
     if (gap < 0) return null;
     const list: number[] = [];
     for (let k = 0; k < span; k++) if (k !== gap && base[at(line, k)] === CellKind.Empty) list.push(at(line, k));
@@ -166,7 +196,8 @@ export function planMaze(w: IWorld): MazePlan {
   };
   for (const rs of rowSets(1, rows - 2)) for (const far of [false, true]) consider(barrierLayout(w, base, rs, false, far, scratch));
   // 纵向只试"塞满"的列组（相邻挡板间隔 2～3 列、两端顶到边）：横向全枚举已经很贵，纵向全枚举会让规划耗时翻倍
-  for (const cs of rowSets(1, cols - 2).filter((c) => maximal(c, 1, cols - 2))) for (const far of [false, true]) consider(barrierLayout(w, base, cs, true, far, scratch));
+  for (const cs of rowSets(1, cols - 2).filter((c) => maximal(c, 1, cols - 2)))
+    for (const far of [false, true]) consider(barrierLayout(w, base, cs, true, far, scratch));
   const chosen = best as { segs: number[][]; len: number; n: number; score: number } | null;
   // 段按挡板从入口一侧往出口一侧建（试过按"每格墙的路线增量"排序：脚本评测生命 98% → 67%，弃用）
   const segs = chosen ? chosen.segs.slice() : [];
@@ -241,7 +272,10 @@ export function airSamples(w: IWorld): Sample[] {
     let bd = Infinity;
     for (const ex of g.exits) {
       const dd = Math.abs(ex.x + 0.5 - x0);
-      if (dd < bd) { bd = dd; best = ex; }
+      if (dd < bd) {
+        bd = dd;
+        best = ex;
+      }
     }
     const x1 = best.x + 0.5;
     const y1 = best.y + 0.5;

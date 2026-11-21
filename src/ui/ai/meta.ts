@@ -24,7 +24,12 @@ export interface AgentMetaInput {
 
 /** 上传用的 AI 标记（服务端要求：服务商小写 ASCII、模型名可打印 ASCII ≤ 80） */
 export function agentMetaOf(s: AgentMetaInput): AgentMeta {
-  const provider = s.agent.provider.toLowerCase().replace(/[^a-z0-9:_.-]/g, '-').replace(/^[^a-z0-9]+/, '').slice(0, 40) || 'unknown';
+  const provider =
+    s.agent.provider
+      .toLowerCase()
+      .replace(/[^a-z0-9:_.-]/g, '-')
+      .replace(/^[^a-z0-9]+/, '')
+      .slice(0, 40) || 'unknown';
   const model = s.agent.model.replace(/[^\x21-\x7e]/g, '_').slice(0, 80) || 'unknown';
   return {
     provider,

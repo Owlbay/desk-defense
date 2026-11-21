@@ -8,9 +8,20 @@ import { audio } from '../audio';
 import { h } from '../dom';
 
 export function aiAssistantScreen(app: App): Screen {
-  const loading = (): HTMLElement => h('div.ai-loading', { attrs: { role: 'status' } }, h('span.ai-spinner', { attrs: { 'aria-hidden': 'true' } }), t('agent.setup.loading'));
+  const loading = (): HTMLElement =>
+    h(
+      'div.ai-loading',
+      { attrs: { role: 'status' } },
+      h('span.ai-spinner', { attrs: { 'aria-hidden': 'true' } }),
+      t('agent.setup.loading'),
+    );
   const body = h('div.screen-body.ai-body', null, loading());
-  const el = h('div.screen.ai-screen.ai-assistant-screen', null, screenHeader(app, t('ui.assist.title'), { chips: false, back: { name: 'settings' } }), body);
+  const el = h(
+    'div.screen.ai-screen.ai-assistant-screen',
+    null,
+    screenHeader(app, t('ui.assist.title'), { chips: false, back: { name: 'settings' } }),
+    body,
+  );
   let destroyed = false;
   let cleanup: (() => void) | null = null;
   const load = (): void => {
@@ -28,7 +39,11 @@ export function aiAssistantScreen(app: App): Screen {
             null,
             h('p', null, t('agent.setup.loadFailed')),
             h('small.muted', null, t('agent.setup.loadFailedHint')),
-            h('button.btn.small', { attrs: { type: 'button' }, onclick: () => (audio.play('click'), body.replaceChildren(loading()), load()) }, t('agent.setup.retry')),
+            h(
+              'button.btn.small',
+              { attrs: { type: 'button' }, onclick: () => (audio.play('click'), body.replaceChildren(loading()), load()) },
+              t('agent.setup.retry'),
+            ),
           ),
         );
       });

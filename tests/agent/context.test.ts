@@ -7,11 +7,46 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { fauxAssistantMessage, fauxThinking, fauxToolCall, registerFauxProvider, type Message } from '@mariozechner/pi-ai';
 import { createWorld, stateHash, type IWorld, type MapId, type RunOptions } from '../../src/core';
 import {
-  AgentScheduler, ContextBuilder, DecisionEngine, Memo, MEMO_MAX_TOKENS, SLIM_TOOLS, ScriptedProvider, applyObsDelta, budgetTokens, cheatSheet, claudeThinkingPlan,
-  compactObservation, compressWaypoints, contextSpec, coverage, diffObs, emptyUsage, estimateTokens, executeTool, expandWaypoints, flightLines,
-  gateDecision, groundRoutes, keepThinkingInHistory, mayCompactHistory, piThinkingPlan, previewChanges, resolveConfig, rle, runAgentGame,
-  scriptedFallback, systemBlocks, toolsForRole, unrle, usageTotal, validateAgainst,
-  type DecisionContext, type JsonSchema, type LLMProvider, type TokenUsage,
+  AgentScheduler,
+  ContextBuilder,
+  DecisionEngine,
+  Memo,
+  MEMO_MAX_TOKENS,
+  SLIM_TOOLS,
+  ScriptedProvider,
+  applyObsDelta,
+  budgetTokens,
+  cheatSheet,
+  claudeThinkingPlan,
+  compactObservation,
+  compressWaypoints,
+  contextSpec,
+  coverage,
+  diffObs,
+  emptyUsage,
+  estimateTokens,
+  executeTool,
+  expandWaypoints,
+  flightLines,
+  gateDecision,
+  groundRoutes,
+  keepThinkingInHistory,
+  mayCompactHistory,
+  piThinkingPlan,
+  previewChanges,
+  resolveConfig,
+  rle,
+  runAgentGame,
+  scriptedFallback,
+  systemBlocks,
+  toolsForRole,
+  unrle,
+  usageTotal,
+  validateAgainst,
+  type DecisionContext,
+  type JsonSchema,
+  type LLMProvider,
+  type TokenUsage,
 } from '../../src/agent';
 import { AgentTrace } from '../../src/agent/trace';
 import { ClaudeProvider } from '../../src/agent/providers/claude';
@@ -19,12 +54,24 @@ import { PiProvider, compactToolResults, stripThinking } from '../../src/agent/p
 import { McpGameServer } from '../../src/agent/mcp';
 import { tokenRun } from '../../scripts/token-model';
 
-const OPTS: RunOptions = { mode: 'endless', map: 'ch1', difficulty: 'normal', seed: 'ctx-test', skills: ['eraser_strike', 'bell', 'whiteout_zone'], pure: true };
+const OPTS: RunOptions = {
+  mode: 'endless',
+  map: 'ch1',
+  difficulty: 'normal',
+  seed: 'ctx-test',
+  skills: ['eraser_strike', 'bell', 'whiteout_zone'],
+  pure: true,
+};
 const usage = (p: Partial<TokenUsage>): TokenUsage => ({ ...emptyUsage(), ...p });
 
 /** 不在路线上、可以放墙的空格（布局随种子随机） */
 function emptyCells(w: IWorld): { x: number; y: number }[] {
-  const route = new Set(w.currentPaths().flat().map((c) => c.y * 100 + c.x));
+  const route = new Set(
+    w
+      .currentPaths()
+      .flat()
+      .map((c) => c.y * 100 + c.x),
+  );
   const out: { x: number; y: number }[] = [];
   for (let y = 1; y < 13; y++) for (let x = 0; x < 12; x++) if (!route.has(y * 100 + x) && w.canPlace('wall', x, y).ok) out.push({ x, y });
   return out;
@@ -116,7 +163,9 @@ describe('fixed prefix', () => {
     }
     expect(toolsForRole('player').map((t) => t.name)).toEqual(['act', 'observe', 'preview', 'get_catalog', 'get_tower']);
     expect(toolsForRole('advisor').map((t) => t.name)).toEqual(['observe', 'preview', 'get_catalog', 'get_tower', 'suggest']);
-    expect(validateAgainst(SLIM_TOOLS[0].input_schema, { actions: [{ do: 'place', tower: 'pencil', x: 1, y: 2 }], end: { plan: 'x' } })).toEqual([]);
+    expect(
+      validateAgainst(SLIM_TOOLS[0].input_schema, { actions: [{ do: 'place', tower: 'pencil', x: 1, y: 2 }], end: { plan: 'x' } }),
+    ).toEqual([]);
     expect(validateAgainst(SLIM_TOOLS[0].input_schema, { actions: [{ do: 'place', bogus: 1 }] })).not.toEqual([]);
     // 完整资料表仍能按需取到
     const w = createWorld(OPTS);
@@ -127,7 +176,8 @@ describe('fixed prefix', () => {
 
   it('MCP keeps the granular tools and adds act', () => {
     const names = new McpGameServer().listTools().map((t) => t.name);
-    for (const n of ['act', 'preview', 'place_tower', 'upgrade_tower', 'start_wave', 'new_game', 'advance', 'observe']) expect(names).toContain(n);
+    for (const n of ['act', 'preview', 'place_tower', 'upgrade_tower', 'start_wave', 'new_game', 'advance', 'observe'])
+      expect(names).toContain(n);
     const srv = new McpGameServer();
     const sid = /session_id: (g\d+)/.exec(srv.callTool('new_game', { seed: 'm', auto_wave: true }).content[0].text)![1];
     const r = srv.callTool('act', { session_id: sid, actions: [{ do: 'place', tower: 'pencil', x: 0, y: 6 }, { do: 'start_wave' }] });
@@ -139,12 +189,19 @@ describe('fixed prefix', () => {
 function recorder(fn?: (ctx: DecisionContext) => Promise<void>): LLMProvider & { ctxs: DecisionContext[] } {
   const ctxs: DecisionContext[] = [];
   return {
-    id: 'scripted', model: 'rec', ctxs,
+    id: 'scripted',
+    model: 'rec',
+    ctxs,
     async decide(ctx) {
       ctxs.push(ctx);
       if (fn) await fn(ctx);
       else await ctx.callTool('act', { actions: [], end: { note: `d${ctx.point.seq}` } });
-      return { usage: usage({ inputTokens: 300, outputTokens: 100, cacheReadTokens: 2500, requests: 1 }), costUsd: 0, toolCalls: 1, ended: true };
+      return {
+        usage: usage({ inputTokens: 300, outputTokens: 100, cacheReadTokens: 2500, requests: 1 }),
+        costUsd: 0,
+        toolCalls: 1,
+        ended: true,
+      };
     },
   };
 }
@@ -171,21 +228,31 @@ describe('prefix stability (cacheable)', () => {
         messages: {
           create: async (prm: Anthropic.Beta.MessageCreateParamsNonStreaming) => {
             seen.push(structuredClone(prm));
-            return { content: [{ type: 'tool_use', id: `tu${seen.length}`, name: 'act', input: { actions: [], end: { note: 'ok' } } }], stop_reason: 'tool_use', stop_details: null, usage: { input_tokens: 50, output_tokens: 10, cache_read_input_tokens: 2800, cache_creation_input_tokens: 0 } };
+            return {
+              content: [{ type: 'tool_use', id: `tu${seen.length}`, name: 'act', input: { actions: [], end: { note: 'ok' } } }],
+              stop_reason: 'tool_use',
+              stop_details: null,
+              usage: { input_tokens: 50, output_tokens: 10, cache_read_input_tokens: 2800, cache_creation_input_tokens: 0 },
+            };
           },
         },
       },
     } as unknown as Anthropic;
     const provider = new ClaudeProvider({ client, model: 'claude-opus-5-5', thinking: 'low' });
-    const r = await runAgentGame(OPTS, { config: { provider: 'claude-native', model: 'claude-opus-5-5', contextMode: 'balanced' }, provider, maxWaves: 2 });
+    const r = await runAgentGame(OPTS, {
+      config: { provider: 'claude-native', model: 'claude-opus-5-5', contextMode: 'balanced' },
+      provider,
+      maxWaves: 2,
+    });
     expect(r.errors).toEqual([]);
     expect(seen.length).toBeGreaterThan(2);
-    const prefix = (p: Anthropic.Beta.MessageCreateParamsNonStreaming) => JSON.stringify({ tools: p.tools, system: p.system, tool_choice: p.tool_choice, cache_control: p.cache_control });
+    const prefix = (p: Anthropic.Beta.MessageCreateParamsNonStreaming) =>
+      JSON.stringify({ tools: p.tools, system: p.system, tool_choice: p.tool_choice, cache_control: p.cache_control });
     for (const p of seen) expect(prefix(p)).toBe(prefix(seen[0]));
     const sys = seen[0].system as { text: string; cache_control?: unknown }[];
     expect(sys[1].cache_control).toEqual({ type: 'ephemeral' });
     expect(sys.map((b) => b.text).join('')).not.toMatch(/ctx-test/);
-    expect((seen[0].messages[0].content as string)).toMatch(/seed ctx-test/);
+    expect(seen[0].messages[0].content as string).toMatch(/seed ctx-test/);
     expect(r.decisions.filter((d) => d.by === 'agent').every((d) => d.usage.requests === 1)).toBe(true);
   });
 });
@@ -198,13 +265,20 @@ describe('decision gating', () => {
     expect(gateDecision(w, ['wave_interval'], 'normal', gc)).toBeNull();
     // 把钱花光
     const spots = emptyCells(w).slice(0, 3);
-    executeTool({ world: w, role: 'player' }, 'act', { actions: [{ do: 'place', tower: 'piggy', ...spots[0] }, { do: 'place', tower: 'pencil', ...spots[1] }, { do: 'place', tower: 'pencil', ...spots[2] }] });
+    executeTool({ world: w, role: 'player' }, 'act', {
+      actions: [
+        { do: 'place', tower: 'piggy', ...spots[0] },
+        { do: 'place', tower: 'pencil', ...spots[1] },
+        { do: 'place', tower: 'pencil', ...spots[2] },
+      ],
+    });
     const gold = Math.floor(w.state.gold);
     expect(gold).toBeLessThan(20);
     expect(gateDecision(w, ['wave_interval'], 'normal', gc)).toMatch(/无可行动作/);
     expect(gateDecision(w, ['build'], 'normal', gc)).toMatch(/无可行动作/);
     expect(gateDecision(w, ['wave_interval'], 'off', gc)).toBeNull();
-    for (const r of ['game_start', 'perk', 'crate', 'event_warn', 'drop_warn', 'boss_spawn', 'leak'] as const) expect(gateDecision(w, [r, 'wave_interval'], 'aggressive', gc), r).toBeNull();
+    for (const r of ['game_start', 'perk', 'crate', 'event_warn', 'drop_warn', 'boss_spawn', 'leak'] as const)
+      expect(gateDecision(w, [r, 'wave_interval'], 'aggressive', gc), r).toBeNull();
     expect(gateDecision(w, ['wave_interval'], 'aggressive', { goldAtLastCall: 0, seq: 1 })).toBeNull();
     // 省流：钱够一件事但不是"新到手"的 → 跳过；普通：不跳过
     w.state.gold = 60;
@@ -223,7 +297,10 @@ describe('decision gating', () => {
       await ctx.callTool('act', { actions: [...ups, ...ups].slice(0, 16), end: {} });
     });
     const t = new AgentTrace();
-    const r = await runAgentGame({ ...OPTS, autoWave: false }, { config: { provider: 'scripted', contextMode: 'balanced', decision: { waveIntervalSec: 2 } }, provider: p, maxWaves: 4, trace: t });
+    const r = await runAgentGame(
+      { ...OPTS, autoWave: false },
+      { config: { provider: 'scripted', contextMode: 'balanced', decision: { waveIntervalSec: 2 } }, provider: p, maxWaves: 4, trace: t },
+    );
     expect(r.result.cleared).toBe(4);
     const local = r.decisions.filter((d) => d.by === 'local');
     expect(local.length).toBeGreaterThan(0);
@@ -236,9 +313,21 @@ describe('decision gating', () => {
   it('a skipped build point in manual mode starts the wave locally', async () => {
     const w = createWorld({ ...OPTS, autoWave: false });
     const spots = emptyCells(w);
-    executeTool({ world: w, role: 'player' }, 'act', { actions: [{ do: 'place', tower: 'piggy', ...spots[0] }, { do: 'place', tower: 'pencil', ...spots[1] }, { do: 'place', tower: 'pencil', ...spots[2] }] });
+    executeTool({ world: w, role: 'player' }, 'act', {
+      actions: [
+        { do: 'place', tower: 'piggy', ...spots[0] },
+        { do: 'place', tower: 'pencil', ...spots[1] },
+        { do: 'place', tower: 'pencil', ...spots[2] },
+      ],
+    });
     const p = recorder();
-    const eng = new DecisionEngine({ world: w, opts: OPTS, config: resolveConfig({ provider: 'scripted', contextMode: 'balanced' }), provider: p, fallback: scriptedFallback(w) });
+    const eng = new DecisionEngine({
+      world: w,
+      opts: OPTS,
+      config: resolveConfig({ provider: 'scripted', contextMode: 'balanced' }),
+      provider: p,
+      fallback: scriptedFallback(w),
+    });
     const rec = await eng.decide({ seq: 5, tick: 0, time: 0, wave: 0, phase: 'build', reasons: ['build'] }, []);
     expect(rec.by).toBe('local');
     expect(rec.skipped).toMatch(/无可行动作/);
@@ -273,7 +362,14 @@ describe('delta observations', () => {
     const w = createWorld(OPTS);
     const spec = { ...contextSpec(resolveConfig({ provider: 'scripted', contextMode: 'balanced' })), mapEvery: 3 };
     const cb = new ContextBuilder(w, spec, 'Game: header');
-    const pt = (seq: number) => ({ seq, tick: w.state.tick, time: w.state.time, wave: w.state.wave, phase: w.state.phase, reasons: ['build' as const] });
+    const pt = (seq: number) => ({
+      seq,
+      tick: w.state.tick,
+      time: w.state.time,
+      wave: w.state.wave,
+      phase: w.state.phase,
+      reasons: ['build' as const],
+    });
     const m1 = cb.build(pt(1), []);
     expect(m1.full).toBe(true);
     expect(m1.map).toBe(true);
@@ -327,10 +423,59 @@ describe('history compaction & thinking in history', () => {
     const long = 'x'.repeat(3000);
     const msgs: Message[] = [
       { role: 'user', content: 'state', timestamp: 0 },
-      { role: 'assistant', content: [{ type: 'toolCall', id: 'a', name: 'observe', arguments: {} }], api: 'openai-completions', provider: 'p', model: 'm', usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } }, stopReason: 'toolUse', timestamp: 0 },
-      { role: 'toolResult', toolCallId: 'a', toolName: 'observe', content: [{ type: 'text', text: `first line\n${long}` }], isError: false, timestamp: 0 },
-      { role: 'assistant', content: [{ type: 'thinking', thinking: 'secret reasoning' }, { type: 'toolCall', id: 'b', name: 'act', arguments: {} }], api: 'openai-completions', provider: 'p', model: 'm', usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } }, stopReason: 'toolUse', timestamp: 0 },
-      { role: 'toolResult', toolCallId: 'b', toolName: 'act', content: [{ type: 'text', text: `1 OK\n${long}` }], isError: false, timestamp: 0 },
+      {
+        role: 'assistant',
+        content: [{ type: 'toolCall', id: 'a', name: 'observe', arguments: {} }],
+        api: 'openai-completions',
+        provider: 'p',
+        model: 'm',
+        usage: {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 0,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+        stopReason: 'toolUse',
+        timestamp: 0,
+      },
+      {
+        role: 'toolResult',
+        toolCallId: 'a',
+        toolName: 'observe',
+        content: [{ type: 'text', text: `first line\n${long}` }],
+        isError: false,
+        timestamp: 0,
+      },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'thinking', thinking: 'secret reasoning' },
+          { type: 'toolCall', id: 'b', name: 'act', arguments: {} },
+        ],
+        api: 'openai-completions',
+        provider: 'p',
+        model: 'm',
+        usage: {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 0,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+        stopReason: 'toolUse',
+        timestamp: 0,
+      },
+      {
+        role: 'toolResult',
+        toolCallId: 'b',
+        toolName: 'act',
+        content: [{ type: 'text', text: `1 OK\n${long}` }],
+        isError: false,
+        timestamp: 0,
+      },
     ];
     expect(compactToolResults(msgs, 100_000)).toBe(0);
     expect(compactToolResults(msgs, 4000)).toBe(1);
@@ -349,7 +494,10 @@ describe('history compaction & thinking in history', () => {
   });
 
   let unregister: (() => void) | null = null;
-  afterEach(() => { unregister?.(); unregister = null; });
+  afterEach(() => {
+    unregister?.();
+    unregister = null;
+  });
 
   it('pi (openai-completions faux) does not re-send reasoning in the second request', async () => {
     const reg = registerFauxProvider({ api: 'openai-completions' } as never);
@@ -363,12 +511,32 @@ describe('history compaction & thinking in history', () => {
     const p = new PiProvider({ config: cfg, model: reg.getModel() });
     const w = createWorld(OPTS);
     const t = new AgentTrace();
-    const sink = t.begin({ k: 'decision_start', trigger: [], wave: 0, time: 0, tick: 0, phase: 'build', provider: 'x', model: 'x', role: 'player' });
+    const sink = t.begin({
+      k: 'decision_start',
+      trigger: [],
+      wave: 0,
+      time: 0,
+      tick: 0,
+      phase: 'build',
+      provider: 'x',
+      model: 'x',
+      role: 'player',
+    });
     await p.decide({
-      role: 'player', point: { seq: 1, tick: 0, time: 0, wave: 0, phase: 'build', reasons: ['build'] }, system: systemBlocks('player'), message: 'm',
-      tools: toolsForRole('player'), maxToolCalls: 4, remainingTokens: 1e9, signal: new AbortController().signal,
-      callTool: async (n, i) => executeTool({ world: w, role: 'player' }, n, i), afterRequest: async () => true,
-      trace: (ev) => { if (ev.k === 'request') payloads.push(JSON.stringify(ev.raw)); sink(ev); },
+      role: 'player',
+      point: { seq: 1, tick: 0, time: 0, wave: 0, phase: 'build', reasons: ['build'] },
+      system: systemBlocks('player'),
+      message: 'm',
+      tools: toolsForRole('player'),
+      maxToolCalls: 4,
+      remainingTokens: 1e9,
+      signal: new AbortController().signal,
+      callTool: async (n, i) => executeTool({ world: w, role: 'player' }, n, i),
+      afterRequest: async () => true,
+      trace: (ev) => {
+        if (ev.k === 'request') payloads.push(JSON.stringify(ev.raw));
+        sink(ev);
+      },
     });
     expect(payloads.length).toBe(2);
     if (reg.getModel().api === 'openai-completions') expect(payloads[1]).not.toMatch(/PRIVATE-REASONING/);
@@ -377,15 +545,38 @@ describe('history compaction & thinking in history', () => {
   it('Claude: thinking blocks go back unchanged; server-side context editing instead of rewriting history', async () => {
     const seen: Anthropic.Beta.MessageCreateParamsNonStreaming[] = [];
     const replies = [
-      { content: [{ type: 'thinking', thinking: 'T1', signature: 's1' }, { type: 'tool_use', id: 't1', name: 'observe', input: {} }], stop_reason: 'tool_use' },
+      {
+        content: [
+          { type: 'thinking', thinking: 'T1', signature: 's1' },
+          { type: 'tool_use', id: 't1', name: 'observe', input: {} },
+        ],
+        stop_reason: 'tool_use',
+      },
       { content: [{ type: 'tool_use', id: 't2', name: 'act', input: { actions: [], end: {} } }], stop_reason: 'tool_use' },
     ];
-    const client = { beta: { messages: { create: async (prm: Anthropic.Beta.MessageCreateParamsNonStreaming) => { seen.push(structuredClone(prm)); return { ...replies.shift()!, stop_details: null, usage: { input_tokens: 1, output_tokens: 1 } }; } } } } as unknown as Anthropic;
+    const client = {
+      beta: {
+        messages: {
+          create: async (prm: Anthropic.Beta.MessageCreateParamsNonStreaming) => {
+            seen.push(structuredClone(prm));
+            return { ...replies.shift()!, stop_details: null, usage: { input_tokens: 1, output_tokens: 1 } };
+          },
+        },
+      },
+    } as unknown as Anthropic;
     const w = createWorld(OPTS);
     await new ClaudeProvider({ client, model: 'claude-sonnet-5-5', thinking: 'medium' }).decide({
-      role: 'player', point: { seq: 1, tick: 0, time: 0, wave: 0, phase: 'build', reasons: ['build'] }, system: systemBlocks('player'), message: 'm',
-      tools: toolsForRole('player'), maxToolCalls: 4, remainingTokens: 1e9, signal: new AbortController().signal, historyCompactChars: 16_000,
-      callTool: async (n, i) => executeTool({ world: w, role: 'player' }, n, i), afterRequest: async () => true,
+      role: 'player',
+      point: { seq: 1, tick: 0, time: 0, wave: 0, phase: 'build', reasons: ['build'] },
+      system: systemBlocks('player'),
+      message: 'm',
+      tools: toolsForRole('player'),
+      maxToolCalls: 4,
+      remainingTokens: 1e9,
+      signal: new AbortController().signal,
+      historyCompactChars: 16_000,
+      callTool: async (n, i) => executeTool({ world: w, role: 'player' }, n, i),
+      afterRequest: async () => true,
     });
     expect((seen[1].messages[1].content as { type: string; thinking?: string }[])[0]).toMatchObject({ type: 'thinking', thinking: 'T1' });
     expect(seen[0].betas).toContain('context-management-2025-06-27');
@@ -417,25 +608,56 @@ describe('cross-decision memo', () => {
 
 describe('thinking levels', () => {
   let unregister: (() => void) | null = null;
-  afterEach(() => { unregister?.(); unregister = null; });
+  afterEach(() => {
+    unregister?.();
+    unregister = null;
+  });
   it('Claude: per-model off mapping and normal levels', () => {
-    expect(claudeThinkingPlan('claude-opus-5-5', 'off')).toMatchObject({ thinking: { type: 'adaptive' }, effort: 'low', note: 'Opus 5.5 不支持关闭思考，已用最低强度' });
+    expect(claudeThinkingPlan('claude-opus-5-5', 'off')).toMatchObject({
+      thinking: { type: 'adaptive' },
+      effort: 'low',
+      note: 'Opus 5.5 不支持关闭思考，已用最低强度',
+    });
     expect(claudeThinkingPlan('claude-fable-5-2', 'off')).toMatchObject({ thinking: { type: 'adaptive' }, effort: 'low' });
     expect(claudeThinkingPlan('claude-fable-5-2', 'off').note).toMatch(/Fable 5.2 不支持关闭思考/);
-    expect(claudeThinkingPlan('claude-sonnet-5-5', 'off')).toEqual({ thinking: { type: 'between_tools' }, effort: 'low', effective: expect.any(String) });
+    expect(claudeThinkingPlan('claude-sonnet-5-5', 'off')).toEqual({
+      thinking: { type: 'between_tools' },
+      effort: 'low',
+      effective: expect.any(String),
+    });
     expect(claudeThinkingPlan('claude-haiku-5-5', 'off')).toMatchObject({ thinking: { type: 'disabled' }, effort: 'low' });
-    expect(claudeThinkingPlan('claude-opus-5-5', 'max')).toMatchObject({ thinking: { type: 'adaptive', display: 'summarized' }, effort: 'max' });
+    expect(claudeThinkingPlan('claude-opus-5-5', 'max')).toMatchObject({
+      thinking: { type: 'adaptive', display: 'summarized' },
+      effort: 'max',
+    });
     // between_tools / disabled 只在 effort ≤ high 时合法：off 一律配 low
-    for (const m of ['claude-sonnet-5-5', 'claude-haiku-5-5']) expect(['low', 'medium', 'high']).toContain(claudeThinkingPlan(m, 'off').effort);
+    for (const m of ['claude-sonnet-5-5', 'claude-haiku-5-5'])
+      expect(['low', 'medium', 'high']).toContain(claudeThinkingPlan(m, 'off').effort);
   });
 
   it('Claude adapter sends between_tools with no other thinking fields for Sonnet 5.5 off', async () => {
     const seen: Record<string, unknown>[] = [];
-    const client = { beta: { messages: { create: async (prm: Record<string, unknown>) => { seen.push(prm); return { content: [], stop_reason: 'end_turn', stop_details: null, usage: { input_tokens: 1, output_tokens: 1 } }; } } } } as unknown as Anthropic;
+    const client = {
+      beta: {
+        messages: {
+          create: async (prm: Record<string, unknown>) => {
+            seen.push(prm);
+            return { content: [], stop_reason: 'end_turn', stop_details: null, usage: { input_tokens: 1, output_tokens: 1 } };
+          },
+        },
+      },
+    } as unknown as Anthropic;
     const ctx = {
-      role: 'player' as const, point: { seq: 1, tick: 0, time: 0, wave: 0, phase: 'build', reasons: ['build' as const] }, system: systemBlocks('player'), message: 'm',
-      tools: toolsForRole('player'), maxToolCalls: 2, remainingTokens: 1e9, signal: new AbortController().signal,
-      callTool: async () => ({ ok: true, text: 'ok' }), afterRequest: async () => true,
+      role: 'player' as const,
+      point: { seq: 1, tick: 0, time: 0, wave: 0, phase: 'build', reasons: ['build' as const] },
+      system: systemBlocks('player'),
+      message: 'm',
+      tools: toolsForRole('player'),
+      maxToolCalls: 2,
+      remainingTokens: 1e9,
+      signal: new AbortController().signal,
+      callTool: async () => ({ ok: true, text: 'ok' }),
+      afterRequest: async () => true,
     };
     await new ClaudeProvider({ client, model: 'claude-sonnet-5-5', thinking: 'off' }).decide(ctx);
     expect(seen[0].thinking).toEqual({ type: 'between_tools' });
@@ -450,12 +672,17 @@ describe('thinking levels', () => {
 
   it('pi: per-API mapping', () => {
     expect(piThinkingPlan('openai-completions', 'deepseek-flash', 'off', { thinkingFormat: 'deepseek' }).reasoning).toBeUndefined();
-    expect(piThinkingPlan('openai-completions', 'deepseek-flash', 'low', { thinkingFormat: 'deepseek' })).toMatchObject({ reasoning: 'low' });
+    expect(piThinkingPlan('openai-completions', 'deepseek-flash', 'low', { thinkingFormat: 'deepseek' })).toMatchObject({
+      reasoning: 'low',
+    });
     expect(piThinkingPlan('openai-completions', 'qwen3', 'off', { thinkingFormat: 'qwen' }).effective).toMatch(/enable_thinking false/);
     expect(piThinkingPlan('openai-completions', 'gpt-x', 'medium', {})).toMatchObject({ reasoning: 'medium' });
     expect(piThinkingPlan('openai-completions', 'gpt-x', 'off', {}).reasoning).toBeUndefined();
     expect(piThinkingPlan('openai-responses', 'gpt-5-mini', 'off', { reasoningModel: true })).toMatchObject({ modelReasoning: false });
-    expect(piThinkingPlan('openai-responses', 'gpt-5-mini', 'high', { reasoningModel: true })).toMatchObject({ modelReasoning: true, reasoning: 'high' });
+    expect(piThinkingPlan('openai-responses', 'gpt-5-mini', 'high', { reasoningModel: true })).toMatchObject({
+      modelReasoning: true,
+      reasoning: 'high',
+    });
     expect(piThinkingPlan('openai-responses', 'gpt-4o', 'high', { reasoningModel: false })).toMatchObject({ modelReasoning: false });
     expect(piThinkingPlan('anthropic-messages', 'claude-opus-5-5', 'high', {})).toMatchObject({ modelReasoning: false });
     expect(piThinkingPlan('anthropic-messages', 'claude-haiku-5-5', 'off', {})).toMatchObject({ modelReasoning: true });
@@ -481,12 +708,30 @@ describe('thinking levels', () => {
     reg.setResponses([fauxAssistantMessage([fauxToolCall('act', { actions: [], end: {} })], { stopReason: 'toolUse' })]);
     const cfg = resolveConfig({ provider: 'pi', preset: 'custom', baseUrl: 'http://127.0.0.1:9/v1', model: 'faux', thinking: 'off' });
     const t = new AgentTrace();
-    const sink = t.begin({ k: 'decision_start', trigger: [], wave: 0, time: 0, tick: 0, phase: 'build', provider: 'x', model: 'x', role: 'player' });
+    const sink = t.begin({
+      k: 'decision_start',
+      trigger: [],
+      wave: 0,
+      time: 0,
+      tick: 0,
+      phase: 'build',
+      provider: 'x',
+      model: 'x',
+      role: 'player',
+    });
     const w = createWorld(OPTS);
     await new PiProvider({ config: cfg, model: reg.getModel() }).decide({
-      role: 'player', point: { seq: 1, tick: 0, time: 0, wave: 0, phase: 'build', reasons: ['build'] }, system: systemBlocks('player'), message: 'm',
-      tools: toolsForRole('player'), maxToolCalls: 2, remainingTokens: 1e9, signal: new AbortController().signal,
-      callTool: async (n, i) => executeTool({ world: w, role: 'player' }, n, i), afterRequest: async () => true, trace: sink,
+      role: 'player',
+      point: { seq: 1, tick: 0, time: 0, wave: 0, phase: 'build', reasons: ['build'] },
+      system: systemBlocks('player'),
+      message: 'm',
+      tools: toolsForRole('player'),
+      maxToolCalls: 2,
+      remainingTokens: 1e9,
+      signal: new AbortController().signal,
+      callTool: async (n, i) => executeTool({ world: w, role: 'player' }, n, i),
+      afterRequest: async () => true,
+      trace: sink,
     });
     const req = t.events().find((e) => e.k === 'request') as Extract<ReturnType<AgentTrace['events']>[number], { k: 'request' }>;
     expect(req.thinking).toBeTruthy();
@@ -498,7 +743,10 @@ describe('budget policy (soft / hard / ask)', () => {
     const thinking: (string | undefined)[] = [];
     const outs: number[] = [];
     return {
-      id: 'scripted', model: 'costly', thinking, outs,
+      id: 'scripted',
+      model: 'costly',
+      thinking,
+      outs,
       async decide(ctx) {
         thinking.push(ctx.thinking);
         outs.push(ctx.maxOutputTokens ?? 0);
@@ -513,7 +761,13 @@ describe('budget policy (soft / hard / ask)', () => {
     const p = costly(1000);
     const t = new AgentTrace();
     const stages: number[] = [];
-    const r = await runAgentGame(OPTS, { config: { provider: 'scripted', contextMode: 'full', budget: { tokens: 20_000 } }, provider: p, maxWaves: 12, trace: t, onBudget: (b) => stages.push(b.stage) });
+    const r = await runAgentGame(OPTS, {
+      config: { provider: 'scripted', contextMode: 'full', budget: { tokens: 20_000 } },
+      provider: p,
+      maxWaves: 12,
+      trace: t,
+      onBudget: (b) => stages.push(b.stage),
+    });
     expect(stages).toEqual(expect.arrayContaining([1, 2, 3]));
     expect(r.disabledReason).toBeNull();
     expect(r.decisions.some((d) => d.by === 'fallback')).toBe(false);
@@ -532,7 +786,11 @@ describe('budget policy (soft / hard / ask)', () => {
   });
 
   it('hard: bot takes over at 100%', async () => {
-    const r = await runAgentGame(OPTS, { config: { provider: 'scripted', contextMode: 'full', budget: { tokens: 5000, mode: 'hard' } }, provider: costly(1000), maxWaves: 3 });
+    const r = await runAgentGame(OPTS, {
+      config: { provider: 'scripted', contextMode: 'full', budget: { tokens: 5000, mode: 'hard' } },
+      provider: costly(1000),
+      maxWaves: 3,
+    });
     expect(r.disabledReason).toMatch(/budget/);
     expect(r.decisions.some((d) => d.by === 'fallback' && d.fallbackReason?.includes('budget'))).toBe(true);
     expect(r.result.cleared).toBe(3);
@@ -545,8 +803,13 @@ describe('budget policy (soft / hard / ask)', () => {
     const asks: number[] = [];
     const provider = costly(7000);
     const ctl = createAgentController({
-      config: { provider: 'scripted', contextMode: 'full', budget: { tokens: 6000, mode: 'ask' } }, session, provider, pollMs: 0,
-      onEvent: (e) => { if (e.type === 'budget_ask') asks.push(e.budget.stage); },
+      config: { provider: 'scripted', contextMode: 'full', budget: { tokens: 6000, mode: 'ask' } },
+      session,
+      provider,
+      pollMs: 0,
+      onEvent: (e) => {
+        if (e.type === 'budget_ask') asks.push(e.budget.stage);
+      },
     });
     await ctl.start();
     for (let i = 0; i < 4000 && !ctl.budgetPending; i++) {
@@ -609,8 +872,21 @@ describe('attack routes', () => {
   }, 60_000);
 
   it('compressWaypoints keeps only turn points', () => {
-    const cells = [{ x: 5, y: 0 }, { x: 5, y: 1 }, { x: 5, y: 2 }, { x: 6, y: 3 }, { x: 7, y: 4 }, { x: 8, y: 4 }, { x: 9, y: 4 }];
-    expect(compressWaypoints(cells)).toEqual([{ x: 5, y: 0 }, { x: 5, y: 2 }, { x: 7, y: 4 }, { x: 9, y: 4 }]);
+    const cells = [
+      { x: 5, y: 0 },
+      { x: 5, y: 1 },
+      { x: 5, y: 2 },
+      { x: 6, y: 3 },
+      { x: 7, y: 4 },
+      { x: 8, y: 4 },
+      { x: 9, y: 4 },
+    ];
+    expect(compressWaypoints(cells)).toEqual([
+      { x: 5, y: 0 },
+      { x: 5, y: 2 },
+      { x: 7, y: 4 },
+      { x: 9, y: 4 },
+    ]);
   });
 
   it('preview does not mutate the world and reports route / coverage changes', () => {
@@ -620,11 +896,19 @@ describe('attack routes', () => {
     const log0 = w.log.length;
     const before = groundRoutes(w)[0];
     // 一面墙挡在直路上（让路线变长），再在旁边放一座塔
-    const gain = (c: { x: number; y: number }) => (w.canPlace('wall', c.x, c.y).ok ? (w.previewPath('wall', c.x, c.y)?.[0]?.length ?? 0) - before.len : -1);
+    const gain = (c: { x: number; y: number }) =>
+      w.canPlace('wall', c.x, c.y).ok ? (w.previewPath('wall', c.x, c.y)?.[0]?.length ?? 0) - before.len : -1;
     const onRoute = before.cells.slice(1, -1).sort((a, b) => gain(b) - gain(a))[0];
     expect(gain(onRoute)).toBeGreaterThan(0);
-    const side = emptyCells(w).find((c) => Math.abs(c.x - onRoute.x) <= 2 && Math.abs(c.y - onRoute.y) <= 3 && !(c.x === onRoute.x && c.y === onRoute.y))!;
-    const r = previewChanges(w, { place: [{ tower: 'wall', ...onRoute }, { tower: 'pencil', ...side }] });
+    const side = emptyCells(w).find(
+      (c) => Math.abs(c.x - onRoute.x) <= 2 && Math.abs(c.y - onRoute.y) <= 3 && !(c.x === onRoute.x && c.y === onRoute.y),
+    )!;
+    const r = previewChanges(w, {
+      place: [
+        { tower: 'wall', ...onRoute },
+        { tower: 'pencil', ...side },
+      ],
+    });
     expect(stateHash(w)).toBe(h0);
     expect(w.log.length).toBe(log0);
     expect(r.ok, r.steps.join(' | ')).toBe(true);
@@ -632,7 +916,12 @@ describe('attack routes', () => {
     expect(r.gains.some((g) => g.startsWith(`new pencil@${side.x},${side.y}`))).toBe(true);
     expect(r.cost).toBe(5 + 20);
     // 重叠被拒，世界不变
-    const dup = previewChanges(w, { place: [{ tower: 'wall', ...side }, { tower: 'wall', ...side }] });
+    const dup = previewChanges(w, {
+      place: [
+        { tower: 'wall', ...side },
+        { tower: 'wall', ...side },
+      ],
+    });
     expect(dup.ok).toBe(false);
     expect(dup.steps[1]).toMatch(/已经有塔了/);
     const removal = previewChanges(w, { remove: [1] });
@@ -649,7 +938,12 @@ describe('attack routes', () => {
   it('coverage numbers are sane; flight lines report anti-air coverage', () => {
     const w = createWorld(OPTS);
     expect(flightLines(w)[0].aa).toBe(0);
-    executeTool({ world: w, role: 'player' }, 'act', { actions: [{ do: 'place', tower: 'pencil', x: 4, y: 11 }, { do: 'place', tower: 'stapler', x: 0, y: 6 }] });
+    executeTool({ world: w, role: 'player' }, 'act', {
+      actions: [
+        { do: 'place', tower: 'pencil', x: 4, y: 11 },
+        { do: 'place', tower: 'stapler', x: 0, y: 6 },
+      ],
+    });
     const cov = coverage(w);
     const pencil = cov.find((c) => c.id === 'pencil')!;
     const stapler = cov.find((c) => c.id === 'stapler')!;
@@ -685,7 +979,11 @@ describe('offline token model', () => {
 
   it('scripted agent still plays ≥10 waves in every context mode', async () => {
     for (const m of ['saver', 'balanced', 'full'] as const) {
-      const r = await runAgentGame(OPTS, { config: { provider: 'scripted', contextMode: m }, provider: new ScriptedProvider(), maxWaves: 10 });
+      const r = await runAgentGame(OPTS, {
+        config: { provider: 'scripted', contextMode: m },
+        provider: new ScriptedProvider(),
+        maxWaves: 10,
+      });
       expect(r.result.cleared, m).toBe(10);
       expect(r.errors).toEqual([]);
     }

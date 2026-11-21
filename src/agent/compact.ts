@@ -14,9 +14,25 @@ import { routeSummary } from './routes';
 
 /** 敌人两字母代号（Boss 大写开头）。图例在速查表里 */
 export const ENEMY_CODE: Record<EnemyId, string> = {
-  crumb: 'cr', inkdot: 'ik', paperclip: 'pc', plane: 'pl', paperball: 'pb', sticky: 'st', rubberband: 'rb',
-  whiteout: 'wo', ant: 'an', invisink: 'iv', tape: 'tp', moth: 'mo', crumbmini: 'cm', goldbag: 'gb',
-  boss_coffee: 'Bc', boss_coffee_small: 'Bs', boss_shredder: 'Bd', boss_inkbottle: 'Bi', boss_alarm: 'Ba',
+  crumb: 'cr',
+  inkdot: 'ik',
+  paperclip: 'pc',
+  plane: 'pl',
+  paperball: 'pb',
+  sticky: 'st',
+  rubberband: 'rb',
+  whiteout: 'wo',
+  ant: 'an',
+  invisink: 'iv',
+  tape: 'tp',
+  moth: 'mo',
+  crumbmini: 'cm',
+  goldbag: 'gb',
+  boss_coffee: 'Bc',
+  boss_coffee_small: 'Bs',
+  boss_shredder: 'Bd',
+  boss_inkbottle: 'Bi',
+  boss_alarm: 'Ba',
 };
 const code = (id: string): string => ENEMY_CODE[id as EnemyId] ?? id;
 
@@ -97,14 +113,25 @@ export function compactObservation(w: IWorld, o: CompactOptions = {}): CompactOb
     sc: s.score,
   };
   const au = s.autoWave;
-  obs.aw = !au.enabled ? 'manual' : !au.started ? 'auto-after-first' : au.nextAt !== null ? `next ${Math.ceil(Math.max(0, au.nextAt - s.time))}s` : au.blocked ? 'blocked' : 'on';
+  obs.aw = !au.enabled
+    ? 'manual'
+    : !au.started
+      ? 'auto-after-first'
+      : au.nextAt !== null
+        ? `next ${Math.ceil(Math.max(0, au.nextAt - s.time))}s`
+        : au.blocked
+          ? 'blocked'
+          : 'on';
   const towers = [...s.towers.values()].sort((a, b) => a.uid - b.uid);
   const walls = towers.filter((t) => t.id === 'wall');
   obs.T = towers.filter((t) => t.id !== 'wall').map((t) => towerLine(w, t));
   if (walls.length) obs.W = walls.map((t) => `${t.uid}@${t.cx},${t.cy}${t.level > 1 ? `L${t.level}` : ''}`).join(' ');
   // 敌人：按类型聚合
   if (s.enemies.length) {
-    const groups = new Map<string, { n: number; hp: number; max: number; band: [number, number, number]; air: boolean; boss: boolean; elite: number; hidden: number }>();
+    const groups = new Map<
+      string,
+      { n: number; hp: number; max: number; band: [number, number, number]; air: boolean; boss: boolean; elite: number; hidden: number }
+    >();
     let front: { d: number; txt: string } | null = null;
     const bosses: string[] = [];
     const gold: string[] = [];
@@ -126,8 +153,12 @@ export function compactObservation(w: IWorld, o: CompactOptions = {}): CompactOb
       // 金币袋怪 / 金色精英：击杀掉硬币（事件，值得集火 / 放技能）
       if (e.id === 'goldbag' || e.affixes.includes('golden')) gold.push(txt);
     }
-    obs.E = [...groups].sort((a, b) => b[1].n - a[1].n || (a[0] < b[0] ? -1 : 1)).map(([k, g]) =>
-      `${k}×${g.n} ${Math.round((g.hp / Math.max(1, g.max)) * 100)}% ${g.band.join('/')}${g.air ? ' A' : ''}${g.boss ? ' B' : ''}${g.elite ? ` e${g.elite}` : ''}${g.hidden ? ` h${g.hidden}` : ''}`);
+    obs.E = [...groups]
+      .sort((a, b) => b[1].n - a[1].n || (a[0] < b[0] ? -1 : 1))
+      .map(
+        ([k, g]) =>
+          `${k}×${g.n} ${Math.round((g.hp / Math.max(1, g.max)) * 100)}% ${g.band.join('/')}${g.air ? ' A' : ''}${g.boss ? ' B' : ''}${g.elite ? ` e${g.elite}` : ''}${g.hidden ? ` h${g.hidden}` : ''}`,
+      );
     if (front) obs.Ef = front.txt;
     if (bosses.length) obs.EB = bosses;
     if (gold.length) obs.EG = gold;
@@ -142,7 +173,10 @@ export function compactObservation(w: IWorld, o: CompactOptions = {}): CompactOb
   obs.sk = s.skills.map((k) => `${k.id}:${k.ready ? 'R' : Math.ceil(k.cd)}${k.charges !== undefined ? `c${k.charges}` : ''}`).join(' ');
   const evs = s.events.filter((e) => e.phase !== 'done');
   if (evs.length) {
-    obs.ev = evs.map((e) => `${e.id}(${e.tone}) ${e.phase === 'warn' ? `in ${Math.ceil(Math.max(0, e.startsAt - s.time))}s` : `ends ${Math.ceil(Math.max(0, e.endsAt - s.time))}s`}${e.area ? ` @${e.area.x},${e.area.y} ${e.area.w}x${e.area.h}` : ''}`);
+    obs.ev = evs.map(
+      (e) =>
+        `${e.id}(${e.tone}) ${e.phase === 'warn' ? `in ${Math.ceil(Math.max(0, e.startsAt - s.time))}s` : `ends ${Math.ceil(Math.max(0, e.endsAt - s.time))}s`}${e.area ? ` @${e.area.x},${e.area.y} ${e.area.w}x${e.area.h}` : ''}`,
+    );
   }
   const drops = s.spawners.filter((sp) => sp.kind === 'drop' && (sp.active || (sp.warnUntil ?? 0) > s.time));
   if (drops.length) {
@@ -155,7 +189,10 @@ export function compactObservation(w: IWorld, o: CompactOptions = {}): CompactOb
     });
   }
   if (s.pickups.length) obs.pu = s.pickups.map((p) => `#${p.uid} ${p.kind}${p.kind === 'coin' ? p.value : ''}`).join(' ');
-  if (s.perkChoices) obs.perk = s.perkChoices.map((c) => `${c.id}(${c.rarity}${c.needsTower ? ',uid+branch' : ''}): ${c.desc}`).concat(`reroll ${s.perkRerollCost}g`);
+  if (s.perkChoices)
+    obs.perk = s.perkChoices
+      .map((c) => `${c.id}(${c.rarity}${c.needsTower ? ',uid+branch' : ''}): ${c.desc}`)
+      .concat(`reroll ${s.perkRerollCost}g`);
   if (s.crateChoice) obs.crate = s.crateChoice.options.map((c) => `${c.id}: ${c.desc}`);
   if (s.perks.length) obs.own = s.perks.join(',');
   // 建造价：与速查表相同时只写 "base"（钱够不够模型自己比 g）；有折扣 / 未解锁 / 达上限时列出差异
@@ -184,7 +221,10 @@ export function terrainSig(w: IWorld): string {
     const c = g.cells[i] === CellKind.Tower ? CellKind.Empty : g.cells[i];
     h = (Math.imul(h, 31) + c + 1) | 0;
   }
-  const drops = s.spawners.filter((sp) => sp.kind === 'drop' && (sp.active || (sp.warnUntil ?? 0) > s.time)).map((sp) => `${sp.id}${sp.active ? 'D' : 'd'}`).join(',');
+  const drops = s.spawners
+    .filter((sp) => sp.kind === 'drop' && (sp.active || (sp.warnUntil ?? 0) > s.time))
+    .map((sp) => `${sp.id}${sp.active ? 'D' : 'd'}`)
+    .join(',');
   return `${h}|${drops}`;
 }
 
@@ -234,7 +274,10 @@ const ROUTE_CH = 'abcefghjkm';
  * 地形地图（不含敌人，便于缓存 / 只在地形变化时重发）。路线叠加：第 i 条地面路线的空格画成 ROUTE_CH[i]
  * （首行图例 "routes a=north b=west"），多条重叠画 '+'，预警中的空降路线画 '~'。rle = 每行游程编码（"3.2#S" = "...##S"）。
  */
-export function terrainMap(w: IWorld, o: { rle?: boolean; routes?: { id: string; status: string; cells: { x: number; y: number }[] }[] } = {}): string[] {
+export function terrainMap(
+  w: IWorld,
+  o: { rle?: boolean; routes?: { id: string; status: string; cells: { x: number; y: number }[] }[] } = {},
+): string[] {
   const s = w.state;
   const g = s.grid;
   const rows: string[][] = [];

@@ -20,7 +20,8 @@ function setHash(path: string | null): void {
 }
 
 export function guideScreen(app: App, route: GuideRoute): Screen {
-  const loading = () => h('div.ai-loading', { attrs: { role: 'status' } }, h('span.ai-spinner', { attrs: { 'aria-hidden': 'true' } }), t('guide.loading'));
+  const loading = () =>
+    h('div.ai-loading', { attrs: { role: 'status' } }, h('span.ai-spinner', { attrs: { 'aria-hidden': 'true' } }), t('guide.loading'));
   const body = h('div.guide-body', null, loading());
   const el = h('div.screen.guide-screen', null, screenHeader(app, t('guide.title'), { chips: false }), body);
 
@@ -53,7 +54,11 @@ export function guideScreen(app: App, route: GuideRoute): Screen {
             null,
             h('p', null, t('guide.loadFail')),
             h('small.muted', null, t('guide.loadFail.hint')),
-            h('button.btn.small', { attrs: { type: 'button' }, onclick: () => (audio.play('click'), body.replaceChildren(loading()), load()) }, t('guide.retry')),
+            h(
+              'button.btn.small',
+              { attrs: { type: 'button' }, onclick: () => (audio.play('click'), body.replaceChildren(loading()), load()) },
+              t('guide.retry'),
+            ),
           ),
         );
       });

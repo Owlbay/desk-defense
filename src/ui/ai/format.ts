@@ -2,7 +2,13 @@
 import { t } from '../../i18n';
 
 export const fmtTokens = (n: number): string =>
-  n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 10_000 ? `${(n / 1000).toFixed(0)}k` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(Math.round(n));
+  n >= 1e6
+    ? `${(n / 1e6).toFixed(2)}M`
+    : n >= 10_000
+      ? `${(n / 1000).toFixed(0)}k`
+      : n >= 1000
+        ? `${(n / 1000).toFixed(1)}k`
+        : String(Math.round(n));
 
 export const fmtCost = (usd: number): string => (usd <= 0 ? '$0' : usd < 0.01 ? `$${usd.toFixed(4)}` : `$${usd.toFixed(2)}`);
 

@@ -138,7 +138,12 @@ export class SkillBar {
     if (s.target === 'spawner') {
       // 封箱胶带：已点选空降点 / 场上只有一个时直接释放
       const drops = this.ctx.world.state.spawners.filter((sp) => sp.kind === 'drop');
-      const chosen = ui.state.spawnerSelected !== null && drops.some((d) => d.id === ui.state.spawnerSelected) ? ui.state.spawnerSelected : drops.length === 1 ? drops[0].id : null;
+      const chosen =
+        ui.state.spawnerSelected !== null && drops.some((d) => d.id === ui.state.spawnerSelected)
+          ? ui.state.spawnerSelected
+          : drops.length === 1
+            ? drops[0].id
+            : null;
       if (drops.length === 0) {
         audio.play('error');
         this.ctx.toast(t('ui.skillbar.noDrops'), 'warn');

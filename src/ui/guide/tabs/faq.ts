@@ -4,14 +4,42 @@ import { t } from '../../../i18n';
 import { h } from '../../dom';
 import { rich, section, table, type Entry, type TabContext, type TabModule } from '../kit';
 
-const QUESTIONS = ['save', 'offline', 'resume', 'place', 'air', 'idle', 'cooldown', 'branch', 'autowave', 'friend', 'perf', 'lang'] as const;
+const QUESTIONS = [
+  'save',
+  'offline',
+  'resume',
+  'place',
+  'air',
+  'idle',
+  'cooldown',
+  'branch',
+  'autowave',
+  'friend',
+  'perf',
+  'lang',
+] as const;
 /** 数字键 → 塔（与对局内塔栏顺序一致） */
 const BUILD_KEYS: [string, TowerId][] = [
-  ['1', 'wall'], ['2', 'pencil'], ['3', 'stapler'], ['4', 'glue'], ['5', 'lamp'], ['6', 'compass'],
-  ['7', 'eraser'], ['8', 'ruler'], ['9', 'pen'], ['0', 'calculator'], ['-', 'piggy'], ['=', 'swatter'],
+  ['1', 'wall'],
+  ['2', 'pencil'],
+  ['3', 'stapler'],
+  ['4', 'glue'],
+  ['5', 'lamp'],
+  ['6', 'compass'],
+  ['7', 'eraser'],
+  ['8', 'ruler'],
+  ['9', 'pen'],
+  ['0', 'calculator'],
+  ['-', 'piggy'],
+  ['=', 'swatter'],
 ];
 
-const keys = (...ks: string[]): HTMLElement => h('span.guide-keys', null, ks.map((k) => h('kbd', null, k)));
+const keys = (...ks: string[]): HTMLElement =>
+  h(
+    'span.guide-keys',
+    null,
+    ks.map((k) => h('kbd', null, k)),
+  );
 
 export const faqTab: TabModule = {
   entries(): Entry[] {

@@ -44,12 +44,7 @@ export function boardKey(grid: GridState, spawners: SpawnerState[] | undefined, 
  * spawners 为空时退回旧字段 grid.spawns（全部按边缘入口画）。
  * hidden 中的障碍物暂不画（例如正在播放下落动画的书）。
  */
-export function drawBoard(
-  g: Phaser.GameObjects.Graphics,
-  grid: GridState,
-  spawners?: SpawnerState[],
-  hidden?: Set<string>,
-): void {
+export function drawBoard(g: Phaser.GameObjects.Graphics, grid: GridState, spawners?: SpawnerState[], hidden?: Set<string>): void {
   g.clear();
   // 投影与桌面
   g.fillStyle(B.shadow, 0.18 * B.shadowK);
@@ -390,7 +385,13 @@ export function drawObstacle(g: Phaser.GameObjects.Graphics, o: Obstacle): void 
       }
       // 空格键
       g.fillStyle(C.metal, 1);
-      g.fillRoundedRect(kx0 + Math.ceil(cols * 0.25 + 0.01) * sw + 1, ky0 + (rows - 1) * sh + 1, (Math.floor(cols * 0.75 - 0.01) - Math.ceil(cols * 0.25 + 0.01) + 1) * sw - 2, sh - 2, 2);
+      g.fillRoundedRect(
+        kx0 + Math.ceil(cols * 0.25 + 0.01) * sw + 1,
+        ky0 + (rows - 1) * sh + 1,
+        (Math.floor(cols * 0.75 - 0.01) - Math.ceil(cols * 0.25 + 0.01) + 1) * sw - 2,
+        sh - 2,
+        2,
+      );
       break;
     }
     case 'mouse': {
@@ -483,7 +484,7 @@ export function drawObstacle(g: Phaser.GameObjects.Graphics, o: Obstacle): void 
       if (hor) g.fillRect(rx + rw * 0.58, ry, rw * 0.42 - 4, rh);
       else g.fillRect(rx, ry + rh * 0.58, rw, rh * 0.42 - 4);
       g.fillStyle(C.white, 0.35);
-      g.fillRoundedRect(rx + 4, ry + 3, (hor ? rw * 0.5 : rw - 8), 3, 1.5);
+      g.fillRoundedRect(rx + 4, ry + 3, hor ? rw * 0.5 : rw - 8, 3, 1.5);
       g.lineStyle(OUT, C.ink, 1);
       g.strokeRoundedRect(rx, ry, rw, rh, 6);
       g.lineStyle(1.5, C.ink, 0.6);

@@ -314,9 +314,11 @@ export default {
   'ui.tutorial.tip-event.title': '随机事件',
   'ui.tutorial.tip-event.body': '书桌上会突然发生事件：红色是坏事，绿色是好事。顶部横幅会提前预警并倒计时；硬币和补给箱要点一下才能收集。',
   'ui.tutorial.tip-drop.title': '空降纸箱！',
-  'ui.tutorial.tip-drop.body': '虚线圈里很快会落下一个纸箱，变成新的出生点，路线也会跟着改变。点纸箱可以花金币拆除，技能「{tape}」也能直接封掉。',
+  'ui.tutorial.tip-drop.body':
+    '虚线圈里很快会落下一个纸箱，变成新的出生点，路线也会跟着改变。点纸箱可以花金币拆除，技能「{tape}」也能直接封掉。',
   'ui.tutorial.tip-evolve.title': '传奇进化',
-  'ui.tutorial.tip-evolve.body': '传奇塔之后获得的经验会计入进化。攒经验或花金币升星：★1、★2 解锁分支特性，★3 成为神话并获得主动能力（选中后按 A 释放）。',
+  'ui.tutorial.tip-evolve.body':
+    '传奇塔之后获得的经验会计入进化。攒经验或花金币升星：★1、★2 解锁分支特性，★3 成为神话并获得主动能力（选中后按 A 释放）。',
 
   // ───── 命名空间 ui · 菜单 / 战役 / 书包 / 技能 / 自定义（zh-CN） ─────
   'ui.menu.mode.campaign': '战役',
@@ -383,7 +385,8 @@ export default {
   'ui.talents.perLevel': '（每级，最高 {n} 级）',
   'ui.talents.maxed': '已满级',
   'ui.talents.or': '或',
-  'ui.talents.intro': '永久天赋。星星来自战役评星（已累计获得 {n} 颗），墨水来自无尽和自定义模式。天赋都是小幅加成；开局选择「纯净模式」可以关闭它们。',
+  'ui.talents.intro':
+    '永久天赋。星星来自战役评星（已累计获得 {n} 颗），墨水来自无尽和自定义模式。天赋都是小幅加成；开局选择「纯净模式」可以关闭它们。',
   'ui.skills.title': '技能',
   'ui.skills.target.none': '全场 · 立即释放',
   'ui.skills.target.circle': '圆形范围',

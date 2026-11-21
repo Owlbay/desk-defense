@@ -92,7 +92,14 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
   const diffBox = h('div.seg-grid.ai-diffs');
   const abyssBox = h('div.ai-abyss');
   const seedInput = h<HTMLInputElement>('input.input', {
-    attrs: { type: 'text', placeholder: t('agent.setup.seedPlaceholder'), maxlength: 24, autocomplete: 'off', spellcheck: 'false', 'aria-label': t('agent.setup.seed') },
+    attrs: {
+      type: 'text',
+      placeholder: t('agent.setup.seedPlaceholder'),
+      maxlength: 24,
+      autocomplete: 'off',
+      spellcheck: 'false',
+      'aria-label': t('agent.setup.seed'),
+    },
   });
   const runSeed = (): string => seedInput.value.trim() || run.layoutSeed;
   const layout = layoutPicker({
@@ -130,7 +137,7 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
           {
             attrs: { type: 'button', 'aria-pressed': st.run.mode === m ? 'true' : 'false' },
             onclick: () => {
-              if (!ok) return audio.play('error'), app.toast(t('agent.setup.campaignLocked'), 'warn');
+              if (!ok) return (audio.play('error'), app.toast(t('agent.setup.campaignLocked'), 'warn'));
               if (st.run.mode === m) return;
               audio.play('click');
               st.run.mode = m;
@@ -152,7 +159,7 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
           {
             attrs: { type: 'button', 'aria-pressed': st.run.map === m ? 'true' : 'false' },
             onclick: () => {
-              if (!ok) return audio.play('error'), app.toast(t('agent.setup.mapLocked'), 'warn');
+              if (!ok) return (audio.play('error'), app.toast(t('agent.setup.mapLocked'), 'warn'));
               if (st.run.map === m) return;
               audio.play('click');
               st.run.map = m;
@@ -175,7 +182,7 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
           {
             attrs: { type: 'button', 'aria-pressed': st.run.difficulty === d ? 'true' : 'false' },
             onclick: () => {
-              if (!ok) return audio.play('error'), app.toast(t('agent.setup.diffLocked'), 'warn');
+              if (!ok) return (audio.play('error'), app.toast(t('agent.setup.diffLocked'), 'warn'));
               if (st.run.difficulty === d) return;
               audio.play('click');
               st.run.difficulty = d;
@@ -191,7 +198,8 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
     clear(abyssBox);
     if (st.run.difficulty === 'abyss' && st.run.mode === 'endless') {
       const sel = h<HTMLSelectElement>('select.input', { attrs: { 'aria-label': t('agent.setup.abyssLevel') } });
-      for (let i = 1; i <= Math.min(ABYSS_MAX, abyssMax); i++) sel.appendChild(h('option', { attrs: { value: i, selected: i === st.run.abyss } }, t('agent.setup.abyssN', { lv: roman(i) })));
+      for (let i = 1; i <= Math.min(ABYSS_MAX, abyssMax); i++)
+        sel.appendChild(h('option', { attrs: { value: i, selected: i === st.run.abyss } }, t('agent.setup.abyssN', { lv: roman(i) })));
       sel.onchange = () => {
         st.run.abyss = Number(sel.value) || 1;
         persist();
@@ -200,19 +208,17 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
     }
     layout.el.hidden = st.run.mode !== 'endless';
     pureSw.el.hidden = st.run.mode !== 'endless';
-    setText(
-      runNote,
-      st.run.mode === 'endless'
-        ? t('agent.setup.runNote.endless')
-        : t('agent.setup.runNote.campaign'),
-    );
+    setText(runNote, st.run.mode === 'endless' ? t('agent.setup.runNote.endless') : t('agent.setup.runNote.campaign'));
     paintSummary();
   };
 
   // ───────────── 开始 ─────────────
   function paintSummary(): void {
     const role = st.role === 'player' ? t('agent.setup.role.player') : t('agent.setup.role.advisor');
-    setText(summary, `${role} · ${form.sourceLabel()} · ${st.decisionMode === 'pause' ? t('agent.setup.decision.pause') : t('agent.setup.decision.realtime')}`);
+    setText(
+      summary,
+      `${role} · ${form.sourceLabel()} · ${st.decisionMode === 'pause' ? t('agent.setup.decision.pause') : t('agent.setup.decision.realtime')}`,
+    );
   }
 
   const startBtn = h(

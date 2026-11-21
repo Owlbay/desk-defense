@@ -154,7 +154,15 @@ class AudioEngine {
   private tone(
     freq: number,
     dur: number,
-    opts: { type?: OscillatorType; gain?: number; slide?: number; delay?: number; attack?: number; bus?: GainNode | null; detune?: number } = {},
+    opts: {
+      type?: OscillatorType;
+      gain?: number;
+      slide?: number;
+      delay?: number;
+      attack?: number;
+      bus?: GainNode | null;
+      detune?: number;
+    } = {},
   ): void {
     const ctx = this.ctx;
     const bus = opts.bus ?? this.sfxBus;
@@ -183,7 +191,10 @@ class AudioEngine {
     };
   }
 
-  private noise(dur: number, opts: { freq?: number; q?: number; gain?: number; delay?: number; type?: BiquadFilterType; sweep?: number } = {}): void {
+  private noise(
+    dur: number,
+    opts: { freq?: number; q?: number; gain?: number; delay?: number; type?: BiquadFilterType; sweep?: number } = {},
+  ): void {
     const ctx = this.ctx;
     if (!ctx || !this.sfxBus || !this.noiseBuf) return;
     const t0 = ctx.currentTime + (opts.delay ?? 0);
@@ -213,7 +224,9 @@ class AudioEngine {
   }
 
   private arp(notes: number[], step: number, opts: { type?: OscillatorType; gain?: number; len?: number } = {}): void {
-    notes.forEach((n, i) => this.tone(midi(n), opts.len ?? step * 2.2, { type: opts.type ?? 'triangle', gain: opts.gain ?? 0.22, delay: i * step }));
+    notes.forEach((n, i) =>
+      this.tone(midi(n), opts.len ?? step * 2.2, { type: opts.type ?? 'triangle', gain: opts.gain ?? 0.22, delay: i * step }),
+    );
   }
 
   // ───────────── 音效 ─────────────

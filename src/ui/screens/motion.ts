@@ -98,7 +98,10 @@ export function burst(host: HTMLElement, count = 10, radius = 46): void {
       [
         { transform: 'translate(0,0) scale(0.4)', opacity: 1 },
         { transform: `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) scale(1) rotate(${Math.round(a * 90)}deg)`, opacity: 1, offset: 0.6 },
-        { transform: `translate(${(x * 1.15).toFixed(1)}px,${(y * 1.15 + 10).toFixed(1)}px) scale(0.3) rotate(${Math.round(a * 140)}deg)`, opacity: 0 },
+        {
+          transform: `translate(${(x * 1.15).toFixed(1)}px,${(y * 1.15 + 10).toFixed(1)}px) scale(0.3) rotate(${Math.round(a * 140)}deg)`,
+          opacity: 0,
+        },
       ],
       { duration: DUR.xl - 80 + Math.random() * 160, easing: EASE_OUT, fill: 'forwards' },
     );

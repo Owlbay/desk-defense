@@ -29,14 +29,22 @@ export function menuScreen(app: App): Screen {
   const lockedBtn = (label: string, glyph: string, hint: string) =>
     h(
       'button.menu-btn.locked',
-      { onclick: () => (audio.play('error'), app.toast(t('ui.menu.lockedToast', { label, hint }), 'warn')), attrs: { 'aria-disabled': 'true' } },
+      {
+        onclick: () => (audio.play('error'), app.toast(t('ui.menu.lockedToast', { label, hint }), 'warn')),
+        attrs: { 'aria-disabled': 'true' },
+      },
       h('span.gi', { html: glyph }),
       h('span.menu-label', null, label, h('small', null, hint)),
       h('span.gi.lock', { html: G.lock }),
     );
 
   const btn = (label: string, glyph: string, onclick: () => void, sub?: string, cls = '') =>
-    h(`button.menu-btn${cls}`, { onclick }, h('span.gi', { html: glyph }), h('span.menu-label', null, label, sub ? h('small', null, sub) : null));
+    h(
+      `button.menu-btn${cls}`,
+      { onclick },
+      h('span.gi', { html: glyph }),
+      h('span.menu-label', null, label, sub ? h('small', null, sub) : null),
+    );
 
   const endlessOk = endlessUnlocked(p);
   const clearedCount = (['ch1', 'ch2', 'ch3'] as const).filter((m) => chapterCleared(p, m)).length;
@@ -63,7 +71,9 @@ export function menuScreen(app: App): Screen {
     'div.menu-ambience',
     { attrs: { 'aria-hidden': 'true' } },
     h('span.amb-grain'),
-    CRUMBS.map(([x, y, size, dur], i) => h(`span.crumb.c${i % 3}`, { style: `left:${x}%;top:${y}%;width:${size}px;height:${size}px;--dur:${dur}s;--i:${i}` })),
+    CRUMBS.map(([x, y, size, dur], i) =>
+      h(`span.crumb.c${i % 3}`, { style: `left:${x}%;top:${y}%;width:${size}px;height:${size}px;--dur:${dur}s;--i:${i}` }),
+    ),
   );
 
   const dailyBtn = endlessOk
@@ -97,7 +107,11 @@ export function menuScreen(app: App): Screen {
           'span.logo-zh',
           {
             attrs: { role: 'img', 'aria-label': t('ui.menu.logo') },
-          }, [...t('ui.menu.logo')].map((ch, i) => h('span.logo-ch', { style: `--i:${i}`, attrs: { 'aria-hidden': 'true' } }, ch === ' ' ? '\u00a0' : ch))),
+          },
+          [...t('ui.menu.logo')].map((ch, i) =>
+            h('span.logo-ch', { style: `--i:${i}`, attrs: { 'aria-hidden': 'true' } }, ch === ' ' ? '\u00a0' : ch),
+          ),
+        ),
         // 英文界面里主标题已是英文，不再重复副标题
         getLocale() === 'en' ? null : h('span.logo-en', null, 'DESK DEFENSE'),
       ),
@@ -119,9 +133,13 @@ export function menuScreen(app: App): Screen {
           )
         : null,
       btn(t('ui.menu.mode.campaign'), G.book, go({ name: 'campaign' }), t('ui.menu.campaignSub', { n: clearedCount, total: 3 })),
-      endlessOk ? btn(t('ui.menu.mode.endless'), G.infinity, go({ name: 'endless' }), t('ui.menu.endlessSub')) : lockedBtn(t('ui.menu.mode.endless'), G.infinity, t('ui.menu.unlockCh1')),
+      endlessOk
+        ? btn(t('ui.menu.mode.endless'), G.infinity, go({ name: 'endless' }), t('ui.menu.endlessSub'))
+        : lockedBtn(t('ui.menu.mode.endless'), G.infinity, t('ui.menu.unlockCh1')),
       dailyBtn,
-      customUnlocked(p) ? btn(t('ui.menu.mode.custom'), G.sliders, go({ name: 'custom' }), t('ui.menu.customSub')) : lockedBtn(t('ui.menu.mode.custom'), G.sliders, t('ui.menu.unlockCh1')),
+      customUnlocked(p)
+        ? btn(t('ui.menu.mode.custom'), G.sliders, go({ name: 'custom' }), t('ui.menu.customSub'))
+        : lockedBtn(t('ui.menu.mode.custom'), G.sliders, t('ui.menu.unlockCh1')),
       btn(t('ui.menu.ai'), AI_GLYPH, go({ name: 'ai' }), t('ui.menu.aiSub'), '.ai-entry'),
       btn(t('guide.menu.label'), G.list, go({ name: 'guide' }), t('guide.menu.sub'), '.guide-entry'),
       h(

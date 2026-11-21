@@ -169,7 +169,14 @@ export class BoardInput {
     if (s.inspectOnly) {
       const uid = this.towerAt(cell);
       const drop = !uid && cell ? this.field.dropAt(cell.cx, cell.cy) : null;
-      ui.set({ selected: uid || null, spawnerSelected: drop ? drop.id : null, pending: null, build: null, aiming: null, abilityAiming: null });
+      ui.set({
+        selected: uid || null,
+        spawnerSelected: drop ? drop.id : null,
+        pending: null,
+        build: null,
+        aiming: null,
+        abilityAiming: null,
+      });
       return;
     }
     if (s.abilityAiming !== null) {
@@ -557,7 +564,18 @@ export class BoardInput {
           ghostOk = world.canPlace(tw.id, focus.cx, focus.cy).ok;
           const br = world.baseRange(tw.id);
           if (br.range > 0) this.rangeRings(ug, (focus.cx + 0.5) * CELL, (focus.cy + 0.5) * CELL, br.range, br.inner, br.aura, rt, 0.6);
-          dashed(og, (tw.cx + 0.5) * CELL, (tw.cy + 0.5) * CELL, (focus.cx + 0.5) * CELL, (focus.cy + 0.5) * CELL, C.paper, 2, 6, 5, (rt * 20) % 11);
+          dashed(
+            og,
+            (tw.cx + 0.5) * CELL,
+            (tw.cy + 0.5) * CELL,
+            (focus.cx + 0.5) * CELL,
+            (focus.cy + 0.5) * CELL,
+            C.paper,
+            2,
+            6,
+            5,
+            (rt * 20) % 11,
+          );
         }
       }
     } else if (s.perkTargeting) {
@@ -1001,7 +1019,16 @@ export class BoardInput {
   }
 }
 
-export function dashCircle(g: Phaser.GameObjects.Graphics, x: number, y: number, r: number, color: number, w: number, a: number, rot = 0): void {
+export function dashCircle(
+  g: Phaser.GameObjects.Graphics,
+  x: number,
+  y: number,
+  r: number,
+  color: number,
+  w: number,
+  a: number,
+  rot = 0,
+): void {
   const n = Math.max(12, Math.round((r * Math.PI * 2) / 12));
   g.lineStyle(w, color, a);
   for (let i = 0; i < n; i++) {

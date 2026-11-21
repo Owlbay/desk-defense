@@ -23,8 +23,15 @@ export const PURPOSE_TOWERS: Record<Purpose, Partial<Record<TowerId, number>>> =
 
 /** 用途的"主力"塔：有这些塔才算已经有了这个用途（CTR 行判断缺什么） */
 export const PURPOSE_CORE: Record<Purpose, TowerId[]> = {
-  dps: [], aoe: ['stapler', 'compass'], slow: ['glue'], armor: ['eraser', 'lamp'], air: ['swatter', 'lamp', 'pencil', 'ruler'],
-  stealth: ['lamp'], boss: ['lamp', 'ruler', 'pen'], antiheal: ['pen'], shield: ['eraser'],
+  dps: [],
+  aoe: ['stapler', 'compass'],
+  slow: ['glue'],
+  armor: ['eraser', 'lamp'],
+  air: ['swatter', 'lamp', 'pencil', 'ruler'],
+  stealth: ['lamp'],
+  boss: ['lamp', 'ruler', 'pen'],
+  antiheal: ['pen'],
+  shield: ['eraser'],
 };
 
 /** 用途的缺省目标位置（build_near） */
@@ -47,11 +54,23 @@ export function enemyPurposes(e: EnemyDef): Purpose[] {
 
 /** 精英词缀 → 用途 */
 export const AFFIX_PURPOSE: Partial<Record<AffixId, Purpose>> = {
-  hard: 'armor', shield: 'shield', regen: 'antiheal', stealth: 'stealth', swift: 'slow', split: 'aoe', unstoppable: 'dps', rally: 'aoe', reflect: 'dps', golden: 'dps',
+  hard: 'armor',
+  shield: 'shield',
+  regen: 'antiheal',
+  stealth: 'stealth',
+  swift: 'slow',
+  split: 'aoe',
+  unstoppable: 'dps',
+  rally: 'aoe',
+  reflect: 'dps',
+  golden: 'dps',
 };
 
 /** 用途 → 速查表里的简写："armor(eraser/lamp)" */
 export function purposeText(p: Purpose): string {
-  const ts = Object.entries(PURPOSE_TOWERS[p]).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id]) => id);
+  const ts = Object.entries(PURPOSE_TOWERS[p])
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([id]) => id);
   return `${p}(${ts.join('/')})`;
 }

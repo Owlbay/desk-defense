@@ -13,8 +13,14 @@ import { estimateTokens } from '../../src/agent/observation';
 import { DecisionEngine, executeTool, resolveConfig, scriptedFallback } from '../../src/agent';
 import { planMaze } from '../../src/agent/maze';
 
-const opts = (seed: string, map: MapId = 'ch1', difficulty: RunOptions['difficulty'] = 'normal'): RunOptions =>
-  ({ mode: 'endless', map, difficulty, seed, skills: ['eraser_strike', 'bell', 'whiteout_zone'], pure: true });
+const opts = (seed: string, map: MapId = 'ch1', difficulty: RunOptions['difficulty'] = 'normal'): RunOptions => ({
+  mode: 'endless',
+  map,
+  difficulty,
+  seed,
+  skills: ['eraser_strike', 'bell', 'whiteout_zone'],
+  pure: true,
+});
 
 function allRoutesOpen(w: IWorld): boolean {
   const g = w.state.grid;
@@ -27,14 +33,23 @@ const send = (w: IWorld) => (c: Command) => w.command(c);
 /** 一格空地：不在路线上、放墙不改变任何路线长度 */
 function idleCell(w: IWorld, skip = new Set<number>()): { x: number; y: number } {
   const g = w.state.grid;
-  const on = new Set(w.currentPaths().flat().map((c) => c.y * g.cols + c.x));
-  const lens = w.currentPaths().map((p) => p.length).join('/');
-  for (let y = g.rows - 1; y >= 0; y--) for (let x = 0; x < g.cols; x++) {
-    const i = y * g.cols + x;
-    if (g.cells[i] !== CellKind.Empty || on.has(i) || skip.has(i) || !w.canPlace('wall', x, y).ok) continue;
-    const pv = w.previewPath('wall', x, y);
-    if (pv && pv.map((p) => p.length).join('/') === lens) return { x, y };
-  }
+  const on = new Set(
+    w
+      .currentPaths()
+      .flat()
+      .map((c) => c.y * g.cols + c.x),
+  );
+  const lens = w
+    .currentPaths()
+    .map((p) => p.length)
+    .join('/');
+  for (let y = g.rows - 1; y >= 0; y--)
+    for (let x = 0; x < g.cols; x++) {
+      const i = y * g.cols + x;
+      if (g.cells[i] !== CellKind.Empty || on.has(i) || skip.has(i) || !w.canPlace('wall', x, y).ok) continue;
+      const pv = w.previewPath('wall', x, y);
+      if (pv && pv.map((p) => p.length).join('/') === lens) return { x, y };
+    }
   throw new Error('no idle cell');
 }
 
@@ -94,9 +109,27 @@ describe('leak intelligence', () => {
   it('caps and aggregates the per-wave leak list', () => {
     const w = createWorld(opts('intel-2'));
     const mk = (enemy: 'crumb' | 'inkdot' | 'plane' | 'paperclip' | 'ant', hp: number) => ({
-      wave: 3, enemy, elite: false, affixes: [], flying: enemy === 'plane', netted: false, hp, sp: 'north', inRange: 0.4, towers: [], gap: null,
+      wave: 3,
+      enemy,
+      elite: false,
+      affixes: [],
+      flying: enemy === 'plane',
+      netted: false,
+      hp,
+      sp: 'north',
+      inRange: 0.4,
+      towers: [],
+      gap: null,
     });
-    const leaks = [mk('crumb', 0.4), mk('crumb', 0.4), mk('crumb', 0.4), mk('inkdot', 1), mk('plane', 0.8), mk('paperclip', 0.5), mk('ant', 1)];
+    const leaks = [
+      mk('crumb', 0.4),
+      mk('crumb', 0.4),
+      mk('crumb', 0.4),
+      mk('inkdot', 1),
+      mk('plane', 0.8),
+      mk('paperclip', 0.5),
+      mk('ant', 1),
+    ];
     const line = withLocale(SOURCE_LOCALE, () => leakLine(w, leaks, 4)!);
     expect(line).toMatch(/^LK w3 漏7: 橡皮屑×3\(均剩40%血/);
     expect(line).toMatch(/\+1种$/);
@@ -131,7 +164,8 @@ describe('board check & reclaim', () => {
     for (let k = 0; k < 3; k++) {
       const c = idleCell(w, skip);
       skip.add(c.y * w.state.grid.cols + c.x);
-      if (w.command({ type: 'place', tower: 'wall', cx: c.x, cy: c.y }).ok) placed.push(w.state.grid.towerAt[c.y * w.state.grid.cols + c.x]);
+      if (w.command({ type: 'place', tower: 'wall', cx: c.x, cy: c.y }).ok)
+        placed.push(w.state.grid.towerAt[c.y * w.state.grid.cols + c.x]);
     }
     // 过了 5 秒撤销期：按退款率（Lv1 墙 5g × 0.7 → 3g）
     for (let i = 0; i < 400 && w.state.phase === 'build'; i++) w.step();
@@ -164,13 +198,14 @@ describe('board check & reclaim', () => {
     const g = w.state.grid;
     const route = w.currentPaths().flat();
     let far: { x: number; y: number } | null = null;
-    for (let y = 0; y < g.rows && !far; y++) for (let x = 0; x < g.cols && !far; x++) {
-      if (g.cells[y * g.cols + x] !== CellKind.Empty || !w.canPlace('pencil', x, y).ok) continue;
-      if (route.every((c) => Math.hypot(c.x - x, c.y - y) > 3.2)) {
-        const pv = w.previewPath('pencil', x, y);
-        if (pv && pv.map((q) => q.length).join('/') === lens0.join('/')) far = { x, y };
+    for (let y = 0; y < g.rows && !far; y++)
+      for (let x = 0; x < g.cols && !far; x++) {
+        if (g.cells[y * g.cols + x] !== CellKind.Empty || !w.canPlace('pencil', x, y).ok) continue;
+        if (route.every((c) => Math.hypot(c.x - x, c.y - y) > 3.2)) {
+          const pv = w.previewPath('pencil', x, y);
+          if (pv && pv.map((q) => q.length).join('/') === lens0.join('/')) far = { x, y };
+        }
       }
-    }
     if (far) {
       w.command({ type: 'place', tower: 'pencil', cx: far.x, cy: far.y });
       const uid = g.towerAt[far.y * g.cols + far.x];
@@ -287,7 +322,13 @@ describe('prefix', () => {
     await setLocale('en');
     try {
       const w = createWorld(opts('loc-1'));
-      const eng = new DecisionEngine({ world: w, opts: opts('loc-1'), config: resolveConfig({ provider: 'scripted' }), provider: null, fallback: scriptedFallback(w) });
+      const eng = new DecisionEngine({
+        world: w,
+        opts: opts('loc-1'),
+        config: resolveConfig({ provider: 'scripted' }),
+        provider: null,
+        fallback: scriptedFallback(w),
+      });
       expect(eng.systemPrompt).toEqual(ref);
       expect(eng.systemPrompt[1]).toMatch(/铅笔每次命中/);
     } finally {

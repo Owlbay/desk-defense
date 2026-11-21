@@ -65,5 +65,7 @@ export function makeSeed(): string {
     return a[0].toString(36).padStart(6, '0').slice(-6);
   }
   seedCounter++;
-  return hashString('desk-defense-' + seedCounter).toString(36).slice(-6);
+  return hashString('desk-defense-' + seedCounter)
+    .toString(36)
+    .slice(-6);
 }

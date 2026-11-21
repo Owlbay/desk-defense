@@ -96,8 +96,17 @@ export class GoldFx {
     const a = anim(
       coin,
       [
-        { transform: `translate(${x0.toFixed(1)}px, ${y0.toFixed(1)}px) scale(0.3)`, opacity: 0, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)' },
-        { transform: `translate(${(x0 + dx * 0.06).toFixed(1)}px, ${(y0 - 20).toFixed(1)}px) scale(1)`, opacity: 1, offset: 0.28, easing: 'cubic-bezier(0.55, 0, 0.85, 0.4)' },
+        {
+          transform: `translate(${x0.toFixed(1)}px, ${y0.toFixed(1)}px) scale(0.3)`,
+          opacity: 0,
+          easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+        },
+        {
+          transform: `translate(${(x0 + dx * 0.06).toFixed(1)}px, ${(y0 - 20).toFixed(1)}px) scale(1)`,
+          opacity: 1,
+          offset: 0.28,
+          easing: 'cubic-bezier(0.55, 0, 0.85, 0.4)',
+        },
         { transform: `translate(${g.tx.toFixed(1)}px, ${g.ty.toFixed(1)}px) scale(0.55)`, opacity: 0.9 },
       ],
       { duration: 460 + Math.min(240, Math.hypot(dx, dy) * 0.35), fill: 'both' },

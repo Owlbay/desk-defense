@@ -53,7 +53,10 @@ function parseAll(): AssetDef[] {
     const doc = parser.parseFromString(raw, 'image/svg+xml');
     const root = doc.documentElement;
     if (!root || root.nodeName !== 'svg') continue;
-    const vbAttr = (root.getAttribute('viewBox') || '0 0 128 128').trim().split(/[\s,]+/).map(Number);
+    const vbAttr = (root.getAttribute('viewBox') || '0 0 128 128')
+      .trim()
+      .split(/[\s,]+/)
+      .map(Number);
     const vb = vbAttr[2] || 128;
     let defs = '';
     const parts: { name: string; nodes: string[] }[] = [];
@@ -153,7 +156,10 @@ export class ArtAtlas {
 
   constructor(private scene: Phaser.Scene) {
     for (const a of assetDefs()) {
-      this.partsOf.set(a.name, a.parts.map((p) => p.name));
+      this.partsOf.set(
+        a.name,
+        a.parts.map((p) => p.name),
+      );
       this.vbOf.set(a.name, a.vb);
     }
   }

@@ -22,7 +22,9 @@ function badges(r: LeaderRow): (HTMLElement | null)[] {
   return [
     h('span.badge.ai-provider-badge', null, providerLabel(a.provider)),
     a.mode === 'realtime' ? h('span.badge', { title: t('agent.board.realtimeTip') }, t('agent.board.realtime')) : null,
-    a.provider !== 'scripted' && a.botAssisted ? h('span.badge.ai-bot-badge', { title: t('agent.board.botTip', { pct }) }, t('agent.board.bot', { pct })) : null,
+    a.provider !== 'scripted' && a.botAssisted
+      ? h('span.badge.ai-bot-badge', { title: t('agent.board.botTip', { pct }) }, t('agent.board.bot', { pct }))
+      : null,
     r.status === 'pending' ? h('span.badge.pending', { title: t('agent.board.pendingTip') }, t('agent.board.pending')) : null,
   ];
 }
@@ -31,9 +33,18 @@ function rowEl(app: App, r: LeaderRow, i: number): HTMLElement {
   const model = r.agent?.model ?? t('agent.board.unknownModel');
   return h(
     `div.olb-row.ai-olb-row${r.rank <= 3 ? `.top${r.rank}` : ''}`,
-    { style: `--i:${Math.min(i, 12)}`, title: t('agent.board.rowTip', { map: MAP_META[r.map]?.name ?? r.map, kills: fmtNum(r.kills), time: fmtTime(r.createdAt) }) },
+    {
+      style: `--i:${Math.min(i, 12)}`,
+      title: t('agent.board.rowTip', { map: MAP_META[r.map]?.name ?? r.map, kills: fmtNum(r.kills), time: fmtTime(r.createdAt) }),
+    },
     h('span.rank', null, r.rank <= 3 ? h('span.gi', { html: r.rank === 1 ? G.crown : G.trophy }) : String(r.rank)),
-    h('span.name.ai-name', null, h('span.ai-model', null, model), h('span.ai-row-badges', null, badges(r)), h('small.muted.ai-owner', null, t('agent.board.submittedBy', { name: r.nickname }))),
+    h(
+      'span.name.ai-name',
+      null,
+      h('span.ai-model', null, model),
+      h('span.ai-row-badges', null, badges(r)),
+      h('small.muted.ai-owner', null, t('agent.board.submittedBy', { name: r.nickname })),
+    ),
     h('span.wave', null, t('agent.board.waves', { n: r.wave })),
     h('span.score', null, fmtNum(r.score)),
     h(
@@ -54,10 +65,19 @@ function rowEl(app: App, r: LeaderRow, i: number): HTMLElement {
 export function aiLeaderTable(app: App, data: LeaderboardResponse): HTMLElement {
   const table = h('div.olb-table.ai-olb-table', { attrs: { role: 'table', 'aria-label': t('agent.board.title') } });
   table.appendChild(
-    h('div.olb-row.olb-head', { attrs: { role: 'row' } }, h('span', null, '#'), h('span', null, t('agent.board.colModel')), h('span.wave', null, t('agent.board.colWave')), h('span.score', null, t('agent.board.colScore')), h('span', null, t('agent.board.colReplay'))),
+    h(
+      'div.olb-row.olb-head',
+      { attrs: { role: 'row' } },
+      h('span', null, '#'),
+      h('span', null, t('agent.board.colModel')),
+      h('span.wave', null, t('agent.board.colWave')),
+      h('span.score', null, t('agent.board.colScore')),
+      h('span', null, t('agent.board.colReplay')),
+    ),
   );
   data.rows.forEach((r, i) => table.appendChild(rowEl(app, r, i)));
-  if (data.total > data.rows.length) table.appendChild(h('small.muted.olb-total', null, t('agent.board.total', { n: data.total, count: fmtNum(data.total) })));
+  if (data.total > data.rows.length)
+    table.appendChild(h('small.muted.olb-total', null, t('agent.board.total', { n: data.total, count: fmtNum(data.total) })));
   return table;
 }
 
@@ -80,7 +100,12 @@ export function aiBoard(app: App, o: { limit?: number } = {}): AiBoardView {
       const r = await fetchLeaderboard(board, { limit: o.limit ?? 50 });
       if (my !== seq || !el.isConnected) return;
       clear(el);
-      const retry = h('button.btn.small', { attrs: { type: 'button' }, onclick: () => (audio.play('click'), load(humanBoard)) }, h('span.gi', { html: G.refresh }), t('agent.board.retry'));
+      const retry = h(
+        'button.btn.small',
+        { attrs: { type: 'button' }, onclick: () => (audio.play('click'), load(humanBoard)) },
+        h('span.gi', { html: G.refresh }),
+        t('agent.board.retry'),
+      );
       if (!r.ok) {
         if (r.status === 'unavailable') el.appendChild(stateBox('off', t('agent.board.unavailable'), t('agent.board.unavailableHint')));
         else if (r.status === 'offline') el.appendChild(stateBox('off', t('agent.board.offline'), t('agent.board.offlineHint'), retry));
@@ -93,7 +118,12 @@ export function aiBoard(app: App, o: { limit?: number } = {}): AiBoardView {
             'empty',
             t('agent.board.empty'),
             t('agent.board.emptyHint'),
-            h('button.btn.small.primary', { attrs: { type: 'button' }, onclick: () => (audio.play('click'), app.go({ name: 'ai' })) }, h('span.gi', { html: G.bolt }), t('agent.board.goAi')),
+            h(
+              'button.btn.small.primary',
+              { attrs: { type: 'button' }, onclick: () => (audio.play('click'), app.go({ name: 'ai' })) },
+              h('span.gi', { html: G.bolt }),
+              t('agent.board.goAi'),
+            ),
           ),
         );
         return;

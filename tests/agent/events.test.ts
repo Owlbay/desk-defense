@@ -1,12 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { createWorld, World, type GameEvent, type RunOptions } from '../../src/core';
 import {
-  DecisionDetector, EVENT_DECIDE, cheatSheet, compactObservation, eventLine, eventNeedsDecision, gateDecision,
+  DecisionDetector,
+  EVENT_DECIDE,
+  cheatSheet,
+  compactObservation,
+  eventLine,
+  eventNeedsDecision,
+  gateDecision,
 } from '../../src/agent';
 import { withLocale, SOURCE_LOCALE } from '../../src/i18n';
 
 const opts = (seed: string, gold = 150): RunOptions => ({
-  mode: 'custom', map: 'ch1', difficulty: 'normal', seed, skills: ['eraser_strike', 'bell', 'whiteout_zone'], pure: true, fixedLayout: true,
+  mode: 'custom',
+  map: 'ch1',
+  difficulty: 'normal',
+  seed,
+  skills: ['eraser_strike', 'bell', 'whiteout_zone'],
+  pure: true,
+  fixedLayout: true,
   custom: { eventRate: 0, startGold: gold, lives: 1000 },
 });
 
@@ -18,7 +30,15 @@ function inWave(seed: string, gold = 150): World {
   return w;
 }
 
-const startEv = (id: 'goldbag' | 'bounty' | 'lamp_outage'): GameEvent => ({ type: 'randomEvent', uid: 1, id, phase: 'start', name: id, desc: '', tone: 'good' });
+const startEv = (id: 'goldbag' | 'bounty' | 'lamp_outage'): GameEvent => ({
+  type: 'randomEvent',
+  uid: 1,
+  id,
+  phase: 'start',
+  name: id,
+  desc: '',
+  tone: 'good',
+});
 
 describe('agent: monster events', () => {
   it('goldbag / golden elite / medic squad always wake the model; bounty only with something to spend', () => {
@@ -30,7 +50,10 @@ describe('agent: monster events', () => {
     expect(eventNeedsDecision('tea_break', w)).toBe(false);
     expect(eventNeedsDecision('lamp_outage', w)).toBe(false);
     expect(eventNeedsDecision('bounty', w)).toBe(true);
-    for (const k of w.state.skills) { k.ready = false; k.cd = 30; }
+    for (const k of w.state.skills) {
+      k.ready = false;
+      k.cd = 30;
+    }
     w.state.gold = 0;
     expect(eventNeedsDecision('bounty', w)).toBe(false);
     expect(eventNeedsDecision('training', w)).toBe(false);
@@ -65,7 +88,20 @@ describe('agent: monster events', () => {
 
   it('cheat sheet teaches lamps and monster events (zh-CN prefix)', () => {
     const cs = withLocale(SOURCE_LOCALE, () => cheatSheet());
-    for (const s of ['Lamps <=2.5 apart link', 'boss lane', 'goldbag', 'golden elite', 'tea_break', 'shield_supply', 'medic_squad', 'frenzy', 'bounty', 'training', 'gb goldbag']) expect(cs).toContain(s);
+    for (const s of [
+      'Lamps <=2.5 apart link',
+      'boss lane',
+      'goldbag',
+      'golden elite',
+      'tea_break',
+      'shield_supply',
+      'medic_squad',
+      'frenzy',
+      'bounty',
+      'training',
+      'gb goldbag',
+    ])
+      expect(cs).toContain(s);
   });
 });
 
@@ -80,7 +116,9 @@ describe('agent: user-visible strings follow the UI locale', () => {
     await setLocale('en');
     try {
       expect(validateConfig({ provider: 'pi' })).toContain('model is missing');
-      expect(validateConfig({ provider: 'pi', model: 'x', effort: 'huge' as never })).toContain('effort must be one of low / medium / high / xhigh / max');
+      expect(validateConfig({ provider: 'pi', model: 'x', effort: 'huge' as never })).toContain(
+        'effort must be one of low / medium / high / xhigh / max',
+      );
       expect(relayFailureText('auth')).toMatch(/^Key rejected/);
       expect(relayFailureText('cors')).toMatch(/CORS/);
       expect(claudeThinkingPlan('claude-opus-5-5', 'off').note).toBe('Opus 5.5 cannot turn thinking off; using the lowest effort');

@@ -18,9 +18,9 @@ export const EVO = {
 export type AbilityTarget = 'none' | 'circle' | 'rect3' | 'direction' | 'axis' | 'enemy' | 'tower';
 
 export interface AbilityDef {
-  id: string;            // `${towerId}_a|b`
-  name: string;          // 能力名
-  form: string;          // 神话形态名
+  id: string; // `${towerId}_a|b`
+  name: string; // 能力名
+  form: string; // 神话形态名
   desc: string;
   cd: number;
   target: AbilityTarget;
@@ -88,7 +88,9 @@ export const ABILITY_FX: Record<string, Record<string, number>> = {
 
 /** 能力定义：名称 / 形态名 / 说明走 i18n（data.ability.<id>.*），说明里的数值来自 ABILITY_FX */
 const ab = (id: string, cd: number, target: AbilityTarget, duration = 0, extra: Partial<AbilityDef> = {}, desc?: TextParams): AbilityDef =>
-  localize({ id, cd, target, duration, fx: ABILITY_FX[id] ?? {}, ...extra }, `data.ability.${id}`, ['name', 'form', 'desc'] as const, { desc });
+  localize({ id, cd, target, duration, fx: ABILITY_FX[id] ?? {}, ...extra }, `data.ability.${id}`, ['name', 'form', 'desc'] as const, {
+    desc,
+  });
 /** ★1 / ★2 特性文本：data.evo.<塔>.<A|B>.<s1|s2>.* */
 const st = (tower: TowerId, br: 'A' | 'B', s: 's1' | 's2', desc?: TextParams): TraitText => nameDesc(`data.evo.${tower}.${br}.${s}`, desc);
 const F = ABILITY_FX;
@@ -132,7 +134,8 @@ export const EVOLUTION: Partial<Record<TowerId, { A: EvoBranch; B: EvoBranch }>>
       s1: st('glue', 'A', 's1', () => ({ v: P.glue.A.s1 })),
       s2: st('glue', 'A', 's2', () => ({ v: pct(P.glue.A.vuln) })),
       ability: ab('glue_a', 75, 'none', 0, {}, () => ({
-        root: F.glue_a.root, bossRoot: F.glue_a.bossRoot,
+        root: F.glue_a.root,
+        bossRoot: F.glue_a.bossRoot,
         vuln: part(F.glue_a.vuln > 0, AK('glue_a', 'descVuln'), { vuln: pct(F.glue_a.vuln) }),
       })),
     },
@@ -169,7 +172,8 @@ export const EVOLUTION: Partial<Record<TowerId, { A: EvoBranch; B: EvoBranch }>>
       s1: st('compass', 'B', 's1'),
       s2: st('compass', 'B', 's2'),
       ability: ab('compass_b', 45, 'enemy', 0, {}, () => ({
-        pct: pct(F.compass_b.pct), bossPct: pct(F.compass_b.bossPct),
+        pct: pct(F.compass_b.pct),
+        bossPct: pct(F.compass_b.bossPct),
         area: part(F.compass_b.r > 0, AK('compass_b', 'descArea'), { r: F.compass_b.r }),
       })),
     },
@@ -214,7 +218,8 @@ export const EVOLUTION: Partial<Record<TowerId, { A: EvoBranch; B: EvoBranch }>>
       s1: st('pen', 'A', 's1'),
       s2: st('pen', 'A', 's2'),
       ability: ab('pen_a', 60, 'circle', 6, { radius: F.pen_a.arm + 0.5 }, () => ({
-        arm: F.pen_a.arm, ink: F.pen_a.ink,
+        arm: F.pen_a.arm,
+        ink: F.pen_a.ink,
         dmg: part(F.pen_a.dps > 0, AK('pen_a', 'descDmg'), { dps: F.pen_a.dps }),
       })),
     },
@@ -270,5 +275,7 @@ export function evoBranch(id: TowerId, branch: 'A' | 'B' | null): EvoBranch | nu
 }
 
 export const ABILITIES: Record<string, AbilityDef> = Object.fromEntries(
-  Object.values(EVOLUTION).flatMap((e) => [e!.A.ability, e!.B.ability]).map((a) => [a.id, a]),
+  Object.values(EVOLUTION)
+    .flatMap((e) => [e!.A.ability, e!.B.ability])
+    .map((a) => [a.id, a]),
 );

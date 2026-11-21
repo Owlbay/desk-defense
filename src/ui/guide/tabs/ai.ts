@@ -8,9 +8,19 @@ const WAYS = ['relay', 'local', 'bridge'] as const;
 export const aiTab: TabModule = {
   entries(): Entry[] {
     return [
-      { tab: 'ai', id: 'modes', title: t('guide.ai.modes.title'), text: [t('guide.ai.intro'), ...items('guide.ai.modes')].map(plain).join(' ') },
+      {
+        tab: 'ai',
+        id: 'modes',
+        title: t('guide.ai.modes.title'),
+        text: [t('guide.ai.intro'), ...items('guide.ai.modes')].map(plain).join(' '),
+      },
       ...WAYS.map((w): Entry => ({ tab: 'ai', id: w, title: t(`guide.ai.${w}.name`), text: t(`guide.ai.${w}.desc`) })),
-      { tab: 'ai', id: 'tips', title: `${t('guide.tab.ai')} · ${t('guide.ai.tips.title')}`, text: items('guide.ai.tips').map(plain).join(' ') },
+      {
+        tab: 'ai',
+        id: 'tips',
+        title: `${t('guide.tab.ai')} · ${t('guide.ai.tips.title')}`,
+        text: items('guide.ai.tips').map(plain).join(' '),
+      },
     ];
   },
   render(ctx: TabContext): HTMLElement {
@@ -25,7 +35,14 @@ export const aiTab: TabModule = {
         h(
           'div.guide-cards',
           null,
-          WAYS.map((w) => h('div.guide-mini', { data: { item: w }, attrs: { id: `guide-${w}`, tabindex: '-1' } }, h('h3.guide-h3', null, t(`guide.ai.${w}.name`)), rich('p', t(`guide.ai.${w}.desc`)))),
+          WAYS.map((w) =>
+            h(
+              'div.guide-mini',
+              { data: { item: w }, attrs: { id: `guide-${w}`, tabindex: '-1' } },
+              h('h3.guide-h3', null, t(`guide.ai.${w}.name`)),
+              rich('p', t(`guide.ai.${w}.desc`)),
+            ),
+          ),
         ),
         rich('p.muted', t('guide.ai.demo')),
         h('button.btn.primary', { attrs: { type: 'button' }, onclick: () => ctx.openRoute('ai') }, t('guide.ai.open')),

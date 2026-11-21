@@ -46,7 +46,8 @@ export function submitText(v: SubmitView): { text: string; tone: '' | 'good' | '
 }
 
 export function outcomeView(o: SubmitOutcome): SubmitView {
-  if (o.kind === 'ok') return { kind: 'done', rank: o.res.rank, total: o.res.total, improved: o.res.improved, pending: o.res.status === 'pending' };
+  if (o.kind === 'ok')
+    return { kind: 'done', rank: o.res.rank, total: o.res.total, improved: o.res.improved, pending: o.res.status === 'pending' };
   if (o.kind === 'queued') return { kind: 'queued', message: o.message };
   return { kind: 'rejected', message: o.message };
 }
@@ -63,7 +64,12 @@ export function onlineSubmitPanel(ctx: GameCtx, wavesSurvived: number): HTMLElem
     const board = boardOfRun(ctx.opts);
     const status = h('span.os-status', { attrs: { role: 'status', 'aria-live': 'polite' } });
     const nick = h('b.nick-name');
-    const submitBtn = h<HTMLButtonElement>('button.btn.small.primary', { attrs: { type: 'button' } }, h('span.gi', { html: G.up }), t('ui.online.upload'));
+    const submitBtn = h<HTMLButtonElement>(
+      'button.btn.small.primary',
+      { attrs: { type: 'button' } },
+      h('span.gi', { html: G.up }),
+      t('ui.online.upload'),
+    );
     const viewBtn = h(
       'button.btn.small',
       {
@@ -121,7 +127,9 @@ export function onlineSubmitPanel(ctx: GameCtx, wavesSurvived: number): HTMLElem
         paintNick();
         view = { kind: 'sending' };
         paint();
-        view = outcomeView(await submitWorldRun(ctx.world as Parameters<typeof submitWorldRun>[0], { wavesSurvived, dailyDay: day, aiAssist: ctx.aiAssist }));
+        view = outcomeView(
+          await submitWorldRun(ctx.world as Parameters<typeof submitWorldRun>[0], { wavesSurvived, dailyDay: day, aiAssist: ctx.aiAssist }),
+        );
         if (view.kind === 'done' || view.kind === 'queued') audio.play(view.kind === 'done' ? 'select' : 'click');
       } catch (e) {
         console.warn('[online] submit failed', e);
@@ -139,8 +147,18 @@ export function onlineSubmitPanel(ctx: GameCtx, wavesSurvived: number): HTMLElem
     const panel = h(
       'div.online-submit',
       null,
-      h('div.os-line', null, h('span', null, day ? null : h('span.muted.small', null, t('ui.online.globalPrefix')), boardLabel(board)), status),
-      h('div.os-line', null, h('span.online-nick', null, h('span.muted.small', null, t('ui.online.nick')), nick, nickBtn), h('span.os-actions', null, submitBtn, viewBtn)),
+      h(
+        'div.os-line',
+        null,
+        h('span', null, day ? null : h('span.muted.small', null, t('ui.online.globalPrefix')), boardLabel(board)),
+        status,
+      ),
+      h(
+        'div.os-line',
+        null,
+        h('span.online-nick', null, h('span.muted.small', null, t('ui.online.nick')), nick, nickBtn),
+        h('span.os-actions', null, submitBtn, viewBtn),
+      ),
     );
     paintNick();
     paint();
@@ -165,7 +183,12 @@ export function aiAssistNote(daily: boolean): HTMLElement {
   return h(
     'div.online-submit.ai-assist-note',
     { attrs: { role: 'note' } },
-    h('div.os-line', null, h('span.badge.ai-assist-badge', null, t('ui.assist.badge')), h('b', null, daily ? t('ui.assist.notUploadedDaily') : t('ui.assist.notUploaded'))),
+    h(
+      'div.os-line',
+      null,
+      h('span.badge.ai-assist-badge', null, t('ui.assist.badge')),
+      h('b', null, daily ? t('ui.assist.notUploadedDaily') : t('ui.assist.notUploaded')),
+    ),
     h('p.muted.small', null, t('ui.assist.notUploadedWhy')),
   );
 }

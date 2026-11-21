@@ -91,7 +91,17 @@ export class BoardOverlay {
       `div.event-card.tone-${ev.tone}.ph-${ev.phase}`,
       { attrs: { role: 'status' } },
       h('span.ev-ico', { html: TONE_GLYPH[ev.tone] ?? G.warn }),
-      h('div.ev-main', null, h('div.ev-name', null, h('b', null, ev.name), h('span.ev-phase', null, ev.phase === 'warn' ? t('ui.board.eventSoon') : t('ui.board.eventNow'))), h('div.ev-desc', null, ev.desc)),
+      h(
+        'div.ev-main',
+        null,
+        h(
+          'div.ev-name',
+          null,
+          h('b', null, ev.name),
+          h('span.ev-phase', null, ev.phase === 'warn' ? t('ui.board.eventSoon') : t('ui.board.eventNow')),
+        ),
+        h('div.ev-desc', null, ev.desc),
+      ),
       secs,
     );
     while (this.cards.size >= 2) {
@@ -126,7 +136,10 @@ export class BoardOverlay {
       card,
       [
         { transform: 'translate(0, 0) scale(1, 1)', opacity: 1 },
-        { transform: `translate(${(b.left - a.left).toFixed(1)}px, ${(b.top - a.top).toFixed(1)}px) scale(${sx.toFixed(3)}, ${sy.toFixed(3)})`, opacity: 0.15 },
+        {
+          transform: `translate(${(b.left - a.left).toFixed(1)}px, ${(b.top - a.top).toFixed(1)}px) scale(${sx.toFixed(3)}, ${sy.toFixed(3)})`,
+          opacity: 0.15,
+        },
       ],
       { duration: 360, easing: 'cubic-bezier(0.65, 0, 0.35, 1)', fill: 'forwards' },
     );
@@ -169,7 +182,13 @@ export class BoardOverlay {
       let chip = this.chips.get(e.uid);
       if (!chip) {
         const secs = h('b');
-        const el = h(`div.event-chip.tone-${e.tone}`, { title: t('ui.board.nameDesc', { name: e.name, desc: e.desc }) }, h('span.gi', { html: TONE_GLYPH[e.tone] ?? G.warn }), h('span.chip-name', null, e.name), secs);
+        const el = h(
+          `div.event-chip.tone-${e.tone}`,
+          { title: t('ui.board.nameDesc', { name: e.name, desc: e.desc }) },
+          h('span.gi', { html: TONE_GLYPH[e.tone] ?? G.warn }),
+          h('span.chip-name', null, e.name),
+          secs,
+        );
         this.chipBox.appendChild(el);
         chip = { el, secs };
         this.chips.set(e.uid, chip);
@@ -207,7 +226,13 @@ export class BoardOverlay {
     const card = h(
       'div.crate-card',
       { attrs: { role: 'dialog', 'aria-label': t('ui.board.crateLabel') } },
-      h('div.crate-head', null, h('span.gi', { html: G.crate }), h('b', null, t('ui.board.crate')), h('small.muted', null, t('ui.board.cratePick'))),
+      h(
+        'div.crate-head',
+        null,
+        h('span.gi', { html: G.crate }),
+        h('b', null, t('ui.board.crate')),
+        h('small.muted', null, t('ui.board.cratePick')),
+      ),
       h(
         'div.crate-opts',
         null,
@@ -257,7 +282,12 @@ export class BoardOverlay {
           'div.boss-row',
           null,
           img(enemyIcon(e.id), 'ico'),
-          h('div.boss-main', null, h('div.boss-name', null, ENEMY_META[e.id]?.name ?? e.id, text), h('div.boss-bar', null, ghost, hp, shield)),
+          h(
+            'div.boss-main',
+            null,
+            h('div.boss-name', null, ENEMY_META[e.id]?.name ?? e.id, text),
+            h('div.boss-bar', null, ghost, hp, shield),
+          ),
         );
         this.bossBox.appendChild(el);
         row = { el, hp, ghost, shield, text, lastHp: '', lastShield: '', lastFrac: 1, lastGhost: '', ghostAt: 0 };
@@ -326,10 +356,13 @@ export class BoardOverlay {
     const streak = h(`span.banner-streak${boss ? '.boss' : ''}`, { attrs: { 'aria-hidden': 'true' } });
     this.bannerBox.replaceChildren(streak, el);
     setTimeout(() => el.classList.add('out'), boss ? 2000 : 1300);
-    setTimeout(() => {
-      el.remove();
-      streak.remove();
-    }, boss ? 2500 : 1800);
+    setTimeout(
+      () => {
+        el.remove();
+        streak.remove();
+      },
+      boss ? 2500 : 1800,
+    );
   }
 
   bigText(title: string, sub: string, cls: string): void {

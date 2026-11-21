@@ -1,16 +1,41 @@
 import { describe, expect, it } from 'vitest';
-import { CellKind, createWorld, stateHash, type GameEvent, type IWorld, type RunOptions, type EnemyId, type EnemyState } from '../../src/core';
+import {
+  CellKind,
+  createWorld,
+  stateHash,
+  type GameEvent,
+  type IWorld,
+  type RunOptions,
+  type EnemyId,
+  type EnemyState,
+} from '../../src/core';
 import { SWATTER, TOWERS } from '../../src/config/towers';
 import { ABILITY_FX } from '../../src/config/evolution';
 
 // 苍蝇拍（文档 02 §2.12、文档 11 苍蝇拍分支）
 const opts = (o: Partial<RunOptions> = {}): RunOptions => ({
-  mode: 'custom', map: 'ch1', difficulty: 'normal', seed: 'swat', skills: [], fixedLayout: true,
-  custom: { startGold: 1e7, lives: 1e6, eventRate: 0 }, autoWave: false, ...o,
+  mode: 'custom',
+  map: 'ch1',
+  difficulty: 'normal',
+  seed: 'swat',
+  skills: [],
+  fixedLayout: true,
+  custom: { startGold: 1e7, lives: 1e6, eventRate: 0 },
+  autoWave: false,
+  ...o,
 });
 
 type Priv = {
-  createEnemy(id: EnemyId, wave: number, eff: number, x: number, y: number, cx: number, cy: number, o: object): EnemyState & Record<string, number>;
+  createEnemy(
+    id: EnemyId,
+    wave: number,
+    eff: number,
+    x: number,
+    y: number,
+    cx: number,
+    cy: number,
+    o: object,
+  ): EnemyState & Record<string, number>;
   netEnemy(e: EnemyState, dur: number, t: unknown): boolean;
   rebuildBuckets(): void;
 };
@@ -50,13 +75,17 @@ describe('swatter (doc 02 §2.12)', () => {
     const w = createWorld(opts());
     place(w, 'swatter', 5, 6);
     const a = spawn(w, 'plane', 5.5, 4.5);
-    const b = spawn(w, 'moth', 5.9, 4.6);       // 0.4 格内：被溅到
-    const far = spawn(w, 'plane', 7.5, 4.5);    // 2 格外：第一拍打不到
-    const g = spawn(w, 'crumb', 5.5, 5.5);      // 地面：完全打不到
+    const b = spawn(w, 'moth', 5.9, 4.6); // 0.4 格内：被溅到
+    const far = spawn(w, 'plane', 7.5, 4.5); // 2 格外：第一拍打不到
+    const g = spawn(w, 'crumb', 5.5, 5.5); // 地面：完全打不到
     const hp = [a.hp, b.hp, far.hp, g.hp];
     const swats: GameEvent[] = [];
     let dodges = 0;
-    for (let i = 0; i < 200 && swats.length === 0; i++) run(w, 1, (e) => { if (e.type === 'swat') swats.push(e); if (e.type === 'dodge') dodges++; });
+    for (let i = 0; i < 200 && swats.length === 0; i++)
+      run(w, 1, (e) => {
+        if (e.type === 'swat') swats.push(e);
+        if (e.type === 'dodge') dodges++;
+      });
     expect(swats.length).toBe(1);
     const sw = swats[0] as Extract<GameEvent, { type: 'swat' }>;
     expect(sw.r).toBeCloseTo(SWATTER.splash, 6);
@@ -65,7 +94,9 @@ describe('swatter (doc 02 §2.12)', () => {
     expect(far.hp).toBe(hp[2]);
     expect(g.hp).toBe(hp[3]);
     // 多拍几次：地面敌人始终没掉血，飞蛾从不闪避
-    run(w, 60 * 10, (e) => { if (e.type === 'dodge') dodges++; });
+    run(w, 60 * 10, (e) => {
+      if (e.type === 'dodge') dodges++;
+    });
     expect(g.hp).toBe(hp[3]);
     expect(dodges).toBe(0);
   });
@@ -77,7 +108,10 @@ describe('swatter (doc 02 §2.12)', () => {
     const b = spawn(w, 'plane', 3.5, 6.5);
     a.hp = b.hp = a.maxHp = b.maxHp = 1e6;
     const swats: Extract<GameEvent, { type: 'swat' }>[] = [];
-    for (let i = 0; i < 200 && swats.length === 0; i++) run(w, 1, (e) => { if (e.type === 'swat') swats.push(e); });
+    for (let i = 0; i < 200 && swats.length === 0; i++)
+      run(w, 1, (e) => {
+        if (e.type === 'swat') swats.push(e);
+      });
     expect(swats.length).toBe(2);
     expect(swats[0].r).toBeCloseTo(SWATTER.splash + SWATTER.splashT3, 6);
     expect(a.hp).toBeLessThan(1e6);
@@ -100,7 +134,10 @@ describe('swatter (doc 02 §2.12)', () => {
       for (const c of crumbs) c.hp = c.maxHp = 1e6;
       priv(w).rebuildBuckets();
       const chains: Extract<GameEvent, { type: 'chain' }>[] = [];
-      for (let i = 0; i < 200 && chains.length === 0; i++) run(w, 1, (e) => { if (e.type === 'chain') chains.push(e); });
+      for (let i = 0; i < 200 && chains.length === 0; i++)
+        run(w, 1, (e) => {
+          if (e.type === 'chain') chains.push(e);
+        });
       return { chains, crumbs, w };
     };
     const c0 = chainLen(0, false);
@@ -109,7 +146,6 @@ describe('swatter (doc 02 §2.12)', () => {
     expect(c1.chains[0].points.length).toBe(1 + SWATTER.chain + SWATTER.chainS1);
     const c2 = chainLen(2, true);
     expect(c2.crumbs.some((c) => c.hp < 1e6)).toBe(true);
-
   });
 
   it('legend B: every 3rd attack nets a flyer to the ground; it walks the maze, takes ground hits +15%, then flies on', () => {
@@ -121,7 +157,10 @@ describe('swatter (doc 02 §2.12)', () => {
     const t = w.state.towers.get(uid)!;
     (t as unknown as { atkCount: number }).atkCount = SWATTER.netEvery - 1;
     let fired = false;
-    for (let i = 0; i < 120 && e.flying; i++) run(w, 1, (ev) => { if (ev.type === 'fire') fired = true; });
+    for (let i = 0; i < 120 && e.flying; i++)
+      run(w, 1, (ev) => {
+        if (ev.type === 'fire') fired = true;
+      });
     expect(fired).toBe(true);
     expect(e.flying).toBe(false);
     const g = w.state.grid;
@@ -134,9 +173,16 @@ describe('swatter (doc 02 §2.12)', () => {
     run(w, 60);
     const cell1 = Math.floor(e.y) * g.cols + Math.floor(e.x);
     expect(g.dist[cell1]).toBeLessThan(d0); // 沿流场往出口走
-    const st = place(w, 'stapler', Math.floor(e.x) + (Math.floor(e.x) < 6 ? 1 : -1), Math.floor(e.y) - 1 < 0 ? Math.floor(e.y) + 1 : Math.floor(e.y) - 1);
+    const st = place(
+      w,
+      'stapler',
+      Math.floor(e.x) + (Math.floor(e.x) < 6 ? 1 : -1),
+      Math.floor(e.y) - 1 < 0 ? Math.floor(e.y) + 1 : Math.floor(e.y) - 1,
+    );
     const hits: number[] = [];
-    run(w, 90, (ev) => { if (ev.type === 'hit' && ev.enemyUid === e.uid && e.netUntil > w.state.time) hits.push(ev.amount); });
+    run(w, 90, (ev) => {
+      if (ev.type === 'hit' && ev.enemyUid === e.uid && e.netUntil > w.state.time) hits.push(ev.amount);
+    });
     expect(w.state.towers.get(st)!.damage).toBeGreaterThan(0);
     // 到期：恢复飞行，从当前位置直线飞向出口
     run(w, 60 * 6);
@@ -228,7 +274,16 @@ describe('swatter (doc 02 §2.12)', () => {
 
   it('is deterministic with swatters (both branches) in a long endless run', () => {
     const play = () => {
-      const w = createWorld({ mode: 'endless', map: 'ch2', difficulty: 'normal', seed: 'swat-det', skills: [], fixedLayout: true, autoWave: false, pure: true });
+      const w = createWorld({
+        mode: 'endless',
+        map: 'ch2',
+        difficulty: 'normal',
+        seed: 'swat-det',
+        skills: [],
+        fixedLayout: true,
+        autoWave: false,
+        pure: true,
+      });
       w.state.gold = 1e6;
       const free: [number, number][] = [];
       for (let y = 4; y < 10; y++) for (let x = 2; x < 10; x++) if (w.canPlace('swatter', x, y).ok && free.length < 4) free.push([x, y]);

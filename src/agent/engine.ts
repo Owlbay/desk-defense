@@ -20,8 +20,18 @@ import type { LLMProvider } from './providers/types';
 import { cellOfArgs, type AgentTrace, type TraceSink } from './trace';
 import { redactError } from './redact';
 import {
-  addUsage, budgetTokens, emptyUsage,
-  type AgentRole, type CommandSink, type DecisionPoint, type DecisionRecord, type FallbackPolicy, type Suggestion, type TokenUsage, type ToolCallRecord, type ToolResult,
+  addUsage,
+  budgetTokens,
+  emptyUsage,
+  type AgentRole,
+  type CommandSink,
+  type DecisionPoint,
+  type DecisionRecord,
+  type FallbackPolicy,
+  type Suggestion,
+  type TokenUsage,
+  type ToolCallRecord,
+  type ToolResult,
 } from './types';
 
 export interface EngineOptions {
@@ -170,13 +180,19 @@ export class DecisionEngine {
     if (this.stage === 0) return b;
     const saver = CONTEXT_MODES.saver;
     const s1: ContextModeSpec = {
-      ...b, observation: 'delta', mapEvery: 0, rleMap: true, gating: 'aggressive',
-      compactChars: Math.min(b.compactChars, saver.compactChars), maxOutputTokens: Math.min(b.maxOutputTokens, saver.maxOutputTokens),
+      ...b,
+      observation: 'delta',
+      mapEvery: 0,
+      rleMap: true,
+      gating: 'aggressive',
+      compactChars: Math.min(b.compactChars, saver.compactChars),
+      maxOutputTokens: Math.min(b.maxOutputTokens, saver.maxOutputTokens),
       maxToolCalls: Math.min(b.maxToolCalls, saver.maxToolCalls),
     };
     if (this.stage === 1) return s1;
     // 输出上限不能压得太低：推理模型即使在低思考档也要几千 token，压到 1.5k 会在调用工具前被截断（实测）
-    if (this.stage === 2) return { ...s1, maxOutputTokens: Math.min(s1.maxOutputTokens, 6144), compactChars: Math.min(s1.compactChars, 4000) };
+    if (this.stage === 2)
+      return { ...s1, maxOutputTokens: Math.min(s1.maxOutputTokens, 6144), compactChars: Math.min(s1.compactChars, 4000) };
     return { ...s1, maxOutputTokens: Math.min(s1.maxOutputTokens, 4096), compactChars: 3000, maxToolCalls: Math.min(s1.maxToolCalls, 4) };
   }
 
@@ -197,7 +213,16 @@ export class DecisionEngine {
     const base = this.o.config.contextMode ?? 'balanced';
     const mode = this.stage === 0 ? base : this.stage === 1 ? 'saver' : this.stage === 2 ? 'saverLow' : 'min';
     const modeLabel = t(`agent.budget.mode.${mode}`);
-    return { stage: this.stage, ratio: Math.max(tok, usd), weighted, limit: this.budgetLimit, modeLabel, message: message ?? stageMsg(this.stage), compactions: this.compactions, policy: this.policy };
+    return {
+      stage: this.stage,
+      ratio: Math.max(tok, usd),
+      weighted,
+      limit: this.budgetLimit,
+      modeLabel,
+      message: message ?? stageMsg(this.stage),
+      compactions: this.compactions,
+      policy: this.policy,
+    };
   }
 
   private ratio(): number {
@@ -225,7 +250,9 @@ export class DecisionEngine {
     }
     if (next === 3 && this.policy === 'ask' && !this.budgetAsked) {
       this.budgetAsked = true;
-      const choice = this.o.onBudgetExceeded ? await this.o.onBudgetExceeded({ ...this.budgetState(t('agent.budget.ask')), stage: 3 }) : 'continue';
+      const choice = this.o.onBudgetExceeded
+        ? await this.o.onBudgetExceeded({ ...this.budgetState(t('agent.budget.ask')), stage: 3 })
+        : 'continue';
       if (choice === 'bot') {
         this.disabledReason = 'budget exhausted (handed to bot)';
         this.stage = 3;
@@ -258,7 +285,15 @@ export class DecisionEngine {
     const outcomes: string[] = [];
     for (const d of this.decisions.slice(-6)) {
       if (d.by !== 'agent') continue;
-      const acts = d.toolCalls.filter((c) => c.name === 'act' || c.name === 'suggest').map((c) => c.result.split('\n').filter((l) => /^\d+ (OK|REJECTED)/.test(l)).map((l) => l.replace(/^\d+ /, '').slice(0, 40)).join('; '));
+      const acts = d.toolCalls
+        .filter((c) => c.name === 'act' || c.name === 'suggest')
+        .map((c) =>
+          c.result
+            .split('\n')
+            .filter((l) => /^\d+ (OK|REJECTED)/.test(l))
+            .map((l) => l.replace(/^\d+ /, '').slice(0, 40))
+            .join('; '),
+        );
       const txt = acts.filter(Boolean).join('; ');
       if (txt) outcomes.push(`w${d.point.wave}: ${txt}`);
     }
@@ -267,7 +302,10 @@ export class DecisionEngine {
       ...(f.plan ? { plan: f.plan.slice(0, 240) } : {}),
       ...(f.maze ? { maze: f.maze.slice(0, 160) } : {}),
       ...(f.priorities ? { priorities: f.priorities.slice(0, 160) } : {}),
-      note: (outcomes.length ? `recent: ${outcomes.slice(-3).join(' / ')}` : f.note ?? 'budget tight: act only when needed').slice(0, 400),
+      note: (outcomes.length ? `recent: ${outcomes.slice(-3).join(' / ')}` : (f.note ?? 'budget tight: act only when needed')).slice(
+        0,
+        400,
+      ),
     });
     this.ctx.reset();
     this.compactions++;
@@ -306,13 +344,26 @@ export class DecisionEngine {
 
     // 门控：模型可用、但局面里没有值得叫模型的事 → 本地处理
     if (!this.disabledReason && this.o.provider) {
-      const why = gateDecision(w, point.reasons, spec.gating, { goldAtLastCall: this.goldAtLastCall, seq: point.seq, quiet: this.stage >= 2 });
+      const why = gateDecision(w, point.reasons, spec.gating, {
+        goldAtLastCall: this.goldAtLastCall,
+        seq: point.seq,
+        quiet: this.stage >= 2,
+      });
       if (why) return this.skipLocal(point, recent, why, t0, compacted);
     }
 
-    const built = withLocale(SOURCE_LOCALE, () => this.ctx.build(point, recent, this.assist && this.role !== 'attacker' ? this.extras(buildPhase) : undefined));
+    const built = withLocale(SOURCE_LOCALE, () =>
+      this.ctx.build(point, recent, this.assist && this.role !== 'attacker' ? this.extras(buildPhase) : undefined),
+    );
     const message = built.text;
-    const rec: DecisionRecord = { point, by: 'agent', toolCalls: calls, usage: emptyUsage(), ms: 0, observationTokens: built.observationTokens };
+    const rec: DecisionRecord = {
+      point,
+      by: 'agent',
+      toolCalls: calls,
+      usage: emptyUsage(),
+      ms: 0,
+      observationTokens: built.observationTokens,
+    };
     this.goldAtLastCall = Math.floor(w.state.gold);
     const sink = this.o.trace?.begin({
       k: 'decision_start',
@@ -332,7 +383,15 @@ export class DecisionEngine {
       delta: !built.full,
       budgetStage: this.stage,
     });
-    if (compacted) sink?.({ k: 'compact', n: compacted.n, before: compacted.before, after: compacted.after, stage: compacted.stage, reason: stageMsg(compacted.stage) ?? '' });
+    if (compacted)
+      sink?.({
+        k: 'compact',
+        n: compacted.n,
+        before: compacted.before,
+        after: compacted.after,
+        stage: compacted.stage,
+        reason: stageMsg(compacted.stage) ?? '',
+      });
     let costThis = 0;
 
     let failed: string | null = this.disabledReason;
@@ -343,7 +402,10 @@ export class DecisionEngine {
       outer?.addEventListener('abort', onAbort);
       const timeoutMs = this.o.config.decisionTimeoutMs ?? 90_000;
       let timedOut = false;
-      const timer = setTimeout(() => { timedOut = true; ac.abort(); }, timeoutMs);
+      const timer = setTimeout(() => {
+        timedOut = true;
+        ac.abort();
+      }, timeoutMs);
       let gameOver = false;
       try {
         const out = await this.o.provider.decide({
@@ -368,7 +430,10 @@ export class DecisionEngine {
             if (mode === 'realtime' && this.o.elapse) {
               const lat = this.o.config.decision?.realtimeLatencySec ?? 3;
               const sec = lat === 'measured' ? ms / 1000 : lat;
-              if (!this.o.elapse(sec)) { gameOver = true; return false; }
+              if (!this.o.elapse(sec)) {
+                gameOver = true;
+                return false;
+              }
             }
             const ph = w.state.phase;
             return ph !== 'won' && ph !== 'lost';
@@ -380,7 +445,8 @@ export class DecisionEngine {
         costThis = out.costUsd;
         this.o.onUsage?.(this.usage, this.costUsd);
         // JSON 模式的 note / 旧 end_turn 的 note（act 的结构化备忘已在工具结果里更新）
-        if (out.note && !calls.some((c) => c.name === 'act' || c.name === 'end_turn' || c.name === 'suggest')) this.ctx.memo.update(undefined, out.note);
+        if (out.note && !calls.some((c) => c.name === 'act' || c.name === 'end_turn' || c.name === 'suggest'))
+          this.ctx.memo.update(undefined, out.note);
         if (out.text) rec.note = out.text.slice(0, 500);
         if (timedOut) failed = `timeout after ${timeoutMs} ms`;
         else if (out.error && !(gameOver && out.error === 'aborted')) failed = out.error;
@@ -398,7 +464,8 @@ export class DecisionEngine {
         sink?.({ k: 'error', message: failed });
         this.consecutiveErrors++;
         this.errors.push(`decision ${point.seq} @wave ${point.wave}: ${failed}`);
-        if (this.consecutiveErrors >= (this.o.maxConsecutiveErrors ?? 3)) this.disabledReason = `disabled after ${this.consecutiveErrors} consecutive errors (last: ${failed})`;
+        if (this.consecutiveErrors >= (this.o.maxConsecutiveErrors ?? 3))
+          this.disabledReason = `disabled after ${this.consecutiveErrors} consecutive errors (last: ${failed})`;
       } else this.consecutiveErrors = 0;
       if (this.policy === 'hard') {
         const b2 = this.overBudget();
@@ -410,8 +477,14 @@ export class DecisionEngine {
       rec.ms = Date.now() - t0;
       this.decisions.push(rec);
       sink?.({
-        k: 'decision_end', by: rec.by, ms: rec.ms, usage: rec.usage, costUsd: costThis, toolCalls: calls.length,
-        note: rec.note, fallbackReason: rec.fallbackReason,
+        k: 'decision_end',
+        by: rec.by,
+        ms: rec.ms,
+        usage: rec.usage,
+        costUsd: costThis,
+        toolCalls: calls.length,
+        note: rec.note,
+        fallbackReason: rec.fallbackReason,
       });
       return rec;
     };
@@ -420,7 +493,10 @@ export class DecisionEngine {
     // 兜底：模型失败 / 停用；军师与进攻方（桩）模式下，实际操作也由兜底机器人（模拟玩家 / 防守方）完成
     const isPlayer = this.role === 'player';
     if ((failed && isPlayer) || (!isPlayer && this.o.fallbackPlaysForHuman)) {
-      if (failed) { rec.by = 'fallback'; rec.fallbackReason = failed; }
+      if (failed) {
+        rec.by = 'fallback';
+        rec.fallbackReason = failed;
+      }
       const before = snap(w);
       await this.o.fallback.decide(point.reasons);
       if (failed) sink?.({ k: 'fallback', reason: failed, acted: true, effect: effectSummary(before, snap(w)) || undefined });
@@ -433,33 +509,72 @@ export class DecisionEngine {
       const before = snap(w);
       const had = rec.fallbackReason;
       this.ensureProgress(rec);
-      if (rec.fallbackReason !== had) sink?.({ k: 'fallback', reason: (rec.fallbackReason ?? '').slice(had ? had.length + 2 : 0), acted: true, effect: effectSummary(before, snap(w)) || undefined });
+      if (rec.fallbackReason !== had)
+        sink?.({
+          k: 'fallback',
+          reason: (rec.fallbackReason ?? '').slice(had ? had.length + 2 : 0),
+          acted: true,
+          effect: effectSummary(before, snap(w)) || undefined,
+        });
     }
     return end();
   }
 
   /** 门控跳过：不叫模型，只做推进保证（手动开波模式下自动开波），追踪里记一条"跳过（无可行动作）" */
-  private skipLocal(point: DecisionPoint, recent: import('../core/types').GameEvent[], why: string, t0: number, compacted: { before: number; after: number; n: number; stage: BudgetStage } | null): DecisionRecord {
+  private skipLocal(
+    point: DecisionPoint,
+    recent: import('../core/types').GameEvent[],
+    why: string,
+    t0: number,
+    compacted: { before: number; after: number; n: number; stage: BudgetStage } | null,
+  ): DecisionRecord {
     const w = this.o.world;
     this.skippedCount++;
     this.ctx.skip(recent);
     const rec: DecisionRecord = { point, by: 'local', skipped: why, toolCalls: [], usage: emptyUsage(), ms: 0, observationTokens: 0 };
     const sink = this.o.trace?.begin({
-      k: 'decision_start', trigger: point.reasons.slice(), wave: point.wave, time: point.time, tick: point.tick, phase: point.phase,
-      provider: this.o.provider?.id ?? 'none', model: this.o.provider?.model ?? this.o.fallback.name, role: this.role,
-      contextMode: this.o.config.contextMode, skipped: why, budgetStage: this.stage,
+      k: 'decision_start',
+      trigger: point.reasons.slice(),
+      wave: point.wave,
+      time: point.time,
+      tick: point.tick,
+      phase: point.phase,
+      provider: this.o.provider?.id ?? 'none',
+      model: this.o.provider?.model ?? this.o.fallback.name,
+      role: this.role,
+      contextMode: this.o.config.contextMode,
+      skipped: why,
+      budgetStage: this.stage,
     });
-    if (compacted) sink?.({ k: 'compact', n: compacted.n, before: compacted.before, after: compacted.after, stage: compacted.stage, reason: stageMsg(compacted.stage) ?? '' });
+    if (compacted)
+      sink?.({
+        k: 'compact',
+        n: compacted.n,
+        before: compacted.before,
+        after: compacted.after,
+        stage: compacted.stage,
+        reason: stageMsg(compacted.stage) ?? '',
+      });
     if (this.role === 'player' || this.o.fallbackPlaysForHuman) {
       if (this.role !== 'player') void this.o.fallback.decide(point.reasons);
       const before = snap(w);
       this.ensureProgress(rec);
-      if (rec.fallbackReason) sink?.({ k: 'fallback', reason: rec.fallbackReason, acted: true, effect: effectSummary(before, snap(w)) || undefined });
+      if (rec.fallbackReason)
+        sink?.({ k: 'fallback', reason: rec.fallbackReason, acted: true, effect: effectSummary(before, snap(w)) || undefined });
     }
     if (point.reasons.includes('build') || point.reasons.includes('game_start')) this.noteBuildGold();
     rec.ms = Date.now() - t0;
     this.decisions.push(rec);
-    sink?.({ k: 'decision_end', by: 'local', ms: rec.ms, usage: rec.usage, costUsd: 0, toolCalls: 0, skipped: why, fallbackReason: rec.fallbackReason });
+    sink?.({
+      k: 'decision_end',
+      by: 'local',
+      ms: rec.ms,
+      usage: rec.usage,
+      costUsd: 0,
+      toolCalls: 0,
+      skipped: why,
+      fallbackReason: rec.fallbackReason,
+    });
     return rec;
   }
 
@@ -468,23 +583,34 @@ export class DecisionEngine {
     const callId = id ?? `call_${calls.length + 1}`;
     sink?.({ k: 'tool_call', id: callId, name, args: input });
     const before = sink ? snap(w) : null;
-    const r = executeTool({
-      world: this.o.world,
-      role: this.role,
-      sink: this.send,
-      rleMap: this.spec.rleMap,
-      assist: this.assist,
-      planner: this.plannerState,
-      onObserve: (obs) => this.ctx.onObserve(obs),
-      onSuggest: (text, actions) => {
-        const s: Suggestion = { tick: this.o.world.state.tick, wave: this.o.world.state.wave, text, actions };
-        this.suggestions.push(s);
-        this.o.onSuggest?.(s);
+    const r = executeTool(
+      {
+        world: this.o.world,
+        role: this.role,
+        sink: this.send,
+        rleMap: this.spec.rleMap,
+        assist: this.assist,
+        planner: this.plannerState,
+        onObserve: (obs) => this.ctx.onObserve(obs),
+        onSuggest: (text, actions) => {
+          const s: Suggestion = { tick: this.o.world.state.tick, wave: this.o.world.state.wave, text, actions };
+          this.suggestions.push(s);
+          this.o.onSuggest?.(s);
+        },
       },
-    }, name, input);
+      name,
+      input,
+    );
     this.ctx.onToolResult(r);
     if (name === 'act') this.battle.noteActResult(r.text);
-    calls.push({ name, input, ok: r.ok, result: r.text.length > 400 ? `${r.text.slice(0, 400)}…` : r.text, cmd: r.cmd, queuedFor: r.queuedFor });
+    calls.push({
+      name,
+      input,
+      ok: r.ok,
+      result: r.text.length > 400 ? `${r.text.slice(0, 400)}…` : r.text,
+      cmd: r.cmd,
+      queuedFor: r.queuedFor,
+    });
     if (sink && before) {
       const fx = r.queuedFor !== undefined ? `已排队，第 ${r.queuedFor} 帧落地` : effectSummary(before, snap(w));
       const cell = cellOfArgs(input, (uid) => {
@@ -502,7 +628,8 @@ export class DecisionEngine {
   /** 指令出口（工具 / 推进保证共用）：记下建造阶段开波前的金币，再交给 sink / world.command */
   private readonly send: CommandSink = (c) => {
     const w = this.o.world;
-    if (c.type === 'startWave' && w.state.phase === 'build' && this.goldAtWaveStart === null) this.goldAtWaveStart = Math.floor(w.state.gold);
+    if (c.type === 'startWave' && w.state.phase === 'build' && this.goldAtWaveStart === null)
+      this.goldAtWaveStart = Math.floor(w.state.gold);
     return this.o.sink ? this.o.sink(c) : w.command(c);
   };
 
@@ -525,7 +652,10 @@ export class DecisionEngine {
     if (this.intel.hasPendingLeaks()) {
       const leaks = this.intel.takeLeaks();
       const lk = leakLine(w, leaks);
-      if (lk) { out.push(lk); this.intel.stats.reports++; }
+      if (lk) {
+        out.push(lk);
+        this.intel.stats.reports++;
+      }
       const gap = gapLine(w, this.intel);
       if (gap) out.push(gap);
     }
@@ -543,7 +673,11 @@ export class DecisionEngine {
     if (evt) out.push(evt);
     if (buildPhase && this.role === 'player') {
       this.buildSeq++;
-      for (const [k, f] of [['RC', () => reclaimLine(w, this.intel)], ['CB', () => comboLine(w)], ['MZ', () => mazeLine(w)]] as const) {
+      for (const [k, f] of [
+        ['RC', () => reclaimLine(w, this.intel)],
+        ['CB', () => comboLine(w)],
+        ['MZ', () => mazeLine(w)],
+      ] as const) {
         const t = f();
         if (!t) continue;
         const seen = this.boardSeen.get(k);
@@ -563,7 +697,10 @@ export class DecisionEngine {
     const out = new Set<Purpose>();
     for (const l of this.intel.leaks as readonly LeakRecord[]) {
       if (l.wave <= cur - 3) continue;
-      for (const a of l.affixes) { const p = AFFIX_PURPOSE[a]; if (p) out.add(p); }
+      for (const a of l.affixes) {
+        const p = AFFIX_PURPOSE[a];
+        if (p) out.add(p);
+      }
       const def = ENEMIES[l.enemy];
       if (def) for (const p of enemyPurposes(def)) out.add(p);
     }

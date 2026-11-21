@@ -4,8 +4,7 @@
  */
 import { LOG_MAX_RAW_BYTES, type LogEntry, type LogPayload } from './leaderboard';
 
-export const hasCompression = (): boolean =>
-  typeof CompressionStream !== 'undefined' && typeof DecompressionStream !== 'undefined';
+export const hasCompression = (): boolean => typeof CompressionStream !== 'undefined' && typeof DecompressionStream !== 'undefined';
 
 export function bytesToBase64(bytes: Uint8Array): string {
   let s = '';
@@ -46,7 +45,11 @@ async function readAll(stream: ReadableStream<Uint8Array>, maxBytes: number): Pr
   return out;
 }
 
-function pipe(data: Uint8Array, ts: { writable: WritableStream<Uint8Array>; readable: ReadableStream<Uint8Array> }, maxBytes: number): Promise<Uint8Array> {
+function pipe(
+  data: Uint8Array,
+  ts: { writable: WritableStream<Uint8Array>; readable: ReadableStream<Uint8Array> },
+  maxBytes: number,
+): Promise<Uint8Array> {
   const writer = ts.writable.getWriter();
   // 不能先 await 写入再读（背压会卡死）：边写边读
   const written = writer.write(data).then(() => writer.close());

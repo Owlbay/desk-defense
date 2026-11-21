@@ -40,12 +40,15 @@ export default {
 
   // ───────────── 玩法 · 新手入门 ─────────────
   'guide.play.start.title': '新手入门',
-  'guide.play.start.intro': '书桌防线是一款**迷宫式塔防**：塔本身就是墙，你放下的每一座塔都会改变敌人的路线。守住桌子底部的作业本，别让生命归零。',
-  'guide.play.start.1': '**目标**：敌人从顶部入口走向底部的作业本，每漏一个就扣生命（多数扣 1，胶带卷扣 2，Boss 扣 5～8）。战役撑过第 20 波获胜；无尽比谁撑得久。',
+  'guide.play.start.intro':
+    '书桌防线是一款**迷宫式塔防**：塔本身就是墙，你放下的每一座塔都会改变敌人的路线。守住桌子底部的作业本，别让生命归零。',
+  'guide.play.start.1':
+    '**目标**：敌人从顶部入口走向底部的作业本，每漏一个就扣生命（多数扣 1，胶带卷扣 2，Boss 扣 5～8）。战役撑过第 20 波获胜；无尽比谁撑得久。',
   'guide.play.start.2': '**先造路，再造塔**：敌人总走当前最短路线。用 5 金币的书本墙把路绕长，每座塔就能多打几轮。',
   'guide.play.start.3': '**不能堵死**：放塔后每个入口都必须还能走到作业本，也不能把场上的敌人困住。',
   'guide.play.start.4': '**飞行敌人不走迷宫**：纸飞机和飞蛾从入口直线飞向作业本，要靠铅笔、台灯、尺子、钢笔或苍蝇拍来打。',
-  'guide.play.start.5': '**金币来源**：击杀赏金、清波奖励（10 + 2 × 波数）、利息（每波结束拿持有金币的 5%，普通难度上限 20）、提前开波奖励、存钱罐。',
+  'guide.play.start.5':
+    '**金币来源**：击杀赏金、清波奖励（10 + 2 × 波数）、利息（每波结束拿持有金币的 5%，普通难度上限 20）、提前开波奖励、存钱罐。',
   'guide.play.start.6': '**塔会成长**：塔造成伤害就能攒经验，免费升到 Lv9；也可以花金币立即升级——经验条越满越便宜，满条半价。',
   'guide.play.start.7': '**放错了不亏**：放下 5 秒内且还没开火，可以全额撤销。出售按等级返还 70%～25% 的投入金币。',
   'guide.play.start.8': '**看下一波预告**：它会告诉你敌人从哪个入口来，有没有 Boss、空袭、冲锋和精英，提前布防。',
@@ -95,13 +98,16 @@ export default {
   'guide.play.modes.title': '模式',
   'guide.play.modes.intro': '三种玩法加一个每日挑战。无尽模式和每日挑战一开始就能玩；通关战役第一章后开放自定义模式，并解锁更多地图。',
   'guide.play.modes.campaign.name': '战役',
-  'guide.play.modes.campaign.desc': '3 章，每章一张地图、20 波手工编排的波次，可选普通或困难。按剩余生命评 1～3 星，星星用来买永久天赋；新塔和新技能随进度解锁。',
+  'guide.play.modes.campaign.desc':
+    '3 章，每章一张地图、20 波手工编排的波次，可选普通或困难。按剩余生命评 1～3 星，星星用来买永久天赋；新塔和新技能随进度解锁。',
   'guide.play.modes.endless.name': '无尽',
-  'guide.play.modes.endless.desc': '在已通关的地图上一直打下去。难度从简单、普通、困难、噩梦到魔境 I～X；每 10 波来一个 Boss 并选一次增益，每 7 波空袭，每 5 波冲锋。结算时获得墨水，成绩进排行榜。',
+  'guide.play.modes.endless.desc':
+    '在已通关的地图上一直打下去。难度从简单、普通、困难、噩梦到魔境 I～X；每 10 波来一个 Boss 并选一次增益，每 7 波空袭，每 5 波冲锋。结算时获得墨水，成绩进排行榜。',
   'guide.play.modes.daily.name': '每日挑战',
   'guide.play.modes.daily.desc': '每天一张固定种子的桌面，所有人同图同规则，比拼当日排行榜。',
   'guide.play.modes.custom.name': '自定义',
-  'guide.play.modes.custom.desc': '从一个难度预设出发，用滑块调整敌人生命、数量、速度、利息、事件频率等全部参数，生成分享码发给朋友。成绩不进排行榜。',
+  'guide.play.modes.custom.desc':
+    '从一个难度预设出发，用滑块调整敌人生命、数量、速度、利息、事件频率等全部参数，生成分享码发给朋友。成绩不进排行榜。',
   'guide.play.modes.maps.title': '三张地图',
   'guide.play.modes.diff.title': '无尽难度',
   'guide.play.modes.diff.col.name': '难度',
@@ -112,13 +118,16 @@ export default {
   'guide.play.modes.diff.col.interest': '利息上限',
   'guide.play.modes.diff.eliteNever': '不出现',
   'guide.play.modes.diff.abyss': '魔境 {n}',
-  'guide.play.modes.diff.unlock': '解锁：简单和普通一开始就能选；普通撑到第 30 波开困难，困难第 40 波开噩梦，噩梦第 35 波开魔境 I，之后每级魔境撑到第 30 波开下一级。',
-  'guide.play.modes.seed': '**种子**：同一个种子意味着同样的杂物布局、波次和事件时间表。暂停菜单、结算画面和排行榜里都能复制，发给朋友就能打同一局。',
+  'guide.play.modes.diff.unlock':
+    '解锁：简单和普通一开始就能选；普通撑到第 30 波开困难，困难第 40 波开噩梦，噩梦第 35 波开魔境 I，之后每级魔境撑到第 30 波开下一级。',
+  'guide.play.modes.seed':
+    '**种子**：同一个种子意味着同样的杂物布局、波次和事件时间表。暂停菜单、结算画面和排行榜里都能复制，发给朋友就能打同一局。',
   'guide.play.modes.score': '**得分** =（撑过的波数 × 100 + 击杀数 + 剩余生命 × 50 + 剩余金币 × 0.1）× 难度倍率。',
 
   // ───────────── 玩法 · 自动开波 ─────────────
   'guide.play.autowave.title': '自动开波',
-  'guide.play.autowave.intro': '开波方式分手动和自动。简单难度和还没通关的第一章默认手动，其他默认自动；在设置或开局页可以改。排行榜按开波方式分开记录。',
+  'guide.play.autowave.intro':
+    '开波方式分手动和自动。简单难度和还没通关的第一章默认手动，其他默认自动；在设置或开局页可以改。排行榜按开波方式分开记录。',
   'guide.play.autowave.1': '**手动**：每一波都由你点开始，没有时间压力。上一波还没打完就开下一波，奖励 5 + 波数 金币。',
   'guide.play.autowave.2': '**自动**：第一波由你开；之后每波敌人全部刷出后开始倒计时（普通 20 秒），到 0 自动开下一波。',
   'guide.play.autowave.3': 'Boss 波之前倒计时 ×1.5；每波还有上限时间（普通 60 秒），超时也会开下一波。',
@@ -128,7 +137,8 @@ export default {
 
   // ───────────── 玩法 · 随机事件 ─────────────
   'guide.play.events.title': '随机事件',
-  'guide.play.events.intro': '每隔两三波，桌面上会发生一件事：有的添乱，有的送好处。有预警的事件会提前在屏幕上提示。难度越高，事件越频繁，坏事也越多。',
+  'guide.play.events.intro':
+    '每隔两三波，桌面上会发生一件事：有的添乱，有的送好处。有预警的事件会提前在屏幕上提示。难度越高，事件越频繁，坏事也越多。',
   'guide.play.events.tone.bad': '负面',
   'guide.play.events.tone.good': '正面',
   'guide.play.events.tone.neutral': '中性',
@@ -144,9 +154,11 @@ export default {
   'guide.play.field.1': '**桌边入口**：北边的主入口一开始就开放；侧边入口到指定波数才开放。还没开放的入口也必须留一条通往作业本的路。',
   'guide.play.field.2': '**暗门**：地图里预置的隐藏出生点，由事件「暗门」开启，持续 3 波。在暗门的格子上放一座塔，这扇门就开不了。',
   'guide.play.field.3': '**空降纸箱**：预警几秒后落地，成为新的障碍和出生点，之后 2～4 波里有 25%～40% 的敌人从这里出来。',
-  'guide.play.field.4': '**处理纸箱**：落地后点它拆除（40 + 5 × 波数 金币），或用技能「封箱胶带」直接封掉（预警中也行）。落在迷宫后段的纸箱等于给敌人开捷径，优先处理。',
+  'guide.play.field.4':
+    '**处理纸箱**：落地后点它拆除（40 + 5 × 波数 金币），或用技能「封箱胶带」直接封掉（预警中也行）。落在迷宫后段的纸箱等于给敌人开捷径，优先处理。',
   'guide.play.field.5': '**落点规则**：纸箱只落在离作业本至少 7 格、周围一圈没有塔的空地上。迷宫越紧凑，它能落的地方越少。',
-  'guide.play.field.6': '**出怪方式**：轮流、随机、包夹（平均分到各入口同时出现）、突袭（整组从同一个入口冲出）。下一波预告写的就是实际会发生的事。',
+  'guide.play.field.6':
+    '**出怪方式**：轮流、随机、包夹（平均分到各入口同时出现）、突袭（整组从同一个入口冲出）。下一波预告写的就是实际会发生的事。',
   'guide.play.field.7': '**特殊波**（无尽）：每 7 波空袭（约 60% 是飞行敌人）；每 5 波冲锋（快速敌人 ×2）；第 12 波起每 8 波可能出现包夹。',
 
   // ───────────── 玩法 · 进化 ─────────────
@@ -220,7 +232,8 @@ export default {
   'guide.enemy.tag.armored': '护甲',
   'guide.enemy.behavior': '行为',
   'guide.enemy.counter': '对策',
-  'guide.enemy.bossCommon': '**Boss 通用抗性**：减速效果减半；眩晕和定身最多 0.3 秒；不受击退和处决。出场前 3 秒会提示，屏幕顶部有独立血条。无尽模式每 10 波轮换一个，第 50 波起每次 2 个，第 100 波起 3 个。',
+  'guide.enemy.bossCommon':
+    '**Boss 通用抗性**：减速效果减半；眩晕和定身最多 0.3 秒；不受击退和处决。出场前 3 秒会提示，屏幕顶部有独立血条。无尽模式每 10 波轮换一个，第 50 波起每次 2 个，第 100 波起 3 个。',
 
   'guide.enemy.crumb.behavior': '最基础的敌人，数量多。',
   'guide.enemy.crumb.counter': '任何塔都能打；铅笔、订书机、圆规都很有效。',
@@ -262,11 +275,13 @@ export default {
   'guide.enemy.rules.armor': '**护甲**：每次受到的伤害先减去护甲，最低保留 1 点。台灯光束、所有持续伤害和技能「大橡皮」无视护甲。',
   'guide.enemy.rules.shield': '**护盾**：先扣护盾再扣生命，护盾不受护甲保护。橡皮擦对护盾造成 3 倍伤害。',
   'guide.enemy.rules.air': '**飞行**：直线飞向作业本，迷宫无效。能打空中的塔：铅笔、台灯、尺子、钢笔、苍蝇拍。下课铃和涂改液对飞行无效。',
-  'guide.enemy.rules.stealth': '**隐形**：不能被选为目标。靠近任意塔 1.2 格、靠近台灯 1.5 格、被范围攻击打中，或进入涂改液、放大镜区域时暴露。',
+  'guide.enemy.rules.stealth':
+    '**隐形**：不能被选为目标。靠近任意塔 1.2 格、靠近台灯 1.5 格、被范围攻击打中，或进入涂改液、放大镜区域时暴露。',
   'guide.enemy.rules.elite': '**精英**：高难度下出现，生命 ×2.5、赏金和经验 ×2，并带有 1～4 条词缀。详见「词缀」。',
 
   // ───────────── 词缀 ─────────────
-  'guide.affix.intro': '高难度下，普通敌人有概率成为**精英**：生命 ×2.5、体型更大、赏金和经验 ×2，头顶显示词缀图标。普通难度每个精英最多 1 条词缀，困难和噩梦 2 条，魔境 3 条，魔境 V 起 4 条。',
+  'guide.affix.intro':
+    '高难度下，普通敌人有概率成为**精英**：生命 ×2.5、体型更大、赏金和经验 ×2，头顶显示词缀图标。普通难度每个精英最多 1 条词缀，困难和噩梦 2 条，魔境 3 条，魔境 V 起 4 条。',
   'guide.affix.counter': '克制',
   'guide.affix.hard.counter': '台灯、橡皮擦、持续伤害。',
   'guide.affix.swift.counter': '胶水、下课铃、涂改液。',
@@ -292,12 +307,14 @@ export default {
   'guide.skill.rules.4': '大橡皮和横扫尺的伤害会随波数成长，后期依然有用。',
   'guide.skill.cd': '冷却 {n} 秒',
   'guide.skill.charge': '充能制',
-  'guide.perk.intro': '无尽和自定义每 10 波选一次，战役在第 10 波后选一次。三选一，可以花 50 金币刷新。同一个增益一局只能拿一次（可重复的除外）。',
+  'guide.perk.intro':
+    '无尽和自定义每 10 波选一次，战役在第 10 波后选一次。三选一，可以花 50 金币刷新。同一个增益一局只能拿一次（可重复的除外）。',
   'guide.perk.rarity.common': '普通',
   'guide.perk.rarity.rare': '稀有',
   'guide.perk.rarity.epic': '史诗',
   'guide.perk.needsTower': '需要指定一座塔',
-  'guide.talent.intro': '在主菜单的「书包」里购买，永久生效。每一级都可以用星星或墨水购买：星星来自战役评星（最多 18 颗），墨水来自无尽和自定义的结算。',
+  'guide.talent.intro':
+    '在主菜单的「书包」里购买，永久生效。每一级都可以用星星或墨水购买：星星来自战役评星（最多 18 颗），墨水来自无尽和自定义的结算。',
   'guide.talent.max': '最高 {n} 级',
   'guide.talent.price': '每级 {star} 星或 {ink} 墨水',
   'guide.talent.tip': '星星优先买单级大件（大书包、文具收藏家、幸运签），多级的小加成用墨水慢慢补。',
@@ -347,43 +364,53 @@ export default {
   'guide.arch.line.core': '尺子、圆规（相邻触发组合），钢尺击退。',
   'guide.arch.line.how': '留一条长直道，把尺子放在直道的延长线上，一发穿透一整排；圆规守住拐角。',
   'guide.arch.line.weak': '地形被事件改变后直道容易断；对分散的敌人效率低。',
-  'guide.arch.prism.name': "光棱阵 · 聚光流",
-  'guide.arch.prism.core': "台灯 ×3～4，后期换激光笔（传奇 A）做核心，配一座护眼灯（B）。",
-  'guide.arch.prism.how': "把台灯两两相隔约 2 格沿 Boss 路线摆成一串（中心距 ≤ 2.5 格），联动组里只有主灯开火，其余辅灯把光汇进去，光束持续照射并逐渐增强。普通联动组最多 4 座；组里有激光笔时不限座数。护眼灯给整组光束加标记和易伤。",
-  'guide.arch.prism.weak': "成群的小怪和快怪（单体光束，换目标就清零）；咖啡泼到链中间的灯会断组；事件「台灯跳闸」；「反光」词缀伤害减半。",
+  'guide.arch.prism.name': '光棱阵 · 聚光流',
+  'guide.arch.prism.core': '台灯 ×3～4，后期换激光笔（传奇 A）做核心，配一座护眼灯（B）。',
+  'guide.arch.prism.how':
+    '把台灯两两相隔约 2 格沿 Boss 路线摆成一串（中心距 ≤ 2.5 格），联动组里只有主灯开火，其余辅灯把光汇进去，光束持续照射并逐渐增强。普通联动组最多 4 座；组里有激光笔时不限座数。护眼灯给整组光束加标记和易伤。',
+  'guide.arch.prism.weak': '成群的小怪和快怪（单体光束，换目标就清零）；咖啡泼到链中间的灯会断组；事件「台灯跳闸」；「反光」词缀伤害减半。',
 
   // ───────────── AI 参战 ─────────────
-  'guide.ai.intro': '让大模型像玩家一样玩这个游戏，或者在你玩的时候当军师。AI 的每一步都和你的点击走同一套校验，无法作弊；AI 的成绩进入单独的 AI 排行榜。',
+  'guide.ai.intro':
+    '让大模型像玩家一样玩这个游戏，或者在你玩的时候当军师。AI 的每一步都和你的点击走同一套校验，无法作弊；AI 的成绩进入单独的 AI 排行榜。',
   'guide.ai.modes.title': '两种角色',
   'guide.ai.modes.1': '**AI 玩家**：模型独立打完一局，你可以旁观它的思路和每一次操作。',
   'guide.ai.modes.2': '**AI 军师**：你来玩，模型只看局面并给出建议，建议可以一键执行。',
   'guide.ai.setup.title': '三种接入方式',
   'guide.ai.relay.name': '中转服务或官方 Key',
-  'guide.ai.relay.desc': '主菜单进入「AI 参战」，在模型一栏选择中转服务，粘贴服务地址和 API Key，点「获取模型列表」选一个模型，再点「测试连接」。请求由你的浏览器直接发给你填写的地址，不经过我们的服务器。',
+  'guide.ai.relay.desc':
+    '主菜单进入「AI 参战」，在模型一栏选择中转服务，粘贴服务地址和 API Key，点「获取模型列表」选一个模型，再点「测试连接」。请求由你的浏览器直接发给你填写的地址，不经过我们的服务器。',
   'guide.ai.local.name': '本机模型',
-  'guide.ai.local.desc': '在自己电脑上运行 Ollama 或 LM Studio，并允许本站跨域访问（Ollama 设置 OLLAMA_ORIGINS，LM Studio 打开 Enable CORS），然后在设置页选择对应的本地服务。',
+  'guide.ai.local.desc':
+    '在自己电脑上运行 Ollama 或 LM Studio，并允许本站跨域访问（Ollama 设置 OLLAMA_ORIGINS，LM Studio 打开 Enable CORS），然后在设置页选择对应的本地服务。',
   'guide.ai.bridge.name': '本地桥接',
-  'guide.ai.bridge.desc': '服务商不允许网页直接访问时使用：在电脑上运行桥接器（npm run agent:bridge），网页通过配对码连接它，由桥接器代为调用模型。Key 只留在你的电脑上。',
+  'guide.ai.bridge.desc':
+    '服务商不允许网页直接访问时使用：在电脑上运行桥接器（npm run agent:bridge），网页通过配对码连接它，由桥接器代为调用模型。Key 只留在你的电脑上。',
   'guide.ai.demo': '没有 Key 也能试：选择「离线演示」，用内置策略体验整个流程。',
   'guide.ai.tips.title': '常见问题',
   'guide.ai.tips.1': '**连不上**：多半是服务商不允许浏览器跨域访问，改用本地桥接。',
   'guide.ai.tips.2': '**Key 被拒绝**：检查 Key 是否正确、是否还有额度。建议使用单独的、设了额度上限的 Key。',
-  'guide.ai.tips.3': '**想看 AI 在想什么**：对局中打开「思路与请求」面板，里面按时间列出每次决策、工具调用和用量。这些内容只在你的浏览器里。',
+  'guide.ai.tips.3':
+    '**想看 AI 在想什么**：对局中打开「思路与请求」面板，里面按时间列出每次决策、工具调用和用量。这些内容只在你的浏览器里。',
   'guide.ai.open': '打开 AI 参战',
 
   // ───────────── 常见问题 ─────────────
   'guide.faq.save.q': '进度保存在哪里？会丢吗？',
-  'guide.faq.save.a': '所有进度都自动保存在当前浏览器本地，不需要登录。清除网站数据、使用隐私模式或在设置里点「清除存档」会丢失进度。不同设备之间不会同步。',
+  'guide.faq.save.a':
+    '所有进度都自动保存在当前浏览器本地，不需要登录。清除网站数据、使用隐私模式或在设置里点「清除存档」会丢失进度。不同设备之间不会同步。',
   'guide.faq.offline.q': '能离线玩吗？怎么安装？',
-  'guide.faq.offline.a': '可以。联网打开一次后资源会缓存到本机。iPhone 和 iPad 在 Safari 里点「分享」再点「添加到主屏幕」；Android 和电脑的 Chrome 或 Edge 点菜单或地址栏里的「安装」。',
+  'guide.faq.offline.a':
+    '可以。联网打开一次后资源会缓存到本机。iPhone 和 iPad 在 Safari 里点「分享」再点「添加到主屏幕」；Android 和电脑的 Chrome 或 Edge 点菜单或地址栏里的「安装」。',
   'guide.faq.resume.q': '打到一半退出了，还能继续吗？',
   'guide.faq.resume.a': '可以。每打完一波自动存一次，回到主菜单点「继续游戏」，从上一波结束时接着打。',
   'guide.faq.place.q': '为什么这里放不了塔？',
-  'guide.faq.place.a': '常见原因：会堵死道路、会困住敌人、有敌人站在这格、这里是入口或杂物、空降纸箱正在预警、金币不足，或这座塔在战役里还没解锁。存钱罐最多 3 个。',
+  'guide.faq.place.a':
+    '常见原因：会堵死道路、会困住敌人、有敌人站在这格、这里是入口或杂物、空降纸箱正在预警、金币不足，或这座塔在战役里还没解锁。存钱罐最多 3 个。',
   'guide.faq.air.q': '为什么我的塔打不到飞行敌人？',
   'guide.faq.air.a': '只有铅笔、台灯、尺子、钢笔和苍蝇拍能打空中。飞行敌人直线飞向作业本，把防空塔放在作业本上方，所有航线都会在那里汇合。',
   'guide.faq.idle.q': '为什么我的塔突然不打了？',
-  'guide.faq.idle.a': '可能被瘫痪了（咖啡渍 Boss 或事件「咖啡打翻」）、遇上「台灯跳闸」，或者目标是隐形的、正在弹跳的橡皮筋，或不在射程内。',
+  'guide.faq.idle.a':
+    '可能被瘫痪了（咖啡渍 Boss 或事件「咖啡打翻」）、遇上「台灯跳闸」，或者目标是隐形的、正在弹跳的橡皮筋，或不在射程内。',
   'guide.faq.cooldown.q': '技能冷却为什么不走？',
   'guide.faq.cooldown.a': '技能和神话能力的冷却只在战斗进行时计时，波次之间的准备阶段不走。',
   'guide.faq.branch.q': '传奇分支选错了能改吗？',
@@ -414,7 +441,8 @@ export default {
 
   // ───────────── 介绍页 /about ─────────────
   'guide.about.meta.title': '书桌防线 Desk Defense · 用文具搭迷宫的塔防游戏',
-  'guide.about.meta.desc': '书桌防线是一款免费的网页迷宫塔防游戏：用铅笔、订书机、台灯搭出迷宫，对抗橡皮屑、纸飞机和咖啡渍。12 座塔、5 种形态、无尽魔境、全服排行榜与每日挑战，手机和电脑都能玩，可离线。',
+  'guide.about.meta.desc':
+    '书桌防线是一款免费的网页迷宫塔防游戏：用铅笔、订书机、台灯搭出迷宫，对抗橡皮屑、纸飞机和咖啡渍。12 座塔、5 种形态、无尽魔境、全服排行榜与每日挑战，手机和电脑都能玩，可离线。',
   'guide.about.skip': '跳到正文',
   'guide.about.nav.label': '页面导航',
   'guide.about.nav.features': '特色',
@@ -442,11 +470,13 @@ export default {
   'guide.about.feature.maze.title': '迷宫塔防',
   'guide.about.feature.maze.desc': '在 12 × 14 的棋盘上自由摆塔，塔会挡路。用 5 金币的书本墙把路绕长，让敌人在火力圈里多转几圈。',
   'guide.about.feature.towers.title': '12 座塔，5 种形态',
-  'guide.about.feature.towers.desc': '每座塔从草稿、精良、镀金成长到传奇，再进化为神话。传奇有 A / B 两条分支，神话带主动能力，每个阶段外观都不同。',
+  'guide.about.feature.towers.desc':
+    '每座塔从草稿、精良、镀金成长到传奇，再进化为神话。传奇有 A / B 两条分支，神话带主动能力，每个阶段外观都不同。',
   'guide.about.feature.field.title': '动态战场',
   'guide.about.feature.field.desc': '入口会增加，纸箱会空降，台灯会跳闸，咖啡会打翻。23 种随机事件让每一局都不一样。',
   'guide.about.feature.endless.title': '无尽魔境',
-  'guide.about.feature.endless.desc': '战役 3 章之后是无尽模式：简单、普通、困难、噩梦，再到魔境 I～X。精英敌人带着随机词缀，看你能撑到第几波。',
+  'guide.about.feature.endless.desc':
+    '战役 3 章之后是无尽模式：简单、普通、困难、噩梦，再到魔境 I～X。精英敌人带着随机词缀，看你能撑到第几波。',
   'guide.about.feature.online.title': '全服排行榜与每日挑战',
   'guide.about.feature.online.desc': '每天一张固定种子的桌面，所有人同图比拼。无尽模式每个难度都有全服排行榜。',
   'guide.about.feature.ai.title': 'AI 参战',
@@ -487,7 +517,8 @@ export default {
   'guide.about.footer.leaderboard': '排行榜',
   'guide.about.footer.label': '页脚链接',
   'guide.about.footer.note': '书桌防线 Desk Defense，一款网页塔防游戏。',
-  'guide.enemy.goldbag.behavior': '飞快地沿路线逃跑；2 秒没挨打就快速回血。被击杀时爆出一大把可点击收集的硬币；漏走不扣生命，但会偷走一大笔金币。',
+  'guide.enemy.goldbag.behavior':
+    '飞快地沿路线逃跑；2 秒没挨打就快速回血。被击杀时爆出一大把可点击收集的硬币；漏走不扣生命，但会偷走一大笔金币。',
   'guide.enemy.goldbag.counter': '集中火力或用大橡皮等爆发技能一口气打掉；减速 / 定身让它多挨几下，别给它喘息回血的机会。',
   'guide.affix.golden.counter': '金色精英更耐打，但击杀后掉落一堆硬币——优先集火并记得点击收集。',
 } satisfies Dict;

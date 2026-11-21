@@ -14,14 +14,14 @@ export type DecisionMode = 'pause' | 'realtime';
 
 export type DecisionReason =
   | 'game_start'
-  | 'build'          // 建造阶段（开局、手动开波前、自动模式下本波结束）
-  | 'wave_interval'  // 波次进行中每 N 秒
-  | 'event_warn'     // 随机事件预警
-  | 'drop_warn'      // 空降出生点预警
-  | 'boss_spawn'     // Boss 出场
-  | 'perk'           // 增益三选一（世界已暂停）
-  | 'crate'          // 补给箱待选择
-  | 'leak';          // 本轮有漏怪（只作附加原因，不单独触发）
+  | 'build' // 建造阶段（开局、手动开波前、自动模式下本波结束）
+  | 'wave_interval' // 波次进行中每 N 秒
+  | 'event_warn' // 随机事件预警
+  | 'drop_warn' // 空降出生点预警
+  | 'boss_spawn' // Boss 出场
+  | 'perk' // 增益三选一（世界已暂停）
+  | 'crate' // 补给箱待选择
+  | 'leak'; // 本轮有漏怪（只作附加原因，不单独触发）
 
 export interface DecisionPoint {
   seq: number;
@@ -66,7 +66,9 @@ export const BUDGET_WEIGHTS = { input: 1, output: 1, cacheWrite: 1.25, cacheRead
 /** 折算预算 token = 新输入 + 输出 + 缓存写×1.25 + 缓存读×0.1（budget.tokens 按这个比较） */
 export function budgetTokens(u: TokenUsage): number {
   const w = BUDGET_WEIGHTS;
-  return Math.round(u.inputTokens * w.input + u.outputTokens * w.output + u.cacheWriteTokens * w.cacheWrite + u.cacheReadTokens * w.cacheRead);
+  return Math.round(
+    u.inputTokens * w.input + u.outputTokens * w.output + u.cacheWriteTokens * w.cacheWrite + u.cacheReadTokens * w.cacheRead,
+  );
 }
 
 /** 用量分解（面板 / 报告用） */
@@ -85,8 +87,13 @@ export interface UsageBreakdown {
 
 export function usageBreakdown(u: TokenUsage): UsageBreakdown {
   return {
-    input: u.inputTokens, cacheRead: u.cacheReadTokens, cacheWrite: u.cacheWriteTokens, output: u.outputTokens,
-    raw: usageTotal(u), weighted: budgetTokens(u), requests: u.requests,
+    input: u.inputTokens,
+    cacheRead: u.cacheReadTokens,
+    cacheWrite: u.cacheWriteTokens,
+    output: u.outputTokens,
+    raw: usageTotal(u),
+    weighted: budgetTokens(u),
+    requests: u.requests,
   };
 }
 

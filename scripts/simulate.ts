@@ -51,7 +51,7 @@ const MAX_WAVE = Number(arg('max-wave', '120'));
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = resolve(arg('out', join(HERE, 'out'))!);
 const QUIET = arg('quiet') === 'true';
-const MAPS: MapId[] = (arg('maps', 'ch1,ch2,ch3')!).split(',') as MapId[];
+const MAPS: MapId[] = arg('maps', 'ch1,ch2,ch3')!.split(',') as MapId[];
 
 export interface Scenario {
   id: string;
@@ -78,17 +78,73 @@ function parseDiff(d: string): { diff: DifficultyId; abyssLevel?: number } {
 function scenarios(): Scenario[] {
   const which = arg('scenario', 'calib')!;
   const endless: Scenario[] = [
-    { id: 'easy-newbie', label: '简单 · 新手', bot: 'newbie', mode: 'endless', diff: 'easy', maps: MAPS, target: '撑过第 20 波（中位数 ≥ 20）', check: (s) => s.median >= 20 },
-    { id: 'normal-medium', label: '普通 · 中等', bot: 'medium', mode: 'endless', diff: 'normal', maps: MAPS, target: '中位数 45～60', check: (s) => s.median >= 45 && s.median <= 60 },
-    { id: 'abyss1-expert', label: '魔境 I · 高手（满天赋）', bot: 'expert', mode: 'endless', diff: 'abyss', abyssLevel: 1, talents: 'max', maps: MAPS, target: '中位数 30～40', check: (s) => s.median >= 30 && s.median <= 40 },
+    {
+      id: 'easy-newbie',
+      label: '简单 · 新手',
+      bot: 'newbie',
+      mode: 'endless',
+      diff: 'easy',
+      maps: MAPS,
+      target: '撑过第 20 波（中位数 ≥ 20）',
+      check: (s) => s.median >= 20,
+    },
+    {
+      id: 'normal-medium',
+      label: '普通 · 中等',
+      bot: 'medium',
+      mode: 'endless',
+      diff: 'normal',
+      maps: MAPS,
+      target: '中位数 45～60',
+      check: (s) => s.median >= 45 && s.median <= 60,
+    },
+    {
+      id: 'abyss1-expert',
+      label: '魔境 I · 高手（满天赋）',
+      bot: 'expert',
+      mode: 'endless',
+      diff: 'abyss',
+      abyssLevel: 1,
+      talents: 'max',
+      maps: MAPS,
+      target: '中位数 30～40',
+      check: (s) => s.median >= 30 && s.median <= 40,
+    },
   ];
   const campaign: Scenario[] = [];
   for (const map of MAPS) {
-    campaign.push({ id: `camp-${map}-normal-medium`, label: `战役 ${map} 普通 · 中等`, bot: 'medium', mode: 'campaign', diff: 'normal', maps: [map], target: '能通关（≥1 星）', check: (s) => s.winRate >= 0.5 });
-    campaign.push({ id: `camp-${map}-hard-expert`, label: `战役 ${map} 困难 · 高手`, bot: 'expert', mode: 'campaign', diff: 'hard', maps: [map], target: '能通关', check: (s) => s.winRate >= 0.5 });
+    campaign.push({
+      id: `camp-${map}-normal-medium`,
+      label: `战役 ${map} 普通 · 中等`,
+      bot: 'medium',
+      mode: 'campaign',
+      diff: 'normal',
+      maps: [map],
+      target: '能通关（≥1 星）',
+      check: (s) => s.winRate >= 0.5,
+    });
+    campaign.push({
+      id: `camp-${map}-hard-expert`,
+      label: `战役 ${map} 困难 · 高手`,
+      bot: 'expert',
+      mode: 'campaign',
+      diff: 'hard',
+      maps: [map],
+      target: '能通关',
+      check: (s) => s.winRate >= 0.5,
+    });
   }
   const xp: Scenario[] = [
-    { id: 'xp-normal-medium', label: '经验节奏（普通 · 中等，纯经验铅笔）', bot: 'medium', mode: 'endless', diff: 'normal', maps: MAPS, target: '第 20 波 Lv5～6', check: (s) => s.xpProbeMedian >= 5 && s.xpProbeMedian <= 6.5 },
+    {
+      id: 'xp-normal-medium',
+      label: '经验节奏（普通 · 中等，纯经验铅笔）',
+      bot: 'medium',
+      mode: 'endless',
+      diff: 'normal',
+      maps: MAPS,
+      target: '第 20 波 Lv5～6',
+      check: (s) => s.xpProbeMedian >= 5 && s.xpProbeMedian <= 6.5,
+    },
   ];
   // 难度阶梯（参考，无判定）：各难度下中等 / 高手的表现
   const ladder: Scenario[] = [];
@@ -96,7 +152,17 @@ function scenarios(): Scenario[] {
     for (const bot of ['medium', 'expert']) {
       for (const talents of (bot === 'expert' ? ['none', 'max'] : ['none']) as ('none' | 'max')[]) {
         const dn = lv ? `abyss${lv}` : d;
-        ladder.push({ id: `ladder-${dn}-${bot}-${talents}`, label: `阶梯 ${dn} · ${bot}${talents === 'max' ? '（满天赋）' : ''}`, bot, mode: 'endless', diff: d, abyssLevel: lv, talents, maps: MAPS, target: '参考' });
+        ladder.push({
+          id: `ladder-${dn}-${bot}-${talents}`,
+          label: `阶梯 ${dn} · ${bot}${talents === 'max' ? '（满天赋）' : ''}`,
+          bot,
+          mode: 'endless',
+          diff: d,
+          abyssLevel: lv,
+          talents,
+          maps: MAPS,
+          target: '参考',
+        });
       }
     }
   }
@@ -109,7 +175,19 @@ function scenarios(): Scenario[] {
     const bot = arg('bot', 'medium')!;
     const mode = arg('mode', 'endless') as ModeId;
     const talents = arg('talents', 'none') as 'none' | 'max';
-    return [{ id: `custom-${bot}-${mode}-${arg('diff', 'normal')}`, label: `自定义 ${bot} ${mode} ${arg('diff', 'normal')}${talents === 'max' ? ' 满天赋' : ''}`, bot, mode, diff, abyssLevel, talents, maps: MAPS, target: '—' }];
+    return [
+      {
+        id: `custom-${bot}-${mode}-${arg('diff', 'normal')}`,
+        label: `自定义 ${bot} ${mode} ${arg('diff', 'normal')}${talents === 'max' ? ' 满天赋' : ''}`,
+        bot,
+        mode,
+        diff,
+        abyssLevel,
+        talents,
+        maps: MAPS,
+        target: '—',
+      },
+    ];
   }
   // calib：无尽三档（normal-medium 同时测经验节奏）+ 战役
   return [...endless, ...campaign];
@@ -117,8 +195,15 @@ function scenarios(): Scenario[] {
 
 // 运行时配置补丁（只影响本进程）
 const PATCH_ROOTS: Record<string, unknown> = {
-  enemies: ENEMIES, towers: TOWERS, presets: PRESETS, abyss: ABYSS_BASE, abyssPer: ABYSS_PER_LEVEL,
-  maps: MAP_DEFS, events: RANDOM_EVENTS, drop: DROP, evo: EVO,
+  enemies: ENEMIES,
+  towers: TOWERS,
+  presets: PRESETS,
+  abyss: ABYSS_BASE,
+  abyssPer: ABYSS_PER_LEVEL,
+  maps: MAP_DEFS,
+  events: RANDOM_EVENTS,
+  drop: DROP,
+  evo: EVO,
 };
 const patch = arg('patch');
 if (patch && patch !== 'true') {
@@ -134,14 +219,42 @@ if (patch && patch !== 'true') {
 // ───────────────────────── 单局 ─────────────────────────
 
 export interface WaveRow {
-  wave: number; time: number; gold: number; lives: number; leaks: number;
-  avgLevel: number; maxLevel: number; towers: number; walls: number; alive: number; peakAlive: number;
+  wave: number;
+  time: number;
+  gold: number;
+  lives: number;
+  leaks: number;
+  avgLevel: number;
+  maxLevel: number;
+  towers: number;
+  walls: number;
+  alive: number;
+  peakAlive: number;
 }
 export interface RunResult {
-  scenario: string; bot: string; mode: ModeId; diff: string; map: MapId; seed: string;
-  result: 'won' | 'lost' | 'cap'; wave: number; cleared: number; lives: number; maxLives: number; stars: number;
-  kills: number; leaks: number; goldEarned: number; towers: number; avgLevel: number; score: number;
-  xpProbeLv20: number; perks: string; leakBy: string; ms: number; rows: WaveRow[];
+  scenario: string;
+  bot: string;
+  mode: ModeId;
+  diff: string;
+  map: MapId;
+  seed: string;
+  result: 'won' | 'lost' | 'cap';
+  wave: number;
+  cleared: number;
+  lives: number;
+  maxLives: number;
+  stars: number;
+  kills: number;
+  leaks: number;
+  goldEarned: number;
+  towers: number;
+  avgLevel: number;
+  score: number;
+  xpProbeLv20: number;
+  perks: string;
+  leakBy: string;
+  ms: number;
+  rows: WaveRow[];
 }
 
 function runOne(sc: Scenario, map: MapId, seed: string): RunResult {
@@ -152,7 +265,12 @@ function runOne(sc: Scenario, map: MapId, seed: string): RunResult {
   const maxT = sc.talents === 'max';
   const skills = maxT && params.extraSkill ? [...params.skills, params.extraSkill] : params.skills;
   const opts: RunOptions = {
-    mode: sc.mode, map, difficulty: sc.diff, abyssLevel: sc.abyssLevel, seed, skills,
+    mode: sc.mode,
+    map,
+    difficulty: sc.diff,
+    abyssLevel: sc.abyssLevel,
+    seed,
+    skills,
     pure: !maxT,
     talents: maxT ? { wallet: 5, bandaid: 3, alarm: 5, study: 5, secondhand: 3, bigbag: 1, luckydraw: 1, collector: 1 } : undefined,
     skillLevels: maxT ? Object.fromEntries(skills.map((k) => [k, 2])) : undefined,
@@ -171,7 +289,10 @@ function runOne(sc: Scenario, map: MapId, seed: string): RunResult {
   const maxTicks = 60 * 60 * 60 * 3; // 3 小时游戏时间兜底
   let result: RunResult['result'] = 'cap';
   for (let tick = 0; tick < maxTicks; tick++) {
-    if (s.phase === 'won' || s.phase === 'lost') { result = s.phase; break; }
+    if (s.phase === 'won' || s.phase === 'lost') {
+      result = s.phase;
+      break;
+    }
     if (s.phase === 'perk') {
       bot.act('build');
       if ((s.phase as string) === 'perk' && s.perkChoices) {
@@ -183,7 +304,10 @@ function runOne(sc: Scenario, map: MapId, seed: string): RunResult {
       continue;
     }
     const auto = s.autoWave.enabled && s.autoWave.started;
-    if (sc.mode !== 'campaign' && s.wave >= MAX_WAVE && (s.phase === 'build' || auto)) { result = 'cap'; break; }
+    if (sc.mode !== 'campaign' && s.wave >= MAX_WAVE && (s.phase === 'build' || auto)) {
+      result = 'cap';
+      break;
+    }
     if (s.phase === 'build' && !auto) {
       // 手动开波（简单难度 / 第一波）：建造完立即开波
       bot.act('build');
@@ -193,18 +317,31 @@ function runOne(sc: Scenario, map: MapId, seed: string): RunResult {
     w.step();
     if (s.enemies.length > peak) peak = s.enemies.length;
     for (const ev of w.drainEvents()) {
-      if (ev.type === 'waveStart') { bot.onWaveStart(ev.wave); livesTrack = s.lives; }
-      else if (ev.type === 'leak') { leaksWave++; bot.onLeak(ev.enemy); leakBy.set(ev.enemy, (leakBy.get(ev.enemy) ?? 0) + Math.max(0, livesTrack - ev.lives)); livesTrack = ev.lives; }
-      else if (ev.type === 'waveEnd') {
+      if (ev.type === 'waveStart') {
+        bot.onWaveStart(ev.wave);
+        livesTrack = s.lives;
+      } else if (ev.type === 'leak') {
+        leaksWave++;
+        bot.onLeak(ev.enemy);
+        leakBy.set(ev.enemy, (leakBy.get(ev.enemy) ?? 0) + Math.max(0, livesTrack - ev.lives));
+        livesTrack = ev.lives;
+      } else if (ev.type === 'waveEnd') {
         bot.onWaveEnd();
         cleared = Math.max(cleared, ev.wave);
         const ts = [...s.towers.values()];
         const atk = ts.filter((t) => t.id !== 'wall');
         rows.push({
-          wave: ev.wave, time: Math.round(s.time), gold: s.gold, lives: s.lives, leaks: leaksWave,
+          wave: ev.wave,
+          time: Math.round(s.time),
+          gold: s.gold,
+          lives: s.lives,
+          leaks: leaksWave,
           avgLevel: atk.length ? atk.reduce((a, t) => a + t.level, 0) / atk.length : 0,
           maxLevel: atk.reduce((a, t) => Math.max(a, t.level), 0),
-          towers: atk.length, walls: ts.length - atk.length, alive: s.enemies.length, peakAlive: peak,
+          towers: atk.length,
+          walls: ts.length - atk.length,
+          alive: s.enemies.length,
+          peakAlive: peak,
         });
         leaksWave = 0;
         peak = s.enemies.length;
@@ -219,20 +356,53 @@ function runOne(sc: Scenario, map: MapId, seed: string): RunResult {
   const ratio = s.lives / s.maxLives;
   const stars = result === 'won' ? (ratio >= 0.9 ? 3 : ratio >= 0.5 ? 2 : 1) : 0;
   return {
-    scenario: sc.id, bot: sc.bot, mode: sc.mode, diff: sc.abyssLevel ? `abyss${sc.abyssLevel}` : sc.diff, map, seed,
-    result, wave: s.wave, cleared, lives: s.lives, maxLives: s.maxLives, stars,
-    kills: s.stats.kills, leaks: s.stats.leaks, goldEarned: s.stats.goldEarned, towers: atk.length,
-    avgLevel: atk.length ? atk.reduce((a, t) => a + t.level, 0) / atk.length : 0, score: s.score,
-    xpProbeLv20, perks: s.perks.join('|'), leakBy: [...leakBy].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}:${v}`).join('|'), ms: Math.round(performance.now() - t0), rows,
+    scenario: sc.id,
+    bot: sc.bot,
+    mode: sc.mode,
+    diff: sc.abyssLevel ? `abyss${sc.abyssLevel}` : sc.diff,
+    map,
+    seed,
+    result,
+    wave: s.wave,
+    cleared,
+    lives: s.lives,
+    maxLives: s.maxLives,
+    stars,
+    kills: s.stats.kills,
+    leaks: s.stats.leaks,
+    goldEarned: s.stats.goldEarned,
+    towers: atk.length,
+    avgLevel: atk.length ? atk.reduce((a, t) => a + t.level, 0) / atk.length : 0,
+    score: s.score,
+    xpProbeLv20,
+    perks: s.perks.join('|'),
+    leakBy: [...leakBy]
+      .sort((a, b) => b[1] - a[1])
+      .map(([k, v]) => `${k}:${v}`)
+      .join('|'),
+    ms: Math.round(performance.now() - t0),
+    rows,
   };
 }
 
 // ───────────────────────── 统计 ─────────────────────────
 
 export interface ScenarioStats {
-  id: string; label: string; target: string; runs: number;
-  waves: number[]; median: number; mean: number; min: number; max: number; p25: number; p75: number;
-  winRate: number; stars: number[]; xpProbeMedian: number; byMap: Record<string, { median: number; winRate: number }>;
+  id: string;
+  label: string;
+  target: string;
+  runs: number;
+  waves: number[];
+  median: number;
+  mean: number;
+  min: number;
+  max: number;
+  p25: number;
+  p75: number;
+  winRate: number;
+  stars: number[];
+  xpProbeMedian: number;
+  byMap: Record<string, { median: number; winRate: number }>;
   pass?: boolean;
 }
 
@@ -250,15 +420,31 @@ function stats(sc: Scenario, rs: RunResult[]): ScenarioStats {
   const byMap: ScenarioStats['byMap'] = {};
   for (const m of new Set(rs.map((r) => r.map))) {
     const sub = rs.filter((r) => r.map === m);
-    byMap[m] = { median: quantile(sub.map((r) => r.wave), 0.5), winRate: sub.filter((r) => r.result === 'won').length / sub.length };
+    byMap[m] = {
+      median: quantile(
+        sub.map((r) => r.wave),
+        0.5,
+      ),
+      winRate: sub.filter((r) => r.result === 'won').length / sub.length,
+    };
   }
   const probes = rs.map((r) => r.xpProbeLv20).filter((v) => v > 0);
   const st: ScenarioStats = {
-    id: sc.id, label: sc.label, target: sc.target, runs: rs.length, waves,
-    median: quantile(waves, 0.5), mean: waves.reduce((a, b) => a + b, 0) / Math.max(1, waves.length),
-    min: Math.min(...waves), max: Math.max(...waves), p25: quantile(waves, 0.25), p75: quantile(waves, 0.75),
+    id: sc.id,
+    label: sc.label,
+    target: sc.target,
+    runs: rs.length,
+    waves,
+    median: quantile(waves, 0.5),
+    mean: waves.reduce((a, b) => a + b, 0) / Math.max(1, waves.length),
+    min: Math.min(...waves),
+    max: Math.max(...waves),
+    p25: quantile(waves, 0.25),
+    p75: quantile(waves, 0.75),
     winRate: rs.filter((r) => r.result === 'won').length / Math.max(1, rs.length),
-    stars: rs.map((r) => r.stars), xpProbeMedian: quantile(probes, 0.5), byMap,
+    stars: rs.map((r) => r.stars),
+    xpProbeMedian: quantile(probes, 0.5),
+    byMap,
   };
   if (sc.check) st.pass = sc.check(st);
   return st;
@@ -267,7 +453,17 @@ function stats(sc: Scenario, rs: RunResult[]): ScenarioStats {
 // ───────────────────────── 输出 ─────────────────────────
 
 function csv(rows: (string | number)[][]): string {
-  return rows.map((r) => r.map((v) => (typeof v === 'number' ? (Number.isInteger(v) ? String(v) : v.toFixed(2)) : /[,"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)).join(',')).join('\n') + '\n';
+  return (
+    rows
+      .map((r) =>
+        r
+          .map((v) =>
+            typeof v === 'number' ? (Number.isInteger(v) ? String(v) : v.toFixed(2)) : /[,"\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v,
+          )
+          .join(','),
+      )
+      .join('\n') + '\n'
+  );
 }
 
 function html(all: ScenarioStats[], base: ScenarioStats[] | null): string {
@@ -344,7 +540,9 @@ function main(): void {
         rs.push(r);
         if (!QUIET) {
           const extra = r.xpProbeLv20 ? ` xpPencil@20=Lv${r.xpProbeLv20}` : '';
-          process.stdout.write(`${sc.id.padEnd(26)} ${map} ${r.seed.padEnd(16)} ${r.result.padEnd(4)} wave ${String(r.wave).padStart(3)} lives ${r.lives}/${r.maxLives} towers ${r.towers} avgLv ${r.avgLevel.toFixed(1)}${extra} lost: ${r.leakBy} ${r.ms}ms\n`);
+          process.stdout.write(
+            `${sc.id.padEnd(26)} ${map} ${r.seed.padEnd(16)} ${r.result.padEnd(4)} wave ${String(r.wave).padStart(3)} lives ${r.lives}/${r.maxLives} towers ${r.towers} avgLv ${r.avgLevel.toFixed(1)}${extra} lost: ${r.leakBy} ${r.ms}ms\n`,
+          );
         }
       }
     }
@@ -352,14 +550,105 @@ function main(): void {
     const st = stats(sc, rs);
     allStats.push(st);
     const camp = sc.mode === 'campaign';
-    process.stdout.write(`== ${sc.label}: ${camp ? `win ${Math.round(st.winRate * 100)}% stars [${st.stars.join(',')}]` : `median ${st.median} (P25 ${st.p25.toFixed(0)}, P75 ${st.p75.toFixed(0)}, ${st.min}-${st.max}) byMap ${JSON.stringify(Object.fromEntries(Object.entries(st.byMap).map(([m, v]) => [m, v.median])))}`}${st.xpProbeMedian ? ` xpPencil@20 median Lv${st.xpProbeMedian}` : ''} target: ${sc.target} ${st.pass === undefined ? '' : st.pass ? 'PASS' : 'FAIL'}\n`);
+    process.stdout.write(
+      `== ${sc.label}: ${camp ? `win ${Math.round(st.winRate * 100)}% stars [${st.stars.join(',')}]` : `median ${st.median} (P25 ${st.p25.toFixed(0)}, P75 ${st.p75.toFixed(0)}, ${st.min}-${st.max}) byMap ${JSON.stringify(Object.fromEntries(Object.entries(st.byMap).map(([m, v]) => [m, v.median])))}`}${st.xpProbeMedian ? ` xpPencil@20 median Lv${st.xpProbeMedian}` : ''} target: ${sc.target} ${st.pass === undefined ? '' : st.pass ? 'PASS' : 'FAIL'}\n`,
+    );
   }
   // CSV
-  const runRows: (string | number)[][] = [['scenario', 'bot', 'mode', 'diff', 'map', 'seed', 'result', 'wave', 'cleared', 'lives', 'maxLives', 'stars', 'kills', 'leaks', 'goldEarned', 'towers', 'avgLevel', 'score', 'xpProbeLv20', 'perks', 'livesLostBy', 'ms']];
-  for (const r of allRuns) runRows.push([r.scenario, r.bot, r.mode, r.diff, r.map, r.seed, r.result, r.wave, r.cleared, r.lives, r.maxLives, r.stars, r.kills, r.leaks, r.goldEarned, r.towers, r.avgLevel, r.score, r.xpProbeLv20, r.perks, r.leakBy, r.ms]);
+  const runRows: (string | number)[][] = [
+    [
+      'scenario',
+      'bot',
+      'mode',
+      'diff',
+      'map',
+      'seed',
+      'result',
+      'wave',
+      'cleared',
+      'lives',
+      'maxLives',
+      'stars',
+      'kills',
+      'leaks',
+      'goldEarned',
+      'towers',
+      'avgLevel',
+      'score',
+      'xpProbeLv20',
+      'perks',
+      'livesLostBy',
+      'ms',
+    ],
+  ];
+  for (const r of allRuns)
+    runRows.push([
+      r.scenario,
+      r.bot,
+      r.mode,
+      r.diff,
+      r.map,
+      r.seed,
+      r.result,
+      r.wave,
+      r.cleared,
+      r.lives,
+      r.maxLives,
+      r.stars,
+      r.kills,
+      r.leaks,
+      r.goldEarned,
+      r.towers,
+      r.avgLevel,
+      r.score,
+      r.xpProbeLv20,
+      r.perks,
+      r.leakBy,
+      r.ms,
+    ]);
   writeFileSync(join(OUT, 'runs.csv'), csv(runRows));
-  const waveRows: (string | number)[][] = [['scenario', 'bot', 'mode', 'diff', 'map', 'seed', 'wave', 'time', 'gold', 'lives', 'leaks', 'avgLevel', 'maxLevel', 'towers', 'walls', 'enemiesAlive', 'peakAlive']];
-  for (const r of allRuns) for (const w of r.rows) waveRows.push([r.scenario, r.bot, r.mode, r.diff, r.map, r.seed, w.wave, w.time, w.gold, w.lives, w.leaks, w.avgLevel, w.maxLevel, w.towers, w.walls, w.alive, w.peakAlive]);
+  const waveRows: (string | number)[][] = [
+    [
+      'scenario',
+      'bot',
+      'mode',
+      'diff',
+      'map',
+      'seed',
+      'wave',
+      'time',
+      'gold',
+      'lives',
+      'leaks',
+      'avgLevel',
+      'maxLevel',
+      'towers',
+      'walls',
+      'enemiesAlive',
+      'peakAlive',
+    ],
+  ];
+  for (const r of allRuns)
+    for (const w of r.rows)
+      waveRows.push([
+        r.scenario,
+        r.bot,
+        r.mode,
+        r.diff,
+        r.map,
+        r.seed,
+        w.wave,
+        w.time,
+        w.gold,
+        w.lives,
+        w.leaks,
+        w.avgLevel,
+        w.maxLevel,
+        w.towers,
+        w.walls,
+        w.alive,
+        w.peakAlive,
+      ]);
   writeFileSync(join(OUT, 'waves.csv'), csv(waveRows));
   writeFileSync(join(OUT, 'summary.json'), JSON.stringify(allStats, null, 2));
   let base: ScenarioStats[] | null = null;
@@ -368,10 +657,14 @@ function main(): void {
   else if (existsSync(basePath)) {
     try {
       base = JSON.parse(readFileSync(basePath, 'utf8')) as ScenarioStats[];
-    } catch { base = null; }
+    } catch {
+      base = null;
+    }
   }
   writeFileSync(join(OUT, 'report.html'), html(allStats, base));
-  process.stdout.write(`\n${allRuns.length} runs in ${((performance.now() - t0) / 1000).toFixed(1)}s → ${OUT}/{runs.csv,waves.csv,summary.json,report.html}\n`);
+  process.stdout.write(
+    `\n${allRuns.length} runs in ${((performance.now() - t0) / 1000).toFixed(1)}s → ${OUT}/{runs.csv,waves.csv,summary.json,report.html}\n`,
+  );
 }
 
 main();

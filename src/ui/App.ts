@@ -136,7 +136,8 @@ export class App {
         this.paperWipe(s.el);
       } else {
         const x = dir * 36;
-        const from: Keyframe = dir === 0 ? { opacity: 0, transform: 'translateY(10px) scale(0.985)' } : { opacity: 0, transform: `translateX(${x}px)` };
+        const from: Keyframe =
+          dir === 0 ? { opacity: 0, transform: 'translateY(10px) scale(0.985)' } : { opacity: 0, transform: `translateX(${x}px)` };
         this.enterAnims.push(
           s.el.animate([from, { opacity: 1, transform: 'none' }], { duration: dir === 0 ? DUR.m : DUR.l - 100, easing: EASE_OUT }),
         );
@@ -202,13 +203,12 @@ export class App {
   private paperWipe(host: HTMLElement): void {
     const sheet = h('div.paper-wipe', { attrs: { 'aria-hidden': 'true' } });
     host.appendChild(sheet);
-    const a = sheet.animate(
-      [
-        { transform: 'translateX(0) skewX(-8deg)' },
-        { transform: 'translateX(-125%) skewX(-8deg)' },
-      ],
-      { duration: DUR.l + 80, delay: 220, easing: 'cubic-bezier(0.65, 0, 0.35, 1)', fill: 'forwards' },
-    );
+    const a = sheet.animate([{ transform: 'translateX(0) skewX(-8deg)' }, { transform: 'translateX(-125%) skewX(-8deg)' }], {
+      duration: DUR.l + 80,
+      delay: 220,
+      easing: 'cubic-bezier(0.65, 0, 0.35, 1)',
+      fill: 'forwards',
+    });
     a.onfinish = a.oncancel = () => sheet.remove();
     this.enterAnims.push(a);
   }
@@ -239,19 +239,19 @@ export function currencyChips(store: ProfileStore): HTMLElement {
   shownCurrency = now;
   const chip = (key: 'star' | 'ink', glyph: string, title: string) => {
     const num = h('span.chip-num', null, String(now[key]));
-    const el = h('span.chip', { title, attrs: { 'aria-label': t(key === 'star' ? 'common.starsN' : 'common.inkN', { n: now[key] }) } }, h('span.gi', { html: glyph }), num);
+    const el = h(
+      'span.chip',
+      { title, attrs: { 'aria-label': t(key === 'star' ? 'common.starsN' : 'common.inkN', { n: now[key] }) } },
+      h('span.gi', { html: glyph }),
+      num,
+    );
     if (was[key] !== now[key]) {
       el.classList.add(now[key] > was[key] ? 'gain' : 'spend');
       countTo(num, was[key], now[key]);
     }
     return el;
   };
-  return h(
-    'div.chips',
-    null,
-    chip('star', G.star, t('ui.chips.starTip')),
-    chip('ink', G.ink, t('ui.chips.inkTip')),
-  );
+  return h('div.chips', null, chip('star', G.star, t('ui.chips.starTip')), chip('ink', G.ink, t('ui.chips.inkTip')));
 }
 
 export function screenHeader(app: App, title: string, opts: { back?: Route; chips?: boolean; extra?: HTMLElement } = {}): HTMLElement {

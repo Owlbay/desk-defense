@@ -16,13 +16,19 @@ import { t, type Params } from '../i18n';
 export type ProviderKind = 'claude-native' | 'pi' | 'bridge' | 'scripted';
 export type PiApi = 'anthropic-messages' | 'openai-completions' | 'openai-responses' | 'google-generative-ai';
 export type Preset =
-  | 'anthropic' | 'openai' | 'google' | 'openrouter' | 'deepseek'
-  | 'ollama' | 'lmstudio' | 'llamacpp' | 'vllm' | 'relay' | 'custom';
+  'anthropic' | 'openai' | 'google' | 'openrouter' | 'deepseek' | 'ollama' | 'lmstudio' | 'llamacpp' | 'vllm' | 'relay' | 'custom';
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 /** 思考等级：off = 无思考（Opus 5.5 / Fable 5.2 不能关，自动改用最低强度）；xhigh / max 只对 Claude 开放 */
 export type ThinkingLevel = 'off' | Effort;
 export const THINKING_LEVELS: ThinkingLevel[] = ['off', 'low', 'medium', 'high', 'xhigh', 'max'];
-export const THINKING_LABEL: Record<ThinkingLevel, string> = { off: '无思考', low: '低', medium: '中', high: '高', xhigh: '很高', max: '最高' };
+export const THINKING_LABEL: Record<ThinkingLevel, string> = {
+  off: '无思考',
+  low: '低',
+  medium: '中',
+  high: '高',
+  xhigh: '很高',
+  max: '最高',
+};
 
 /**
  * 上下文模式（省流 / 均衡 / 完整）——一处开关映射到观测粒度、决策门控、决策频率、历史压缩阈值、单次输出上限。
@@ -54,18 +60,39 @@ export interface ContextModeSpec {
 
 export const CONTEXT_MODES: Record<ContextMode, ContextModeSpec> = {
   saver: {
-    observation: 'delta', mapEvery: 0, rleMap: true, gating: 'aggressive', waveIntervalSec: 30, compactChars: 6_000,
-    maxOutputTokens: 4096, maxToolCalls: 6, estTokensPerWave: 5_000,
+    observation: 'delta',
+    mapEvery: 0,
+    rleMap: true,
+    gating: 'aggressive',
+    waveIntervalSec: 30,
+    compactChars: 6_000,
+    maxOutputTokens: 4096,
+    maxToolCalls: 6,
+    estTokensPerWave: 5_000,
     desc: '只发变化的字段、地图只在地形变化时发；钱不够做新动作且没有危险时不叫模型。适合本机小模型 / 省钱。',
   },
   balanced: {
-    observation: 'delta', mapEvery: 4, rleMap: false, gating: 'normal', waveIntervalSec: 15, compactChars: 16_000,
-    maxOutputTokens: 8192, maxToolCalls: 8, estTokensPerWave: 5_500,
+    observation: 'delta',
+    mapEvery: 4,
+    rleMap: false,
+    gating: 'normal',
+    waveIntervalSec: 15,
+    compactChars: 16_000,
+    maxOutputTokens: 8192,
+    maxToolCalls: 8,
+    estTokensPerWave: 5_500,
     desc: '首次完整、之后增量；每 4 次决策重发地图；没有买得起的有用动作时跳过。云端模型推荐。',
   },
   full: {
-    observation: 'full', mapEvery: 1, rleMap: false, gating: 'off', waveIntervalSec: 10, compactChars: 40_000,
-    maxOutputTokens: 16_000, maxToolCalls: 12, estTokensPerWave: 11_000,
+    observation: 'full',
+    mapEvery: 1,
+    rleMap: false,
+    gating: 'off',
+    waveIntervalSec: 10,
+    compactChars: 40_000,
+    maxOutputTokens: 16_000,
+    maxToolCalls: 12,
+    estTokensPerWave: 11_000,
     desc: '每次完整观测 + 地图，每个决策点都叫模型。最稳，也最贵。',
   },
 };
@@ -144,17 +171,84 @@ export interface PresetInfo {
 }
 
 export const PRESETS: Record<Preset, PresetInfo> = {
-  anthropic: { label: 'Anthropic', api: 'anthropic-messages', baseUrl: 'https://api.anthropic.com', local: false, defaultModel: 'claude-opus-5-5', envKey: 'ANTHROPIC_API_KEY' },
-  openai: { label: 'OpenAI', api: 'openai-responses', baseUrl: 'https://api.openai.com/v1', local: false, defaultModel: 'gpt-5-mini', envKey: 'OPENAI_API_KEY' },
-  google: { label: 'Google Gemini', api: 'google-generative-ai', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', local: false, defaultModel: 'gemini-2.5-flash', envKey: 'GEMINI_API_KEY' },
-  openrouter: { label: 'OpenRouter', api: 'openai-completions', baseUrl: 'https://openrouter.ai/api/v1', local: false, defaultModel: 'anthropic/claude-sonnet-4', envKey: 'OPENROUTER_API_KEY' },
-  deepseek: { label: 'DeepSeek', api: 'openai-completions', baseUrl: 'https://api.deepseek.com', local: false, defaultModel: 'deepseek-chat', envKey: 'DEEPSEEK_API_KEY' },
-  ollama: { label: 'Ollama（本机）', api: 'openai-completions', baseUrl: 'http://localhost:11434/v1', local: true, defaultModel: 'qwen3:8b', notes: '浏览器直连需 OLLAMA_ORIGINS' },
-  lmstudio: { label: 'LM Studio（本机）', api: 'openai-completions', baseUrl: 'http://localhost:1234/v1', local: true, defaultModel: 'qwen3-8b', notes: '浏览器直连需在 Server 设置里打开 Enable CORS' },
-  llamacpp: { label: 'llama.cpp server（本机）', api: 'openai-completions', baseUrl: 'http://localhost:8080/v1', local: true, defaultModel: 'local', notes: '启动参数加 --jinja 以启用工具调用' },
-  vllm: { label: 'vLLM（本机）', api: 'openai-completions', baseUrl: 'http://localhost:8000/v1', local: true, defaultModel: 'Qwen/Qwen3-8B', notes: '需 --enable-auto-tool-choice --tool-call-parser hermes' },
+  anthropic: {
+    label: 'Anthropic',
+    api: 'anthropic-messages',
+    baseUrl: 'https://api.anthropic.com',
+    local: false,
+    defaultModel: 'claude-opus-5-5',
+    envKey: 'ANTHROPIC_API_KEY',
+  },
+  openai: {
+    label: 'OpenAI',
+    api: 'openai-responses',
+    baseUrl: 'https://api.openai.com/v1',
+    local: false,
+    defaultModel: 'gpt-5-mini',
+    envKey: 'OPENAI_API_KEY',
+  },
+  google: {
+    label: 'Google Gemini',
+    api: 'google-generative-ai',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+    local: false,
+    defaultModel: 'gemini-2.5-flash',
+    envKey: 'GEMINI_API_KEY',
+  },
+  openrouter: {
+    label: 'OpenRouter',
+    api: 'openai-completions',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    local: false,
+    defaultModel: 'anthropic/claude-sonnet-4',
+    envKey: 'OPENROUTER_API_KEY',
+  },
+  deepseek: {
+    label: 'DeepSeek',
+    api: 'openai-completions',
+    baseUrl: 'https://api.deepseek.com',
+    local: false,
+    defaultModel: 'deepseek-chat',
+    envKey: 'DEEPSEEK_API_KEY',
+  },
+  ollama: {
+    label: 'Ollama（本机）',
+    api: 'openai-completions',
+    baseUrl: 'http://localhost:11434/v1',
+    local: true,
+    defaultModel: 'qwen3:8b',
+    notes: '浏览器直连需 OLLAMA_ORIGINS',
+  },
+  lmstudio: {
+    label: 'LM Studio（本机）',
+    api: 'openai-completions',
+    baseUrl: 'http://localhost:1234/v1',
+    local: true,
+    defaultModel: 'qwen3-8b',
+    notes: '浏览器直连需在 Server 设置里打开 Enable CORS',
+  },
+  llamacpp: {
+    label: 'llama.cpp server（本机）',
+    api: 'openai-completions',
+    baseUrl: 'http://localhost:8080/v1',
+    local: true,
+    defaultModel: 'local',
+    notes: '启动参数加 --jinja 以启用工具调用',
+  },
+  vllm: {
+    label: 'vLLM（本机）',
+    api: 'openai-completions',
+    baseUrl: 'http://localhost:8000/v1',
+    local: true,
+    defaultModel: 'Qwen/Qwen3-8B',
+    notes: '需 --enable-auto-tool-choice --tool-call-parser hermes',
+  },
   relay: {
-    label: '中转服务（OpenAI / Anthropic 兼容）', api: 'openai-completions', baseUrl: '', local: false, defaultModel: '',
+    label: '中转服务（OpenAI / Anthropic 兼容）',
+    api: 'openai-completions',
+    baseUrl: '',
+    local: false,
+    defaultModel: '',
     notes: '填中转站给你的地址和 Key 即可；请求由浏览器直接发给中转站（不经我们的服务器），中转站必须允许跨域（CORS）',
   },
   custom: { label: '自定义', api: 'openai-completions', baseUrl: 'http://localhost:8000/v1', local: false, defaultModel: '' },
@@ -173,7 +267,12 @@ export const DEFAULT_CONFIG: AgentModelConfig = {
 
 /** 补齐缺省值（预设 → api / baseUrl / model；小模型默认更低频） */
 export function resolveConfig(c: Partial<AgentModelConfig>): AgentModelConfig {
-  const out: AgentModelConfig = { ...DEFAULT_CONFIG, ...c, decision: { ...DEFAULT_CONFIG.decision, ...c.decision }, budget: { ...c.budget } } as AgentModelConfig;
+  const out: AgentModelConfig = {
+    ...DEFAULT_CONFIG,
+    ...c,
+    decision: { ...DEFAULT_CONFIG.decision, ...c.decision },
+    budget: { ...c.budget },
+  } as AgentModelConfig;
   if (out.provider === 'pi') {
     const p = PRESETS[out.preset ?? 'custom'];
     out.preset = out.preset ?? 'custom';
@@ -187,7 +286,8 @@ export function resolveConfig(c: Partial<AgentModelConfig>): AgentModelConfig {
   if (out.provider === 'scripted' && !c.model) out.model = 'scripted-v1';
   const local = isLocalConfig(out);
   // 上下文模式：显式 > 旧 contextBudget > 本机省流 / 其他均衡
-  out.contextMode = c.contextMode ?? (c.contextBudget === 'compact' ? 'saver' : c.contextBudget === 'full' ? 'full' : local ? 'saver' : 'balanced');
+  out.contextMode =
+    c.contextMode ?? (c.contextBudget === 'compact' ? 'saver' : c.contextBudget === 'full' ? 'full' : local ? 'saver' : 'balanced');
   const spec = CONTEXT_MODES[out.contextMode];
   if (out.decision!.waveIntervalSec === undefined) out.decision!.waveIntervalSec = spec.waveIntervalSec;
   if (out.maxToolCallsPerDecision === undefined) out.maxToolCallsPerDecision = spec.maxToolCalls;
@@ -201,7 +301,15 @@ export function resolveConfig(c: Partial<AgentModelConfig>): AgentModelConfig {
 /** CLI：--context saver|balanced|full|省流|均衡|完整（旧值 compact → 省流） */
 export function parseContextMode(v: string | undefined): ContextMode | undefined {
   if (!v) return undefined;
-  const m: Record<string, ContextMode> = { saver: 'saver', compact: 'saver', 省流: 'saver', balanced: 'balanced', 均衡: 'balanced', full: 'full', 完整: 'full' };
+  const m: Record<string, ContextMode> = {
+    saver: 'saver',
+    compact: 'saver',
+    省流: 'saver',
+    balanced: 'balanced',
+    均衡: 'balanced',
+    full: 'full',
+    完整: 'full',
+  };
   return m[v.trim().toLowerCase()] ?? m[v.trim()];
 }
 
@@ -245,7 +353,8 @@ export function validateConfigIssues(c: Partial<AgentModelConfig>): ConfigIssue[
   if (c.provider !== 'scripted' && c.provider !== 'bridge' && !c.model) add('noModel');
   if (c.provider === 'claude-native' && c.model && !c.model.startsWith('claude-')) add('claudeOnly');
   if (c.preset && !(c.preset in PRESETS)) add('preset', { v: c.preset });
-  if (c.api && !['anthropic-messages', 'openai-completions', 'openai-responses', 'google-generative-ai'].includes(c.api)) add('api', { v: c.api });
+  if (c.api && !['anthropic-messages', 'openai-completions', 'openai-responses', 'google-generative-ai'].includes(c.api))
+    add('api', { v: c.api });
   if (c.baseUrl) {
     try {
       const u = new URL(c.baseUrl);
@@ -275,9 +384,11 @@ export function validateConfigIssues(c: Partial<AgentModelConfig>): ConfigIssue[
   if (c.decision?.waveIntervalSec !== undefined && c.decision.waveIntervalSec < 0) {
     e.push({ code: 'negative:waveIntervalSec', text: t('agent.cfg.err.negative', { field: 'waveIntervalSec' }) });
   }
-  if (c.budget?.tokens !== undefined && c.budget.tokens <= 0) e.push({ code: 'positive:budget.tokens', text: t('agent.cfg.err.positive', { field: 'budget.tokens' }) });
+  if (c.budget?.tokens !== undefined && c.budget.tokens <= 0)
+    e.push({ code: 'positive:budget.tokens', text: t('agent.cfg.err.positive', { field: 'budget.tokens' }) });
   if (c.budget?.mode && !['soft', 'hard', 'ask'].includes(c.budget.mode)) oneOf('budget.mode', 'soft / hard / ask');
-  if (c.temperature !== undefined && (c.temperature < 0 || c.temperature > 2)) e.push({ code: 'range:temperature', text: t('agent.cfg.err.range', { field: 'temperature', range: '0..2' }) });
+  if (c.temperature !== undefined && (c.temperature < 0 || c.temperature > 2))
+    e.push({ code: 'range:temperature', text: t('agent.cfg.err.range', { field: 'temperature', range: '0..2' }) });
   return e;
 }
 

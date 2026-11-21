@@ -66,7 +66,8 @@ export function reportCard(app: App, s: AiRunSummary, hd: AiGameOverHandlers): H
     : t('agent.report.subSurvived', { n: s.info.wavesSurvived });
 
   let k = 0;
-  const stat = (label: string, value: string, title?: string) => h('div.go-stat', { style: `--i:${k++}`, title }, h('span.muted', null, label), h('b', null, value));
+  const stat = (label: string, value: string, title?: string) =>
+    h('div.go-stat', { style: `--i:${k++}`, title }, h('span.muted', null, label), h('b', null, value));
 
   const stats = h(
     'div.go-stats.ai-report-stats',
@@ -78,11 +79,23 @@ export function reportCard(app: App, s: AiRunSummary, hd: AiGameOverHandlers): H
     stat(
       t('agent.report.tokens'),
       fmtTokens(total),
-      t('agent.report.tokensTip', { input: fmtNum(s.usage.inputTokens), output: fmtNum(s.usage.outputTokens), cacheRead: fmtNum(s.usage.cacheReadTokens), cacheWrite: fmtNum(s.usage.cacheWriteTokens), n: s.usage.requests }),
+      t('agent.report.tokensTip', {
+        input: fmtNum(s.usage.inputTokens),
+        output: fmtNum(s.usage.outputTokens),
+        cacheRead: fmtNum(s.usage.cacheReadTokens),
+        cacheWrite: fmtNum(s.usage.cacheWriteTokens),
+        n: s.usage.requests,
+      }),
     ),
     stat(t('agent.report.cost'), fmtCost(s.costUsd), t('agent.report.costTip')),
-    stat(t('agent.report.decisions'), fmtNum(s.decisions), t('agent.report.toolCalls', { n: s.toolCalls }) + (s.errors ? ` · ${t('agent.report.errors', { n: s.errors })}` : '')),
-    isPlayer ? stat(t('agent.report.botShare'), `${botPct}%`, t('agent.report.botShareTip')) : stat(t('agent.report.adopted'), `${s.suggestions} / ${s.adopted}`),
+    stat(
+      t('agent.report.decisions'),
+      fmtNum(s.decisions),
+      t('agent.report.toolCalls', { n: s.toolCalls }) + (s.errors ? ` · ${t('agent.report.errors', { n: s.errors })}` : ''),
+    ),
+    isPlayer
+      ? stat(t('agent.report.botShare'), `${botPct}%`, t('agent.report.botShareTip'))
+      : stat(t('agent.report.adopted'), `${s.suggestions} / ${s.adopted}`),
   );
 
   const badges = h(
@@ -90,7 +103,11 @@ export function reportCard(app: App, s: AiRunSummary, hd: AiGameOverHandlers): H
     null,
     h('span.badge.ai-model-badge', null, s.launch.label),
     h('span.badge', null, s.mode === 'pause' ? t('agent.report.modePause') : t('agent.report.modeRealtime')),
-    s.switchedToBot ? h('span.badge.ai-bot-badge', null, t('agent.report.switchedToBot')) : flagged && isPlayer ? h('span.badge.ai-bot-badge', { title: t('agent.report.botPctTip', { pct: botPct }) }, t('agent.report.botHeavy')) : null,
+    s.switchedToBot
+      ? h('span.badge.ai-bot-badge', null, t('agent.report.switchedToBot'))
+      : flagged && isPlayer
+        ? h('span.badge.ai-bot-badge', { title: t('agent.report.botPctTip', { pct: botPct }) }, t('agent.report.botHeavy'))
+        : null,
     s.takenOver ? h('span.badge.pending', null, t('agent.report.takenOver')) : null,
   );
 
@@ -105,7 +122,12 @@ export function reportCard(app: App, s: AiRunSummary, hd: AiGameOverHandlers): H
     const nick = h('b.nick-name');
     const paintNick = (): void => setText(nick, getNickname() || t('agent.report.nickUnset'));
     let view: SubmitView = { kind: 'idle' };
-    const submitBtn = h<HTMLButtonElement>('button.btn.small.primary', { attrs: { type: 'button' } }, h('span.gi', { html: G.up }), t('agent.report.submit'));
+    const submitBtn = h<HTMLButtonElement>(
+      'button.btn.small.primary',
+      { attrs: { type: 'button' } },
+      h('span.gi', { html: G.up }),
+      t('agent.report.submit'),
+    );
     const paint = (): void => {
       const st = submitText(view);
       setText(status, st.text);
@@ -128,7 +150,12 @@ export function reportCard(app: App, s: AiRunSummary, hd: AiGameOverHandlers): H
         paintNick();
         view = { kind: 'sending' };
         paint();
-        view = outcomeView(await submitWorldRun(s.world as Parameters<typeof submitWorldRun>[0], { wavesSurvived: s.info.wavesSurvived, agent: agentMetaOf(s) }));
+        view = outcomeView(
+          await submitWorldRun(s.world as Parameters<typeof submitWorldRun>[0], {
+            wavesSurvived: s.info.wavesSurvived,
+            agent: agentMetaOf(s),
+          }),
+        );
         if (view.kind === 'done') audio.play('select');
       } catch (e) {
         console.warn('[ai] submit failed', e);
@@ -151,12 +178,24 @@ export function reportCard(app: App, s: AiRunSummary, hd: AiGameOverHandlers): H
       h('span.gi', { html: G.trophy }),
       t('agent.report.viewBoard'),
     );
-    const nickBtn = h('button.btn.small', { attrs: { type: 'button', 'aria-label': t('agent.report.editNick') }, onclick: async () => (audio.play('click'), (await askNickname()) && paintNick()) }, t('agent.report.rename'));
+    const nickBtn = h(
+      'button.btn.small',
+      {
+        attrs: { type: 'button', 'aria-label': t('agent.report.editNick') },
+        onclick: async () => (audio.play('click'), (await askNickname()) && paintNick()),
+      },
+      t('agent.report.rename'),
+    );
     online = h(
       'div.online-submit.ai-submit',
       null,
       h('div.os-line', null, h('span', null, boardLabel(board)), status),
-      h('div.os-line', null, h('span.online-nick', null, h('span.muted.small', null, t('agent.report.nick')), nick, nickBtn), h('span.os-actions', null, submitBtn, viewBtn)),
+      h(
+        'div.os-line',
+        null,
+        h('span.online-nick', null, h('span.muted.small', null, t('agent.report.nick')), nick, nickBtn),
+        h('span.os-actions', null, submitBtn, viewBtn),
+      ),
       scripted
         ? h('p.muted.small', null, t('agent.report.scriptedNote'))
         : flagged
@@ -181,7 +220,17 @@ export function reportCard(app: App, s: AiRunSummary, hd: AiGameOverHandlers): H
           onclick: () => {
             audio.play('click');
             const r = s.replay!;
-            openLocalReplay(app, { opts: { ...r.opts, seed: r.opts.seed ?? st.seed }, log: r.log, tick: st.tick }, { title: t('agent.report.replayTitle', { name: s.launch.label }), subtitle: campaign ? t('agent.report.campaign') : boardLabel(boardForOpts(s.opts, null)), wave: s.info.wavesSurvived, score: Math.round(s.info.score), trace: s.trace });
+            openLocalReplay(
+              app,
+              { opts: { ...r.opts, seed: r.opts.seed ?? st.seed }, log: r.log, tick: st.tick },
+              {
+                title: t('agent.report.replayTitle', { name: s.launch.label }),
+                subtitle: campaign ? t('agent.report.campaign') : boardLabel(boardForOpts(s.opts, null)),
+                wave: s.info.wavesSurvived,
+                score: Math.round(s.info.score),
+                trace: s.trace,
+              },
+            );
           },
         },
         h('span.gi', { html: G.eye }),
@@ -195,7 +244,17 @@ export function reportCard(app: App, s: AiRunSummary, hd: AiGameOverHandlers): H
     h(
       'div.dialog.card.gameover.ai-report',
       { attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-label': t('agent.report.aria') } },
-      h('div.go-head', null, h('span.go-ico', { html: s.info.won ? G.crown : G.skull }), h('h2', null, title), h('p.muted', null, `${isPlayer ? t('agent.report.rolePlayer') : t('agent.report.roleAdvisor')} · ${sub} · ${t('agent.report.time', { time: fmtDuration(s.seconds) })}`)),
+      h(
+        'div.go-head',
+        null,
+        h('span.go-ico', { html: s.info.won ? G.crown : G.skull }),
+        h('h2', null, title),
+        h(
+          'p.muted',
+          null,
+          `${isPlayer ? t('agent.report.rolePlayer') : t('agent.report.roleAdvisor')} · ${sub} · ${t('agent.report.time', { time: fmtDuration(s.seconds) })}`,
+        ),
+      ),
       badges,
       stats,
       online,
@@ -217,14 +276,27 @@ export function reportCard(app: App, s: AiRunSummary, hd: AiGameOverHandlers): H
           t('agent.report.again'),
         ),
         replayBtn,
-        h('button.btn.big', { attrs: { type: 'button' }, onclick: () => (audio.play('click'), app.go({ name: 'ai' })) }, h('span.gi', { html: G.sliders }), t('agent.report.changeModel')),
+        h(
+          'button.btn.big',
+          { attrs: { type: 'button' }, onclick: () => (audio.play('click'), app.go({ name: 'ai' })) },
+          h('span.gi', { html: G.sliders }),
+          t('agent.report.changeModel'),
+        ),
         h('button.btn.big', { attrs: { type: 'button' }, onclick: hd.menu }, h('span.gi', { html: G.back }), t('agent.report.menu')),
       ),
       h(
         'p.muted.small.center',
         null,
         `${t('agent.report.seed', { seed: st.seed })} `,
-        h('button.seed-btn', { attrs: { type: 'button' }, title: t('agent.report.copySeed'), onclick: async () => app.toast((await copyText(st.seed)) ? t('agent.report.seedCopied') : t('agent.report.copyFailed'), 'info') }, t('agent.report.copy')),
+        h(
+          'button.seed-btn',
+          {
+            attrs: { type: 'button' },
+            title: t('agent.report.copySeed'),
+            onclick: async () => app.toast((await copyText(st.seed)) ? t('agent.report.seedCopied') : t('agent.report.copyFailed'), 'info'),
+          },
+          t('agent.report.copy'),
+        ),
       ),
     ),
   );

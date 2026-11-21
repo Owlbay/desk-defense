@@ -54,10 +54,18 @@ function forms(id: TowerId): HTMLElement {
     return h(
       'div.guide-forms',
       null,
-      [1, 2, 3].map((lv) => h('figure.guide-form-fig', null, icon(towerIcon('wall', 1, null, lv), 'guide-ico big', 64), h('figcaption', null, t('guide.tower.col.level', { n: lv })))),
+      [1, 2, 3].map((lv) =>
+        h(
+          'figure.guide-form-fig',
+          null,
+          icon(towerIcon('wall', 1, null, lv), 'guide-ico big', 64),
+          h('figcaption', null, t('guide.tower.col.level', { n: lv })),
+        ),
+      ),
     );
   }
-  const fig = (src: string, caption: string, cls = '') => h(`figure.guide-form-fig${cls}`, null, icon(src, 'guide-ico big', 64), h('figcaption', null, caption));
+  const fig = (src: string, caption: string, cls = '') =>
+    h(`figure.guide-form-fig${cls}`, null, icon(src, 'guide-ico big', 64), h('figcaption', null, caption));
   return h(
     'div.guide-forms',
     null,
@@ -75,7 +83,9 @@ function statsTable(sheet: TowerSheet): HTMLElement {
       ? sheet.base.map((info) => ({ label: t('guide.tower.col.level', { n: info.level }), info }))
       : [
           { label: t('guide.tower.col.level', { n: 1 }), info: sheet.base[0] },
-          ...BRANCHES.flatMap((b) => (sheet.legend[b] ? [{ label: t('guide.tower.col.branch', { b }), info: sheet.legend[b] as TowerInfo }] : [])),
+          ...BRANCHES.flatMap((b) =>
+            sheet.legend[b] ? [{ label: t('guide.tower.col.branch', { b }), info: sheet.legend[b] as TowerInfo }] : [],
+          ),
         ];
   const labels: string[] = [];
   for (const c of cols) for (const s of c.info.stats) if (!labels.includes(s.label)) labels.push(s.label);
@@ -103,7 +113,12 @@ function traits(sheet: TowerSheet): HTMLElement | null {
         h(
           'div.guide-row-main',
           null,
-          h('div.guide-row-title', null, h('strong', null, tr.name), tag(comboDescs.has(tr.desc) ? t('guide.tower.trait.combo') : t('guide.tower.trait.level', { n: tr.unlockLevel }))),
+          h(
+            'div.guide-row-title',
+            null,
+            h('strong', null, tr.name),
+            tag(comboDescs.has(tr.desc) ? t('guide.tower.trait.combo') : t('guide.tower.trait.level', { n: tr.unlockLevel })),
+          ),
           h('p', null, tr.desc),
         ),
       ),
@@ -182,7 +197,9 @@ function detail(ctx: TabContext, id: TowerId): HTMLElement {
     ),
   );
 
-  const body: (HTMLElement | null)[] = [section(`${id}-forms`, id === 'wall' ? t('guide.tower.forms.wall') : t('guide.tower.forms'), forms(id))];
+  const body: (HTMLElement | null)[] = [
+    section(`${id}-forms`, id === 'wall' ? t('guide.tower.forms.wall') : t('guide.tower.forms'), forms(id)),
+  ];
   if (!sheet) body.push(h('p.muted', null, t('guide.tower.computeFail')));
   else {
     body.push(
@@ -202,7 +219,11 @@ function detail(ctx: TabContext, id: TowerId): HTMLElement {
         section(
           `${id}-branches`,
           t('guide.tower.branches'),
-          h('div.guide-branches', null, legends.map((b) => branchCard(id, b, sheet.legend[b] as TowerInfo))),
+          h(
+            'div.guide-branches',
+            null,
+            legends.map((b) => branchCard(id, b, sheet.legend[b] as TowerInfo)),
+          ),
         ),
       );
     }
@@ -215,7 +236,14 @@ function detail(ctx: TabContext, id: TowerId): HTMLElement {
     link(ctx, undefined, 'btn.small', t('guide.backToList')),
     link(ctx, next, 'btn.small', `${TOWER_META[next].name} ›`),
   );
-  return h('div.guide-tab.guide-detail', null, link(ctx, undefined, 'guide-back', h('span.gi', { html: G.back, attrs: { 'aria-hidden': 'true' } }), t('guide.backToList')), head, body, nav);
+  return h(
+    'div.guide-tab.guide-detail',
+    null,
+    link(ctx, undefined, 'guide-back', h('span.gi', { html: G.back, attrs: { 'aria-hidden': 'true' } }), t('guide.backToList')),
+    head,
+    body,
+    nav,
+  );
 }
 
 export const towerTab: TabModule = {

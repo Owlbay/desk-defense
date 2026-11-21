@@ -69,13 +69,21 @@ function castSkillArgs(tokens: string[]): Record<string, unknown> {
 /** 解析一条动作；认不出或不合 Schema 时返回 null */
 export function parseAction(raw: string): ParsedAction | null {
   if (typeof raw !== 'string') return null;
-  let s = raw.trim().replace(/^[-*•\d.)\s`]+(?=[a-z_]+)/i, '').replace(/[`;\s]+$/g, '').trim();
+  let s = raw
+    .trim()
+    .replace(/^[-*•\d.)\s`]+(?=[a-z_]+)/i, '')
+    .replace(/[`;\s]+$/g, '')
+    .trim();
   const m = /^([a-z_]+)\s*(.*)$/is.exec(s);
   if (!m) return null;
   // act 的短名字（place / upgrade / branch …）也认
   const name = ACT_TO_LEGACY[m[1].toLowerCase()] ?? m[1].toLowerCase();
   if (!TOOL_NAMES.has(name)) return null;
-  s = m[2].trim().replace(/^[:(]\s*/, '').replace(/\)\s*;?$/, '').trim();
+  s = m[2]
+    .trim()
+    .replace(/^[:(]\s*/, '')
+    .replace(/\)\s*;?$/, '')
+    .trim();
   let input: Record<string, unknown> = {};
   if (s.startsWith('{')) {
     try {
@@ -117,8 +125,10 @@ export function applyAction(world: IWorld, send: (c: Command) => CommandResult, 
 
 // ───────────── 动作短描述（界面显示，跟随语言） ─────────────
 
-const towerName = (id: unknown): string => (typeof id === 'string' ? (TOWER_META[id as keyof typeof TOWER_META]?.name ?? id) : t('agent.actions.tower'));
-const skillName = (id: unknown): string => (typeof id === 'string' ? (SKILL_META[id as keyof typeof SKILL_META]?.name ?? id) : t('agent.actions.skill'));
+const towerName = (id: unknown): string =>
+  typeof id === 'string' ? (TOWER_META[id as keyof typeof TOWER_META]?.name ?? id) : t('agent.actions.tower');
+const skillName = (id: unknown): string =>
+  typeof id === 'string' ? (SKILL_META[id as keyof typeof SKILL_META]?.name ?? id) : t('agent.actions.skill');
 const TARGET_MODES = new Set(['first', 'last', 'strong', 'weak', 'close', 'air']);
 const CRATE_OPTIONS = new Set(['gold', 'lives', 'cooldown', 'xp', 'caffeine', 'charge']);
 const targetName = (m: string): string => (TARGET_MODES.has(m) ? t(`agent.actions.target.${m}`) : m);
@@ -134,21 +144,36 @@ export function describeCall(world: IWorld | null, name: string, input: unknown)
   const i = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
   const at = i.x !== undefined && i.y !== undefined ? t('agent.actions.at', { x: String(i.x), y: String(i.y) }) : '';
   switch (name) {
-    case 'place_tower': return t('agent.actions.place', { tower: towerName(i.tower), at });
-    case 'upgrade_tower': return t('agent.actions.upgrade', { tower: towerRef(world, i.uid) });
-    case 'choose_branch': return t('agent.actions.branch', { tower: towerRef(world, i.uid), branch: String(i.branch) });
-    case 'evolve_tower': return t('agent.actions.evolve', { tower: towerRef(world, i.uid) });
-    case 'sell_tower': return t('agent.actions.sell', { tower: towerRef(world, i.uid) });
-    case 'set_target_mode': return t('agent.actions.targetMode', { tower: towerRef(world, i.uid), mode: targetName(String(i.mode)) });
-    case 'cast_skill': return t('agent.actions.cast', { skill: skillName(i.skill), at });
-    case 'tower_ability': return t('agent.actions.ability', { tower: towerRef(world, i.uid), at });
-    case 'choose_perk': return t('agent.actions.perk', { id: String(i.id) });
-    case 'reroll_perks': return t('agent.actions.reroll');
-    case 'collect_pickup': return i.uid === undefined ? t('agent.actions.collectAll') : t('agent.actions.collect');
-    case 'choose_crate': return t('agent.actions.crate', { option: crateName(String(i.option)) });
-    case 'demolish_spawner': return t('agent.actions.demolish', { id: String(i.id) });
-    case 'start_wave': return t('agent.actions.startWave');
-    default: return null;
+    case 'place_tower':
+      return t('agent.actions.place', { tower: towerName(i.tower), at });
+    case 'upgrade_tower':
+      return t('agent.actions.upgrade', { tower: towerRef(world, i.uid) });
+    case 'choose_branch':
+      return t('agent.actions.branch', { tower: towerRef(world, i.uid), branch: String(i.branch) });
+    case 'evolve_tower':
+      return t('agent.actions.evolve', { tower: towerRef(world, i.uid) });
+    case 'sell_tower':
+      return t('agent.actions.sell', { tower: towerRef(world, i.uid) });
+    case 'set_target_mode':
+      return t('agent.actions.targetMode', { tower: towerRef(world, i.uid), mode: targetName(String(i.mode)) });
+    case 'cast_skill':
+      return t('agent.actions.cast', { skill: skillName(i.skill), at });
+    case 'tower_ability':
+      return t('agent.actions.ability', { tower: towerRef(world, i.uid), at });
+    case 'choose_perk':
+      return t('agent.actions.perk', { id: String(i.id) });
+    case 'reroll_perks':
+      return t('agent.actions.reroll');
+    case 'collect_pickup':
+      return i.uid === undefined ? t('agent.actions.collectAll') : t('agent.actions.collect');
+    case 'choose_crate':
+      return t('agent.actions.crate', { option: crateName(String(i.option)) });
+    case 'demolish_spawner':
+      return t('agent.actions.demolish', { id: String(i.id) });
+    case 'start_wave':
+      return t('agent.actions.startWave');
+    default:
+      return null;
   }
 }
 

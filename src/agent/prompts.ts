@@ -29,9 +29,13 @@ function towersSection(): string {
     const evo = EVOLUTION[t.id];
     const br = t.id === 'wall' ? '' : ` | A ${t.A.name}: ${t.A.desc} | B ${t.B.name}: ${t.B.desc}`;
     const ab = evo ? ` | ★3 A=${evo.A.ability.id} B=${evo.B.ability.id}` : '';
-    lines.push(`- ${t.id} ${t.name} ${t.cost}g | ${t.role}: ${t.desc} | ${hits}${stats} | L4 ${t.t2.name}: ${t.t2.desc}; L7 ${t.t3.name}: ${t.t3.desc}${br}${ab}`);
+    lines.push(
+      `- ${t.id} ${t.name} ${t.cost}g | ${t.role}: ${t.desc} | ${hits}${stats} | L4 ${t.t2.name}: ${t.t2.desc}; L7 ${t.t3.name}: ${t.t3.desc}${br}${ab}`,
+    );
   }
-  lines.push(`Tiers: ${Object.values(TIER_NAMES).join('/')}. Levels 1..10 (wall 1..3). Towers gain XP from attacking and level up for free; gold upgrades are discounted by XP. Lv9→10 requires choosing branch A or B. Lv10 towers can evolve ★1..★3 with gold/XP; ★3 gives an active ability.`);
+  lines.push(
+    `Tiers: ${Object.values(TIER_NAMES).join('/')}. Levels 1..10 (wall 1..3). Towers gain XP from attacking and level up for free; gold upgrades are discounted by XP. Lv9→10 requires choosing branch A or B. Lv10 towers can evolve ★1..★3 with gold/XP; ★3 gives an active ability.`,
+  );
   return lines.join('\n');
 }
 
@@ -45,7 +49,8 @@ function enemiesSection(): string {
 
 function skillsSection(): string {
   const lines = ['## Player skills (id name cooldown target: desc)'];
-  for (const k of Object.values(SKILLS)) lines.push(`- ${k.id} ${k.name} cd${k.cd}s ${k.target}${k.radius ? ` r${k.radius}` : ''}: ${k.desc}`);
+  for (const k of Object.values(SKILLS))
+    lines.push(`- ${k.id} ${k.name} cd${k.cd}s ${k.target}${k.radius ? ` r${k.radius}` : ''}: ${k.desc}`);
   return lines.join('\n');
 }
 
@@ -59,7 +64,10 @@ function perksSection(): string {
 
 function abilitiesSection(): string {
   const lines = ['## Mythic abilities (★3; id form name cd target: desc)'];
-  for (const a of Object.values(ABILITIES)) lines.push(`- ${a.id} ${a.form}·${a.name} cd${a.cd}s${a.chargeWaves ? ` (charge every ${a.chargeWaves} waves)` : ''} ${a.target}: ${a.desc}`);
+  for (const a of Object.values(ABILITIES))
+    lines.push(
+      `- ${a.id} ${a.form}·${a.name} cd${a.cd}s${a.chargeWaves ? ` (charge every ${a.chargeWaves} waves)` : ''} ${a.target}: ${a.desc}`,
+    );
   return lines.join('\n');
 }
 
@@ -71,13 +79,20 @@ function eventsSection(): string {
 
 export function catalogText(section: CatalogSection = 'all'): string {
   switch (section) {
-    case 'towers': return towersSection();
-    case 'enemies': return enemiesSection();
-    case 'skills': return skillsSection();
-    case 'perks': return perksSection();
-    case 'abilities': return abilitiesSection();
-    case 'events': return eventsSection();
-    default: return [towersSection(), enemiesSection(), skillsSection(), perksSection(), abilitiesSection(), eventsSection()].join('\n\n');
+    case 'towers':
+      return towersSection();
+    case 'enemies':
+      return enemiesSection();
+    case 'skills':
+      return skillsSection();
+    case 'perks':
+      return perksSection();
+    case 'abilities':
+      return abilitiesSection();
+    case 'events':
+      return eventsSection();
+    default:
+      return [towersSection(), enemiesSection(), skillsSection(), perksSection(), abilitiesSection(), eventsSection()].join('\n\n');
   }
 }
 
@@ -89,14 +104,16 @@ export function catalogEntry(id: string): string | null {
     const evo = EVOLUTION[t.id];
     const lines = [
       `${t.id} ${t.name} ${t.cost}g | ${t.role}: ${t.desc} | hits ${hits}${t.attacks ? ` | Lv1 ${t.damage}dmg/${t.interval}s r${t.range}` : ''}`,
-      `L4 ${t.t2.name}: ${t.t2.desc}`, `L7 ${t.t3.name}: ${t.t3.desc}`,
+      `L4 ${t.t2.name}: ${t.t2.desc}`,
+      `L7 ${t.t3.name}: ${t.t3.desc}`,
     ];
     if (t.id !== 'wall') lines.push(`A ${t.A.name}: ${t.A.desc}`, `B ${t.B.name}: ${t.B.desc}`);
     if (evo) lines.push(`★3 A=${evo.A.ability.id} B=${evo.B.ability.id}`);
     return lines.join('\n');
   }
   const e = (ENEMIES as Record<string, (typeof ENEMIES)[keyof typeof ENEMIES]>)[id];
-  if (e) return `${e.id} ${e.name}: ${e.desc} | hp${e.hp} spd${e.speed} armor${e.armor} lives${e.lives}${e.flying ? ' [air]' : ''}${e.boss ? ' [boss]' : ''}`;
+  if (e)
+    return `${e.id} ${e.name}: ${e.desc} | hp${e.hp} spd${e.speed} armor${e.armor} lives${e.lives}${e.flying ? ' [air]' : ''}${e.boss ? ' [boss]' : ''}`;
   const k = (SKILLS as Record<string, (typeof SKILLS)[keyof typeof SKILLS]>)[id];
   if (k) return `${k.id} ${k.name} cd${k.cd}s ${k.target}${k.radius ? ` r${k.radius}` : ''}: ${k.desc}`;
   const a = (ABILITIES as Record<string, (typeof ABILITIES)[keyof typeof ABILITIES]>)[id];
@@ -131,14 +148,16 @@ const TOWER_USE: Record<string, string> = {
 };
 
 /** 台灯（持续光束 / 递增 / 光棱联动，docs/notes-lamp-for-agent.md）；静态文本 */
-const LAMP_NOTE = 'Lamp: beam ignores armor, +60%/s on one target up to 3x, resets on retarget: bosses/armor/long straights, weak vs swarms/fast. ' +
-  'Lamps <=2.5 apart link (group max 4, unlimited with an A laser); the lead beam gets the others\' light (4 equal ~3.9x). ' +
+const LAMP_NOTE =
+  'Lamp: beam ignores armor, +60%/s on one target up to 3x, resets on retarget: bosses/armor/long straights, weak vs swarms/fast. ' +
+  "Lamps <=2.5 apart link (group max 4, unlimited with an A laser); the lead beam gets the others' light (4 equal ~3.9x). " +
   'Before boss waves cluster 3-4 lamps 2 cells apart by the boss lane; vs swarms spread them. A: 5x ramp, overload when a boss enters.';
 
 /** 怪物类随机事件的应对（ev 行；EG = 金色目标）；静态文本 */
-const EVENT_NOTE = 'Events (ev; EG = coin targets): goldbag gb fast, regens if unhit 2s: focus fire + eraser_strike/slow, kill = coins (pu), leak steals gold | golden elite (EG) drops coins: target it | ' +
+const EVENT_NOTE =
+  'Events (ev; EG = coin targets): goldbag gb fast, regens if unhit 2s: focus fire + eraser_strike/slow, kill = coins (pu), leak steals gold | golden elite (EG) drops coins: target it | ' +
   'tea_break heal / shield_supply: burst skills, pen halves heal, eraser 3x shield | medic_squad wo: pen/aoe | ' +
-  'frenzy (+30% speed, +50% kill gold) / bounty (2x kill gold): slow + buy DPS now | training 2x XP: keep towers firing, don\'t sell.';
+  "frenzy (+30% speed, +50% kill gold) / bounty (2x kill gold): slow + buy DPS now | training 2x XP: keep towers firing, don't sell.";
 
 /**
  * 速查表（固定前缀的第二块，≈600 token）：塔一行一个（价格 / 定位 / 对空 / Lv1 数值 / 传奇分支名）、
@@ -151,8 +170,13 @@ export function cheatSheet(): string {
     const br = t.id === 'wall' ? '' : ` A:${t.A.name} B:${t.B.name}`;
     return `${TOWER_CHAR[t.id]} ${t.id} ${t.cost}g ${t.role} ${hits}${st}${br}`;
   });
-  const en = Object.values(ENEMIES).map((e) => `${ENEMY_CODE[e.id]} ${e.id} hp${e.hp} v${e.speed}${e.armor ? ` ar${e.armor}` : ''}${e.flying ? ' air' : ''}${e.boss ? ' boss' : ''} → ${counterOf(e)}`);
-  const sk = Object.values(SKILLS).map((k) => `${k.id}(${k.target},cd${k.cd})`).join(' ');
+  const en = Object.values(ENEMIES).map(
+    (e) =>
+      `${ENEMY_CODE[e.id]} ${e.id} hp${e.hp} v${e.speed}${e.armor ? ` ar${e.armor}` : ''}${e.flying ? ' air' : ''}${e.boss ? ' boss' : ''} → ${counterOf(e)}`,
+  );
+  const sk = Object.values(SKILLS)
+    .map((k) => `${k.id}(${k.target},cd${k.cd})`)
+    .join(' ');
   return [
     '# Cheat sheet (static; full data: get_catalog)',
     'Towers (map char, id, cost, role, hits G/A, Lv1 dmg/interval range, Lv10 branches):',
@@ -161,7 +185,9 @@ export function cheatSheet(): string {
     ...en,
     `Skills: ${sk}`,
     `Affixes: ${Object.keys(AFFIXES).join(' ')}`,
-    `Use: ${Object.entries(TOWER_USE).map(([id, u]) => `${id} ${u}`).join(' | ')}`,
+    `Use: ${Object.entries(TOWER_USE)
+      .map(([id, u]) => `${id} ${u}`)
+      .join(' | ')}`,
     `Purposes (enemy → purpose; {do:"build_near",purpose} picks): ${PURPOSES.map(purposeText).join(' ')}`,
     `Combos (orthogonally adjacent, auto; {do:"combo",pair}): ${COMBOS.map((c) => `${c.a}+${c.b} ${c.desc}`).join(' | ')}`,
     'Wall next to attack towers: upgrade Lv2 (+15g) range+5%, Lv3 (+30g) +5% dmg. Swapping a wall for a tower keeps the maze (towers block too).',
@@ -195,8 +221,11 @@ const RULES_V1 = `You play 书桌防线 / Desk Defense (deterministic maze tower
 
 # STATE keys (after the first decision you get Δ = only changed keys; T+ changed/new towers, T- removed uids, _unset removed keys)
 t time s | ph phase | w wave/total | g gold | hp lives | sc score | aw auto-wave | T towers "#uid id x,y Llevel [A|B] [★n] [x xp%] [t=target] [up cost|br cost=needs branch] [ev evolve cost] (costs rounded up to 5) [ab R|cd]" | W walls "uid@x,y" | E enemy groups "code×n hp% far/mid/near [A air] [B boss] [e elite] [h hidden]" | Ef enemy nearest exit | EB bosses | EG coin targets | nx next wave "wN [tags] | spawner: code×n" | R ground routes "spawner:waypoints Llen" (turn points only; warn = air-drop landing soon) | Rs longest straight segments "spawner a>b Llen b=buildable cells beside" | Rp best tower spots "x,y:route cells within r2.5" | Ra flight lines "spawner from>to Llen aa% covering towers" | sk skills id:R|cd | ev events | sp drop boxes | pu pickups | perk offer | crate options | own perks | b build prices ("base" = cheat-sheet prices; else differences, locked, max) | rc since last decision | pe queued errors.
-- MAP (sent when terrain changes): rows y, cols x (0..9,a,b). . empty | # obstacle | S spawn | X exit | d drop warning | D drop spawn | route letters a,b,c… (+ overlap, ~ future drop route) | towers: ${Object.entries(TOWER_CHAR).map(([k, v]) => `${v}=${k}`).join(' ')}. "(RLE)" rows: "3." = "...".`;
-
+- MAP (sent when terrain changes): rows y, cols x (0..9,a,b). . empty | # obstacle | S spawn | X exit | d drop warning | D drop spawn | route letters a,b,c… (+ overlap, ~ future drop route) | towers: ${Object.entries(
+  TOWER_CHAR,
+)
+  .map(([k, v]) => `${v}=${k}`)
+  .join(' ')}. "(RLE)" rows: "3." = "...".`;
 
 const RULES_HEAD = `You play 书桌防线 / Desk Defense (deterministic maze tower defense) through tools.
 
@@ -228,7 +257,11 @@ Example (build, g140, nx [air]): act {actions:[{do:"anti_air"},{do:"maze",budget
 # STATE keys (after the first decision you get Δ = only changed keys; T+ changed/new towers, T- removed uids, _unset removed keys)
 t time s | ph phase | w wave/total | g gold | hp lives | sc score | aw auto-wave | T towers "#uid id x,y Llevel [A|B] [★n] [x xp%] [t=target] [up cost|br cost=needs branch] [ev evolve cost] (costs rounded up to 5) [ab R|cd]" | W walls "uid@x,y" | E enemy groups "code×n hp% far/mid/near [A air] [B boss] [e elite] [h hidden]" | Ef enemy nearest exit | EB bosses | EG coin targets | nx next wave "wN [tags] | spawner: code×n" | R ground routes "sp:turn points Llen" (warn = drop landing soon) | Rs long straights "sp a>b Llen b=free cells beside" | Rp best spots "x,y:route cells in r2.5" | Ra flight lines "sp from>to Llen aa% towers" | sk skills id:R|cd | ev events | sp drop boxes | pu pickups | perk offer | crate options | own perks | b prices ("base" = cheat sheet; else diffs/locked/max) | rc since last decision | pe queued errors.
 - Extra lines: BR TH CTR LK GAP KH RC CB MZ (above), IDLE unspent gold, EVT event tips.
-- MAP (sent when terrain changes): rows y, cols x (0..9,a,b). . empty | # obstacle | S spawn | X exit | d drop warning | D drop spawn | route letters a,b,c… (+ overlap, ~ future drop route) | towers: ${Object.entries(TOWER_CHAR).map(([k, v]) => `${v}=${k}`).join(' ')}. "(RLE)" rows: "3." = "...".`;
+- MAP (sent when terrain changes): rows y, cols x (0..9,a,b). . empty | # obstacle | S spawn | X exit | d drop warning | D drop spawn | route letters a,b,c… (+ overlap, ~ future drop route) | towers: ${Object.entries(
+  TOWER_CHAR,
+)
+  .map(([k, v]) => `${v}=${k}`)
+  .join(' ')}. "(RLE)" rows: "3." = "...".`;
 
 const ROLE_TEXT: Record<AgentRole, string> = {
   player: `# Role: AI player (defender). Maximize waves survived and score.`,
@@ -248,8 +281,10 @@ export function systemBlocks(role: AgentRole, assist = true): [string, string] {
 export function runHeader(opts: RunOptions, w: IWorld): string {
   const st = w.state;
   const all = st.unlockedTowers.length >= Object.keys(TOWERS).length;
-  return `Game: mode ${opts.mode}, map ${opts.map}, difficulty ${opts.difficulty}${opts.abyssLevel ? ` ${opts.abyssLevel}` : ''}, seed ${st.seed}, ` +
-    `skills ${st.skills.map((k) => k.id).join(',')}, autoWave ${st.autoWave.enabled ? 'on' : 'off'}, towers ${all ? 'all unlocked' : st.unlockedTowers.join(',')}.`;
+  return (
+    `Game: mode ${opts.mode}, map ${opts.map}, difficulty ${opts.difficulty}${opts.abyssLevel ? ` ${opts.abyssLevel}` : ''}, seed ${st.seed}, ` +
+    `skills ${st.skills.map((k) => k.id).join(',')}, autoWave ${st.autoWave.enabled ? 'on' : 'off'}, towers ${all ? 'all unlocked' : st.unlockedTowers.join(',')}.`
+  );
 }
 
 const REASON_TEXT: Record<string, string> = {
@@ -283,7 +318,10 @@ export function decisionMessage(header: string, point: DecisionPoint, observatio
 export function decisionMessage(a: string | DecisionMessageParts, point?: DecisionPoint, observation?: string, extra?: string): string {
   const p: DecisionMessageParts = typeof a === 'string' ? { header: a, point: point!, observation: observation!, extra } : a;
   const why = p.point.reasons.map((r) => REASON_TEXT[r] ?? r).join('; ');
-  const lines = [...(p.header ? [p.header] : []), `Decision #${p.point.seq} t=${p.point.time.toFixed(1)}s: ${why}.${p.skipped ? ` (${p.skipped} quiet checks skipped)` : ''}`];
+  const lines = [
+    ...(p.header ? [p.header] : []),
+    `Decision #${p.point.seq} t=${p.point.time.toFixed(1)}s: ${why}.${p.skipped ? ` (${p.skipped} quiet checks skipped)` : ''}`,
+  ];
   if (p.extra) lines.push(p.extra);
   if (p.memo) lines.push(`MEMO ${p.memo}`);
   lines.push(p.delta ? 'STATE Δ' : 'STATE', p.observation, 'Act now: one act call with all actions + end.');

@@ -9,15 +9,7 @@
  *       只有最近 30 张决策卡片是展开的，更早的折叠成一行（点开再渲染），总数超过 300 张丢最旧的；长文本截断显示。
  * 隐私：内容全部来自已脱敏的 AgentTrace（src/agent/trace.ts），只在本机浏览器里。
  */
-import {
-  argsLine,
-  budgetTokens,
-  computeTotals,
-  emptyUsage,
-  type AgentTrace,
-  type TokenUsage,
-  type TraceEvent,
-} from '../../agent';
+import { argsLine, budgetTokens, computeTotals, emptyUsage, type AgentTrace, type TokenUsage, type TraceEvent } from '../../agent';
 import { fmtNumber, onLocaleChange, t } from '../../i18n';
 import '../../styles/ai-trace.css';
 import { audio } from '../audio';
@@ -116,8 +108,19 @@ interface Card {
 }
 
 const newCard = (d: number): Card => ({
-  d, segs: [], tools: new Map(), reqs: new Map(), usage: emptyUsage(), cost: 0, latency: 0, search: '',
-  full: true, pinned: false, dirtyHead: true, pending: [], opsDirty: true,
+  d,
+  segs: [],
+  tools: new Map(),
+  reqs: new Map(),
+  usage: emptyUsage(),
+  cost: 0,
+  latency: 0,
+  search: '',
+  full: true,
+  pinned: false,
+  dirtyHead: true,
+  pending: [],
+  opsDirty: true,
 });
 
 // ───────────────────────── 小组件 ─────────────────────────
@@ -128,12 +131,21 @@ function codeBlock(label: string, get: () => string, opts: { copyText?: () => st
   const info = h('small.muted.tr-code-size');
   const more = h<HTMLButtonElement>('button.btn.small.tr-more', { attrs: { type: 'button' } });
   more.hidden = true;
-  const copyBtn = h<HTMLButtonElement>('button.btn.small.tr-copy', { attrs: { type: 'button', 'aria-label': t('agent.trace.copyLabel', { label }) } }, h('span.gi', { html: G.copy }), t('agent.trace.copy'));
+  const copyBtn = h<HTMLButtonElement>(
+    'button.btn.small.tr-copy',
+    { attrs: { type: 'button', 'aria-label': t('agent.trace.copyLabel', { label }) } },
+    h('span.gi', { html: G.copy }),
+    t('agent.trace.copy'),
+  );
   let full = false;
   const paint = (): void => {
     const text = get();
     const cut = !full && text.length > SHOW_CHARS;
-    pre.textContent = cut ? `${text.slice(0, SHOW_CHARS)}\n…` : text.length > EXPAND_MAX ? `${text.slice(0, EXPAND_MAX)}\n…${t('agent.trace.tooLong', { count: fmtNumber(EXPAND_MAX) })}` : text;
+    pre.textContent = cut
+      ? `${text.slice(0, SHOW_CHARS)}\n…`
+      : text.length > EXPAND_MAX
+        ? `${text.slice(0, EXPAND_MAX)}\n…${t('agent.trace.tooLong', { count: fmtNumber(EXPAND_MAX) })}`
+        : text;
     setText(info, t('agent.trace.chars', { count: fmtNumber(text.length) }));
     more.hidden = !cut;
     if (cut) more.textContent = t('agent.trace.expandAll', { count: fmtNumber(text.length) });
@@ -168,7 +180,10 @@ function lazyDetails(cls: string, summary: string, build: () => HTMLElement): HT
 
 const prettyJson = (s: string | undefined): string => s ?? t('agent.trace.none');
 
-const fmtMs = (ms: number): string => (ms >= 1000 ? t('agent.trace.sec', { s: fmtNumber(ms / 1000, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }) : `${Math.round(ms)} ms`);
+const fmtMs = (ms: number): string =>
+  ms >= 1000
+    ? t('agent.trace.sec', { s: fmtNumber(ms / 1000, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) })
+    : `${Math.round(ms)} ms`;
 
 const usageLine = (u: TokenUsage): string => {
   const parts = [`${t('agent.trace.newInput')} ${fmtTokens(u.inputTokens)}`];
@@ -180,8 +195,16 @@ const usageLine = (u: TokenUsage): string => {
 
 /** 结束原因 → 文案 key 后缀 */
 const STOP_KEY: Record<string, string> = {
-  end_turn: 'endTurn', tool_use: 'toolUse', toolUse: 'toolUse', stop: 'endTurn', length: 'maxTokens', max_tokens: 'maxTokens',
-  refusal: 'refusal', error: 'error', aborted: 'aborted', pause_turn: 'pause',
+  end_turn: 'endTurn',
+  tool_use: 'toolUse',
+  toolUse: 'toolUse',
+  stop: 'endTurn',
+  length: 'maxTokens',
+  max_tokens: 'maxTokens',
+  refusal: 'refusal',
+  error: 'error',
+  aborted: 'aborted',
+  pause_turn: 'pause',
 };
 const stopName = (stop: string): string => (STOP_KEY[stop] ? t(`agent.trace.stop.${STOP_KEY[stop]}`) : stop);
 
@@ -257,7 +280,11 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
   const followBtn = h<HTMLButtonElement>('button.btn.small.tr-follow', { attrs: { type: 'button', 'aria-pressed': 'true' } });
   L(() => setText(followBtn, t('agent.trace.follow')));
   followBtn.hidden = !live;
-  const collapseBtn = h<HTMLButtonElement>('button.btn.icon-btn.small.tr-collapse', { attrs: { type: 'button' } }, h('span.gi', { html: G.close }));
+  const collapseBtn = h<HTMLButtonElement>(
+    'button.btn.icon-btn.small.tr-collapse',
+    { attrs: { type: 'button' } },
+    h('span.gi', { html: G.close }),
+  );
   const toolsBtn = h<HTMLButtonElement>('button.btn.small.tr-tools-btn', { attrs: { type: 'button', 'aria-expanded': 'false' } });
   L(() => setText(toolsBtn, t('agent.trace.filter')));
   const opsBtn = h<HTMLButtonElement>('button.btn.small.tr-ops-btn', { attrs: { type: 'button', 'aria-pressed': 'false' } });
@@ -276,11 +303,19 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
   opsSum.hidden = !opsSrc;
   // 抽屉（窄屏）：思路 | 操作 两页
   const tabBtn = (v: 'trace' | 'ops', key: string) => {
-    const b = h<HTMLButtonElement>(`button.seg${tab === v ? '.on' : ''}`, { attrs: { type: 'button', role: 'tab', 'aria-selected': tab === v ? 'true' : 'false' }, data: { v } });
+    const b = h<HTMLButtonElement>(`button.seg${tab === v ? '.on' : ''}`, {
+      attrs: { type: 'button', role: 'tab', 'aria-selected': tab === v ? 'true' : 'false' },
+      data: { v },
+    });
     L(() => setText(b, t(key)));
     return b;
   };
-  const tabs = h('div.segs.tr-view-tabs', { attrs: { role: 'tablist' } }, tabBtn('trace', 'agent.ops.tab.trace'), tabBtn('ops', 'agent.ops.tab.ops'));
+  const tabs = h(
+    'div.segs.tr-view-tabs',
+    { attrs: { role: 'tablist' } },
+    tabBtn('trace', 'agent.ops.tab.trace'),
+    tabBtn('ops', 'agent.ops.tab.ops'),
+  );
   L(() => tabs.setAttribute('aria-label', t('agent.ops.tabsLabel')));
   // 分栏：两栏的列标题 + 中间的拖动条（改操作解读栏宽度）
   const colTraceText = h('b');
@@ -292,14 +327,29 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
   });
   const splitter = h('div.tr-splitter', { attrs: { role: 'separator', 'aria-orientation': 'vertical', tabindex: 0 } });
   L(() => splitter.setAttribute('aria-label', t('agent.ops.resizeCol')));
-  const colHead = h('div.tr-colhead', { attrs: { 'aria-hidden': 'false' } }, h('div.tr-colhead-trace', null, colTraceText), splitter, h('div.tr-colhead-ops', null, colOpsText));
+  const colHead = h(
+    'div.tr-colhead',
+    { attrs: { 'aria-hidden': 'false' } },
+    h('div.tr-colhead-trace', null, colTraceText),
+    splitter,
+    h('div.tr-colhead-ops', null, colOpsText),
+  );
 
   const segBtn = (v: string, key: string) => {
-    const b = h<HTMLButtonElement>(`button.seg${filter === v ? '.on' : ''}`, { attrs: { type: 'button', 'aria-pressed': filter === v ? 'true' : 'false' }, data: { v } });
+    const b = h<HTMLButtonElement>(`button.seg${filter === v ? '.on' : ''}`, {
+      attrs: { type: 'button', 'aria-pressed': filter === v ? 'true' : 'false' },
+      data: { v },
+    });
     L(() => setText(b, t(key)));
     return b;
   };
-  const filters = h('div.segs.tr-filters', { attrs: { role: 'group' } }, segBtn('all', 'agent.trace.filterAll'), segBtn('thinking', 'agent.trace.filterThinking'), segBtn('tools', 'agent.trace.filterTools'));
+  const filters = h(
+    'div.segs.tr-filters',
+    { attrs: { role: 'group' } },
+    segBtn('all', 'agent.trace.filterAll'),
+    segBtn('thinking', 'agent.trace.filterThinking'),
+    segBtn('tools', 'agent.trace.filterTools'),
+  );
   L(() => filters.setAttribute('aria-label', t('agent.trace.filter')));
   const rawToggle = h<HTMLInputElement>('input', { attrs: { type: 'checkbox' } });
   rawToggle.checked = showRaw;
@@ -319,7 +369,8 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
 
   const list = h('ol.tr-list', { attrs: { 'aria-live': 'off' } });
   const empty = h('p.tr-empty.muted');
-  const paintEmpty = (): void => setText(empty, query ? t('agent.trace.noMatch') : live ? t('agent.trace.emptyLive') : t('agent.trace.emptyDone'));
+  const paintEmpty = (): void =>
+    setText(empty, query ? t('agent.trace.noMatch') : live ? t('agent.trace.emptyLive') : t('agent.trace.emptyDone'));
   L(paintEmpty);
   const scroller = h('div.tr-scroll', null, empty, list);
   const privacyText = h('span');
@@ -330,7 +381,13 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
   L(() => resizer.setAttribute('aria-label', t('agent.trace.resize')));
   const railCount = h('span.tr-rail-count');
   const railText = h('span.tr-rail-text');
-  const rail = h<HTMLButtonElement>('button.tr-rail', { attrs: { type: 'button' } }, h('span.tr-live', { attrs: { 'aria-hidden': 'true' } }), railText, railCount);
+  const rail = h<HTMLButtonElement>(
+    'button.tr-rail',
+    { attrs: { type: 'button' } },
+    h('span.tr-live', { attrs: { 'aria-hidden': 'true' } }),
+    railText,
+    railCount,
+  );
   L(() => {
     rail.setAttribute('aria-label', t('agent.trace.expand'));
     setText(railText, t('agent.trace.title'));
@@ -348,7 +405,12 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
 
   const toggleText = h('span');
   L(() => setText(toggleText, t('agent.trace.toggle')));
-  const toggle = h<HTMLButtonElement>('button.tr-toggle', { attrs: { type: 'button', 'aria-pressed': 'false' } }, h('span.tr-live', { attrs: { 'aria-hidden': 'true' } }), toggleText);
+  const toggle = h<HTMLButtonElement>(
+    'button.tr-toggle',
+    { attrs: { type: 'button', 'aria-pressed': 'false' } },
+    h('span.tr-live', { attrs: { 'aria-hidden': 'true' } }),
+    toggleText,
+  );
 
   // ── 布局 ──
   const decideMode = (): 'column' | 'drawer' => {
@@ -622,19 +684,23 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
     userScrollAt = Date.now();
   };
   for (const ev of ['wheel', 'touchmove', 'pointerdown', 'keydown']) scroller.addEventListener(ev, intent, { passive: true });
-  scroller.addEventListener('scroll', () => {
-    if (!live) return;
-    const atEnd = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 40;
-    if (follow && !atEnd && !autoScrolling && Date.now() - userScrollAt < 1000) {
-      follow = false;
-      followBtn.setAttribute('aria-pressed', 'false');
-      followBtn.classList.remove('on');
-    } else if (!follow && atEnd) {
-      follow = true;
-      followBtn.setAttribute('aria-pressed', 'true');
-      followBtn.classList.add('on');
-    }
-  }, { passive: true });
+  scroller.addEventListener(
+    'scroll',
+    () => {
+      if (!live) return;
+      const atEnd = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 40;
+      if (follow && !atEnd && !autoScrolling && Date.now() - userScrollAt < 1000) {
+        follow = false;
+        followBtn.setAttribute('aria-pressed', 'false');
+        followBtn.classList.remove('on');
+      } else if (!follow && atEnd) {
+        follow = true;
+        followBtn.setAttribute('aria-pressed', 'true');
+        followBtn.classList.add('on');
+      }
+    },
+    { passive: true },
+  );
   let autoScrolling = false;
   const scrollToEnd = (): void => {
     autoScrolling = true;
@@ -664,16 +730,38 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
       url = '';
     }
     const dl = url
-      ? h('a.btn.small.primary', { attrs: { href: url, download: name }, onclick: () => setTimeout(() => setText(status, t('agent.trace.dlHint')), 400) }, t('agent.trace.download'))
+      ? h(
+          'a.btn.small.primary',
+          { attrs: { href: url, download: name }, onclick: () => setTimeout(() => setText(status, t('agent.trace.dlHint')), 400) },
+          t('agent.trace.download'),
+        )
       : null;
-    const cp = h<HTMLButtonElement>('button.btn.small', {
-      attrs: { type: 'button' },
-      onclick: async () => {
-        const ok = await copyText(json);
-        setText(status, ok ? t('agent.trace.clipOk') : t('agent.trace.clipFailed'));
+    const cp = h<HTMLButtonElement>(
+      'button.btn.small',
+      {
+        attrs: { type: 'button' },
+        onclick: async () => {
+          const ok = await copyText(json);
+          setText(status, ok ? t('agent.trace.clipOk') : t('agent.trace.clipFailed'));
+        },
       },
-    }, t('agent.trace.copyToClip'));
-    fill(exportBox, h('div.tr-export-row', null, dl, cp, h('small.muted', null, `${kb} KB · ${t('agent.trace.events', { n: trace.events().length })}${trace.dropped ? ` · ${t('agent.trace.droppedN', { n: trace.dropped })}` : ''}`)), status);
+      t('agent.trace.copyToClip'),
+    );
+    fill(
+      exportBox,
+      h(
+        'div.tr-export-row',
+        null,
+        dl,
+        cp,
+        h(
+          'small.muted',
+          null,
+          `${kb} KB · ${t('agent.trace.events', { n: trace.events().length })}${trace.dropped ? ` · ${t('agent.trace.droppedN', { n: trace.dropped })}` : ''}`,
+        ),
+      ),
+      status,
+    );
     exportBox.dataset.url = url;
   };
 
@@ -773,7 +861,14 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
         const s: Seg = { kind: 'resp', ev: e, dirty: true };
         c.segs.push(s);
         c.pending.push(s);
-        c.usage = { ...c.usage, inputTokens: c.usage.inputTokens + e.usage.inputTokens, outputTokens: c.usage.outputTokens + e.usage.outputTokens, cacheReadTokens: c.usage.cacheReadTokens + e.usage.cacheReadTokens, cacheWriteTokens: c.usage.cacheWriteTokens + e.usage.cacheWriteTokens, requests: c.usage.requests + 1 };
+        c.usage = {
+          ...c.usage,
+          inputTokens: c.usage.inputTokens + e.usage.inputTokens,
+          outputTokens: c.usage.outputTokens + e.usage.outputTokens,
+          cacheReadTokens: c.usage.cacheReadTokens + e.usage.cacheReadTokens,
+          cacheWriteTokens: c.usage.cacheWriteTokens + e.usage.cacheWriteTokens,
+          requests: c.usage.requests + 1,
+        };
         c.cost += e.costUsd ?? 0;
         c.latency += e.ms;
         c.dirtyHead = true;
@@ -844,7 +939,8 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
     const reasons = s ? s.trigger.map((r) => reasonName(r) ?? r).join(t('agent.trace.listSep')) : t('agent.trace.droppedEarlier');
     const running = live && !e;
     const tokens = budgetTokens(c.usage);
-    fill(c.head, 
+    fill(
+      c.head,
       h('span.tr-d', null, `#${c.d}`),
       h('b', null, s ? t('agent.trace.wave', { n: Math.max(1, s.wave) }) : '—'),
       h('span.tr-reasons', null, reasons),
@@ -853,7 +949,17 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
       s?.skipped ? h('span.badge.tr-skip-badge', { attrs: { title: s.skipped } }, t('agent.trace.skipped')) : null,
       s?.delta ? h('span.badge.tr-delta-badge', { attrs: { title: t('agent.trace.deltaTip') } }, t('agent.trace.delta')) : null,
       opsBadge(c),
-      h('span.tr-head-meta.muted', null, [e ? fmtMs(e.ms) : c.latency ? fmtMs(c.latency) : '', tokens ? `${t('agent.trace.budget')} ${fmtTokens(tokens)}` : '', c.cost ? fmtCost(c.cost) : ''].filter(Boolean).join(' · ')),
+      h(
+        'span.tr-head-meta.muted',
+        null,
+        [
+          e ? fmtMs(e.ms) : c.latency ? fmtMs(c.latency) : '',
+          tokens ? `${t('agent.trace.budget')} ${fmtTokens(tokens)}` : '',
+          c.cost ? fmtCost(c.cost) : '',
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      ),
     );
     c.el?.classList.toggle('by-bot', e?.by === 'fallback');
     c.el?.classList.toggle('running', running);
@@ -867,10 +973,20 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
     let bad = 0;
     for (const g of d.groups) for (const op of g.ops) if (op.k !== 'end') op.ok ? n++ : bad++;
     if (!n && !bad) return null;
-    return h(`span.badge.tr-ops-badge${bad ? '.has-bad' : ''}`, null, [n ? t('agent.ops.count', { n }) : '', bad ? t('agent.ops.countRejected', { n: bad }) : ''].filter(Boolean).join(' · '));
+    return h(
+      `span.badge.tr-ops-badge${bad ? '.has-bad' : ''}`,
+      null,
+      [n ? t('agent.ops.count', { n }) : '', bad ? t('agent.ops.countRejected', { n: bad }) : ''].filter(Boolean).join(' · '),
+    );
   };
 
-  const cellsAttr = (cells: readonly Cell[] | undefined): string | null => (cells?.length ? cells.slice(0, 64).map((x) => `${x.x},${x.y}`).join(';') : null);
+  const cellsAttr = (cells: readonly Cell[] | undefined): string | null =>
+    cells?.length
+      ? cells
+          .slice(0, 64)
+          .map((x) => `${x.x},${x.y}`)
+          .join(';')
+      : null;
 
   /** 操作解读：这次决策的全部操作（按意图分组） */
   const renderOps = (c: Card): void => {
@@ -906,7 +1022,7 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
       });
       const titleText = groupTitle(g);
       const sum = groupSummary(g);
-      const allCells = cellsAttr(g.ops.flatMap((op) => (op.ok ? op.cells ?? [] : [])));
+      const allCells = cellsAttr(g.ops.flatMap((op) => (op.ok ? (op.cells ?? []) : [])));
       const gh = titleText
         ? h(
             `div.tr-opg-head${g.noop ? '.noop' : ''}`,
@@ -928,23 +1044,44 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
     const parts: HTMLElement[] = [];
     if (s?.skipped) parts.push(h('p.tr-sum', null, t('agent.trace.skippedSum', { reason: s.skipped })));
     else if (e) {
-      parts.push(h('p.tr-sum', null,
-        `${t('agent.trace.toolCalls', { n: e.toolCalls })} · ${t('agent.trace.requestsN', { n: c.usage.requests })} · ${usageLine(c.usage)}${c.cost ? ` · ${fmtCost(c.cost)}` : ''} · ${t('agent.trace.took', { time: fmtMs(e.ms) })}`,
-        e.note ? h('span.tr-note', null, ` · ${t('agent.trace.note', { note: e.note })}`) : null,
-      ));
+      parts.push(
+        h(
+          'p.tr-sum',
+          null,
+          `${t('agent.trace.toolCalls', { n: e.toolCalls })} · ${t('agent.trace.requestsN', { n: c.usage.requests })} · ${usageLine(c.usage)}${c.cost ? ` · ${fmtCost(c.cost)}` : ''} · ${t('agent.trace.took', { time: fmtMs(e.ms) })}`,
+          e.note ? h('span.tr-note', null, ` · ${t('agent.trace.note', { note: e.note })}`) : null,
+        ),
+      );
     }
     const extras = h('div.tr-extra');
     if (s && !s.skipped) {
       extras.append(
-        lazyDetails('tr-obs', t('agent.trace.obs'), () => codeBlock(t('agent.trace.obsLabel'), () => trace.blob(s.observationHash) ?? t('agent.trace.droppedBuf'))),
+        lazyDetails('tr-obs', t('agent.trace.obs'), () =>
+          codeBlock(t('agent.trace.obsLabel'), () => trace.blob(s.observationHash) ?? t('agent.trace.droppedBuf')),
+        ),
         lazyDetails('tr-sys', t('agent.trace.sys'), () => {
           const sysReq = [...c.reqs.values()].find((r) => r.ev.systemHash && r.ev.systemHash !== s.systemHash);
-          const box = h('div.tr-stack', null, codeBlock(`${t('agent.trace.sys')} · ${s.systemHash ?? ''}`, () => trace.blob(s.systemHash) ?? t('agent.trace.droppedBuf')));
-          if (sysReq) box.appendChild(codeBlock(`${t('agent.trace.sysActual')} · ${sysReq.ev.systemHash}`, () => trace.blob(sysReq.ev.systemHash) ?? t('agent.trace.dropped')));
+          const box = h(
+            'div.tr-stack',
+            null,
+            codeBlock(`${t('agent.trace.sys')} · ${s.systemHash ?? ''}`, () => trace.blob(s.systemHash) ?? t('agent.trace.droppedBuf')),
+          );
+          if (sysReq)
+            box.appendChild(
+              codeBlock(
+                `${t('agent.trace.sysActual')} · ${sysReq.ev.systemHash}`,
+                () => trace.blob(sysReq.ev.systemHash) ?? t('agent.trace.dropped'),
+              ),
+            );
           return box;
         }),
         lazyDetails('tr-tooldefs', t('agent.trace.toolDefs', { n: s.toolNames?.length ?? 0 }), () =>
-          h('div.tr-stack', null, h('p.tr-chips', null, ...(s.toolNames ?? []).map((n) => h('code.tr-chip', null, n))), codeBlock(t('agent.trace.toolDefsJson'), () => trace.blob(s.toolsHash) ?? t('agent.trace.dropped'), { lang: 'json' })),
+          h(
+            'div.tr-stack',
+            null,
+            h('p.tr-chips', null, ...(s.toolNames ?? []).map((n) => h('code.tr-chip', null, n))),
+            codeBlock(t('agent.trace.toolDefsJson'), () => trace.blob(s.toolsHash) ?? t('agent.trace.dropped'), { lang: 'json' }),
+          ),
         ),
       );
     }
@@ -960,15 +1097,43 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
     switch (s.kind) {
       case 'req': {
         const r = s.ev;
-        const meta = [providerLabel(r.provider), r.model, r.api, r.host ? `→ ${r.host}` : '', r.thinking ? t('agent.trace.thinkingMeta', { v: r.thinking }) : r.effort ? `effort ${r.effort}` : '', r.messages ? t('agent.trace.messages', { n: r.messages }) : '', r.compacted ? t('agent.trace.compactedOld', { n: r.compacted }) : ''].filter(Boolean).join(' · ');
-        fill(el, 
+        const meta = [
+          providerLabel(r.provider),
+          r.model,
+          r.api,
+          r.host ? `→ ${r.host}` : '',
+          r.thinking ? t('agent.trace.thinkingMeta', { v: r.thinking }) : r.effort ? `effort ${r.effort}` : '',
+          r.messages ? t('agent.trace.messages', { n: r.messages }) : '',
+          r.compacted ? t('agent.trace.compactedOld', { n: r.compacted }) : '',
+        ]
+          .filter(Boolean)
+          .join(' · ');
+        fill(
+          el,
           h('div.tr-req-line', null, h('span.tr-tag', null, t('agent.trace.request', { n: r.n })), h('span.muted', null, meta)),
           r.thinkingNote ? h('p.tr-effect', null, r.thinkingNote) : null,
-          r.params ? h('p.tr-params', null, Object.entries(r.params).filter(([, v]) => v !== undefined && v !== null).map(([k, v]) => h('code.tr-chip.tr-param', null, `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`))) : null,
-          h('div.tr-rawonly', null,
-            r.headers ? lazyDetails('tr-hdr', t('agent.trace.headers'), () => codeBlock(t('agent.trace.headersLabel'), () => JSON.stringify(r.headers, null, 2), { lang: 'json' })) : null,
-            lazyDetails('tr-rawreq', `${t('agent.trace.rawReq')}${s.rawChars ? t('agent.trace.charsParen', { count: fmtNumber(s.rawChars) }) : ''}`, () =>
-              codeBlock(t('agent.trace.rawReq'), () => prettyJson(s.raw), { lang: 'json', copyText: () => trace.inflate(s.raw ?? '') }),
+          r.params
+            ? h(
+                'p.tr-params',
+                null,
+                Object.entries(r.params)
+                  .filter(([, v]) => v !== undefined && v !== null)
+                  .map(([k, v]) => h('code.tr-chip.tr-param', null, `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`)),
+              )
+            : null,
+          h(
+            'div.tr-rawonly',
+            null,
+            r.headers
+              ? lazyDetails('tr-hdr', t('agent.trace.headers'), () =>
+                  codeBlock(t('agent.trace.headersLabel'), () => JSON.stringify(r.headers, null, 2), { lang: 'json' }),
+                )
+              : null,
+            lazyDetails(
+              'tr-rawreq',
+              `${t('agent.trace.rawReq')}${s.rawChars ? t('agent.trace.charsParen', { count: fmtNumber(s.rawChars) }) : ''}`,
+              () =>
+                codeBlock(t('agent.trace.rawReq'), () => prettyJson(s.raw), { lang: 'json', copyText: () => trace.inflate(s.raw ?? '') }),
             ),
           ),
         );
@@ -978,25 +1143,49 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
       case 'text': {
         let body = el.querySelector<HTMLElement>('.tr-txt');
         if (!body) {
-          fill(el, h('span.tr-tag', null, s.kind === 'thinking' ? t('agent.trace.thinkingTag') : t('agent.trace.replyTag')), (body = h('div.tr-txt')));
+          fill(
+            el,
+            h('span.tr-tag', null, s.kind === 'thinking' ? t('agent.trace.thinkingTag') : t('agent.trace.replyTag')),
+            (body = h('div.tr-txt')),
+          );
         }
         const txt = s.text.length > LIVE_TEXT_CHARS ? `…${s.text.slice(-LIVE_TEXT_CHARS)}` : s.text;
         setText(body, txt);
-        if (s.total > s.text.length && !el.querySelector('.tr-cut')) el.appendChild(h('small.muted.tr-cut', null, t('agent.trace.truncated')));
+        if (s.total > s.text.length && !el.querySelector('.tr-cut'))
+          el.appendChild(h('small.muted.tr-cut', null, t('agent.trace.truncated')));
         break;
       }
       case 'tool': {
         const r = s.result;
         const cls = r ? (r.ok ? 'ok' : 'bad') : 'pending';
         el.className = `tr-seg tr-tool ${cls}`;
-        const chip = h('span.tr-toolchip', null, h('span.gi', { html: r ? (r.ok ? G.check : G.close) : G.hourglass }), h('b', null, s.call.name), h('code', null, argsLine(s.call.args)));
-        fill(el, 
-          chip,
-          r ? h('p.tr-result', null, r.text.length > 400 ? `${r.text.slice(0, 400)}…` : r.text) : h('p.tr-result.muted', null, t('agent.trace.toolRunning')),
-          r?.effect ? h('p.tr-effect', null, r.effect) : null,
-          h('div.tr-rawonly', null, lazyDetails('tr-toolraw', t('agent.trace.toolRaw'), () => codeBlock(t('agent.trace.toolCall'), () => JSON.stringify({ call: s.call, result: r }, null, 2), { lang: 'json' }))),
+        const chip = h(
+          'span.tr-toolchip',
+          null,
+          h('span.gi', { html: r ? (r.ok ? G.check : G.close) : G.hourglass }),
+          h('b', null, s.call.name),
+          h('code', null, argsLine(s.call.args)),
         );
-        const cell = r?.cell ?? (s.call.args && typeof s.call.args === 'object' && typeof (s.call.args as { x?: unknown }).x === 'number' ? { x: (s.call.args as { x: number }).x, y: (s.call.args as { y: number }).y } : undefined);
+        fill(
+          el,
+          chip,
+          r
+            ? h('p.tr-result', null, r.text.length > 400 ? `${r.text.slice(0, 400)}…` : r.text)
+            : h('p.tr-result.muted', null, t('agent.trace.toolRunning')),
+          r?.effect ? h('p.tr-effect', null, r.effect) : null,
+          h(
+            'div.tr-rawonly',
+            null,
+            lazyDetails('tr-toolraw', t('agent.trace.toolRaw'), () =>
+              codeBlock(t('agent.trace.toolCall'), () => JSON.stringify({ call: s.call, result: r }, null, 2), { lang: 'json' }),
+            ),
+          ),
+        );
+        const cell =
+          r?.cell ??
+          (s.call.args && typeof s.call.args === 'object' && typeof (s.call.args as { x?: unknown }).x === 'number'
+            ? { x: (s.call.args as { x: number }).x, y: (s.call.args as { y: number }).y }
+            : undefined);
         if (cell && o.onHighlight) {
           el.dataset.cell = `${cell.x},${cell.y}`;
           el.tabIndex = 0;
@@ -1005,12 +1194,29 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
       }
       case 'resp': {
         const r = s.ev;
-        fill(el, 
-          h('div.tr-req-line', null,
+        fill(
+          el,
+          h(
+            'div.tr-req-line',
+            null,
             h('span.tr-tag', null, t('agent.trace.response', { n: r.n })),
-            h('span.muted', null, [r.stop ? `${stopName(r.stop)} (${r.stop})` : '', usageLine(r.usage), fmtMs(r.ms), r.costUsd ? fmtCost(r.costUsd) : ''].filter(Boolean).join(' · ')),
+            h(
+              'span.muted',
+              null,
+              [r.stop ? `${stopName(r.stop)} (${r.stop})` : '', usageLine(r.usage), fmtMs(r.ms), r.costUsd ? fmtCost(r.costUsd) : '']
+                .filter(Boolean)
+                .join(' · '),
+            ),
           ),
-          h('div.tr-rawonly', null, lazyDetails('tr-rawresp', `${t('agent.trace.rawResp')}${r.rawChars ? t('agent.trace.charsParen', { count: fmtNumber(r.rawChars) }) : ''}`, () => codeBlock(t('agent.trace.rawResp'), () => prettyJson(r.raw), { lang: 'json' }))),
+          h(
+            'div.tr-rawonly',
+            null,
+            lazyDetails(
+              'tr-rawresp',
+              `${t('agent.trace.rawResp')}${r.rawChars ? t('agent.trace.charsParen', { count: fmtNumber(r.rawChars) }) : ''}`,
+              () => codeBlock(t('agent.trace.rawResp'), () => prettyJson(r.raw), { lang: 'json' }),
+            ),
+          ),
         );
         break;
       }
@@ -1018,10 +1224,24 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
         fill(el, h('span.gi', { html: G.warn }), h('span', null, t('agent.trace.error', { msg: s.ev.message })));
         break;
       case 'compact':
-        fill(el, h('span.gi', { html: G.bolt }), h('span', null, t('agent.trace.compacted', { n: s.ev.n, before: s.ev.before, after: s.ev.after })), s.ev.reason ? h('small.muted', null, ` · ${s.ev.reason}`) : null);
+        fill(
+          el,
+          h('span.gi', { html: G.bolt }),
+          h('span', null, t('agent.trace.compacted', { n: s.ev.n, before: s.ev.before, after: s.ev.after })),
+          s.ev.reason ? h('small.muted', null, ` · ${s.ev.reason}`) : null,
+        );
         break;
       case 'fallback':
-        fill(el, h('span.gi', { html: G.bolt }), h('span', null, s.ev.acted ? t('agent.trace.botTook', { reason: s.ev.reason }) : t('agent.trace.noResult', { reason: s.ev.reason })), s.ev.effect ? h('small.muted', null, ` → ${s.ev.effect}`) : null);
+        fill(
+          el,
+          h('span.gi', { html: G.bolt }),
+          h(
+            'span',
+            null,
+            s.ev.acted ? t('agent.trace.botTook', { reason: s.ev.reason }) : t('agent.trace.noResult', { reason: s.ev.reason }),
+          ),
+          s.ev.effect ? h('small.muted', null, ` → ${s.ev.effect}`) : null,
+        );
         break;
     }
     s.dirty = false;
@@ -1034,7 +1254,11 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
       c.body = h('ol.tr-body');
       c.foot = h('div.tr-foot');
       c.opsEl = opsSrc ? h('div.tr-ops') : undefined;
-      c.el.append(opsSrc ? h('div.tr-card-cols', null, h('div.tr-card-main', null, c.body, c.foot), c.opsEl) : h('div.tr-card-main', null, c.body, c.foot));
+      c.el.append(
+        opsSrc
+          ? h('div.tr-card-cols', null, h('div.tr-card-main', null, c.body, c.foot), c.opsEl)
+          : h('div.tr-card-main', null, c.body, c.foot),
+      );
       for (const s of c.segs) {
         s.el = undefined;
         renderSeg(c, s);
@@ -1102,10 +1326,12 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
   const hlOps = (e: Event, on: boolean): boolean => {
     const row = (e.target as HTMLElement).closest<HTMLElement>('.tr-ops [data-cells]');
     if (!row) return false;
-    const cells = on ? row.dataset.cells!.split(';').map((p) => {
-      const [x, y] = p.split(',').map(Number);
-      return { x, y };
-    }) : null;
+    const cells = on
+      ? row.dataset.cells!.split(';').map((p) => {
+          const [x, y] = p.split(',').map(Number);
+          return { x, y };
+        })
+      : null;
     if (o.onHighlightCells) o.onHighlightCells(cells);
     else o.onHighlight?.(cells ? cells[0] : null);
     return true;
@@ -1137,11 +1363,20 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
     const tt = computeTotals(evs);
     const u = tt.usage;
     const item = (label: string, v: string, title?: string) => h('span.tr-tot', { title }, h('small', null, label), h('b', null, v));
-    fill(totals, 
-      item(t('agent.trace.decisions'), tt.skipped ? t('agent.trace.decisionsSkipped', { a: tt.decisions - tt.skipped, b: tt.skipped }) : String(tt.decisions)),
+    fill(
+      totals,
+      item(
+        t('agent.trace.decisions'),
+        tt.skipped ? t('agent.trace.decisionsSkipped', { a: tt.decisions - tt.skipped, b: tt.skipped }) : String(tt.decisions),
+      ),
       item(
         t('agent.trace.requests'),
-        tt.requestsPerDecision ? t('agent.trace.perDecision', { total: tt.requests, avg: fmtNumber(tt.requestsPerDecision, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }) : String(tt.requests),
+        tt.requestsPerDecision
+          ? t('agent.trace.perDecision', {
+              total: tt.requests,
+              avg: fmtNumber(tt.requestsPerDecision, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+            })
+          : String(tt.requests),
       ),
       item(t('agent.trace.newInput'), fmtTokens(u.inputTokens)),
       item(t('agent.trace.cacheRead'), fmtTokens(u.cacheReadTokens)),
@@ -1161,9 +1396,12 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
         return (c?.start?.tick ?? d.tick ?? 0) <= tickLimit;
       });
       const ot = opsTotals(list);
-      fill(opsSum,
+      fill(
+        opsSum,
         h('b.tr-ops-sum-title', null, t('agent.ops.sumLabel')),
-        ...totalsItems(ot).map((x) => h(`span.tr-ops-tot${x.tone ? `.${x.tone}` : ''}`, null, h('small', null, x.label), h('b', null, x.value))),
+        ...totalsItems(ot).map((x) =>
+          h(`span.tr-ops-tot${x.tone ? `.${x.tone}` : ''}`, null, h('small', null, x.label), h('b', null, x.value)),
+        ),
       );
     }
   };
@@ -1245,7 +1483,7 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
       if (!changed) {
         for (const c of cards.values()) {
           const tc = tickOf(c);
-          if ((tc <= prev!) !== (tc <= tick!)) {
+          if (tc <= prev! !== tc <= tick!) {
             changed = true;
             break;
           }

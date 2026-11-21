@@ -17,16 +17,45 @@ import type { DecisionContext, DecisionOutcome, LLMProvider } from './types';
 
 type Call = (name: string, input: Record<string, unknown>) => Promise<ToolResult> | ToolResult;
 
-const PERK_PRIORITY = ['promotion', 'sale', 'notes', 'sharpener', 'safe', 'compound', 'pocketmoney', 'quickreview', 'bulb', 'drafting', 'timemgmt'];
-const ROTATION: TowerId[] = ['pencil', 'pencil', 'glue', 'stapler', 'pencil', 'lamp', 'compass', 'pencil', 'ruler', 'swatter', 'stapler', 'pen'];
+const PERK_PRIORITY = [
+  'promotion',
+  'sale',
+  'notes',
+  'sharpener',
+  'safe',
+  'compound',
+  'pocketmoney',
+  'quickreview',
+  'bulb',
+  'drafting',
+  'timemgmt',
+];
+const ROTATION: TowerId[] = [
+  'pencil',
+  'pencil',
+  'glue',
+  'stapler',
+  'pencil',
+  'lamp',
+  'compass',
+  'pencil',
+  'ruler',
+  'swatter',
+  'stapler',
+  'pen',
+];
 
 function pathCells(w: IWorld): { x: number; y: number }[] {
   const seen = new Set<number>();
   const out: { x: number; y: number }[] = [];
-  for (const p of w.currentPaths()) for (const c of p) {
-    const k = c.y * 100 + c.x;
-    if (!seen.has(k)) { seen.add(k); out.push(c); }
-  }
+  for (const p of w.currentPaths())
+    for (const c of p) {
+      const k = c.y * 100 + c.x;
+      if (!seen.has(k)) {
+        seen.add(k);
+        out.push(c);
+      }
+    }
   return out;
 }
 
@@ -73,7 +102,9 @@ export async function scriptedTurn(w: IWorld, call: Call, reasons: DecisionReaso
   const s = w.state;
   const done: string[] = [];
   const say = (line: string): void => think?.(`${line}\n`);
-  say(`决策原因：${reasons.join(', ') || '—'}；阶段 ${s.phase}，第 ${s.wave} 波，金币 ${Math.floor(s.gold)}，生命 ${s.lives}/${s.maxLives}。`);
+  say(
+    `决策原因：${reasons.join(', ') || '—'}；阶段 ${s.phase}，第 ${s.wave} 波，金币 ${Math.floor(s.gold)}，生命 ${s.lives}/${s.maxLives}。`,
+  );
   // 增益
   if (s.phase === 'perk' && s.perkChoices) {
     const cards = s.perkChoices.slice().sort((a, b) => rank(a.id) - rank(b.id));
@@ -86,7 +117,10 @@ export async function scriptedTurn(w: IWorld, call: Call, reasons: DecisionReaso
         input.uid = t.uid;
         input.branch = 'A';
       }
-      if ((await call('choose_perk', input)).ok) { done.push(`perk ${c.id}`); break; }
+      if ((await call('choose_perk', input)).ok) {
+        done.push(`perk ${c.id}`);
+        break;
+      }
     }
   }
   if (s.crateChoice) {
@@ -112,7 +146,10 @@ export async function scriptedTurn(w: IWorld, call: Call, reasons: DecisionReaso
     if (walls < 4 + s.wave * 2 && s.gold >= 25 && atk.length >= 2) {
       const wl = bestWall(w);
       if (wl) say(`迷宫：在路线 (${wl.x},${wl.y}) 放墙能让路线变长 ${wl.gain} 格 → 放墙。`);
-      if (wl && (await call('place_tower', { tower: 'wall', x: wl.x, y: wl.y })).ok) { done.push(`wall ${wl.x},${wl.y}`); continue; }
+      if (wl && (await call('place_tower', { tower: 'wall', x: wl.x, y: wl.y })).ok) {
+        done.push(`wall ${wl.x},${wl.y}`);
+        continue;
+      }
     }
     if (atk.length < target) {
       const opts = w.getBuildOptions();
@@ -123,20 +160,29 @@ export async function scriptedTurn(w: IWorld, call: Call, reasons: DecisionReaso
         if (!b || !b.unlocked || !b.affordable || b.limitReached) continue;
         const cell = bestCell(w, id);
         if (cell) say(`建塔：轮到 ${id}，覆盖路格最多的空位是 (${cell.x},${cell.y})。`);
-        if (cell && (await call('place_tower', { tower: id, x: cell.x, y: cell.y })).ok) { done.push(`${id} ${cell.x},${cell.y}`); placed = true; }
+        if (cell && (await call('place_tower', { tower: id, x: cell.x, y: cell.y })).ok) {
+          done.push(`${id} ${cell.x},${cell.y}`);
+          placed = true;
+        }
       }
       if (placed) continue;
     }
     // 升级最低级、买得起的塔
-    const cand = atk.map((t) => ({ t, info: w.getTowerInfo(t.uid) }))
+    const cand = atk
+      .map((t) => ({ t, info: w.getTowerInfo(t.uid) }))
       .filter((x) => x.info && x.info.upgradeCost !== null && x.info.upgradeCost <= s.gold)
       .sort((a, b) => a.t.level - b.t.level || a.t.uid - b.t.uid)[0];
     if (cand && (atk.length >= target || s.gold > 120)) {
-      say(`升级：塔数已够或金币充足（${Math.floor(s.gold)}），升级最低级的 #${cand.t.uid}（Lv${cand.t.level}，${cand.info!.upgradeCost} 金币）。`);
+      say(
+        `升级：塔数已够或金币充足（${Math.floor(s.gold)}），升级最低级的 #${cand.t.uid}（Lv${cand.t.level}，${cand.info!.upgradeCost} 金币）。`,
+      );
       const r = cand.info!.needsBranch
         ? await call('choose_branch', { uid: cand.t.uid, branch: 'A' })
         : await call('upgrade_tower', { uid: cand.t.uid });
-      if (r.ok) { done.push(`up #${cand.t.uid}`); continue; }
+      if (r.ok) {
+        done.push(`up #${cand.t.uid}`);
+        continue;
+      }
     }
     break;
   }
@@ -170,12 +216,22 @@ export async function scriptedTurn(w: IWorld, call: Call, reasons: DecisionReaso
  * 意图版脚本策略（确定性）：像模型那样每个决策点只发一次 act，用高层意图（anti_air / spend / 技能），
  * 选位与迷宫全部交给规划器。用于离线评测规划器本身（scripts/agent-eval.ts 的 scripted-intents 变体）。
  */
-export async function scriptedIntentTurn(w: IWorld, call: Call, reasons: DecisionReason[], think?: (line: string) => void, tactics = false): Promise<string> {
+export async function scriptedIntentTurn(
+  w: IWorld,
+  call: Call,
+  reasons: DecisionReason[],
+  think?: (line: string) => void,
+  tactics = false,
+): Promise<string> {
   const s = w.state;
   const say = (line: string): void => think?.(`${line}\n`);
   const actions: Record<string, unknown>[] = [];
   if (s.phase === 'perk' && s.perkChoices) {
-    const c = s.perkChoices.slice().sort((a, b) => rank(a.id) - rank(b.id)).find((x) => !x.needsTower) ?? s.perkChoices[0];
+    const c =
+      s.perkChoices
+        .slice()
+        .sort((a, b) => rank(a.id) - rank(b.id))
+        .find((x) => !x.needsTower) ?? s.perkChoices[0];
     actions.push({ do: 'choose_perk', id: c.id });
   }
   if (s.crateChoice) {
@@ -192,7 +248,9 @@ export async function scriptedIntentTurn(w: IWorld, call: Call, reasons: Decisio
     if (s.wave >= 4) actions.push({ do: 'reclaim', target: 'idle_towers', max: 2, replaceWith: 'dps' });
     for (const p of counterNeeds(w)) actions.push({ do: 'build_near', purpose: p });
     // 组合技只给已有的落单塔配搭档（新建一对 60g 的铅笔 + 橡皮擦不如 spend 的选择）
-    const lone = comboState(w).lonely.find((l) => ['glue', 'stapler', 'lamp', 'pen', 'ruler', 'compass'].includes(l.id) && l.partner !== 'piggy');
+    const lone = comboState(w).lonely.find(
+      (l) => ['glue', 'stapler', 'lamp', 'pen', 'ruler', 'compass'].includes(l.id) && l.partner !== 'piggy',
+    );
     if (s.wave >= 5 && atk.length >= 6 && lone) actions.push({ do: 'combo', pair: `${lone.id}+${lone.partner}` });
     if (s.wave >= 2 && s.wave <= 8 && s.lives === s.maxLives) actions.push({ do: 'economy' });
   }
@@ -207,7 +265,8 @@ export async function scriptedIntentTurn(w: IWorld, call: Call, reasons: Decisio
       if (!front || dd < front.d) front = { x: Math.floor(e.x), y: Math.floor(e.y), d: dd };
     }
     const ready = (id: string) => s.skills.some((k) => k.id === id && k.ready);
-    if (front && (near >= 3 || s.bossUids.length) && ready('eraser_strike')) actions.push({ do: 'cast_skill', skill: 'eraser_strike', x: front.x, y: front.y });
+    if (front && (near >= 3 || s.bossUids.length) && ready('eraser_strike'))
+      actions.push({ do: 'cast_skill', skill: 'eraser_strike', x: front.x, y: front.y });
     if (near >= 6 && ready('bell')) actions.push({ do: 'cast_skill', skill: 'bell' });
   }
   if (s.phase === 'build' && !(s.autoWave.enabled && s.autoWave.started)) actions.push({ do: 'start_wave' });
@@ -250,22 +309,43 @@ export class ScriptedProvider implements LLMProvider {
     const t0 = Date.now();
     // 合成的"请求"：离线演示没有网络请求，但面板照样能看到发给"模型"的局面与工具
     tr?.({
-      k: 'request', n: 1, provider: this.id, api: 'local', model: this.model, host: '本机（离线，无网络请求）',
+      k: 'request',
+      n: 1,
+      provider: this.id,
+      api: 'local',
+      model: this.model,
+      host: '本机（离线，无网络请求）',
       params: { 说明: '内置规则策略：不调用任何模型，下面的"思路"是规则判断过程' },
       messages: 1,
-      raw: { provider: 'scripted', model: this.model, note: '离线演示：没有发出任何网络请求', messages: [{ role: 'user', content: '(见「观察」)' }] },
+      raw: {
+        provider: 'scripted',
+        model: this.model,
+        note: '离线演示：没有发出任何网络请求',
+        messages: [{ role: 'user', content: '(见「观察」)' }],
+      },
     });
     let seq = 0;
     const call: Call = async (name, input) => {
       out.toolCalls++;
       const r = await ctx.callTool(name, input, { id: `scripted_${++seq}` });
-      if (r.endTurn) { out.ended = true; out.note = r.note; }
+      if (r.endTurn) {
+        out.ended = true;
+        out.note = r.note;
+      }
       return r;
     };
     const turn = this.o.tactics ? scriptedTacticsTurn : this.o.intents ? scriptedIntentTurn : scriptedTurn;
     const note = await turn(ctx.world, call, ctx.point.reasons, tr ? (line) => tr({ k: 'thinking', n: 1, text: line }) : undefined);
     tr?.({ k: 'text', n: 1, text: `本回合：${note}` });
-    tr?.({ k: 'response', n: 1, stop: 'end_turn', usage: emptyUsage(), ms: Date.now() - t0, costUsd: 0, raw: { stop_reason: 'end_turn', note, tool_calls: out.toolCalls } });
+    tr?.({
+      k: 'response',
+      n: 1,
+      stop: 'end_turn',
+      usage: emptyUsage(),
+      ms: Date.now() - t0,
+      costUsd: 0,
+      raw: { stop_reason: 'end_turn', note, tool_calls: out.toolCalls },
+    });
     return out;
   }
 }

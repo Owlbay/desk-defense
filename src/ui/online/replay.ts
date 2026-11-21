@@ -21,7 +21,11 @@ export function openReplay(app: App, runId: string, nickname?: string): () => vo
   const sub = h('small.muted', null, t('ui.online.loading'));
   const stage = h('div.replay-stage');
   const speedBox = h('div.replay-speed', { attrs: { role: 'group', 'aria-label': t('ui.online.replaySpeed') } });
-  const pauseBtn = h<HTMLButtonElement>('button.btn.small', { attrs: { type: 'button', 'aria-label': t('ui.online.pause') } }, h('span.gi', { html: G.pause }));
+  const pauseBtn = h<HTMLButtonElement>(
+    'button.btn.small',
+    { attrs: { type: 'button', 'aria-label': t('ui.online.pause') } },
+    h('span.gi', { html: G.pause }),
+  );
   pauseBtn.disabled = true;
   const exitBtn = h('button.btn.small', { attrs: { type: 'button' } }, h('span.gi', { html: G.close }), t('ui.online.exit'));
   const root = h(
@@ -74,7 +78,9 @@ export function openReplay(app: App, runId: string, nickname?: string): () => vo
     if (closed) return;
     if (!r.ok) {
       setText(sub, r.status === 'unavailable' ? t('ui.online.unavailable') : r.message || t('ui.online.loadFailed'));
-      stage.appendChild(h('div.replay-end', null, h('div.card', null, h('p', null, t('ui.online.replayLoadFailed')), h('small.muted', null, r.message))));
+      stage.appendChild(
+        h('div.replay-end', null, h('div.card', null, h('p', null, t('ui.online.replayLoadFailed')), h('small.muted', null, r.message))),
+      );
       return;
     }
     start(r.data);
@@ -161,7 +167,10 @@ export function openReplay(app: App, runId: string, nickname?: string): () => vo
         pauseBtn.setAttribute('aria-label', s.paused ? t('ui.online.resume') : t('ui.online.pause'));
       }
       const pct = endTick > 0 ? Math.min(100, Math.round((st.tick / endTick) * 100)) : 100;
-      setText(sub, t('ui.online.replayStatus', { board: boardLabel(run.board), map, wave: st.wave, score: fmtNumber(Math.round(st.score)), pct }));
+      setText(
+        sub,
+        t('ui.online.replayStatus', { board: boardLabel(run.board), map, wave: st.wave, score: fmtNumber(Math.round(st.score)), pct }),
+      );
       const over = st.phase === 'lost' || st.phase === 'won' || (st.tick >= endTick && feeder.done);
       if (over && !ended) {
         ended = true;
@@ -176,7 +185,11 @@ export function openReplay(app: App, runId: string, nickname?: string): () => vo
               h('h3', null, t('ui.online.replayEnded')),
               h('p', null, t('ui.online.replayResult', { n: run.result.wave, score: fmtNumber(Math.round(run.result.score)) })),
               Math.round(st.score) !== run.result.score ? h('small.muted', null, t('ui.online.replayMismatch')) : null,
-              h('button.btn.primary', { attrs: { type: 'button' }, onclick: () => (audio.play('click'), close()) }, t('ui.online.exitReplay')),
+              h(
+                'button.btn.primary',
+                { attrs: { type: 'button' }, onclick: () => (audio.play('click'), close()) },
+                t('ui.online.exitReplay'),
+              ),
             ),
           ),
         );

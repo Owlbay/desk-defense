@@ -91,15 +91,22 @@ describe('排行榜键', () => {
 
 describe('得分重算', () => {
   it('倍率与 core resolveParams 同源', () => {
-    for (const d of ['easy', 'normal', 'hard', 'nightmare'] as const) expect(scoreMul(d)).toBe(resolveParams(baseOpts({ difficulty: d })).scoreMul);
-    for (let l = 1; l <= 10; l++) expect(scoreMul('abyss', l)).toBe(resolveParams(baseOpts({ difficulty: 'abyss', abyssLevel: l })).scoreMul);
+    for (const d of ['easy', 'normal', 'hard', 'nightmare'] as const)
+      expect(scoreMul(d)).toBe(resolveParams(baseOpts({ difficulty: d })).scoreMul);
+    for (let l = 1; l <= 10; l++)
+      expect(scoreMul('abyss', l)).toBe(resolveParams(baseOpts({ difficulty: 'abyss', abyssLevel: l })).scoreMul);
   });
 
   it('真实对局：精确校验与区间校验都通过', () => {
     for (const d of ['normal', 'hard'] as const) {
       const run = playRun(baseOpts({ difficulty: d, seed: `s-${d}` }));
       const mul = scoreMul(d);
-      expect(computeScore({ cleared: run.cleared, kills: run.result.kills, lives: run.result.lives, gold: run.result.gold, bonus: run.bonus }, mul)).toBe(run.result.score);
+      expect(
+        computeScore(
+          { cleared: run.cleared, kills: run.result.kills, lives: run.result.lives, gold: run.result.gold, bonus: run.bonus },
+          mul,
+        ),
+      ).toBe(run.result.score);
       expect(checkScore({ ...run.result, cleared: run.cleared, bonus: run.bonus }, mul)).toBeNull();
       expect(checkScore(run.result, mul)).toBeNull();
     }
@@ -196,7 +203,11 @@ describe('提交校验', () => {
     ['未知字段', (b: SubmitBody) => ({ ...b, opts: { ...b.opts, cheat: 1 } as RunOptions }), '未知'],
     ['技能重复', (b: SubmitBody) => ({ ...b, opts: { ...b.opts, skills: ['bell', 'bell'] } }), '技能'],
     ['设备 id', (b: SubmitBody) => ({ ...b, deviceId: 'abc' }), '设备'],
-    ['每日种子用于普通榜', (b: SubmitBody) => ({ ...b, seed: dailySeed('2026-11-20'), opts: { ...b.opts, seed: dailySeed('2026-11-20') } }), '每日'],
+    [
+      '每日种子用于普通榜',
+      (b: SubmitBody) => ({ ...b, seed: dailySeed('2026-11-20'), opts: { ...b.opts, seed: dailySeed('2026-11-20') } }),
+      '每日',
+    ],
     ['日志过大', (b: SubmitBody) => ({ ...b, log: { gz: 'x'.repeat(200_000) } }), '过长'],
   ])('%s', (_name, mut, msg) => {
     const r = checkSubmission(mut(good()), { now: NOW });
@@ -222,7 +233,16 @@ describe('提交校验', () => {
 
   it('日志合理性', () => {
     const r: ClaimedResult = { ...run.result };
-    expect(checkLog([{ tick: 5, cmd: { type: 'startWave' } }, { tick: 3, cmd: { type: 'startWave' } }], r, run.opts).ok).toBe(false);
+    expect(
+      checkLog(
+        [
+          { tick: 5, cmd: { type: 'startWave' } },
+          { tick: 3, cmd: { type: 'startWave' } },
+        ],
+        r,
+        run.opts,
+      ).ok,
+    ).toBe(false);
     expect(checkLog([{ tick: r.ticks + 1, cmd: { type: 'startWave' } }], r, run.opts).ok).toBe(false);
     expect(checkLog([{ tick: 0, cmd: { type: 'godMode' } }], r, run.opts).ok).toBe(false);
     expect(checkLog([], { ...r, wave: 3 }, run.opts).ok).toBe(false);
@@ -236,7 +256,10 @@ describe('提交校验', () => {
 
 describe('日志编解码', () => {
   it('gzip 往返', async () => {
-    const log = Array.from({ length: 500 }, (_, i) => ({ tick: i * 10, cmd: { type: 'place' as const, tower: 'pencil' as const, cx: i % 20, cy: 3 } }));
+    const log = Array.from({ length: 500 }, (_, i) => ({
+      tick: i * 10,
+      cmd: { type: 'place' as const, tower: 'pencil' as const, cx: i % 20, cy: 3 },
+    }));
     const p = await encodeLog(log);
     expect(Array.isArray(p)).toBe(false);
     const { log: back, rawBytes } = await decodeLogPayload(p);

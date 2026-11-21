@@ -64,7 +64,14 @@ class MiniIcon {
     this.root = scene.add.container(0, 0).setDepth(depth).setVisible(false);
     this.parts = new PartSet(scene, this.root);
     this.label = scene.add
-      .text(0, 0, '', { fontFamily: FONT, fontSize: '10px', fontStyle: 'bold', color: hex(C.paper), stroke: hex(C.ink), strokeThickness: 3 })
+      .text(0, 0, '', {
+        fontFamily: FONT,
+        fontSize: '10px',
+        fontStyle: 'bold',
+        color: hex(C.paper),
+        stroke: hex(C.ink),
+        strokeThickness: 3,
+      })
       .setOrigin(0, 0.5)
       .setDepth(depth + 0.05)
       .setVisible(false)
@@ -154,7 +161,8 @@ export class FieldLayer {
 
   /** n 枚硬币从 (x,y)（像素）飞向左上角的金币栏 */
   flyCoins(x: number, y: number, n: number): void {
-    for (let i = 0; i < n; i++) this.coins.push({ x: x + (Math.random() - 0.5) * 8, y: y + (Math.random() - 0.5) * 8, t: 0, max: 0.55 + i * 0.03, delay: i * 0.06 });
+    for (let i = 0; i < n; i++)
+      this.coins.push({ x: x + (Math.random() - 0.5) * 8, y: y + (Math.random() - 0.5) * 8, t: 0, max: 0.55 + i * 0.03, delay: i * 0.06 });
   }
 
   // ───────────── 事件 ─────────────
@@ -408,7 +416,14 @@ export class FieldLayer {
         const warn = sp.warnUntil !== undefined && sp.warnUntil > now;
         let v = this.drops.get(sp.id);
         if (!v) {
-          v = { id: sp.id, b: cellBounds(sp.cells), icon: sp.icon, phase: warn ? 'warn' : this.first ? 'landed' : 'fall', t: 0, seen: true };
+          v = {
+            id: sp.id,
+            b: cellBounds(sp.cells),
+            icon: sp.icon,
+            phase: warn ? 'warn' : this.first ? 'landed' : 'fall',
+            t: 0,
+            seen: true,
+          };
           this.drops.set(sp.id, v);
         }
         v.seen = true;
@@ -475,7 +490,10 @@ export class FieldLayer {
   private text(x: number, y: number, str: string, color: number, size = 14, stroke: number = B.textStroke): void {
     let t = this.texts[this.textN];
     if (!t) {
-      t = this.ctx.scene.add.text(0, 0, '', { fontFamily: FONT, fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(DEPTH.text - 2);
+      t = this.ctx.scene.add
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '14px', fontStyle: 'bold' })
+        .setOrigin(0.5)
+        .setDepth(DEPTH.text - 2);
       t.setResolution(this.resolution);
       this.texts.push(t);
     }
@@ -483,7 +501,14 @@ export class FieldLayer {
     const key = `${str}|${color}|${size}|${stroke}`;
     if (t.getData('k') !== key) {
       t.setData('k', key);
-      t.setStyle({ fontFamily: FONT, fontSize: `${size}px`, fontStyle: 'bold', color: hex(color), stroke: hex(stroke), strokeThickness: 4 });
+      t.setStyle({
+        fontFamily: FONT,
+        fontSize: `${size}px`,
+        fontStyle: 'bold',
+        color: hex(color),
+        stroke: hex(stroke),
+        strokeThickness: 4,
+      });
       t.setText(str);
     }
     t.setPosition(x, y).setVisible(true);
@@ -502,7 +527,10 @@ export class FieldLayer {
     m.root.setPosition(x, y).setVisible(true).setAlpha(alpha);
     if (label) {
       if (m.label.text !== label) m.label.setText(label);
-      m.label.setPosition(x + CELL * size * 0.32, y + CELL * size * 0.28).setVisible(true).setAlpha(alpha);
+      m.label
+        .setPosition(x + CELL * size * 0.32, y + CELL * size * 0.28)
+        .setVisible(true)
+        .setAlpha(alpha);
     } else m.label.setVisible(false);
   }
 
@@ -663,7 +691,11 @@ export class FieldLayer {
         const { asset, mul } = enemyAsset(v.icon);
         m.parts.bind(this.ctx.atlas, asset, mul * 0.5 * Math.min(v.b.w, v.b.h));
         m.root.setDepth(v.phase === 'fall' ? DEPTH.fieldTop + 0.1 : DEPTH.box + 0.05);
-        m.root.setPosition(cx, by + bh / 2 + 2).setScale(sx, sy).setAlpha(0.85 * alpha).setVisible(true);
+        m.root
+          .setPosition(cx, by + bh / 2 + 2)
+          .setScale(sx, sy)
+          .setAlpha(0.85 * alpha)
+          .setVisible(true);
       }
       // 拆除可用提示：可拆的箱子顶上一枚小锤子标记（选中时）
       if (ui.state.spawnerSelected === id && v.phase === 'landed') {
@@ -794,7 +826,8 @@ export class FieldLayer {
           break;
         }
         case 'praise': {
-          if (!low && this.ctx.vdt > 0 && Math.random() < 0.08) this.ctx.fx.sparkle(Math.random() * BOARD_W, Math.random() * BOARD_H, C.goldLight, 1, 4);
+          if (!low && this.ctx.vdt > 0 && Math.random() < 0.08)
+            this.ctx.fx.sparkle(Math.random() * BOARD_W, Math.random() * BOARD_H, C.goldLight, 1, 4);
           break;
         }
         case 'tea_break': {
@@ -840,7 +873,8 @@ export class FieldLayer {
           break;
         }
         case 'bounty': {
-          if (!low && this.ctx.vdt > 0 && Math.random() < 0.12) this.ctx.fx.sparkle(Math.random() * BOARD_W, Math.random() * BOARD_H, C.gold, 1, 4);
+          if (!low && this.ctx.vdt > 0 && Math.random() < 0.12)
+            this.ctx.fx.sparkle(Math.random() * BOARD_W, Math.random() * BOARD_H, C.gold, 1, 4);
           break;
         }
         case 'training': {
@@ -931,11 +965,13 @@ export class FieldLayer {
           g.lineStyle(2.5, C.white, 0.9);
           g.strokeCircle(x, y - 4 + bob, (p.kind === 'coin' ? 14 : 19) + Math.sin(rt * 8) * 1.5);
         }
-        if (this.ctx.quality === 'high' && this.ctx.vdt > 0 && Math.random() < 0.03) this.ctx.fx.sparkle(x + (Math.random() - 0.5) * 14, y - 8 + bob, C.goldLight, 1, 4);
+        if (this.ctx.quality === 'high' && this.ctx.vdt > 0 && Math.random() < 0.03)
+          this.ctx.fx.sparkle(x + (Math.random() - 0.5) * 14, y - 8 + bob, C.goldLight, 1, 4);
       }
     }
     // 清理已消失的出生时间记录
-    if (this.pickupBorn.size > this.pickupSeen.size + 8) for (const k of this.pickupBorn.keys()) if (!this.pickupSeen.has(k)) this.pickupBorn.delete(k);
+    if (this.pickupBorn.size > this.pickupSeen.size + 8)
+      for (const k of this.pickupBorn.keys()) if (!this.pickupSeen.has(k)) this.pickupBorn.delete(k);
     if (ui.state.hoverPickup !== null && !this.pickupSeen.has(ui.state.hoverPickup)) ui.set({ hoverPickup: null });
   }
 

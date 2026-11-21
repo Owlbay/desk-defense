@@ -2,7 +2,6 @@ import type { Dict } from '../../index';
 
 // 命名空间 agent（zh-TW）
 export default {
-
   // ───── 命名空間 agent · AI 參戰設定頁（zh-TW） ─────
   'agent.setup.source.demo': '離線示範（內建策略，不需要 Key）',
   'agent.setup.source.claude': 'Claude（官方 SDK，推薦）',
@@ -18,7 +17,8 @@ export default {
   'agent.setup.presetNote.lmstudio': '瀏覽器直連需在 Server 設定中開啟 Enable CORS',
   'agent.setup.presetNote.llamacpp': '啟動參數加上 --jinja 以啟用工具呼叫',
   'agent.setup.presetNote.vllm': '需加上 --enable-auto-tool-choice --tool-call-parser hermes',
-  'agent.setup.presetNote.relay': '填入中轉站提供的網址和 Key 即可；請求由瀏覽器直接送到中轉站（不經過我們的伺服器），中轉站必須允許跨域（CORS）',
+  'agent.setup.presetNote.relay':
+    '填入中轉站提供的網址和 Key 即可；請求由瀏覽器直接送到中轉站（不經過我們的伺服器），中轉站必須允許跨域（CORS）',
   'agent.setup.thinking.off': '不思考',
   'agent.setup.thinking.low': '低',
   'agent.setup.thinking.medium': '中',
@@ -71,7 +71,8 @@ export default {
   'agent.setup.diag.testing': '正在測試連線：傳送一個很小的請求…',
   'agent.setup.diag.detecting': '正在偵測介面…',
   'agent.setup.diag.localDown': '沒有連上本機服務：確認它已經啟動，並且允許本站跨域（見下方的設定方法）。',
-  'agent.setup.diag.cors': '這家服務商可能不允許瀏覽器直接存取（CORS）。可以改用「使用本機橋接」：由你電腦上的橋接器代為呼叫，沒有跨域問題，Key 也不進網頁。',
+  'agent.setup.diag.cors':
+    '這家服務商可能不允許瀏覽器直接存取（CORS）。可以改用「使用本機橋接」：由你電腦上的橋接器代為呼叫，沒有跨域問題，Key 也不進網頁。',
   'agent.setup.diag.rejected': '服務有回應，但拒絕了請求：請檢查 API Key 和模型名稱是否正確、帳號是否有額度。',
   'agent.setup.diag.ok': '連線正常，可以開始',
   'agent.setup.diag.noTools': '連上了，但模型沒有依要求呼叫工具',
@@ -97,7 +98,8 @@ export default {
   'agent.setup.relay.failed': '介面偵測失敗',
   'agent.setup.relay.secs': '{s} 秒',
   'agent.setup.relay.remembered': '已記住：{host} + 這個模型以後直接用 {api}（換網址或模型會重新偵測）。',
-  'agent.setup.relay.corsTip': '提示：中轉站文件裡通常會寫是否支援網頁／瀏覽器直接呼叫；不支援時可以改用「使用本機橋接」，由你電腦上的橋接器代為請求。',
+  'agent.setup.relay.corsTip':
+    '提示：中轉站文件裡通常會寫是否支援網頁／瀏覽器直接呼叫；不支援時可以改用「使用本機橋接」，由你電腦上的橋接器代為請求。',
   'agent.setup.tool.native': '原生工具呼叫',
   'agent.setup.tool.nativeHint': '模型自己發起工具呼叫（推薦）',
   'agent.setup.tool.json': 'JSON 動作',
@@ -137,18 +139,21 @@ export default {
   'agent.setup.budget.usdAria': '費用預算（美元）',
   'agent.setup.service': '模型服務',
   'agent.setup.demo.title': '離線示範',
-  'agent.setup.demo.desc': '不連網、不花錢：由遊戲內建的腳本策略代替大模型下指令，流程和介面與真正的模型完全一樣。適合先看看 AI 參戰是什麼樣子。',
+  'agent.setup.demo.desc':
+    '不連網、不花錢：由遊戲內建的腳本策略代替大模型下指令，流程和介面與真正的模型完全一樣。適合先看看 AI 參戰是什麼樣子。',
   'agent.setup.demo.board': '成績可以提交到 AI 榜，但會標註為「內建策略」。',
   'agent.setup.key.dest': 'Key 只會傳送到 {host}',
   'agent.setup.key.destNone': '填好服務網址後，Key 只會傳送到那個網址',
   'agent.setup.relay.willRequest': '將請求 {url}',
   'agent.setup.relay.normalize': '會自動正規化：OpenAI 介面用 {openai}，Anthropic 介面用 {anthropic}',
   'agent.setup.relay.title': '中轉服務',
-  'agent.setup.relay.desc': '用中轉站（API 代理商）給你的網址和 Key 直接玩：支援 OpenAI Chat Completions、OpenAI Responses 和 Anthropic Messages 三種介面，預設自動偵測。',
+  'agent.setup.relay.desc':
+    '用中轉站（API 代理商）給你的網址和 Key 直接玩：支援 OpenAI Chat Completions、OpenAI Responses 和 Anthropic Messages 三種介面，預設自動偵測。',
   'agent.setup.relay.cors': '請求由你的瀏覽器直接送到中轉站，不經過我們的伺服器；因此中轉站必須允許網頁跨域存取（CORS）。',
   'agent.setup.relay.urlPlaceholder': 'https://中轉站網址（帶不帶 /v1 都可以）',
   'agent.setup.relay.url': '服務網址',
-  'agent.setup.relay.urlHint': '貼上中轉站文件裡的網址即可，例如 https://example.com 或 https://example.com/v1，完整的 …/v1/chat/completions 也行',
+  'agent.setup.relay.urlHint':
+    '貼上中轉站文件裡的網址即可，例如 https://example.com 或 https://example.com/v1，完整的 …/v1/chat/completions 也行',
   'agent.setup.relay.urlBad': '網址格式不對：應該像 https://example.com/v1',
   'agent.setup.relay.api': '介面類型',
   'agent.setup.relay.apiAuto': '自動偵測（推薦）',
@@ -182,9 +187,11 @@ export default {
   'agent.setup.key.forgotten': '已清除這個服務的 Key',
   'agent.setup.key.forget': '清除 Key',
   'agent.setup.key.optional': 'Key / Token（選填）',
-  'agent.setup.key.byoWarning': '你的 API Key 只儲存在本頁記憶體中（選擇「在此分頁內記住」則存入 sessionStorage，關閉分頁即清除），由瀏覽器直接送到模型服務商，不會經過我們的伺服器。但任何能在本頁執行腳本的擴充功能都可能讀到它：請使用單獨的、設了額度上限的 Key，用完可在服務商後台作廢。',
+  'agent.setup.key.byoWarning':
+    '你的 API Key 只儲存在本頁記憶體中（選擇「在此分頁內記住」則存入 sessionStorage，關閉分頁即清除），由瀏覽器直接送到模型服務商，不會經過我們的伺服器。但任何能在本頁執行腳本的擴充功能都可能讀到它：請使用單獨的、設了額度上限的 Key，用完可在服務商後台作廢。',
   'agent.setup.os': '作業系統',
-  'agent.setup.guide.mobile': '手機／平板想用電腦上的模型：https 頁面不能直接存取 http://192.168.x.x，請用帶驗證的 HTTPS 通道，或改用「使用本機橋接」。',
+  'agent.setup.guide.mobile':
+    '手機／平板想用電腦上的模型：https 頁面不能直接存取 http://192.168.x.x，請用帶驗證的 HTTPS 通道，或改用「使用本機橋接」。',
   'agent.setup.guide.title': '讓瀏覽器連上本機模型（允許 {origin} 跨域）',
   'agent.setup.toast.jsonRetry': '模型沒有呼叫工具，已切換到「JSON 動作」模式，可以再測一次',
   'agent.setup.test': '測試連線',
@@ -205,8 +212,10 @@ export default {
   'agent.setup.bridge.connect': '連線',
   'agent.setup.bridge.disconnect': '中斷連線',
   'agent.setup.bridge.title': '本機橋接器',
-  'agent.setup.bridge.desc': '在你自己的電腦上執行一個小程式，由它呼叫模型（本機 Ollama，或用本機環境變數裡的 Key 呼叫雲端模型）。沒有跨域問題，Key 永遠不進網頁。',
-  'agent.setup.bridge.note': '橋接器只監聽本機（127.0.0.1），配對碼只能用一次。手機想連電腦上的橋接器：用帶驗證的 HTTPS 通道公開它，然後填 wss:// 位址。',
+  'agent.setup.bridge.desc':
+    '在你自己的電腦上執行一個小程式，由它呼叫模型（本機 Ollama，或用本機環境變數裡的 Key 呼叫雲端模型）。沒有跨域問題，Key 永遠不進網頁。',
+  'agent.setup.bridge.note':
+    '橋接器只監聽本機（127.0.0.1），配對碼只能用一次。手機想連電腦上的橋接器：用帶驗證的 HTTPS 通道公開它，然後填 wss:// 位址。',
   'agent.setup.tab.direct': '直連模型',
   'agent.setup.tab.bridge': '使用本機橋接',
   'agent.setup.toast.noApi': '沒有偵測到可用的介面，詳見「模型」一欄的診斷',
@@ -340,7 +349,8 @@ export default {
   'agent.snippets.bridgeOllama': '在遊戲專案目錄裡執行（本機 Ollama 模型）：',
   'agent.snippets.bridgeClaude': '或者用 Claude（Key 從本機環境變數／ant auth 讀取，網頁拿不到）：',
   'agent.snippets.bridgeNpx': '發布後也可以不下載專案，直接：',
-  'agent.snippets.mixedContent': '目前頁面是 https，瀏覽器會攔截對 http:// 區域網路位址的請求（混合內容）。請用 HTTPS 通道（cloudflared / tailscale serve，並加上驗證），或改用本機橋接器。',
+  'agent.snippets.mixedContent':
+    '目前頁面是 https，瀏覽器會攔截對 http:// 區域網路位址的請求（混合內容）。請用 HTTPS 通道（cloudflared / tailscale serve，並加上驗證），或改用本機橋接器。',
   'agent.snippets.safari': 'Safari 可能直接攔截 https 頁面存取 http://localhost：請改用本機橋接器，或換用 Chrome / Edge / Firefox。',
   'agent.snippets.localNetwork': 'Chrome / Edge 第一次存取本機服務時會跳出「允許存取區域網路」，需要點允許。',
   'agent.replay.speed': '重播速度',
@@ -624,20 +634,24 @@ export default {
   'agent.cfg.err.range': '{field} 範圍 {range}',
   'agent.cfg.err.negative': '{field} 不能為負',
   'agent.cfg.err.positive': '{field} 必須為正',
-  'agent.relay.cors': '瀏覽器沒能連上這個網址：可能是網址寫錯，或者這個中轉站不允許網頁跨域存取（CORS）。本遊戲不經伺服器轉發，請求由瀏覽器直接發給中轉站，所以中轉站必須允許跨域；也可以改用「使用本機橋接」。',
+  'agent.relay.cors':
+    '瀏覽器沒能連上這個網址：可能是網址寫錯，或者這個中轉站不允許網頁跨域存取（CORS）。本遊戲不經伺服器轉發，請求由瀏覽器直接發給中轉站，所以中轉站必須允許跨域；也可以改用「使用本機橋接」。',
   'agent.relay.badUrl': '服務網址不是合法的 http(s) URL',
   'agent.relay.keyRejected': 'Key 被拒絕：檢查 API Key 是否正確、是否還有額度。',
   'agent.relay.noModelList': '這個中轉站沒有提供模型清單介面（/v1/models），可以直接手動填寫模型名稱。',
   'agent.relay.unknownError': '未知錯誤',
   'agent.relay.detected': '偵測到中轉站支援 {api}（{s} 秒）',
-  'agent.relay.fail.stale': '遊戲剛剛更新過，目前頁面還是舊版本，載入不到新的 AI 模組：請重新整理頁面（電腦按 Cmd/Ctrl+Shift+R，手機下拉重新整理）後再試。這不是中轉站的問題。',
+  'agent.relay.fail.stale':
+    '遊戲剛剛更新過，目前頁面還是舊版本，載入不到新的 AI 模組：請重新整理頁面（電腦按 Cmd/Ctrl+Shift+R，手機下拉重新整理）後再試。這不是中轉站的問題。',
   'agent.relay.fail.auth': 'Key 被拒絕（401 / 403）：檢查 API Key 是否正確、是否過期、是否還有額度或是否開通了這個模型。',
-  'agent.relay.fail.not_found': '介面不存在（404）：這個中轉站可能不支援這幾種介面，或者網址裡多了 / 少了路徑前綴。請對照中轉站文件檢查「服務網址」。',
+  'agent.relay.fail.not_found':
+    '介面不存在（404）：這個中轉站可能不支援這幾種介面，或者網址裡多了 / 少了路徑前綴。請對照中轉站文件檢查「服務網址」。',
   'agent.relay.fail.model': '中轉站不認識這個模型：點「取得模型清單」從清單裡選一個，或換一個模型名稱。',
   'agent.relay.fail.rate': '請求被限流或額度不足（429 / quota）：稍後再試，或在中轉站後台檢查餘額。',
   'agent.relay.fail.no_tools': '連上了，但模型沒有按要求呼叫工具：可以換一個支援工具呼叫的模型，或把「工具模式」改成「JSON 動作」。',
   'agent.relay.fail.other': '請求失敗：請檢查網址、Key 和模型名稱。',
-  'agent.diag.localHint': '連不上本機模型：確認服務已啟動，並允許本站跨域（Ollama: OLLAMA_ORIGINS；LM Studio: Enable CORS；llama.cpp / vLLM: --allowed-origins），Chrome 彈出「本機網路存取」時點允許。也可以改用本機橋接器。',
+  'agent.diag.localHint':
+    '連不上本機模型：確認服務已啟動，並允許本站跨域（Ollama: OLLAMA_ORIGINS；LM Studio: Enable CORS；llama.cpp / vLLM: --allowed-origins），Chrome 彈出「本機網路存取」時點允許。也可以改用本機橋接器。',
   'agent.diag.bridgeModels': 'bridge: 模型清單由橋接器提供',
   'agent.diag.noToolCall': '模型沒有呼叫工具：換一個支援工具呼叫的模型（如 Qwen3 8B+ / Llama 3.1 8B Instruct），或把 toolMode 改成 json。',
   'agent.diag.noJsonAction': 'JSON 模式也沒得到可解析的動作：模型可能太小。',

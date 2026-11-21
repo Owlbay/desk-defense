@@ -22,7 +22,9 @@
     "mcp": "vite-node scripts/mcp-server.ts",
     "agent:bridge": "vite-node scripts/agent-bridge.ts",
     "agent:tokens": "vite-node scripts/agent-tokens.ts",
-    "agent:eval": "vite-node scripts/agent-eval.ts"
+    "agent:eval": "vite-node scripts/agent-eval.ts",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.11.0",
@@ -34,9 +36,16 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260702.1",
+    "@eslint/js": "10.0.1",
     "@resvg/resvg-js": "^2.6.2",
     "@types/ws": "^8.18.2",
+    "eslint": "10.14.0",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-simple-import-sort": "14.0.0",
+    "globals": "17.14.0",
+    "prettier": "3.9.10",
     "typescript": "^5.9.3",
+    "typescript-eslint": "8.72.1",
     "vite": "^8.3.8",
     "vite-node": "^6.0.0",
     "vite-plugin-pwa": "^2.0.0",

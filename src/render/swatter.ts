@@ -245,7 +245,10 @@ export class SwatterLayer {
     }
     const cx = BOARD_W / 2,
       cy = BOARD_H / 2 + dropY;
-    const M = (x: number, y: number) => ({ x: cx + (x - BOARD_W / 2) * s, y: cy + (y - BOARD_H / 2) * s + Math.sin(x * 0.03 + y * 0.02) * 2 });
+    const M = (x: number, y: number) => ({
+      x: cx + (x - BOARD_W / 2) * s,
+      y: cy + (y - BOARD_H / 2) * s + Math.sin(x * 0.03 + y * 0.02) * 2,
+    });
     const W = BOARD_W,
       H = BOARD_H,
       S = CELL * 0.85;
@@ -336,7 +339,13 @@ function jagged(pts: { x: number; y: number }[], amp: number): { x: number; y: n
 }
 
 /** 青色闪电：外发光（叠加）+ 白色芯 */
-function bolt(g: Phaser.GameObjects.Graphics, ga: Phaser.GameObjects.Graphics, pts: { x: number; y: number }[], a: number, low: boolean): void {
+function bolt(
+  g: Phaser.GameObjects.Graphics,
+  ga: Phaser.GameObjects.Graphics,
+  pts: { x: number; y: number }[],
+  a: number,
+  low: boolean,
+): void {
   if (pts.length < 2 || a <= 0) return;
   if (!low) {
     ga.lineStyle(7, C.cyan, 0.28 * a);

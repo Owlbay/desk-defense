@@ -44,7 +44,8 @@ export default {
   'data.tower.stapler.t3.name': 'Heavy Stapler',
   'data.tower.stapler.t3.desc': 'Area +0.3 tiles, +4 damage to armored enemies',
   'data.tower.stapler.A.name': 'Electric Stapler',
-  'data.tower.stapler.A.desc': 'Base attack interval becomes 0.4s (about ×2.5 attack speed, still shortens with level), damage per hit ×0.6',
+  'data.tower.stapler.A.desc':
+    'Base attack interval becomes 0.4s (about ×2.5 attack speed, still shortens with level), damage per hit ×0.6',
   'data.tower.stapler.B.name': 'Staple Remover',
   'data.tower.stapler.B.desc': 'Each hit −1 armor (up to −5), +30% damage to enemies with 0 armor',
 
@@ -62,15 +63,18 @@ export default {
 
   'data.tower.lamp.name': 'Desk Lamp',
   'data.tower.lamp.role': 'Armor-piercing beam',
-  'data.tower.lamp.desc': 'Continuous armor-piercing beam that grows stronger on the same target (+{ramp}/s, up to ×{cap}); detects stealth within {detect} tiles; lamps within {link} tiles link up and relay their light into one lead lamp',
+  'data.tower.lamp.desc':
+    'Continuous armor-piercing beam that grows stronger on the same target (+{ramp}/s, up to ×{cap}); detects stealth within {detect} tiles; lamps within {link} tiles link up and relay their light into one lead lamp',
   'data.tower.lamp.t2.name': 'Afterglow',
   'data.tower.lamp.t2.desc': 'Keeps {keep} of the ramp when switching targets',
   'data.tower.lamp.t3.name': 'Twin Heads',
   'data.tower.lamp.t3.desc': 'A second beam lights another target ({v} DPS, ramps separately)',
   'data.tower.lamp.A.name': 'Laser Pointer',
-  'data.tower.lamp.A.desc': 'Base DPS ×{dmg}; ramp speeds up to +{ramp}/s, cap ×{cap}; relay efficiency ×{relay} as the lead lamp; a link group with a Laser Pointer has no size cap, and every extra relay lamp keeps stacking damage',
+  'data.tower.lamp.A.desc':
+    'Base DPS ×{dmg}; ramp speeds up to +{ramp}/s, cap ×{cap}; relay efficiency ×{relay} as the lead lamp; a link group with a Laser Pointer has no size cap, and every extra relay lamp keeps stacking damage',
   'data.tower.lamp.B.name': 'Eye-Care Lamp',
-  'data.tower.lamp.B.desc': 'Base DPS ×{dmg}; detects stealth across its full range; lit enemies take +{vuln} damage; every beam in its link group applies the mark, and as the lead lamp its beam splits at the target into one short beam per relay lamp ({split} damage)',
+  'data.tower.lamp.B.desc':
+    'Base DPS ×{dmg}; detects stealth across its full range; lit enemies take +{vuln} damage; every beam in its link group applies the mark, and as the lead lamp its beam splits at the target into one short beam per relay lamp ({split} damage)',
 
   'data.tower.compass.name': 'Compass',
   'data.tower.compass.role': 'Ring cutter',
@@ -94,7 +98,8 @@ export default {
   'data.tower.eraser.A.name': 'Correction Tape',
   'data.tower.eraser.A.desc': 'Lays a 3-tile strip of correction tape under the target; enemies crossing it take +25% damage',
   'data.tower.eraser.B.name': 'Electric Eraser',
-  'data.tower.eraser.B.desc': 'Base attack interval becomes 0.35s (about ×2.9 attack speed, still shortens with level); 10% chance to strip shields',
+  'data.tower.eraser.B.desc':
+    'Base attack interval becomes 0.35s (about ×2.9 attack speed, still shortens with level); 10% chance to strip shields',
 
   'data.tower.ruler.name': 'Ruler',
   'data.tower.ruler.role': 'Long-range pierce',
@@ -153,9 +158,11 @@ export default {
   'data.tower.swatter.t3.name': 'Double Swat',
   'data.tower.swatter.t3.desc': 'Swats two different targets at once; swat area +{splash} tiles',
   'data.tower.swatter.A.name': 'Electric Swatter',
-  'data.tower.swatter.A.desc': 'Swats release Chain Lightning that bounces {chain} times between flying enemies, ×{mul} damage per bounce, and stuns targets for {stun}s',
+  'data.tower.swatter.A.desc':
+    'Swats release Chain Lightning that bounces {chain} times between flying enemies, ×{mul} damage per bounce, and stuns targets for {stun}s',
   'data.tower.swatter.B.name': 'Bug Net',
-  'data.tower.swatter.B.desc': 'Every {every} attacks, throws a net that pulls 1 flying enemy to the ground for {dur}s (not Bosses); netted enemies walk the maze, can be hit by ground towers, and take +{vuln} damage',
+  'data.tower.swatter.B.desc':
+    'Every {every} attacks, throws a net that pulls 1 flying enemy to the ground for {dur}s (not Bosses); netted enemies walk the maze, can be hit by ground towers, and take +{vuln} damage',
 
   'data.combo.pencil_eraser.name': 'Pencil with Eraser',
   'data.combo.pencil_eraser.desc': 'Pencil hits −0.5 armor',
@@ -194,7 +201,8 @@ export default {
   'data.enemy.moth.name': 'Moth',
   'data.enemy.moth.desc': 'Flying; dodges 25% of projectiles; weak to Desk Lamps',
   'data.enemy.goldbag.name': 'Gold Bag',
-  'data.enemy.goldbag.desc': 'Summoned by an event: very fast and regenerates quickly after 2s without being hit; drops a burst of coins when killed; steals lots of gold instead of lives if it escapes',
+  'data.enemy.goldbag.desc':
+    'Summoned by an event: very fast and regenerates quickly after 2s without being hit; drops a burst of coins when killed; steals lots of gold instead of lives if it escapes',
   'data.enemy.crumbmini.name': 'Paper Scrap',
   'data.enemy.crumbmini.desc': 'A scrap split off a Paper Ball',
   'data.enemy.boss_coffee.name': 'Coffee Stain',
@@ -319,7 +327,8 @@ export default {
   'data.event.fan.name': 'Fan On',
   'data.event.fan.desc': 'Flying enemies get speed +40% and wobbling flight paths for 12s',
   'data.event.books_fall.name': 'Falling Books',
-  'data.event.books_fall.desc': 'A stack of books topples, adding a 1×3 obstacle (never blocks the path; towers underneath get pushed aside)',
+  'data.event.books_fall.desc':
+    'A stack of books topples, adding a 1×3 obstacle (never blocks the path; towers underneath get pushed aside)',
   'data.event.homework_check.name': 'Homework Check',
   'data.event.homework_check.desc': 'For the next 20s, all enemies get armor +3',
   'data.event.coffee_spill.name': 'Coffee Spill',
@@ -377,9 +386,12 @@ export default {
   'data.map.ch1.name': 'Student Desk',
   'data.map.ch2.name': 'Programmer’s Desk',
   'data.map.ch3.name': 'Artist’s Workbench',
-  'data.map.ch1.desc': 'One entrance to the north; clutter like the water cup and textbooks moves each run. Late Endless also spawns from the west',
-  'data.map.ch2.desc': 'Two entrances to the north; a keyboard lies across the middle with a single gap. Later on, enemies also spawn from the east',
-  'data.map.ch3.desc': 'Two corner entrances with longer air routes; the palette is fixed, paint tubes move each run. Later on, enemies also spawn from the west',
+  'data.map.ch1.desc':
+    'One entrance to the north; clutter like the water cup and textbooks moves each run. Late Endless also spawns from the west',
+  'data.map.ch2.desc':
+    'Two entrances to the north; a keyboard lies across the middle with a single gap. Later on, enemies also spawn from the east',
+  'data.map.ch3.desc':
+    'Two corner entrances with longer air routes; the palette is fixed, paint tubes move each run. Later on, enemies also spawn from the west',
   'data.spawner.north.name': 'North Entrance',
   'data.spawner.west.name': 'West Entrance',
   'data.spawner.hidden-1.name': 'Secret Door',
@@ -504,7 +516,8 @@ export default {
   'data.ability.glue_b.desc': 'Heavy burn in a 3×3 area for 8s, slowing by {slow}',
   'data.ability.lamp_a.name': 'Overload',
   'data.ability.lamp_a.form': 'Laser Array',
-  'data.ability.lamp_a.desc': 'The whole link group overloads for 8s: the ramp maxes out instantly and each lamp\'s beam splits into {beams} beams{dmg}',
+  'data.ability.lamp_a.desc':
+    "The whole link group overloads for 8s: the ramp maxes out instantly and each lamp's beam splits into {beams} beams{dmg}",
   'data.ability.lamp_a.descDmg': ', damage ×{dmg}',
   'data.ability.lamp_b.name': 'Daylight',
   'data.ability.lamp_b.form': 'Fluorescent Tube',
@@ -535,7 +548,8 @@ export default {
   'data.ability.ruler_b.descArea': ' and enemies within {r} tiles',
   'data.ability.pen_a.name': 'Flourish',
   'data.ability.pen_a.form': 'Master Calligrapher',
-  'data.ability.pen_a.desc': 'Paints a cross-shaped ink zone (arms {arm} tiles) at a chosen spot that keeps stacking ink for 6s ({ink} stacks every 0.5s){dmg}',
+  'data.ability.pen_a.desc':
+    'Paints a cross-shaped ink zone (arms {arm} tiles) at a chosen spot that keeps stacking ink for 6s ({ink} stacks every 0.5s){dmg}',
   'data.ability.pen_a.descDmg': ' and deals {dps} × damage factor per second',
   'data.ability.pen_b.name': 'Fail Grade',
   'data.ability.pen_b.form': 'Grading Pen',
@@ -546,7 +560,8 @@ export default {
   'data.ability.calculator_a.descCrit': ', crit damage another +{v}',
   'data.ability.calculator_b.name': 'Quick Math',
   'data.ability.calculator_b.form': 'Abacus Master',
-  'data.ability.calculator_b.desc': 'Pick a tower in the aura to instantly gain {levels} levels (up to Lv9; at Lv10 it gains {evo} stars of evolution XP instead)',
+  'data.ability.calculator_b.desc':
+    'Pick a tower in the aura to instantly gain {levels} levels (up to Lv9; at Lv10 it gains {evo} stars of evolution XP instead)',
   'data.ability.piggy_a.name': 'Smash the Piggy',
   'data.ability.piggy_a.form': 'Treasure Bowl',
   'data.ability.piggy_a.desc': 'Instantly gain {mul}× per-wave output, then no output for {mute} waves (charges; 1 every 5 waves)',

@@ -35,7 +35,10 @@ export class Memo {
       if (!v) continue;
       let t = v;
       while (t.length && estimateTokens(t) > left) t = t.slice(0, Math.floor(t.length * 0.85));
-      if (!t) { delete this.f[k]; continue; }
+      if (!t) {
+        delete this.f[k];
+        continue;
+      }
       this.f[k] = t === v ? v : `${t}…`;
       left -= estimateTokens(this.f[k]!) + 2;
     }
@@ -121,7 +124,8 @@ export class ContextBuilder {
     // 均衡 / 完整：地形版本（含放塔）变化就重发；省流：只在地形（不含塔，塔的位置在 T 里）或路线变化时重发
     const v = this.spec.rleMap ? terrainSig(w) : String(w.state.grid.version);
     this.sinceMap++;
-    const map = full || v !== this.lastVersion || routeSig !== this.lastRoutes || (this.spec.mapEvery > 0 && this.sinceMap >= this.spec.mapEvery);
+    const map =
+      full || v !== this.lastVersion || routeSig !== this.lastRoutes || (this.spec.mapEvery > 0 && this.sinceMap >= this.spec.mapEvery);
     let body: string;
     if (full) body = JSON.stringify(obs);
     else {
@@ -140,7 +144,15 @@ export class ContextBuilder {
     this.carry = [];
     this.skipped = 0;
     // 开局信息只随完整观测发（增量时模型靠 MEMO 记得局面）
-    const text = decisionMessage({ header: full ? this.header : '', point, observation: body, memo: this.memo.text(), skipped, extra, delta: !full });
+    const text = decisionMessage({
+      header: full ? this.header : '',
+      point,
+      observation: body,
+      memo: this.memo.text(),
+      skipped,
+      extra,
+      delta: !full,
+    });
     return { text, full, map, observationTokens: estimateTokens(body) };
   }
 }

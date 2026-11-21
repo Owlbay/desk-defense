@@ -42,7 +42,12 @@ export async function createFakeD1(): Promise<FakeD1> {
     },
     all: async <T>() => {
       queries.push(sql);
-      return { results: sqlite.prepare(sql).all(...args).map((r) => plain<T>(r)) };
+      return {
+        results: sqlite
+          .prepare(sql)
+          .all(...args)
+          .map((r) => plain<T>(r)),
+      };
     },
     run: async () => {
       queries.push(sql);

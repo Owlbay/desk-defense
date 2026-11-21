@@ -4,11 +4,11 @@ import { localize } from './text';
 
 /** 出生点定义（文档 09 §1.3） */
 export interface SpawnerDef {
-  id: string;                    // 'north' | 'west' | 'hidden-1' …
-  name: string;                  // 显示名
+  id: string; // 'north' | 'west' | 'hidden-1' …
+  name: string; // 显示名
   cells: { x: number; y: number }[];
   kind: 'edge' | 'hidden';
-  weight: number;                // random 策略下的权重
+  weight: number; // random 策略下的权重
   /** 无尽 / 自定义：从第几波开始开放（默认 1） */
   openFromWave?: number;
   /** 战役：从第几波开始开放；0 = 战役中不开放；缺省同 openFromWave */
@@ -44,7 +44,10 @@ export interface MapDef {
   defaultClutter: Obstacle[];
 }
 
-const EXIT = [{ x: 5, y: 13 }, { x: 6, y: 13 }];
+const EXIT = [
+  { x: 5, y: 13 },
+  { x: 6, y: 13 },
+];
 
 /** 通用杂物（各图再加自己的） */
 const COMMON: ClutterDef[] = [
@@ -72,20 +75,43 @@ export function spawnerName(id: string): string {
 
 export const MAPS: Record<MapId, MapDef> = {
   ch1: map({
-    id: 'ch1', chapter: 1,
+    id: 'ch1',
+    chapter: 1,
     chapterSeed: 'ch1-student-desk',
     spawners: [
-      sp({ id: 'north', cells: [{ x: 5, y: 0 }, { x: 6, y: 0 }], kind: 'edge', weight: 1 }),
-      sp({ id: 'west', cells: [{ x: 0, y: 3 }, { x: 0, y: 4 }], kind: 'edge', weight: 0.4, openFromWave: 25, campaignOpen: 0 }),
-      sp({ id: 'hidden-1', cells: [{ x: 11, y: 4 }, { x: 11, y: 5 }], kind: 'hidden', weight: 0.5 }),
+      sp({
+        id: 'north',
+        cells: [
+          { x: 5, y: 0 },
+          { x: 6, y: 0 },
+        ],
+        kind: 'edge',
+        weight: 1,
+      }),
+      sp({
+        id: 'west',
+        cells: [
+          { x: 0, y: 3 },
+          { x: 0, y: 4 },
+        ],
+        kind: 'edge',
+        weight: 0.4,
+        openFromWave: 25,
+        campaignOpen: 0,
+      }),
+      sp({
+        id: 'hidden-1',
+        cells: [
+          { x: 11, y: 4 },
+          { x: 11, y: 5 },
+        ],
+        kind: 'hidden',
+        weight: 0.5,
+      }),
     ],
     exits: EXIT,
     landmarks: [],
-    clutter: [
-      ...COMMON,
-      { kind: 'cup', w: 2, h: 2, weight: 4, max: 1 },
-      { kind: 'books', w: 1, h: 3, weight: 4, max: 1 },
-    ],
+    clutter: [...COMMON, { kind: 'cup', w: 2, h: 2, weight: 4, max: 1 }, { kind: 'books', w: 1, h: 3, weight: 4, max: 1 }],
     clutterBudget: [6, 9],
     defaultClutter: [
       { kind: 'cup', x: 8, y: 3, w: 2, h: 2 },
@@ -93,47 +119,105 @@ export const MAPS: Record<MapId, MapDef> = {
     ],
   }),
   ch2: map({
-    id: 'ch2', chapter: 2,
+    id: 'ch2',
+    chapter: 2,
     chapterSeed: 'ch2-coder-desk',
     spawners: [
-      sp({ id: 'north-1', cells: [{ x: 1, y: 0 }, { x: 2, y: 0 }], kind: 'edge', weight: 1 }),
-      sp({ id: 'north-2', cells: [{ x: 9, y: 0 }, { x: 10, y: 0 }], kind: 'edge', weight: 1 }),
-      sp({ id: 'east', cells: [{ x: 11, y: 3 }, { x: 11, y: 4 }], kind: 'edge', weight: 0.4, openFromWave: 30, campaignOpen: 15 }),
-      sp({ id: 'hidden-1', cells: [{ x: 0, y: 4 }, { x: 0, y: 5 }], kind: 'hidden', weight: 0.5 }),
+      sp({
+        id: 'north-1',
+        cells: [
+          { x: 1, y: 0 },
+          { x: 2, y: 0 },
+        ],
+        kind: 'edge',
+        weight: 1,
+      }),
+      sp({
+        id: 'north-2',
+        cells: [
+          { x: 9, y: 0 },
+          { x: 10, y: 0 },
+        ],
+        kind: 'edge',
+        weight: 1,
+      }),
+      sp({
+        id: 'east',
+        cells: [
+          { x: 11, y: 3 },
+          { x: 11, y: 4 },
+        ],
+        kind: 'edge',
+        weight: 0.4,
+        openFromWave: 30,
+        campaignOpen: 15,
+      }),
+      sp({
+        id: 'hidden-1',
+        cells: [
+          { x: 0, y: 4 },
+          { x: 0, y: 5 },
+        ],
+        kind: 'hidden',
+        weight: 0.5,
+      }),
     ],
     exits: EXIT,
     landmarks: [
       { kind: 'keyboard', x: 2, y: 6, w: 3, h: 1 },
       { kind: 'keyboard', x: 6, y: 6, w: 3, h: 1 },
     ],
-    clutter: [
-      ...COMMON,
-      { kind: 'mouse', w: 1, h: 2, weight: 4, max: 1 },
-      { kind: 'cup', w: 2, h: 2, weight: 2, max: 1 },
-    ],
+    clutter: [...COMMON, { kind: 'mouse', w: 1, h: 2, weight: 4, max: 1 }, { kind: 'cup', w: 2, h: 2, weight: 2, max: 1 }],
     clutterBudget: [4, 7],
-    defaultClutter: [
-      { kind: 'mouse', x: 10, y: 9, w: 1, h: 2 },
-    ],
+    defaultClutter: [{ kind: 'mouse', x: 10, y: 9, w: 1, h: 2 }],
   }),
   ch3: map({
-    id: 'ch3', chapter: 3,
+    id: 'ch3',
+    chapter: 3,
     chapterSeed: 'ch3-artist-desk',
     spawners: [
-      sp({ id: 'north-1', cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }], kind: 'edge', weight: 1 }),
-      sp({ id: 'north-2', cells: [{ x: 10, y: 0 }, { x: 11, y: 0 }], kind: 'edge', weight: 1 }),
-      sp({ id: 'west', cells: [{ x: 0, y: 5 }, { x: 0, y: 6 }], kind: 'edge', weight: 0.4, openFromWave: 30, campaignOpen: 16 }),
-      sp({ id: 'hidden-1', cells: [{ x: 11, y: 5 }, { x: 11, y: 6 }], kind: 'hidden', weight: 0.5 }),
+      sp({
+        id: 'north-1',
+        cells: [
+          { x: 0, y: 0 },
+          { x: 1, y: 0 },
+        ],
+        kind: 'edge',
+        weight: 1,
+      }),
+      sp({
+        id: 'north-2',
+        cells: [
+          { x: 10, y: 0 },
+          { x: 11, y: 0 },
+        ],
+        kind: 'edge',
+        weight: 1,
+      }),
+      sp({
+        id: 'west',
+        cells: [
+          { x: 0, y: 5 },
+          { x: 0, y: 6 },
+        ],
+        kind: 'edge',
+        weight: 0.4,
+        openFromWave: 30,
+        campaignOpen: 16,
+      }),
+      sp({
+        id: 'hidden-1',
+        cells: [
+          { x: 11, y: 5 },
+          { x: 11, y: 6 },
+        ],
+        kind: 'hidden',
+        weight: 0.5,
+      }),
     ],
     exits: EXIT,
-    landmarks: [
-      { kind: 'palette', x: 4, y: 4, w: 2, h: 2 },
-    ],
-    clutter: [
-      ...COMMON,
-      { kind: 'paint', w: 1, h: 2, weight: 5, max: 2 },
-      { kind: 'cup', w: 2, h: 2, weight: 2, max: 1 },
-    ],
+    landmarks: [{ kind: 'palette', x: 4, y: 4, w: 2, h: 2 }],
+    clutter: [...COMMON, { kind: 'paint', w: 1, h: 2, weight: 5, max: 2 }, { kind: 'cup', w: 2, h: 2, weight: 2, max: 1 }],
     clutterBudget: [5, 8],
     defaultClutter: [
       { kind: 'paint', x: 9, y: 8, w: 1, h: 2 },

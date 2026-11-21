@@ -5,16 +5,7 @@ import * as core from '../core';
 import { t } from '../i18n';
 import type { MapId, Obstacle, RandomEventId, SkillId, SpawnerState, TalentId } from '../core/types';
 
-export {
-  TOWER_META,
-  SKILL_META,
-  TALENT_META,
-  DIFFICULTY_PRESETS,
-  resolveParams,
-  MAP_META,
-  ENEMY_META,
-  AFFIX_META,
-} from '../core';
+export { TOWER_META, SKILL_META, TALENT_META, DIFFICULTY_PRESETS, resolveParams, MAP_META, ENEMY_META, AFFIX_META } from '../core';
 
 export { TOWER_IDS, RANDOM_EVENT_IDS } from '../core/types';
 
@@ -83,9 +74,18 @@ export function generateLayout(map: MapId, seed: string, fixedLayout?: boolean):
 
 type Edge = 'north' | 'south' | 'west' | 'east';
 const EDGE_OF: Record<string, Edge> = {
-  north: 'north', south: 'south', west: 'west', east: 'east',
-  top: 'north', bottom: 'south', left: 'west', right: 'east',
-  n: 'north', s: 'south', w: 'west', e: 'east',
+  north: 'north',
+  south: 'south',
+  west: 'west',
+  east: 'east',
+  top: 'north',
+  bottom: 'south',
+  left: 'west',
+  right: 'east',
+  n: 'north',
+  s: 'south',
+  w: 'west',
+  e: 'east',
 };
 
 /** 把出生点 id 映射为玩家可读的名字：北/南/西/东入口、空降点 n、暗门 n */

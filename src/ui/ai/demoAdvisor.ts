@@ -20,7 +20,12 @@ export function demoAdvisor(world: IWorld): LLMProvider {
       const tr = ctx.trace;
       const t0 = Date.now();
       tr?.({
-        k: 'request', n: 1, provider: 'scripted', api: 'local', model: 'scripted-v1', host: t('agent.setup.demo.host'),
+        k: 'request',
+        n: 1,
+        provider: 'scripted',
+        api: 'local',
+        model: 'scripted-v1',
+        host: t('agent.setup.demo.host'),
         params: { note: t('agent.setup.demo.note') },
         messages: 1,
         raw: { provider: 'scripted', mode: 'advisor-dry-run', note: t('agent.setup.demo.noNetwork') },
@@ -43,8 +48,14 @@ export function demoAdvisor(world: IWorld): LLMProvider {
       await scriptedTurn(world, dry, ctx.point.reasons, tr ? (line) => tr({ k: 'thinking', n: 1, text: line }) : undefined);
       tr?.({ k: 'thinking', n: 1, text: `${t('agent.setup.demo.done', { n: wanted.length })}\n` });
       if (wanted.length) {
-        const actions = wanted.map((a) => `${a.name} ${Object.entries(a.input).map(([k, v]) => `${k}=${String(v)}`).join(' ')}`.trim());
-        const text = t('agent.setup.demo.suggest', { list: wanted.map((a) => describeCall(world, a.name, a.input) ?? a.name).join(t('agent.setup.demo.sep')) });
+        const actions = wanted.map((a) =>
+          `${a.name} ${Object.entries(a.input)
+            .map(([k, v]) => `${k}=${String(v)}`)
+            .join(' ')}`.trim(),
+        );
+        const text = t('agent.setup.demo.suggest', {
+          list: wanted.map((a) => describeCall(world, a.name, a.input) ?? a.name).join(t('agent.setup.demo.sep')),
+        });
         out.toolCalls++;
         tr?.({ k: 'text', n: 1, text });
         await ctx.callTool('suggest', { text: text.slice(0, 120), actions }, { id: 'demo_suggest' });
@@ -52,7 +63,15 @@ export function demoAdvisor(world: IWorld): LLMProvider {
       out.toolCalls++;
       const r = await ctx.callTool('end_turn', {}, { id: 'demo_end' });
       out.ended = !!r.endTurn;
-      tr?.({ k: 'response', n: 1, stop: 'end_turn', usage: emptyUsage(), ms: Date.now() - t0, costUsd: 0, raw: { stop_reason: 'end_turn', suggestions: wanted } });
+      tr?.({
+        k: 'response',
+        n: 1,
+        stop: 'end_turn',
+        usage: emptyUsage(),
+        ms: Date.now() - t0,
+        costUsd: 0,
+        raw: { stop_reason: 'end_turn', suggestions: wanted },
+      });
       return out;
     },
   };

@@ -8,13 +8,35 @@ import { describe, expect, it } from 'vitest';
 import { createWorld, stateHash, type Command, type IWorld, type MapId, type RunOptions } from '../../src/core';
 import { replaySync } from '../../src/meta/midrun';
 import {
-  ACT_TOOL_V1, BattleLog, DecisionEngine, INTENT_KINDS, Planner, ScriptedProvider, estimateTokens, executeTool, flightLines, idleLine,
-  resolveConfig, runAgentGame, scriptedFallback, systemBlocks, threatEstimate, threatLine, toolsForRole, validateAgainst,
+  ACT_TOOL_V1,
+  BattleLog,
+  DecisionEngine,
+  INTENT_KINDS,
+  Planner,
+  ScriptedProvider,
+  estimateTokens,
+  executeTool,
+  flightLines,
+  idleLine,
+  resolveConfig,
+  runAgentGame,
+  scriptedFallback,
+  systemBlocks,
+  threatEstimate,
+  threatLine,
+  toolsForRole,
+  validateAgainst,
 } from '../../src/agent';
 import { parseVariants, runEval, summarize, markdownTable } from '../../scripts/eval-lib';
 
-const opts = (seed: string, map: MapId = 'ch1', difficulty: RunOptions['difficulty'] = 'normal'): RunOptions =>
-  ({ mode: 'endless', map, difficulty, seed, skills: ['eraser_strike', 'bell', 'whiteout_zone'], pure: true });
+const opts = (seed: string, map: MapId = 'ch1', difficulty: RunOptions['difficulty'] = 'normal'): RunOptions => ({
+  mode: 'endless',
+  map,
+  difficulty,
+  seed,
+  skills: ['eraser_strike', 'bell', 'whiteout_zone'],
+  pure: true,
+});
 
 /** 每条开放出生点都还能走到出口（地面路线最后一格是出口） */
 function allRoutesOpen(w: IWorld): boolean {
@@ -28,7 +50,14 @@ function allRoutesOpen(w: IWorld): boolean {
 /** 记录 world.command 的指令（规划器只能经它改世界） */
 function recorder(w: IWorld): { send: (c: Command) => ReturnType<IWorld['command']>; cmds: Command[] } {
   const cmds: Command[] = [];
-  return { cmds, send: (c) => { const r = w.command(c); if (r.ok) cmds.push(c); return r; } };
+  return {
+    cmds,
+    send: (c) => {
+      const r = w.command(c);
+      if (r.ok) cmds.push(c);
+      return r;
+    },
+  };
 }
 
 const act = (w: IWorld, actions: Record<string, unknown>[], extra: Record<string, unknown> = {}) =>
@@ -64,7 +93,14 @@ describe('planner intents', () => {
     expect(b.rec.cmds).toEqual(a.rec.cmds);
     expect(stateHash(b.w)).toBe(stateHash(a.w));
     const replay = createWorld(opts('pl-1'));
-    replaySync(replay, { v: 1, opts: opts('pl-1'), tick: a.w.state.tick, log: a.w.log.map((e) => ({ tick: e.tick, cmd: e.cmd })), wave: 0, savedAt: 0 });
+    replaySync(replay, {
+      v: 1,
+      opts: opts('pl-1'),
+      tick: a.w.state.tick,
+      log: a.w.log.map((e) => ({ tick: e.tick, cmd: e.cmd })),
+      wave: 0,
+      savedAt: 0,
+    });
     expect(stateHash(replay)).toBe(stateHash(a.w));
   });
 
@@ -137,7 +173,12 @@ describe('planner intents', () => {
             const kind = kinds[h % kinds.length];
             if (kind === 'maze') p.maze('serpentine', 40);
             else if (kind === 'funnel') p.maze('funnel', 15);
-            else if (kind === 'build_near') p.buildNear((['pencil', 'glue', 'lamp', 'eraser'] as const)[h % 4], (['route', 'early', 'exit', 'chokepoint'])[(h >> 3) % 4], 2);
+            else if (kind === 'build_near')
+              p.buildNear(
+                (['pencil', 'glue', 'lamp', 'eraser'] as const)[h % 4],
+                ['route', 'early', 'exit', 'chokepoint'][(h >> 3) % 4],
+                2,
+              );
             else if (kind === 'spend') p.spend(10);
             else if (kind === 'upgrade_best') p.upgradeBest(2);
             else p.antiAir();
@@ -165,7 +206,11 @@ describe('planner intents', () => {
 describe('act with assist', () => {
   it('intents run inside act; results are one line each; assist off rejects intents', () => {
     const w = createWorld(opts('as-1'));
-    const r = act(w, [{ do: 'maze', budget: 30 }, { do: 'build_near', tower: 'pencil', count: 2 }, { do: 'spend', reserve: 0 }]);
+    const r = act(w, [
+      { do: 'maze', budget: 30 },
+      { do: 'build_near', tower: 'pencil', count: 2 },
+      { do: 'spend', reserve: 0 },
+    ]);
     const lines = r.text.split('\n');
     expect(lines[0]).toMatch(/^1 OK maze serpentine/);
     expect(lines[1]).toMatch(/^2 OK build_near pencil/);
@@ -201,7 +246,9 @@ describe('act with assist', () => {
     expect(r.ok).toBe(false);
     expect(r.endTurn).toBe(true);
     expect(r.text).toMatch(/cannot be fixed this turn/);
-    const legacy = executeTool({ world: w, role: 'player', assist: false }, 'act', { actions: [{ do: 'place', tower: 'lamp', x: 3, y: 6 }] });
+    const legacy = executeTool({ world: w, role: 'player', assist: false }, 'act', {
+      actions: [{ do: 'place', tower: 'lamp', x: 3, y: 6 }],
+    });
     expect(legacy.endTurn).toBe(false);
   });
 
@@ -213,7 +260,9 @@ describe('act with assist', () => {
       expect(validateAgainst(a.input_schema, { actions: [{ do: k }] })).toEqual([]);
       expect(validateAgainst(v1.input_schema, { actions: [{ do: k }] })).not.toEqual([]);
     }
-    expect(validateAgainst(a.input_schema, { actions: [{ do: 'build_near', tower: 'pencil', target: 'airline:north', count: 2 }] })).toEqual([]);
+    expect(
+      validateAgainst(a.input_schema, { actions: [{ do: 'build_near', tower: 'pencil', target: 'airline:north', count: 2 }] }),
+    ).toEqual([]);
     expect(validateAgainst(a.input_schema, { actions: [{ tower: 'pencil' }] })).not.toEqual([]);
     const [rules] = systemBlocks('player');
     const [old] = systemBlocks('player', false);
@@ -232,10 +281,18 @@ describe('battle report, threat estimate, idle nudge', () => {
     const w = createWorld(opts('br-1'));
     const log = new BattleLog(w);
     // 一座塔放在离路线很远的角落：0 伤害
-    const far = [[0, 13], [11, 13], [0, 12], [11, 12]].find(([x, y]) => w.canPlace('pencil', x, y).ok)!;
+    const far = [
+      [0, 13],
+      [11, 13],
+      [0, 12],
+      [11, 12],
+    ].find(([x, y]) => w.canPlace('pencil', x, y).ok)!;
     w.command({ type: 'place', tower: 'pencil', cx: far[0], cy: far[1] });
     const near = w.currentPaths()[0][6];
-    const spot = [[near.x - 1, near.y], [near.x + 1, near.y]].find(([x, y]) => w.canPlace('pencil', x, y).ok)!;
+    const spot = [
+      [near.x - 1, near.y],
+      [near.x + 1, near.y],
+    ].find(([x, y]) => w.canPlace('pencil', x, y).ok)!;
     w.command({ type: 'place', tower: 'pencil', cx: spot[0], cy: spot[1] });
     log.feed(w.drainEvents());
     w.command({ type: 'startWave' });
@@ -266,7 +323,11 @@ describe('battle report, threat estimate, idle nudge', () => {
     expect(t1[0].verdict).toBe('安全');
     // 空中：把下一波预告换成纸飞机（只是测试估算；不跑世界）
     const air = createWorld(opts('th-1'));
-    air.state.nextWave = { ...air.state.nextWave, tags: ['air'], groups: [{ enemy: 'plane', count: 6, elite: 0, affixes: [], spawner: 'north' }] };
+    air.state.nextWave = {
+      ...air.state.nextWave,
+      tags: ['air'],
+      groups: [{ enemy: 'plane', count: 6, elite: 0, affixes: [], spawner: 'north' }],
+    };
     const ta = threatEstimate(air);
     expect(ta.map((t) => t.id)).toEqual(['air:north']);
     expect(ta[0].verdict).toBe('危险');
@@ -277,7 +338,14 @@ describe('battle report, threat estimate, idle nudge', () => {
   it('engine injects BR / TH / IDLE once per decision and records build-phase gold', { timeout: 30_000 }, async () => {
     const msgs: string[] = [];
     const inner = new ScriptedProvider({ intents: true });
-    const provider = { id: 'scripted', model: 'peek', decide: (ctx: Parameters<ScriptedProvider['decide']>[0]) => { msgs.push(ctx.message); return inner.decide(ctx); } };
+    const provider = {
+      id: 'scripted',
+      model: 'peek',
+      decide: (ctx: Parameters<ScriptedProvider['decide']>[0]) => {
+        msgs.push(ctx.message);
+        return inner.decide(ctx);
+      },
+    };
     const rep = await runAgentGame(opts('en-1'), { config: { provider: 'scripted' }, provider, maxWaves: 3 });
     expect(msgs[0]).toMatch(/\nTH w1: /);
     expect(msgs[0]).toMatch(/\nIDLE 150g unspent/);
@@ -288,22 +356,47 @@ describe('battle report, threat estimate, idle nudge', () => {
     expect(rep.result.lives).toBe(rep.result.maxLives);
     // assist 关闭：没有这些行
     const off: string[] = [];
-    const p2 = { id: 'scripted', model: 'peek', decide: (ctx: Parameters<ScriptedProvider['decide']>[0]) => { off.push(ctx.message); return new ScriptedProvider().decide(ctx); } };
+    const p2 = {
+      id: 'scripted',
+      model: 'peek',
+      decide: (ctx: Parameters<ScriptedProvider['decide']>[0]) => {
+        off.push(ctx.message);
+        return new ScriptedProvider().decide(ctx);
+      },
+    };
     await runAgentGame(opts('en-1'), { config: { provider: 'scripted', assist: false }, provider: p2, maxWaves: 1 });
     expect(off.some((m) => /\n(TH|BR|IDLE) /.test(m))).toBe(false);
   });
 
   it('scripted intents beat the old scripted policy and are deterministic', { timeout: 30_000 }, async () => {
-    const a = await runAgentGame(opts('sc-1', 'ch1', 'hard'), { config: { provider: 'scripted', model: 'scripted-intents' }, provider: new ScriptedProvider({ intents: true }), maxWaves: 6 });
-    const b = await runAgentGame(opts('sc-1', 'ch1', 'hard'), { config: { provider: 'scripted', model: 'scripted-intents' }, provider: new ScriptedProvider({ intents: true }), maxWaves: 6 });
-    const v1 = await runAgentGame(opts('sc-1', 'ch1', 'hard'), { config: { provider: 'scripted' }, provider: new ScriptedProvider(), maxWaves: 6 });
+    const a = await runAgentGame(opts('sc-1', 'ch1', 'hard'), {
+      config: { provider: 'scripted', model: 'scripted-intents' },
+      provider: new ScriptedProvider({ intents: true }),
+      maxWaves: 6,
+    });
+    const b = await runAgentGame(opts('sc-1', 'ch1', 'hard'), {
+      config: { provider: 'scripted', model: 'scripted-intents' },
+      provider: new ScriptedProvider({ intents: true }),
+      maxWaves: 6,
+    });
+    const v1 = await runAgentGame(opts('sc-1', 'ch1', 'hard'), {
+      config: { provider: 'scripted' },
+      provider: new ScriptedProvider(),
+      maxWaves: 6,
+    });
     expect(a.log).toEqual(b.log);
     expect(a.result.lives).toBeGreaterThanOrEqual(v1.result.lives);
     expect(a.play.pathLen).toBeGreaterThan(v1.play.pathLen);
     expect(a.play.rejected).toBe(0);
     // 引擎层：DecisionEngine 的 assist 缺省开
     const w = createWorld(opts('sc-2'));
-    const eng = new DecisionEngine({ world: w, opts: opts('sc-2'), config: resolveConfig({ provider: 'scripted' }), provider: null, fallback: scriptedFallback(w) });
+    const eng = new DecisionEngine({
+      world: w,
+      opts: opts('sc-2'),
+      config: resolveConfig({ provider: 'scripted' }),
+      provider: null,
+      fallback: scriptedFallback(w),
+    });
     expect(eng.assist).toBe(true);
   });
 });
@@ -323,7 +416,10 @@ describe('eval harness', () => {
     expect(md.split('\n')[0]).toMatch(/\| variant \| runs \| lost \| wave \| lives/);
     expect(existsSync(join(out, 'eval.html'))).toBe(true);
     expect(JSON.parse(readFileSync(join(out, 'eval.json'), 'utf8')).rows).toHaveLength(3);
-    expect(parseVariants('a:assist=off,thinking=low;b:model=x')).toEqual([{ name: 'a', kv: { assist: 'off', thinking: 'low' } }, { name: 'b', kv: { model: 'x' } }]);
+    expect(parseVariants('a:assist=off,thinking=low;b:model=x')).toEqual([
+      { name: 'a', kv: { assist: 'off', thinking: 'low' } },
+      { name: 'b', kv: { model: 'x' } },
+    ]);
     expect(summarize(r.rows).find((s) => s.variant === 'bot:medium')!.kind).toBe('bot');
   });
 });

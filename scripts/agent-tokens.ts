@@ -34,16 +34,53 @@ async function main(): Promise<void> {
     return;
   }
   const sb = systemBlocks('player');
-  console.log(`前缀：规则 ${estimateTokens(sb[0])} + 速查表 ${estimateTokens(sb[1])} + 工具 ${estimateTokens(JSON.stringify(SLIM_TOOLS.filter((t) => t.roles.includes('player')).map(({ name, description, input_schema }) => ({ name, description, input_schema }))))}（${SLIM_TOOLS.filter((t) => t.roles.includes('player')).length} 个）` +
-    `；旧：规则 ≈${LEGACY_RULES_TOKENS} + 资料表 ${estimateTokens(catalogText('all'))} + 工具 ${estimateTokens(JSON.stringify(LEGACY_TOOLS.map(({ name, description, input_schema }) => ({ name, description, input_schema }))))}（${LEGACY_TOOLS.length} 个）`);
+  console.log(
+    `前缀：规则 ${estimateTokens(sb[0])} + 速查表 ${estimateTokens(sb[1])} + 工具 ${estimateTokens(JSON.stringify(SLIM_TOOLS.filter((t) => t.roles.includes('player')).map(({ name, description, input_schema }) => ({ name, description, input_schema }))))}（${SLIM_TOOLS.filter((t) => t.roles.includes('player')).length} 个）` +
+      `；旧：规则 ≈${LEGACY_RULES_TOKENS} + 资料表 ${estimateTokens(catalogText('all'))} + 工具 ${estimateTokens(JSON.stringify(LEGACY_TOOLS.map(({ name, description, input_schema }) => ({ name, description, input_schema }))))}（${LEGACY_TOOLS.length} 个）`,
+  );
   console.log(`种子 ${SEED} · ${MAP} · ${WAVES} 波 · 估算（estimateTokens），只用于比较\n`);
-  const head = ['模式', '波', '决策点', '叫模型', '跳过', '请求', '请求/决策', '前缀', '消息均值', '新输入', '缓存读', '输出', '原始/波', '折算/波'];
+  const head = [
+    '模式',
+    '波',
+    '决策点',
+    '叫模型',
+    '跳过',
+    '请求',
+    '请求/决策',
+    '前缀',
+    '消息均值',
+    '新输入',
+    '缓存读',
+    '输出',
+    '原始/波',
+    '折算/波',
+  ];
   console.log(head.join('\t'));
   for (const r of out) {
-    console.log([r.label, r.waves, r.decisionPoints, r.called, r.skipped, r.requests, r.reqPerDecision, r.prefixTokens, r.avgMessageTokens,
-      k(r.usage.inputTokens), k(r.usage.cacheReadTokens), k(r.usage.outputTokens), k(r.perWaveRaw), k(r.perWaveWeighted)].join('\t'));
+    console.log(
+      [
+        r.label,
+        r.waves,
+        r.decisionPoints,
+        r.called,
+        r.skipped,
+        r.requests,
+        r.reqPerDecision,
+        r.prefixTokens,
+        r.avgMessageTokens,
+        k(r.usage.inputTokens),
+        k(r.usage.cacheReadTokens),
+        k(r.usage.outputTokens),
+        k(r.perWaveRaw),
+        k(r.perWaveWeighted),
+      ].join('\t'),
+    );
   }
-  console.log(`\n模式说明：${Object.entries(CONTEXT_MODES).map(([m, s]) => `${m}: 观测 ${s.observation}、门控 ${s.gating}、波中间隔 ${s.waveIntervalSec}s`).join('；')}`);
+  console.log(
+    `\n模式说明：${Object.entries(CONTEXT_MODES)
+      .map(([m, s]) => `${m}: 观测 ${s.observation}、门控 ${s.gating}、波中间隔 ${s.waveIntervalSec}s`)
+      .join('；')}`,
+  );
 }
 
 main().catch((e) => {

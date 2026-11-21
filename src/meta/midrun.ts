@@ -12,7 +12,10 @@ export type ReplayWorld = Pick<IWorld, 'step' | 'command' | 'drainEvents'> & {
   readonly state: { tick: number; phase: string; wave: number; seed: string };
 };
 
-export function makeMidRun(world: Pick<IWorld, 'log'> & { state: { tick: number; seed: string; wave: number; opts: RunOptions } }, aiAssist?: AiAssist | null): MidRun {
+export function makeMidRun(
+  world: Pick<IWorld, 'log'> & { state: { tick: number; seed: string; wave: number; opts: RunOptions } },
+  aiAssist?: AiAssist | null,
+): MidRun {
   const opts: RunOptions = { ...world.state.opts, seed: world.state.opts.seed ?? world.state.seed };
   const assist = cloneAssist(aiAssist);
   return {

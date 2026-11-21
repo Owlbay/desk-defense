@@ -94,20 +94,25 @@ export class BattleIntel {
   onEvent(ev: GameEvent): void {
     const s = this.w.state;
     switch (ev.type) {
-      case 'waveStart': this.wave = ev.wave; break;
+      case 'waveStart':
+        this.wave = ev.wave;
+        break;
       case 'death': {
         const c = this.cellOf(ev.x, ev.y);
         if (c >= 0) this.kills.set(c, (this.kills.get(c) ?? 0) + 1);
         this.alive.delete(ev.enemyUid);
         break;
       }
-      case 'leak': this.onLeak(ev.enemy); break;
+      case 'leak':
+        this.onLeak(ev.enemy);
+        break;
       case 'waveEnd': {
         this.snaps.push({ wave: ev.wave, dmg: new Map([...s.towers.values()].map((t) => [t.uid, t.damage])) });
         if (this.snaps.length > 4) this.snaps.shift();
         break;
       }
-      default: break;
+      default:
+        break;
     }
     if (s.time - this.last >= SAMPLE_DT) this.sample();
   }
@@ -145,8 +150,21 @@ export class BattleIntel {
       let tr = this.alive.get(e.uid);
       if (!tr) {
         tr = {
-          uid: e.uid, id: e.id, sp: this.spawnerNear(e.x, e.y), elite: e.elite, affixes: e.affixes.slice(), flying: e.flying, netted: false,
-          hp: 1, x: e.x, y: e.y, tTot: 0, tIn: 0, cells: [], cov: [], per: new Map(),
+          uid: e.uid,
+          id: e.id,
+          sp: this.spawnerNear(e.x, e.y),
+          elite: e.elite,
+          affixes: e.affixes.slice(),
+          flying: e.flying,
+          netted: false,
+          hp: 1,
+          x: e.x,
+          y: e.y,
+          tTot: 0,
+          tIn: 0,
+          cells: [],
+          cov: [],
+          per: new Map(),
         };
         this.alive.set(e.uid, tr);
       }
@@ -177,7 +195,10 @@ export class BattleIntel {
       if (c >= 0) {
         const k = tr.cells.length - 1;
         if (k >= 0 && tr.cells[k] === c) tr.cov[k] = Math.max(tr.cov[k], n);
-        else { tr.cells.push(c); tr.cov.push(n); }
+        else {
+          tr.cells.push(c);
+          tr.cov.push(n);
+        }
       }
     }
     // 伤害：每座塔的累计伤害增量按射程内的敌人平分
@@ -206,7 +227,10 @@ export class BattleIntel {
     for (const sp of this.w.state.spawners) {
       for (const c of sp.cells) {
         const d = Math.hypot(x - (c.x + 0.5), y - (c.y + 0.5));
-        if (d < bd) { bd = d; best = sp.id; }
+        if (d < bd) {
+          bd = d;
+          best = sp.id;
+        }
       }
     }
     return best;
@@ -227,12 +251,27 @@ export class BattleIntel {
     for (const tr of this.alive.values()) {
       if (present.has(tr.uid) || tr.id !== enemy) continue;
       const d = this.exitDist(tr);
-      if (d < bd) { bd = d; best = tr; }
+      if (d < bd) {
+        bd = d;
+        best = tr;
+      }
     }
     const def = ENEMIES[enemy];
     const rec: LeakRecord = best
       ? this.record(best)
-      : { wave: this.wave || s.wave, enemy, elite: false, affixes: [], flying: !!def?.flying, netted: false, hp: 1, sp: '?', inRange: 0, towers: [], gap: null };
+      : {
+          wave: this.wave || s.wave,
+          enemy,
+          elite: false,
+          affixes: [],
+          flying: !!def?.flying,
+          netted: false,
+          hp: 1,
+          sp: '?',
+          inRange: 0,
+          towers: [],
+          gap: null,
+        };
     if (best) this.alive.delete(best.uid);
     this.leaks.push(rec);
     if (this.leaks.length > 400) this.leaks.splice(0, 100);
@@ -242,11 +281,22 @@ export class BattleIntel {
 
   private record(tr: Track): LeakRecord {
     const tot = [...tr.per.values()].reduce((a, p) => a + p.d, 0);
-    const towers = [...tr.per].filter(([, p]) => p.d > 0).sort((a, b) => b[1].d - a[1].d || a[0] - b[0]).slice(0, 2)
+    const towers = [...tr.per]
+      .filter(([, p]) => p.d > 0)
+      .sort((a, b) => b[1].d - a[1].d || a[0] - b[0])
+      .slice(0, 2)
       .map(([uid, p]) => ({ uid, id: p.id, share: tot > 0 ? p.d / tot : 0 }));
     return {
-      wave: this.wave || this.w.state.wave, enemy: tr.id, elite: tr.elite, affixes: tr.affixes, flying: tr.flying, netted: tr.netted,
-      hp: Math.max(0, Math.min(1, tr.hp)), sp: tr.sp, inRange: tr.tTot > 0 ? tr.tIn / tr.tTot : 0, towers,
+      wave: this.wave || this.w.state.wave,
+      enemy: tr.id,
+      elite: tr.elite,
+      affixes: tr.affixes,
+      flying: tr.flying,
+      netted: tr.netted,
+      hp: Math.max(0, Math.min(1, tr.hp)),
+      sp: tr.sp,
+      inRange: tr.tTot > 0 ? tr.tIn / tr.tTot : 0,
+      towers,
       gap: findGap(tr.cells, tr.cov, tr.flying && !tr.netted ? `air:${tr.sp}` : tr.sp),
     };
   }
@@ -364,24 +414,28 @@ export function leakLine(w: IWorld, leaks: readonly LeakRecord[], cap = 4): stri
     groups.get(k)!.push(l);
   }
   const waves = [...new Set(leaks.map((l) => l.wave))].sort((a, b) => a - b);
-  const parts = [...groups].sort((a, b) => b[1].length - a[1].length).slice(0, cap).map(([k, ls]) => {
-    const n = ls.length;
-    const hp = pct(ls.reduce((a, l) => a + l.hp, 0) / n);
-    const inR = pct(ls.reduce((a, l) => a + l.inRange, 0) / n);
-    const gaps = ls.map((l) => l.gap).filter((g): g is Gap => !!g);
-    const g = gaps.sort((a, b) => b.cells.length - a.cells.length)[0];
-    const top = new Map<number, { id: TowerId; s: number }>();
-    for (const l of ls) for (const t of l.towers) {
-      const v = top.get(t.uid) ?? { id: t.id, s: 0 };
-      v.s += t.share / n;
-      top.set(t.uid, v);
-    }
-    const best = [...top].sort((a, b) => b[1].s - a[1].s)[0];
-    const bits = [`${n > 1 ? '均' : ''}剩${hp}%血`, `射程内${inR}%`];
-    bits.push(g ? `${g.sp} ${segText(g.cells, cols)} ${g.level ? '仅1塔' : '无覆盖'}` : `${ls[0].sp}`);
-    bits.push(best ? `主伤#${best[0]}${best[1].id} ${pct(best[1].s)}%` : '无塔打到');
-    return `${k.split('@')[0]}×${n}(${bits.join(' ')})`;
-  });
+  const parts = [...groups]
+    .sort((a, b) => b[1].length - a[1].length)
+    .slice(0, cap)
+    .map(([k, ls]) => {
+      const n = ls.length;
+      const hp = pct(ls.reduce((a, l) => a + l.hp, 0) / n);
+      const inR = pct(ls.reduce((a, l) => a + l.inRange, 0) / n);
+      const gaps = ls.map((l) => l.gap).filter((g): g is Gap => !!g);
+      const g = gaps.sort((a, b) => b.cells.length - a.cells.length)[0];
+      const top = new Map<number, { id: TowerId; s: number }>();
+      for (const l of ls)
+        for (const t of l.towers) {
+          const v = top.get(t.uid) ?? { id: t.id, s: 0 };
+          v.s += t.share / n;
+          top.set(t.uid, v);
+        }
+      const best = [...top].sort((a, b) => b[1].s - a[1].s)[0];
+      const bits = [`${n > 1 ? '均' : ''}剩${hp}%血`, `射程内${inR}%`];
+      bits.push(g ? `${g.sp} ${segText(g.cells, cols)} ${g.level ? '仅1塔' : '无覆盖'}` : `${ls[0].sp}`);
+      bits.push(best ? `主伤#${best[0]}${best[1].id} ${pct(best[1].s)}%` : '无塔打到');
+      return `${k.split('@')[0]}×${n}(${bits.join(' ')})`;
+    });
   const more = groups.size > cap ? ` +${groups.size - cap}种` : '';
   return `LK w${waves.join(',')} 漏${leaks.length}: ${parts.join(' ')}${more}`;
 }

@@ -19,7 +19,16 @@ const MOVE_T = 0.32;
 
 /** 开火动作的输出（模块级复用，避免分配） */
 const F = { kick: 0, sx: 1, sy: 1, rot: 0, bsx: 1, bsy: 1, glow: 1 };
-const FIRE_DUR: Partial<Record<TowerState['id'], number>> = { pencil: 0.2, stapler: 0.26, lamp: 0.18, compass: 0.3, ruler: 0.24, glue: 0.28, eraser: 0.26, pen: 0.22 };
+const FIRE_DUR: Partial<Record<TowerState['id'], number>> = {
+  pencil: 0.2,
+  stapler: 0.26,
+  lamp: 0.18,
+  compass: 0.3,
+  ruler: 0.24,
+  glue: 0.28,
+  eraser: 0.26,
+  pen: 0.22,
+};
 
 /**
  * 各塔的开火曲线，p ∈ [0,1)。core 只在开火瞬间发事件，所以「预备」压缩在最前面 10% 左右：
@@ -272,14 +281,16 @@ class TowerView {
     const br = 0.5 + 0.5 * Math.sin(vt * 1.8 + this.phase);
     const high = ctx.quality === 'high';
     const spin = ctx.reduced ? 0 : vt;
-    this.auraRing.setVisible(true).setDisplaySize(CELL * 1.16, CELL * 1.16).setRotation(spin * 0.6 + this.phase).setAlpha(0.6);
-    this.auraIn!
-      .setVisible(high)
+    this.auraRing
+      .setVisible(true)
+      .setDisplaySize(CELL * 1.16, CELL * 1.16)
+      .setRotation(spin * 0.6 + this.phase)
+      .setAlpha(0.6);
+    this.auraIn!.setVisible(high)
       .setDisplaySize(CELL * (0.92 + 0.03 * br), CELL * (0.92 + 0.03 * br))
       .setRotation(-spin * 0.9)
       .setAlpha(0.3 + 0.15 * br);
-    this.auraGlow!
-      .setVisible(high)
+    this.auraGlow!.setVisible(high)
       .setDisplaySize(CELL * (1.5 + 0.12 * br), CELL * (1.5 + 0.12 * br))
       .setAlpha(0.22 + 0.14 * br);
   }
@@ -739,7 +750,10 @@ export class TowerLayer {
     g.fillTriangle(x, y - CELL * 0.42 - d * 0.6, x - d * 0.35, y - CELL * 0.42, x + d * 0.35, y - CELL * 0.42);
     let tx = this.prismTexts[this.prismN];
     if (!tx) {
-      tx = this.ctx.scene.add.text(0, 0, '', { fontFamily: FONT, fontSize: '12px', fontStyle: 'bold', color: '#fff6c8', stroke: '#3a2a12', strokeThickness: 3 }).setOrigin(0, 0.5).setDepth(DEPTH.tower + 0.95);
+      tx = this.ctx.scene.add
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '12px', fontStyle: 'bold', color: '#fff6c8', stroke: '#3a2a12', strokeThickness: 3 })
+        .setOrigin(0, 0.5)
+        .setDepth(DEPTH.tower + 0.95);
       this.prismTexts.push(tx);
     }
     this.prismN++;
@@ -929,7 +943,15 @@ export function dashed(
   }
 }
 
-export function star5(g: Phaser.GameObjects.Graphics, x: number, y: number, r: number, color: number, outline: number = C.ink, rot = 0): void {
+export function star5(
+  g: Phaser.GameObjects.Graphics,
+  x: number,
+  y: number,
+  r: number,
+  color: number,
+  outline: number = C.ink,
+  rot = 0,
+): void {
   const pts = STAR5_PTS;
   for (let i = 0; i < 10; i++) {
     const rr = i % 2 === 0 ? r : r * 0.45;

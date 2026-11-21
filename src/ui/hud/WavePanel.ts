@@ -228,7 +228,13 @@ export class WavePanel {
       let row = this.upRows.get(e.uid);
       if (!row) {
         const secs = h('b.up-secs');
-        const el = h(`span.up-event.tone-${e.tone}`, { title: e.desc }, h('span.gi', { html: TONE_GLYPH[e.tone] ?? G.warn }), h('span.up-name', null, e.name), secs);
+        const el = h(
+          `span.up-event.tone-${e.tone}`,
+          { title: e.desc },
+          h('span.gi', { html: TONE_GLYPH[e.tone] ?? G.warn }),
+          h('span.up-name', null, e.name),
+          secs,
+        );
         this.upcoming.appendChild(el);
         row = { el, secs };
         this.upRows.set(e.uid, row);
@@ -270,7 +276,7 @@ export class WavePanel {
     for (const [sp, groups] of bySpawner) {
       const spState = st.spawners.find((s) => s.id === sp);
       const showLabel = sp !== '' && (!single || sp === '*' || (spState !== undefined && spState.kind !== 'edge'));
-      const kind = sp === '*' ? 'split' : spState?.kind ?? 'edge';
+      const kind = sp === '*' ? 'split' : (spState?.kind ?? 'edge');
       const chips = groups.map((g) => this.groupChip(g));
       if (showLabel) {
         items.push(h(`span.pv-spawner.k-${kind}`, null, h('span.pv-sp-name', null, spawnerName(sp, st.spawners)), ...chips));
@@ -290,10 +296,22 @@ export class WavePanel {
     const affixNames = g.affixes.map((a) => AFFIX_META[a]?.name ?? a).join(t('ui.wave.listSep'));
     return h(
       `span.pv-group${g.elite > 0 ? '.elite' : ''}`,
-      { title: g.elite ? (affixNames ? t('ui.wave.groupEliteAffix', { name, n: g.count, elite: g.elite, affixes: affixNames }) : t('ui.wave.groupElite', { name, n: g.count, elite: g.elite })) : `${name} ×${g.count}` },
+      {
+        title: g.elite
+          ? affixNames
+            ? t('ui.wave.groupEliteAffix', { name, n: g.count, elite: g.elite, affixes: affixNames })
+            : t('ui.wave.groupElite', { name, n: g.count, elite: g.elite })
+          : `${name} ×${g.count}`,
+      },
       img(enemyIcon(g.enemy), 'ico'),
       h('b', null, `×${g.count}`),
-      g.affixes.length ? h('span.pv-affixes', null, g.affixes.slice(0, 4).map((a) => img(affixIcon(a), 'ico affix'))) : null,
+      g.affixes.length
+        ? h(
+            'span.pv-affixes',
+            null,
+            g.affixes.slice(0, 4).map((a) => img(affixIcon(a), 'ico affix')),
+          )
+        : null,
     );
   }
 }

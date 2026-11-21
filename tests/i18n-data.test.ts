@@ -33,11 +33,15 @@ describe('core / data dictionaries', () => {
   it('have the same keys and placeholders in every locale', async () => {
     for (const l of LOCALES) await loadLocale(l);
     const src = dictOf('zh-CN')!;
-    const keys = Object.keys(src).filter((k) => NS.test(k)).sort();
+    const keys = Object.keys(src)
+      .filter((k) => NS.test(k))
+      .sort();
     expect(keys.length).toBeGreaterThan(600);
     for (const l of LOCALES) {
       const d = dictOf(l)!;
-      const own = Object.keys(d).filter((k) => NS.test(k)).sort();
+      const own = Object.keys(d)
+        .filter((k) => NS.test(k))
+        .sort();
       expect(own, `${l} keys`).toEqual(keys);
       for (const k of keys) {
         // 英文复数 'one|other'：两段的占位符合起来与源文本一致
@@ -72,8 +76,14 @@ describe('core / data dictionaries', () => {
 // ───────────── 运行时切换 ─────────────
 
 const rich = (o: Partial<RunOptions> = {}): RunOptions => ({
-  mode: 'custom', map: 'ch1', difficulty: 'normal', seed: 'i18n-seed', skills: ['eraser_strike', 'bell', 'whiteout_zone'],
-  fixedLayout: true, custom: { startGold: 100000 }, ...o,
+  mode: 'custom',
+  map: 'ch1',
+  difficulty: 'normal',
+  seed: 'i18n-seed',
+  skills: ['eraser_strike', 'bell', 'whiteout_zone'],
+  fixedLayout: true,
+  custom: { startGold: 100000 },
+  ...o,
 });
 
 function texts(w: IWorld): string[] {
@@ -215,12 +225,19 @@ function stripComments(src: string): string {
     const c = src[i];
     if (q) {
       out += c;
-      if (c === '\\') { out += src[i + 1] ?? ''; i += 2; continue; }
+      if (c === '\\') {
+        out += src[i + 1] ?? '';
+        i += 2;
+        continue;
+      }
       if (c === q) q = null;
       i++;
       continue;
     }
-    if (c === '/' && src[i + 1] === '/') { while (i < src.length && src[i] !== '\n') i++; continue; }
+    if (c === '/' && src[i + 1] === '/') {
+      while (i < src.length && src[i] !== '\n') i++;
+      continue;
+    }
     if (c === '/' && src[i + 1] === '*') {
       const end = src.indexOf('*/', i + 2);
       const chunk = src.slice(i, end < 0 ? src.length : end + 2);
@@ -228,7 +245,7 @@ function stripComments(src: string): string {
       i = end < 0 ? src.length : end + 2;
       continue;
     }
-    if (c === '\'' || c === '"' || c === '`') q = c;
+    if (c === "'" || c === '"' || c === '`') q = c;
     out += c;
     i++;
   }

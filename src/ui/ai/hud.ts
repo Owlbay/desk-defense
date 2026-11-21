@@ -112,7 +112,13 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
   const dot = h('span.ai-dot', { attrs: { 'aria-hidden': 'true' } });
   const chipText = h('span.ai-chip-text');
   const chipUsage = h('span.ai-chip-usage');
-  const chip = h<HTMLButtonElement>('button.ai-chip', { attrs: { type: 'button', 'aria-expanded': 'false', 'aria-controls': 'ai-panel' } }, dot, chipText, chipUsage);
+  const chip = h<HTMLButtonElement>(
+    'button.ai-chip',
+    { attrs: { type: 'button', 'aria-expanded': 'false', 'aria-controls': 'ai-panel' } },
+    dot,
+    chipText,
+    chipUsage,
+  );
   const statusLine = h('p.ai-status-line', { attrs: { role: 'status', 'aria-live': 'polite' } });
   const usageNums = h('div.ai-usage-nums');
   const budgetFill = h('span.ai-budget-fill');
@@ -234,30 +240,57 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
     const drv = driving();
     game.classList.toggle('ai-driving', drv);
     // AI 操作中：棋盘只能点选查看（信息面板照常显示，按钮禁用）
-    if (ui.state.inspectOnly !== drv) ui.set(drv ? { inspectOnly: true, build: null, aiming: null, abilityAiming: null, pending: null } : { inspectOnly: false });
+    if (ui.state.inspectOnly !== drv)
+      ui.set(drv ? { inspectOnly: true, build: null, aiming: null, abilityAiming: null, pending: null } : { inspectOnly: false });
     if (k !== shownChip) {
       shownChip = k;
       root.dataset.status = k;
-      setText(chipText, switchedToBot && (k === 'watching' || k === 'thinking') ? t('agent.hud.chipBot', { status: chipLabel(k) }) : chipLabel(k));
+      setText(
+        chipText,
+        switchedToBot && (k === 'watching' || k === 'thinking') ? t('agent.hud.chipBot', { status: chipLabel(k) }) : chipLabel(k),
+      );
     }
     let line: string;
     switch (k) {
-      case 'loading': line = t('agent.hud.line.loading'); break;
+      case 'loading':
+        line = t('agent.hud.line.loading');
+        break;
       case 'thinking': {
-        const why = statusDetail.split(',').filter(Boolean).map((r) => reasonName(r) ?? r).join(t('agent.hud.listSep')) || '…';
+        const why =
+          statusDetail
+            .split(',')
+            .filter(Boolean)
+            .map((r) => reasonName(r) ?? r)
+            .join(t('agent.hud.listSep')) || '…';
         line = t(pauseMode ? 'agent.hud.line.thinkingPaused' : 'agent.hud.line.thinking', { reasons: why });
         break;
       }
-      case 'acting': line = t('agent.hud.line.acting'); break;
-      case 'paused': line = ctl?.budgetPending ? t('agent.hud.line.budgetPending') : t('agent.hud.line.paused'); break;
-      case 'fallback': line = t('agent.hud.line.fallback'); break;
-      case 'stopped': line = isPlayer ? t('agent.hud.line.stoppedPlayer') : t('agent.hud.line.stoppedAdvisor'); break;
-      case 'error': line = t('agent.hud.line.error'); break;
-      case 'over': line = t('agent.hud.line.over'); break;
-      default: line = isPlayer ? t('agent.hud.line.waitPlayer') : t('agent.hud.line.waitAdvisor');
+      case 'acting':
+        line = t('agent.hud.line.acting');
+        break;
+      case 'paused':
+        line = ctl?.budgetPending ? t('agent.hud.line.budgetPending') : t('agent.hud.line.paused');
+        break;
+      case 'fallback':
+        line = t('agent.hud.line.fallback');
+        break;
+      case 'stopped':
+        line = isPlayer ? t('agent.hud.line.stoppedPlayer') : t('agent.hud.line.stoppedAdvisor');
+        break;
+      case 'error':
+        line = t('agent.hud.line.error');
+        break;
+      case 'over':
+        line = t('agent.hud.line.over');
+        break;
+      default:
+        line = isPlayer ? t('agent.hud.line.waitPlayer') : t('agent.hud.line.waitAdvisor');
     }
     setText(statusLine, line);
-    pauseBtn.replaceChildren(h('span.gi', { html: status === 'paused' ? G.play : G.pause }), status === 'paused' ? t('agent.hud.resume') : t('agent.hud.pause'));
+    pauseBtn.replaceChildren(
+      h('span.gi', { html: status === 'paused' ? G.play : G.pause }),
+      status === 'paused' ? t('agent.hud.resume') : t('agent.hud.pause'),
+    );
     pauseBtn.setAttribute('aria-label', status === 'paused' ? t('agent.hud.resumeAll') : t('agent.hud.pauseAll'));
     const dead = over || status === 'stopped' || status === 'error';
     pauseBtn.disabled = dead || status === 'loading' || status === 'idle';
@@ -289,13 +322,17 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       budgetFill.style.transform = `scaleX(${Math.min(1, ratio).toFixed(3)})`;
       budgetBar.dataset.level = ratio >= 1 ? 'out' : ratio >= 0.9 ? 'high' : ratio >= 0.7 ? 'mid' : 'ok';
       budgetBar.setAttribute('aria-valuenow', String(Math.min(100, pct)));
-      const parts = [limit ? t('agent.hud.weightedOf', { used: fmtTokens(weighted), limit: fmtTokens(limit) }) : '', bu ? `${fmtCost(costUsd)} / ${fmtCost(bu)}` : ''].filter(Boolean);
+      const parts = [
+        limit ? t('agent.hud.weightedOf', { used: fmtTokens(weighted), limit: fmtTokens(limit) }) : '',
+        bu ? `${fmtCost(costUsd)} / ${fmtCost(bu)}` : '',
+      ].filter(Boolean);
       const policy = budgetState?.policy ?? config.budget?.mode ?? 'soft';
-      const msg = ratio >= 1
-        ? policy === 'hard' || ctl?.report().decisions.some((d) => d.fallbackReason?.includes('budget'))
-          ? t('agent.hud.budgetBot')
-          : t('agent.hud.budgetOver')
-        : budgetState?.message ?? t('agent.hud.budgetPct', { pct });
+      const msg =
+        ratio >= 1
+          ? policy === 'hard' || ctl?.report().decisions.some((d) => d.fallbackReason?.includes('budget'))
+            ? t('agent.hud.budgetBot')
+            : t('agent.hud.budgetOver')
+          : (budgetState?.message ?? t('agent.hud.budgetPct', { pct }));
       setText(budgetText, t('agent.hud.budgetLine', { msg, detail: parts.join(' · ') }));
     }
   };
@@ -311,7 +348,15 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       paintStatus();
     };
     budgetAsk.replaceChildren(
-      h('p', null, t('agent.hud.askText', { used: b.limit ? t('agent.hud.weightedOf', { used: fmtTokens(b.weighted), limit: fmtTokens(b.limit) }) : `${fmtTokens(b.weighted)} ${t('agent.hud.weighted')}` })),
+      h(
+        'p',
+        null,
+        t('agent.hud.askText', {
+          used: b.limit
+            ? t('agent.hud.weightedOf', { used: fmtTokens(b.weighted), limit: fmtTokens(b.limit) })
+            : `${fmtTokens(b.weighted)} ${t('agent.hud.weighted')}`,
+        }),
+      ),
       h(
         'div.ai-error-actions',
         null,
@@ -346,7 +391,9 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
     for (const c of rec.toolCalls) {
       if (c.name === 'act') {
         // 批量动作：逐条展开（每条的成败按结果里的行号）
-        const list = Array.isArray((c.input as { actions?: unknown })?.actions) ? ((c.input as { actions: Record<string, unknown>[] }).actions) : [];
+        const list = Array.isArray((c.input as { actions?: unknown })?.actions)
+          ? (c.input as { actions: Record<string, unknown>[] }).actions
+          : [];
         const lines = c.result.split('\n');
         list.forEach((a, i) => {
           const m = actToLegacy(a);
@@ -354,7 +401,14 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
           if (!text) return;
           const line = lines.find((l) => l.startsWith(`${i + 1} `)) ?? '';
           const ok = /^\d+ (OK|QUEUED)/.test(line);
-          acts.push(h(`li.${ok ? 'ok' : 'bad'}`, null, h('span.gi', { html: ok ? G.check : G.close }), h('span', null, text, ok ? null : h('small', null, ` — ${line.replace(/^\d+ /, '').slice(0, 80)}`))));
+          acts.push(
+            h(
+              `li.${ok ? 'ok' : 'bad'}`,
+              null,
+              h('span.gi', { html: ok ? G.check : G.close }),
+              h('span', null, text, ok ? null : h('small', null, ` — ${line.replace(/^\d+ /, '').slice(0, 80)}`)),
+            ),
+          );
         });
         continue;
       }
@@ -363,7 +417,14 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
         if (c.name !== 'end_turn' && c.name !== 'suggest' && c.name !== 'act') reads++;
         continue;
       }
-      acts.push(h(`li.${c.ok ? 'ok' : 'bad'}`, null, h('span.gi', { html: c.ok ? G.check : G.close }), h('span', null, text, c.ok ? null : h('small', null, ` — ${failReason(c)}`))));
+      acts.push(
+        h(
+          `li.${c.ok ? 'ok' : 'bad'}`,
+          null,
+          h('span.gi', { html: c.ok ? G.check : G.close }),
+          h('span', null, text, c.ok ? null : h('small', null, ` — ${failReason(c)}`)),
+        ),
+      );
     }
     const reasons = rec.point.reasons.map((r) => reasonName(r) ?? r).join(t('agent.hud.listSep'));
     const tokens = budgetTokens(rec.usage);
@@ -372,13 +433,25 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       tokens ? `${fmtTokens(tokens)} ${t('agent.hud.weighted')}` : '',
       rec.usage.requests ? t('agent.hud.requests', { n: rec.usage.requests }) : '',
       reads ? t('agent.hud.reads', { n: reads }) : '',
-    ].filter(Boolean).join(' · ');
+    ]
+      .filter(Boolean)
+      .join(' · ');
     const item = h(
       `li.ai-feed-item${rec.by === 'fallback' ? '.by-bot' : ''}`,
       null,
-      h('div.ai-feed-head', null, h('b', null, t('agent.hud.wave', { n: Math.max(1, rec.point.wave) })), h('span.muted', null, reasons), rec.by === 'fallback' ? h('span.badge.ai-bot-badge', null, t('agent.hud.bot')) : null),
+      h(
+        'div.ai-feed-head',
+        null,
+        h('b', null, t('agent.hud.wave', { n: Math.max(1, rec.point.wave) })),
+        h('span.muted', null, reasons),
+        rec.by === 'fallback' ? h('span.badge.ai-bot-badge', null, t('agent.hud.bot')) : null,
+      ),
       rec.note ? h('p.ai-feed-note', null, rec.note) : null,
-      acts.length ? h('ul.ai-feed-acts', null, acts) : rec.by === 'agent' && isPlayer ? h('p.muted.small', null, t('agent.hud.noActions')) : null,
+      acts.length
+        ? h('ul.ai-feed-acts', null, acts)
+        : rec.by === 'agent' && isPlayer
+          ? h('p.muted.small', null, t('agent.hud.noActions'))
+          : null,
       rec.fallbackReason ? h('p.ai-feed-why', null, fallbackText(rec.fallbackReason)) : null,
       h('small.muted', null, meta),
     );
@@ -434,7 +507,11 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
         h('span.gi', { html: G.eye }),
         h('b', null, t('agent.hud.suggestTitle')),
         h('small.muted', null, t('agent.hud.wave', { n: Math.max(1, s.wave) })),
-        h('button.btn.small.ai-suggest-dismiss', { attrs: { type: 'button', 'aria-label': t('agent.hud.dismissLabel') }, onclick: () => (audio.play('click'), dismiss()) }, t('agent.hud.dismiss')),
+        h(
+          'button.btn.small.ai-suggest-dismiss',
+          { attrs: { type: 'button', 'aria-label': t('agent.hud.dismissLabel') }, onclick: () => (audio.play('click'), dismiss()) },
+          t('agent.hud.dismiss'),
+        ),
       ),
       h('p', null, s.text),
       rows.length ? h('ul.ai-suggest-acts', null, rows) : '',
@@ -532,14 +609,25 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
               shownChip = null;
               ctl?.stop();
               if (session.paused && !pauseMenuOpen()) session.togglePause(false);
-              startController({ ...launch.config, provider: 'scripted', model: 'scripted-v1', apiKey: undefined, bridge: undefined }, isPlayer ? undefined : demoAdvisor(world));
+              startController(
+                { ...launch.config, provider: 'scripted', model: 'scripted-v1', apiKey: undefined, bridge: undefined },
+                isPlayer ? undefined : demoAdvisor(world),
+              );
             },
           },
           t('agent.hud.useBot'),
         ),
         isPlayer
-          ? h('button.btn.small', { attrs: { type: 'button' }, onclick: () => (audio.play('click'), (errorBox.hidden = true), stop()) }, t('agent.hud.takeOver'))
-          : h('button.btn.small', { attrs: { type: 'button' }, onclick: () => (audio.play('click'), (errorBox.hidden = true), launch.onStop?.()) }, launch.onStop ? t('ui.assist.stop') : t('agent.hud.gotIt')),
+          ? h(
+              'button.btn.small',
+              { attrs: { type: 'button' }, onclick: () => (audio.play('click'), (errorBox.hidden = true), stop()) },
+              t('agent.hud.takeOver'),
+            )
+          : h(
+              'button.btn.small',
+              { attrs: { type: 'button' }, onclick: () => (audio.play('click'), (errorBox.hidden = true), launch.onStop?.()) },
+              launch.onStop ? t('ui.assist.stop') : t('agent.hud.gotIt'),
+            ),
       ),
     );
     if (!open) {
@@ -577,7 +665,13 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
   const paintStop = (): void => {
     const armed = Date.now() < stopArmed;
     stopBtn.classList.toggle('danger', armed);
-    stopBtn.textContent = armed ? (isPlayer ? t('agent.hud.confirmTakeOver') : t('agent.hud.confirmStop')) : isPlayer ? t('agent.hud.stopPlayer') : t('agent.hud.stopAdvisor');
+    stopBtn.textContent = armed
+      ? isPlayer
+        ? t('agent.hud.confirmTakeOver')
+        : t('agent.hud.confirmStop')
+      : isPlayer
+        ? t('agent.hud.stopPlayer')
+        : t('agent.hud.stopAdvisor');
   };
   stopBtn.onclick = () => {
     audio.play('click');
@@ -753,7 +847,8 @@ function fallbackText(reason: string): string {
       if (r.startsWith('timeout')) return t('agent.hud.fb.timeout');
       if (r.startsWith('token budget')) return t('agent.hud.fb.tokenBudget');
       if (r.startsWith('cost budget')) return t('agent.hud.fb.costBudget');
-      if (r.startsWith('disabled after')) return t('agent.hud.fb.disabled', { detail: r.replace(/^disabled after \d+ consecutive errors \(last: /, '').replace(/\)$/, '') });
+      if (r.startsWith('disabled after'))
+        return t('agent.hud.fb.disabled', { detail: r.replace(/^disabled after \d+ consecutive errors \(last: /, '').replace(/\)$/, '') });
       if (r.includes('advisor: no advice')) return t('agent.hud.fb.noAdvice', { detail: r.replace(' (advisor: no advice this time)', '') });
       return t('agent.hud.fb.error', { detail: r });
     })

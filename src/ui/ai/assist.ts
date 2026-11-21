@@ -70,21 +70,36 @@ export function offerDialog(parent: HTMLElement, role: AiRole, reason: string | 
         close(null);
       }
     };
-    const demoBtn = h('button.btn.primary', { attrs: { type: 'button' }, onclick: () => close('demo') }, h('span.gi', { html: G.play }), t('ui.assist.useDemo'));
+    const demoBtn = h(
+      'button.btn.primary',
+      { attrs: { type: 'button' }, onclick: () => close('demo') },
+      h('span.gi', { html: G.play }),
+      t('ui.assist.useDemo'),
+    );
     const el = h(
       'div.overlay.confirm-overlay.ai-offer-overlay',
       { onclick: (e: MouseEvent) => e.target === el && close(null) },
       h(
         'div.dialog.card.ai-offer',
         { attrs: { role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'ai-offer-title' } },
-        h('div.ai-offer-head', null, h('span.gi.ai-offer-ico', { html: AI_GLYPH }), h('h2', { attrs: { id: 'ai-offer-title' } }, reason ? t('ui.assist.offerInvalidTitle') : t('ui.assist.offerTitle'))),
+        h(
+          'div.ai-offer-head',
+          null,
+          h('span.gi.ai-offer-ico', { html: AI_GLYPH }),
+          h('h2', { attrs: { id: 'ai-offer-title' } }, reason ? t('ui.assist.offerInvalidTitle') : t('ui.assist.offerTitle')),
+        ),
         h('p', null, reason ? t('ui.assist.offerInvalid', { reason }) : t('ui.assist.offerText', { role: roleName(role) })),
         h('p.muted.small', null, t('ui.assist.offerDemoHint')),
         h(
           'div.row.end.ai-offer-actions',
           null,
           h('button.btn', { attrs: { type: 'button' }, onclick: () => close(null) }, t('common.cancel')),
-          h('button.btn', { attrs: { type: 'button' }, onclick: () => close('config') }, h('span.gi', { html: G.sliders }), t('ui.assist.configure')),
+          h(
+            'button.btn',
+            { attrs: { type: 'button' }, onclick: () => close('config') },
+            h('span.gi', { html: G.sliders }),
+            t('ui.assist.configure'),
+          ),
           demoBtn,
         ),
       ),
@@ -106,7 +121,11 @@ export interface ConfigOverlayResult {
  * 对局里的模型设置：同一个 AiModelConfigForm，覆盖在对局上。
  * role 给出时，底部按钮是「保存并启用（角色）」：校验 + 中转检测通过后返回启动参数。
  */
-export function openConfigOverlay(app: App, parent: HTMLElement, o: { role?: AiRole | null; onClose(r: ConfigOverlayResult): void }): () => void {
+export function openConfigOverlay(
+  app: App,
+  parent: HTMLElement,
+  o: { role?: AiRole | null; onClose(r: ConfigOverlayResult): void },
+): () => void {
   const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   const st = loadSetup();
   let form: AiModelConfigForm | null = null;
@@ -164,7 +183,14 @@ export function openConfigOverlay(app: App, parent: HTMLElement, o: { role?: AiR
       close({ changed: before() !== snap });
     }
   };
-  const closeBtn = h('button.btn.icon-btn.ai-config-close', { attrs: { type: 'button', 'aria-label': t('common.close') }, onclick: () => (audio.play('click'), close({ changed: before() !== snap })) }, h('span.gi', { html: G.close }));
+  const closeBtn = h(
+    'button.btn.icon-btn.ai-config-close',
+    {
+      attrs: { type: 'button', 'aria-label': t('common.close') },
+      onclick: () => (audio.play('click'), close({ changed: before() !== snap })),
+    },
+    h('span.gi', { html: G.close }),
+  );
   const doneBtn = h(
     'button.btn.primary',
     { attrs: { type: 'button' }, onclick: () => void finish() },
@@ -177,7 +203,13 @@ export function openConfigOverlay(app: App, parent: HTMLElement, o: { role?: AiR
     h(
       'div.dialog.card.ai-config-dialog',
       { attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'ai-config-title' } },
-      h('div.ai-config-head', null, h('span.gi', { html: AI_GLYPH }), h('h2', { attrs: { id: 'ai-config-title' } }, t('ui.assist.configTitle')), closeBtn),
+      h(
+        'div.ai-config-head',
+        null,
+        h('span.gi', { html: AI_GLYPH }),
+        h('h2', { attrs: { id: 'ai-config-title' } }, t('ui.assist.configTitle')),
+        closeBtn,
+      ),
       h('div.ai-config-scroll', null, h('p.muted.small', null, t('ui.assist.configIntro')), form.modelCard, form.decisionCard, form.errBox),
       h('div.ai-config-foot', null, summary, doneBtn),
     ),
@@ -194,10 +226,16 @@ export function openConfigOverlay(app: App, parent: HTMLElement, o: { role?: AiR
 export function mountAiAssistant(app: App, body: HTMLElement): () => void {
   const st = loadSetup();
   const summary = h('p.ai-summary.muted');
-  const form = mountAiModelConfigForm(app, { st, role: () => 'player', perRole: true, onChange: () => setText(summary, t('ui.assist.currentModel', { model: form.sourceLabel() })) });
+  const form = mountAiModelConfigForm(app, {
+    st,
+    role: () => 'player',
+    perRole: true,
+    onChange: () => setText(summary, t('ui.assist.currentModel', { model: form.sourceLabel() })),
+  });
   saveSetup(st);
   setText(summary, t('ui.assist.currentModel', { model: form.sourceLabel() }));
-  const li = (glyph: string, title: string, text: string): HTMLElement => h('li', null, h('span.gi', { html: glyph }), h('span', null, h('b', null, title), h('small.muted', null, text)));
+  const li = (glyph: string, title: string, text: string): HTMLElement =>
+    h('li', null, h('span.gi', { html: glyph }), h('span', null, h('b', null, title), h('small.muted', null, text)));
   body.replaceChildren(
     h(
       'section.card.section.ai-card.ai-assist-intro',

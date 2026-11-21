@@ -68,7 +68,11 @@ export function mountGuide(app: App, host: HTMLElement, initial: string | undefi
       renderContent(false);
     },
   });
-  const clearBtn = h('button.guide-search-clear', { attrs: { type: 'button' }, onclick: () => setQuery('', true) }, h('span.gi', { html: G.close, attrs: { 'aria-hidden': 'true' } }));
+  const clearBtn = h(
+    'button.guide-search-clear',
+    { attrs: { type: 'button' }, onclick: () => setQuery('', true) },
+    h('span.gi', { html: G.close, attrs: { 'aria-hidden': 'true' } }),
+  );
   const searchBox = h('div.guide-search', { attrs: { role: 'search' } }, input, clearBtn);
   const tabBar = h('div.guide-tabs', { attrs: { role: 'tablist' } });
   const status = h('p.guide-status', { attrs: { role: 'status', 'aria-live': 'polite' } });
@@ -113,7 +117,14 @@ export function mountGuide(app: App, host: HTMLElement, initial: string | undefi
         h(
           `button.guide-tab-btn${on ? '.on' : ''}`,
           {
-            attrs: { type: 'button', role: 'tab', id: `guide-tab-${id}`, 'aria-selected': on ? 'true' : 'false', 'aria-controls': 'guide-panel', tabindex: on ? '0' : '-1' },
+            attrs: {
+              type: 'button',
+              role: 'tab',
+              id: `guide-tab-${id}`,
+              'aria-selected': on ? 'true' : 'false',
+              'aria-controls': 'guide-panel',
+              tabindex: on ? '0' : '-1',
+            },
             onclick: () => go({ tab: id }),
           },
           t(`guide.tab.${id}`),
@@ -126,7 +137,8 @@ export function mountGuide(app: App, host: HTMLElement, initial: string | undefi
   // 标签栏：左右方向键切换（WAI-ARIA tabs）
   tabBar.addEventListener('keydown', (e) => {
     const i = TAB_IDS.indexOf(cur.tab);
-    const next = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? TAB_IDS.length - 1 : -1;
+    const next =
+      e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? TAB_IDS.length - 1 : -1;
     if (next < 0 && e.key !== 'ArrowLeft') return;
     e.preventDefault();
     go({ tab: TAB_IDS[(next + TAB_IDS.length) % TAB_IDS.length] });
@@ -142,7 +154,14 @@ export function mountGuide(app: App, host: HTMLElement, initial: string | undefi
     content.removeAttribute('aria-labelledby');
     if (!hits.length) {
       status.textContent = t('guide.search.empty', { q: query });
-      content.appendChild(h('div.empty-state', null, h('p', null, t('guide.search.empty', { q: query })), h('small.muted', null, t('guide.search.emptyHint'))));
+      content.appendChild(
+        h(
+          'div.empty-state',
+          null,
+          h('p', null, t('guide.search.empty', { q: query })),
+          h('small.muted', null, t('guide.search.emptyHint')),
+        ),
+      );
       return;
     }
     status.textContent = t('guide.search.count', { n: hits.length });
@@ -150,19 +169,24 @@ export function mountGuide(app: App, host: HTMLElement, initial: string | undefi
       h(
         'ul.guide-results',
         null,
-        hits.slice(0, MAX_RESULTS).map((e) =>
-          h(
-            'li',
-            null,
+        hits
+          .slice(0, MAX_RESULTS)
+          .map((e) =>
             h(
-              'a.guide-result.card',
-              { attrs: { href: `#guide/${e.tab}/${e.id}` }, onclick: (ev: Event) => (ev.preventDefault(), go({ tab: e.tab, item: e.id })) },
-              e.icon ? icon(e.icon, 'guide-ico', 40) : h('span.guide-ico.blank', { attrs: { 'aria-hidden': 'true' } }),
-              h('span.guide-result-main', null, h('strong', null, e.title), e.text ? h('small.muted', null, snippet(e.text, q)) : null),
-              h('span.tag', null, t(`guide.tab.${e.tab}`)),
+              'li',
+              null,
+              h(
+                'a.guide-result.card',
+                {
+                  attrs: { href: `#guide/${e.tab}/${e.id}` },
+                  onclick: (ev: Event) => (ev.preventDefault(), go({ tab: e.tab, item: e.id })),
+                },
+                e.icon ? icon(e.icon, 'guide-ico', 40) : h('span.guide-ico.blank', { attrs: { 'aria-hidden': 'true' } }),
+                h('span.guide-result-main', null, h('strong', null, e.title), e.text ? h('small.muted', null, snippet(e.text, q)) : null),
+                h('span.tag', null, t(`guide.tab.${e.tab}`)),
+              ),
             ),
           ),
-        ),
       ),
     );
   }

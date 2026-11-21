@@ -1,5 +1,14 @@
 /** 图鉴 · 玩法：新手入门、操作、模式、自动开波、随机事件、动态战场、进化 */
-import { abyssParams, CRATE_OPTIONS, DIFFICULTY_PRESETS, MAP_META, RANDOM_EVENT_META, TIER_NAMES, type DifficultyParams, type MapId } from '../../../core';
+import {
+  abyssParams,
+  CRATE_OPTIONS,
+  DIFFICULTY_PRESETS,
+  MAP_META,
+  RANDOM_EVENT_META,
+  TIER_NAMES,
+  type DifficultyParams,
+  type MapId,
+} from '../../../core';
 import { RANDOM_EVENT_IDS } from '../../../core/types';
 import { t } from '../../../i18n';
 import { diffLabel } from '../../../meta/progress';
@@ -38,7 +47,8 @@ function controls(): HTMLElement {
 }
 
 function diffRow(name: string, p: DifficultyParams): string[] {
-  const elite = p.eliteStart > 0 && p.eliteStart <= 999 ? t('guide.wave', { n: Math.round(p.eliteStart) }) : t('guide.play.modes.diff.eliteNever');
+  const elite =
+    p.eliteStart > 0 && p.eliteStart <= 999 ? t('guide.wave', { n: Math.round(p.eliteStart) }) : t('guide.play.modes.diff.eliteNever');
   return [name, String(p.startGold), String(p.lives), `×${Math.round(p.hpMul * 100) / 100}`, elite, String(p.interestCap)];
 }
 
@@ -51,7 +61,9 @@ function modes(): HTMLElement {
     h(
       'div.guide-cards',
       null,
-      MODES.map((m) => h('div.guide-mini', null, h('h3.guide-h3', null, t(`guide.play.modes.${m}.name`)), rich('p', t(`guide.play.modes.${m}.desc`)))),
+      MODES.map((m) =>
+        h('div.guide-mini', null, h('h3.guide-h3', null, t(`guide.play.modes.${m}.name`)), rich('p', t(`guide.play.modes.${m}.desc`))),
+      ),
     ),
     h('h3.guide-h3', null, t('guide.play.modes.maps.title')),
     h(
@@ -86,7 +98,13 @@ function events(): HTMLElement {
         h(
           'div.guide-row-main',
           null,
-          h('div.guide-row-title', null, h('strong', null, m.name), tag(t('guide.play.events.minWave', { n: m.minWave })), warn ? tag(warn) : null),
+          h(
+            'div.guide-row-title',
+            null,
+            h('strong', null, m.name),
+            tag(t('guide.play.events.minWave', { n: m.minWave })),
+            warn ? tag(warn) : null,
+          ),
           h('p', null, m.desc),
         ),
       );
@@ -95,7 +113,10 @@ function events(): HTMLElement {
     'events',
     t('guide.play.events.title'),
     rich('p', t('guide.play.events.intro')),
-    TONES.map((tone) => [h(`h3.guide-h3.g-tone-${tone}`, null, t(`guide.play.events.tone.${tone}`)), h('div.guide-rows', null, byTone(tone))]),
+    TONES.map((tone) => [
+      h(`h3.guide-h3.g-tone-${tone}`, null, t(`guide.play.events.tone.${tone}`)),
+      h('div.guide-rows', null, byTone(tone)),
+    ]),
     h('h3.guide-h3', null, t('guide.play.events.crate.title')),
     h(
       'ul.guide-list',
@@ -155,9 +176,18 @@ export const playTab: TabModule = {
       'nav.guide-toc',
       { attrs: { 'aria-label': t('guide.toc') } },
       SECTIONS.map((id) =>
-        h('a.guide-toc-link', { attrs: { href: `#guide/play/${id}` }, onclick: (e: Event) => (e.preventDefault(), ctx.go({ tab: 'play', item: id })) }, t(`guide.play.${id}.title`)),
+        h(
+          'a.guide-toc-link',
+          { attrs: { href: `#guide/play/${id}` }, onclick: (e: Event) => (e.preventDefault(), ctx.go({ tab: 'play', item: id })) },
+          t(`guide.play.${id}.title`),
+        ),
       ),
     );
-    return h('div.guide-tab', null, toc, SECTIONS.map((id) => RENDER[id]()));
+    return h(
+      'div.guide-tab',
+      null,
+      toc,
+      SECTIONS.map((id) => RENDER[id]()),
+    );
   },
 };

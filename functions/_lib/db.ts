@@ -52,16 +52,53 @@ export interface RunRow {
 
 export type BestRow = Pick<
   RunRow,
-  'id' | 'nickname' | 'score' | 'wave' | 'kills' | 'lives' | 'map' | 'status' | 'created_at' | 'agent_provider' | 'agent_model' | 'agent_mode' | 'agent_bot_share'
+  | 'id'
+  | 'nickname'
+  | 'score'
+  | 'wave'
+  | 'kills'
+  | 'lives'
+  | 'map'
+  | 'status'
+  | 'created_at'
+  | 'agent_provider'
+  | 'agent_model'
+  | 'agent_mode'
+  | 'agent_bot_share'
 >;
 
 const RUN_COLUMNS: (keyof RunRow)[] = [
-  'id', 'board', 'day', 'nickname', 'device_hash', 'score', 'wave', 'kills', 'lives', 'seed', 'map',
-  'difficulty', 'abyss', 'pure', 'auto_wave', 'game_version', 'opts_json', 'result_json', 'log_gz',
-  'log_bytes', 'status', 'created_at', 'ip_hash',
-  'agent_provider', 'agent_model', 'agent_mode', 'agent_bot_share', 'agent_json',
+  'id',
+  'board',
+  'day',
+  'nickname',
+  'device_hash',
+  'score',
+  'wave',
+  'kills',
+  'lives',
+  'seed',
+  'map',
+  'difficulty',
+  'abyss',
+  'pure',
+  'auto_wave',
+  'game_version',
+  'opts_json',
+  'result_json',
+  'log_gz',
+  'log_bytes',
+  'status',
+  'created_at',
+  'ip_hash',
+  'agent_provider',
+  'agent_model',
+  'agent_mode',
+  'agent_bot_share',
+  'agent_json',
 ];
-const BEST_COLS = 'id, nickname, score, wave, kills, lives, map, status, created_at, agent_provider, agent_model, agent_mode, agent_bot_share';
+const BEST_COLS =
+  'id, nickname, score, wave, kills, lives, map, status, created_at, agent_provider, agent_model, agent_mode, agent_bot_share';
 
 /** 「更好」的定义：分高者优先，同分波数高者优先，再同则先提交者优先（最后按 id 保证全序） */
 const BETTER_THAN =
@@ -78,13 +115,18 @@ export class RunStore {
   async upsertBest(row: RunRow): Promise<{ improved: boolean }> {
     const cols = RUN_COLUMNS.join(', ');
     const qs = RUN_COLUMNS.map(() => '?').join(', ');
-    const sets = RUN_COLUMNS.filter((c) => c !== 'board' && c !== 'device_hash').map((c) => `${c} = excluded.${c}`).join(', ');
+    const sets = RUN_COLUMNS.filter((c) => c !== 'board' && c !== 'device_hash')
+      .map((c) => `${c} = excluded.${c}`)
+      .join(', ');
     const sql =
       `INSERT INTO runs (${cols}) VALUES (${qs}) ` +
       `ON CONFLICT(board, device_hash) DO UPDATE SET ${sets} ` +
       `WHERE excluded.score > runs.score OR (excluded.score = runs.score AND excluded.wave > runs.wave) OR runs.status = 'rejected' ` +
       `RETURNING id`;
-    const res = await this.db.prepare(sql).bind(...RUN_COLUMNS.map((c) => row[c] ?? null)).first<{ id: string }>();
+    const res = await this.db
+      .prepare(sql)
+      .bind(...RUN_COLUMNS.map((c) => row[c] ?? null))
+      .first<{ id: string }>();
     if (res) return { improved: true };
     await this.db
       .prepare('UPDATE runs SET nickname = ? WHERE board = ? AND device_hash = ? AND nickname <> ?')
@@ -113,7 +155,10 @@ export class RunStore {
   }
 
   async total(board: string): Promise<number> {
-    const r = await this.db.prepare(`SELECT COUNT(*) AS n FROM runs WHERE board = ? AND status <> 'rejected'`).bind(board).first<{ n: number }>();
+    const r = await this.db
+      .prepare(`SELECT COUNT(*) AS n FROM runs WHERE board = ? AND status <> 'rejected'`)
+      .bind(board)
+      .first<{ n: number }>();
     return Number(r?.n ?? 0);
   }
 

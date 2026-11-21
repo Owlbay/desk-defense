@@ -56,7 +56,14 @@ export class PerkModal {
     );
     this.titleEl = h('h2.perk-title');
     this.noteEl = h('p.muted.center');
-    this.dialog = h('div.perk-dialog', { attrs: { role: 'dialog', 'aria-modal': 'true' } }, this.titleEl, this.noteEl, this.cards, h('div.row.center', null, this.reroll));
+    this.dialog = h(
+      'div.perk-dialog',
+      { attrs: { role: 'dialog', 'aria-modal': 'true' } },
+      this.titleEl,
+      this.noteEl,
+      this.cards,
+      h('div.row.center', null, this.reroll),
+    );
     this.el = overlay('perk-overlay', this.dialog);
     this.setStatic();
     this.el.hidden = true;
@@ -170,7 +177,11 @@ export function branchModal(ctx: GameCtx, uid: number, onClose: (done: boolean) 
         perk ? t('ui.modal.branchPerk', { level: info.level }) : t('ui.modal.branchCost', { n: fmtNum(info.upgradeCost ?? 0) }),
       ),
       h('div.branch-cards', null, card('A'), card('B')),
-      h('div.row.end', null, h('button.btn', { onclick: () => (audio.play('click'), close(false)) }, perk ? t('ui.modal.otherTower') : t('ui.modal.thinkAgain'))),
+      h(
+        'div.row.end',
+        null,
+        h('button.btn', { onclick: () => (audio.play('click'), close(false)) }, perk ? t('ui.modal.otherTower') : t('ui.modal.thinkAgain')),
+      ),
     ),
   );
   el.addEventListener('click', (e) => e.target === el && close(false));
@@ -193,8 +204,15 @@ export function pauseMenu(ctx: GameCtx, hd: PauseHandlers): HTMLElement {
   // 在暂停菜单的设置里切换语言：按新语言重建菜单，停留在原来的子页面（并把焦点放回原来的按钮）
   const off = onLocaleChange(() => {
     if (!el.isConnected) return void off();
-    const view: PauseView = !dialog.querySelector<HTMLElement>('.pause-settings')?.hidden ? 'settings' : !dialog.querySelector<HTMLElement>('.pause-history')?.hidden ? 'history' : 'main';
-    const focusKey = document.activeElement instanceof HTMLElement && dialog.contains(document.activeElement) ? document.activeElement.dataset.focusKey : undefined;
+    const view: PauseView = !dialog.querySelector<HTMLElement>('.pause-settings')?.hidden
+      ? 'settings'
+      : !dialog.querySelector<HTMLElement>('.pause-history')?.hidden
+        ? 'history'
+        : 'main';
+    const focusKey =
+      document.activeElement instanceof HTMLElement && dialog.contains(document.activeElement)
+        ? document.activeElement.dataset.focusKey
+        : undefined;
     const next = pauseDialog(ctx, hd, view);
     dialog.replaceWith(next);
     dialog = next;
@@ -261,18 +279,20 @@ function pauseDialog(ctx: GameCtx, hd: PauseHandlers, view: PauseView): HTMLElem
       t('ui.modal.settings'),
     ),
     ...(log.length > 0
-      ? [h(
-          'button.btn.big',
-          {
-            onclick: () => {
-              audio.play('click');
-              main.hidden = true;
-              historyBox.hidden = false;
+      ? [
+          h(
+            'button.btn.big',
+            {
+              onclick: () => {
+                audio.play('click');
+                main.hidden = true;
+                historyBox.hidden = false;
+              },
             },
-          },
-          h('span.gi', { html: G.list }),
-          t('ui.modal.eventLogN', { n: log.length }),
-        )]
+            h('span.gi', { html: G.list }),
+            t('ui.modal.eventLogN', { n: log.length }),
+          ),
+        ]
       : []),
     h(
       'button.btn.big',
@@ -314,7 +334,14 @@ function pauseDialog(ctx: GameCtx, hd: PauseHandlers, view: PauseView): HTMLElem
         .reverse()
         .map((e) => {
           const m = eventMeta(e.id);
-          return h(`li.tone-${m.tone}`, { title: m.desc }, h('span.ev-wave', null, t('ui.modal.waveN', { n: e.wave })), h('span.gi', { html: TONE_GLYPH[m.tone] }), h('b', null, e.name || m.name), h('small.muted', null, m.desc));
+          return h(
+            `li.tone-${m.tone}`,
+            { title: m.desc },
+            h('span.ev-wave', null, t('ui.modal.waveN', { n: e.wave })),
+            h('span.gi', { html: TONE_GLYPH[m.tone] }),
+            h('b', null, e.name || m.name),
+            h('small.muted', null, m.desc),
+          );
         }),
     ),
     h('button.btn.big', { onclick: () => ((historyBox.hidden = true), (main.hidden = false), audio.play('click')) }, t('common.back')),
@@ -377,11 +404,21 @@ export function gameOverView(ctx: GameCtx, d: GameOverData, hd: GameOverHandlers
 
   const rewards: HTMLElement[] = [];
   if (campaign && d.won) {
-    rewards.push(h('div.go-reward', null, starRow(d.rewards.starsBest), d.rewards.stars > 0 ? h('span', null, `+${d.rewards.stars}`, h('span.gi', { html: G.star })) : h('span.muted', null, t('ui.modal.goNoNewStars'))));
+    rewards.push(
+      h(
+        'div.go-reward',
+        null,
+        starRow(d.rewards.starsBest),
+        d.rewards.stars > 0
+          ? h('span', null, `+${d.rewards.stars}`, h('span.gi', { html: G.star }))
+          : h('span.muted', null, t('ui.modal.goNoNewStars')),
+      ),
+    );
   }
   if (d.rewards.ink > 0) rewards.push(h('div.go-reward', null, h('span.gi', { html: G.ink }), t('ui.modal.goInk'), inkNum));
   // AI 协助的成绩单独排名，不在结算里报「第 N 名」
-  if (d.rewards.rank > 0 && !isAiAssisted(ctx.aiAssist)) rewards.push(h('div.go-reward', null, h('span.gi', { html: G.trophy }), t('ui.modal.goRank', { n: d.rewards.rank })));
+  if (d.rewards.rank > 0 && !isAiAssisted(ctx.aiAssist))
+    rewards.push(h('div.go-reward', null, h('span.gi', { html: G.trophy }), t('ui.modal.goRank', { n: d.rewards.rank })));
   if (d.rewards.newRecord && !campaign) rewards.push(h('div.go-reward.new', null, t('ui.modal.goNewRecord')));
 
   const mvp =
@@ -399,7 +436,12 @@ export function gameOverView(ctx: GameCtx, d: GameOverData, hd: GameOverHandlers
               h(
                 'div.mvp-main',
                 null,
-                h('div.mvp-name', null, TOWER_META[tw.id]?.name ?? tw.id, h('small.muted', null, ` Lv${tw.level}${tw.stars ? ` ${'★'.repeat(tw.stars)}` : ''}`)),
+                h(
+                  'div.mvp-name',
+                  null,
+                  TOWER_META[tw.id]?.name ?? tw.id,
+                  h('small.muted', null, ` Lv${tw.level}${tw.stars ? ` ${'★'.repeat(tw.stars)}` : ''}`),
+                ),
                 h('div.mvp-bar', null, h('span', { style: `width:${((tw.damage / top) * 100).toFixed(1)}%` })),
               ),
               h('div.mvp-num', null, fmtNum(tw.damage), h('small.muted', null, t('ui.modal.goKills', { n: fmtNum(tw.kills) }))),
@@ -416,7 +458,14 @@ export function gameOverView(ctx: GameCtx, d: GameOverData, hd: GameOverHandlers
     h(
       'div.dialog.card.gameover',
       { attrs: { role: 'dialog', 'aria-modal': 'true' } },
-      h('div.go-head', null, h('span.go-ico', { html: d.won ? G.crown : G.skull }), h('h2', null, title), h('p.muted', null, sub), assistLine(ctx)),
+      h(
+        'div.go-head',
+        null,
+        h('span.go-ico', { html: d.won ? G.crown : G.skull }),
+        h('h2', null, title),
+        h('p.muted', null, sub),
+        assistLine(ctx),
+      ),
       h(
         'div.go-stats',
         null,
@@ -449,7 +498,11 @@ function assistLine(ctx: GameCtx): HTMLElement | null {
   return h(
     'p.go-assist',
     null,
-    h(`span.badge.ai-assist-badge${assisted ? '' : '.advisor'}`, { title: a?.model ?? '' }, assisted ? t('ui.assist.badge') : t('ui.assist.badgeAdvisor')),
+    h(
+      `span.badge.ai-assist-badge${assisted ? '' : '.advisor'}`,
+      { title: a?.model ?? '' },
+      assisted ? t('ui.assist.badge') : t('ui.assist.badgeAdvisor'),
+    ),
     h('small.muted', null, assisted ? t('ui.assist.goNote') : t('ui.assist.goNoteAdvisor')),
   );
 }

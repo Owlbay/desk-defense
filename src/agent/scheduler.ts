@@ -52,14 +52,22 @@ export class DecisionDetector {
   feed(ev: GameEvent, w: IWorld): void {
     const auto = w.state.autoWave.enabled && w.state.autoWave.started;
     switch (ev.type) {
-      case 'waveEnd': if (auto) this.pending.add('build'); break;
+      case 'waveEnd':
+        if (auto) this.pending.add('build');
+        break;
       case 'randomEvent':
         // 预警；或没有预警、直接开始且与当前局面相关的怪物类事件（gating.eventNeedsDecision）
         if (ev.phase === 'warn' || (ev.phase === 'start' && eventNeedsDecision(ev.id, w))) this.pending.add('event_warn');
         break;
-      case 'spawnerDrop': if (ev.phase === 'warn') this.pending.add('drop_warn'); break;
-      case 'spawn': if (ev.boss) this.pending.add('boss_spawn'); break;
-      case 'leak': this.pending.add('leak'); break;
+      case 'spawnerDrop':
+        if (ev.phase === 'warn') this.pending.add('drop_warn');
+        break;
+      case 'spawn':
+        if (ev.boss) this.pending.add('boss_spawn');
+        break;
+      case 'leak':
+        this.pending.add('leak');
+        break;
     }
   }
 
@@ -68,7 +76,10 @@ export class DecisionDetector {
     const s = w.state;
     if (s.phase === 'won' || s.phase === 'lost') return null;
     const r = new Set<DecisionReason>();
-    if (!this.started) { r.add('game_start'); r.add('build'); }
+    if (!this.started) {
+      r.add('game_start');
+      r.add('build');
+    }
     if (s.phase === 'perk') r.add('perk');
     if (s.crateChoice && s.crateChoice.uid !== this.crateSeen) r.add('crate');
     const manualWait = s.phase === 'build' && !(s.autoWave.enabled && s.autoWave.started);
@@ -108,7 +119,10 @@ export class AgentScheduler {
   /** 事件监听（runner 用来驱动兜底机器人的 onWaveStart 等钩子、统计每波数据） */
   onEvent?: (ev: GameEvent) => void;
 
-  constructor(readonly world: IWorld, o: SchedulerOptions = {}) {
+  constructor(
+    readonly world: IWorld,
+    o: SchedulerOptions = {},
+  ) {
     this.opts = {
       mode: o.mode ?? 'pause',
       waveIntervalSec: o.waveIntervalSec ?? 10,

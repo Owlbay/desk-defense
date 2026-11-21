@@ -29,7 +29,13 @@ export interface CampaignChapter {
 
 const g = (enemy: EnemyId, count: number, interval?: number, hpMul?: number): CampaignGroup => ({ enemy, count, interval, hpMul });
 /** 指定出生点的组 */
-const gf = (from: string, enemy: EnemyId, count: number, interval?: number): CampaignGroup => ({ enemy, count, interval, spawn: 'fixed', from });
+const gf = (from: string, enemy: EnemyId, count: number, interval?: number): CampaignGroup => ({
+  enemy,
+  count,
+  interval,
+  spawn: 'fixed',
+  from,
+});
 /** 包夹组 */
 const gs = (enemy: EnemyId, count: number, interval?: number): CampaignGroup => ({ enemy, count, interval, spawn: 'split' });
 
@@ -43,7 +49,10 @@ export const CAMPAIGN_HP: Record<'normal' | 'hard', Record<MapId, number>> = {
 
 export const CAMPAIGN: Record<MapId, CampaignChapter> = {
   ch1: {
-    map: 'ch1', chapter: 1, waveOffset: 0, boss: 'boss_coffee',
+    map: 'ch1',
+    chapter: 1,
+    waveOffset: 0,
+    boss: 'boss_coffee',
     waves: [
       { groups: [g('crumb', 8)] },
       { groups: [g('crumb', 10)] },
@@ -68,7 +77,10 @@ export const CAMPAIGN: Record<MapId, CampaignChapter> = {
     ],
   },
   ch2: {
-    map: 'ch2', chapter: 2, waveOffset: 1, boss: 'boss_shredder',
+    map: 'ch2',
+    chapter: 2,
+    waveOffset: 1,
+    boss: 'boss_shredder',
     waves: [
       { groups: [g('crumb', 8), g('inkdot', 3)] },
       { groups: [g('paperclip', 4), g('crumb', 8)] },
@@ -93,7 +105,10 @@ export const CAMPAIGN: Record<MapId, CampaignChapter> = {
     ],
   },
   ch3: {
-    map: 'ch3', chapter: 3, waveOffset: 2, boss: 'boss_inkbottle',
+    map: 'ch3',
+    chapter: 3,
+    waveOffset: 2,
+    boss: 'boss_inkbottle',
     waves: [
       { groups: [g('crumb', 10), g('inkdot', 6)] },
       { groups: [g('whiteout', 2), g('paperclip', 5)] },

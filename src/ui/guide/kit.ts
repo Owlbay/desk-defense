@@ -64,12 +64,21 @@ export function items(base: string): string[] {
 }
 
 export function bullets(base: string, ordered = false): HTMLElement {
-  return h(ordered ? 'ol.guide-list' : 'ul.guide-list', null, items(base).map((s) => rich('li', s)));
+  return h(
+    ordered ? 'ol.guide-list' : 'ul.guide-list',
+    null,
+    items(base).map((s) => rich('li', s)),
+  );
 }
 
 /** 一节：带锚点的标题 + 内容 */
 export function section(id: string, title: string, ...children: Child[]): HTMLElement {
-  return h('section.guide-section.card', { data: { item: id }, attrs: { id: `guide-${id}`, tabindex: '-1' } }, h('h2.guide-h2', null, title), children);
+  return h(
+    'section.guide-section.card',
+    { data: { item: id }, attrs: { id: `guide-${id}`, tabindex: '-1' } },
+    h('h2.guide-h2', null, title),
+    children,
+  );
 }
 
 /** 表格：外面包一层可横向滚动的容器（窄屏不撑破页面） */
@@ -80,8 +89,26 @@ export function table(head: Child[], rows: Child[][], cls = ''): HTMLElement {
     h(
       `table.guide-table${cls}`,
       null,
-      h('thead', null, h('tr', null, head.map((c) => h('th', { attrs: { scope: 'col' } }, c)))),
-      h('tbody', null, rows.map((r) => h('tr', null, r.map((c, i) => (i === 0 ? h('th', { attrs: { scope: 'row' } }, c) : h('td', null, c)))))),
+      h(
+        'thead',
+        null,
+        h(
+          'tr',
+          null,
+          head.map((c) => h('th', { attrs: { scope: 'col' } }, c)),
+        ),
+      ),
+      h(
+        'tbody',
+        null,
+        rows.map((r) =>
+          h(
+            'tr',
+            null,
+            r.map((c, i) => (i === 0 ? h('th', { attrs: { scope: 'row' } }, c) : h('td', null, c))),
+          ),
+        ),
+      ),
     ),
   );
 }

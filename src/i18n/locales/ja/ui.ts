@@ -298,23 +298,29 @@ export default {
   'ui.wave.groupEliteAffix': '{name} ×{n}（エリート {elite}：{affixes}）',
   'ui.tutorial.ok': 'OK',
   'ui.tutorial.ch1-place.title': '鉛筆タワーを置こう',
-  'ui.tutorial.ch1-place.body': 'タワーバーの「鉛筆」をタップし、ルート脇の空きマスに置きます。スマホでは1回目でプレビュー、同じマスをもう一度タップで確定。',
+  'ui.tutorial.ch1-place.body':
+    'タワーバーの「鉛筆」をタップし、ルート脇の空きマスに置きます。スマホでは1回目でプレビュー、同じマスをもう一度タップで確定。',
   'ui.tutorial.ch1-start.title': 'ウェーブ1を開始',
   'ui.tutorial.ch1-start.body': '準備ができたらここをタップ。敵は上の入口から出発し、ルートに沿って下の宿題ノートを目指します。',
   'ui.tutorial.ch1-wall.title': '本の壁でルートを変えよう',
-  'ui.tutorial.ch1-wall.body': '本の壁は安価です。置く前に新しいルートが表示されます。道を長くすればタワーの攻撃回数が増えます。完全にふさぐことはできません。',
+  'ui.tutorial.ch1-wall.body':
+    '本の壁は安価です。置く前に新しいルートが表示されます。道を長くすればタワーの攻撃回数が増えます。完全にふさぐことはできません。',
   'ui.tutorial.ch1-upgrade.title': 'タワーを育てよう',
   'ui.tutorial.ch1-upgrade.body': 'タワーを選択：撃破で経験値バーが貯まります。ゴールドで直接強化もでき、経験値が多いほど安くなります。',
   'ui.tutorial.ch1-sell.title': '売却と取り消し',
-  'ui.tutorial.ch1-sell.body': '不要なタワーは売却できます。レベルが高いほど返金率は下がります（70% → 25%）。設置後5秒以内なら全額で取り消せます。',
+  'ui.tutorial.ch1-sell.body':
+    '不要なタワーは売却できます。レベルが高いほど返金率は下がります（70% → 25%）。設置後5秒以内なら全額で取り消せます。',
   'ui.tutorial.ch1-boss.title': 'ボス襲来！',
   'ui.tutorial.ch1-boss.body': '「{eraser}」をタップし、盤面をタップして発動。範囲内の敵に大ダメージ。',
   'ui.tutorial.tip-event.title': 'ランダムイベント',
-  'ui.tutorial.tip-event.body': '机の上で突然イベントが起こります。赤は悪いこと、緑は良いこと。上部のバナーがカウントダウンで予告します。コインと補給箱はタップで回収。',
+  'ui.tutorial.tip-event.body':
+    '机の上で突然イベントが起こります。赤は悪いこと、緑は良いこと。上部のバナーがカウントダウンで予告します。コインと補給箱はタップで回収。',
   'ui.tutorial.tip-drop.title': '段ボール降下！',
-  'ui.tutorial.tip-drop.body': '点線の円に段ボールが落ちてきて、新しい出現地点になり、ルートも変わります。段ボールをタップしてゴールドで撤去するか、スキル「{tape}」で封鎖できます。',
+  'ui.tutorial.tip-drop.body':
+    '点線の円に段ボールが落ちてきて、新しい出現地点になり、ルートも変わります。段ボールをタップしてゴールドで撤去するか、スキル「{tape}」で封鎖できます。',
   'ui.tutorial.tip-evolve.title': '伝説の進化',
-  'ui.tutorial.tip-evolve.body': '伝説タワーが得た経験値は進化に回ります。経験値かゴールドで星を上げよう：★1・★2でルート特性を解放、★3で神話になりアクティブ能力を獲得（選択してAで発動）。',
+  'ui.tutorial.tip-evolve.body':
+    '伝説タワーが得た経験値は進化に回ります。経験値かゴールドで星を上げよう：★1・★2でルート特性を解放、★3で神話になりアクティブ能力を獲得（選択してAで発動）。',
 
   // ───── 命名空间 ui · 菜单 / 战役 / 书包 / 技能 / 自定义（ja） ─────
   'ui.menu.mode.campaign': 'キャンペーン',
@@ -381,7 +387,8 @@ export default {
   'ui.talents.perLevel': '（レベルごと、最大{n}）',
   'ui.talents.maxed': '最大レベル',
   'ui.talents.or': 'または',
-  'ui.talents.intro': '永続タレント。星はキャンペーンの評価で獲得（累計{n}個）、インクはエンドレスとカスタムで獲得。タレントは小さなボーナスです。開始時に「ピュアモード」を選ぶと無効にできます。',
+  'ui.talents.intro':
+    '永続タレント。星はキャンペーンの評価で獲得（累計{n}個）、インクはエンドレスとカスタムで獲得。タレントは小さなボーナスです。開始時に「ピュアモード」を選ぶと無効にできます。',
   'ui.skills.title': 'スキル',
   'ui.skills.target.none': '全体 · 即時発動',
   'ui.skills.target.circle': '円形範囲',
@@ -471,7 +478,8 @@ export default {
   'ui.leaderboard.tab.ai': 'AI',
   'ui.leaderboard.typeLabel': 'ランキングの種類',
   'ui.leaderboard.dailyEmpty': '今日はまだ誰もランクインしていません。挑戦してみよう！',
-  'ui.leaderboard.aiNote': '「AI参戦」で大規模言語モデルが出したスコア。モデルごとに最高記録を1件ずつ表示します。人間のスコアは含まれません。',
+  'ui.leaderboard.aiNote':
+    '「AI参戦」で大規模言語モデルが出したスコア。モデルごとに最高記録を1件ずつ表示します。人間のスコアは含まれません。',
   'ui.leaderboard.dailyTitle': '今日のチャレンジ · {map}',
   'ui.leaderboard.dailySub': '{day} · 北京時間0時に更新',
   'ui.leaderboard.goChallenge': '挑戦する',
@@ -512,7 +520,8 @@ export default {
   'ui.daily.seed': 'シード {seed}',
   'ui.daily.resetTip': '北京時間0時に新しいチャレンジ',
   'ui.daily.nextIn': '次回まで',
-  'ui.daily.offlineNote': 'オンライン機能は現在利用できません。チャレンジ内容は端末で算出し、スコアはオンライン復帰後にアップロードされます。',
+  'ui.daily.offlineNote':
+    'オンライン機能は現在利用できません。チャレンジ内容は端末で算出し、スコアはオンライン復帰後にアップロードされます。',
   'ui.daily.start': 'チャレンジ開始',
   'ui.daily.rules': 'ルール',
   'ui.daily.rule1': '毎日北京時間0時に更新。全員が同じマップ・同じシードで遊びます。',

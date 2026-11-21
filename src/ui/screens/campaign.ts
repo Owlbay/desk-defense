@@ -89,7 +89,11 @@ export function campaignScreen(app: App): Screen {
         'div.chapter-head',
         null,
         h('span.chapter-no', null, t('ui.campaign.chapterNo', { n: i + 1 })),
-        chapterCleared(p, map) ? h('span.badge.good', null, t('ui.campaign.cleared')) : wave > 0 ? h('span.badge', null, t('ui.campaign.bestWave', { n: wave })) : null,
+        chapterCleared(p, map)
+          ? h('span.badge.good', null, t('ui.campaign.cleared'))
+          : wave > 0
+            ? h('span.badge', null, t('ui.campaign.bestWave', { n: wave }))
+            : null,
       ),
       h('h2.chapter-name', null, meta?.name ?? map),
       h('p.chapter-desc.muted', null, meta?.desc ?? ''),
@@ -111,13 +115,22 @@ export function campaignScreen(app: App): Screen {
     p.settings.autoWave ?? effectiveAutoWave(p, 'campaign', 'ch2', 'normal'),
     (v) => app.store.update((pp) => (pp.settings.autoWave = v)),
   );
-  const fixedSw = switchRow(t('ui.campaign.fixedLayout'), t('ui.campaign.fixedLayoutHint'), p.settings.fixedLayout, (v) => app.store.update((pp) => (pp.settings.fixedLayout = v)));
+  const fixedSw = switchRow(t('ui.campaign.fixedLayout'), t('ui.campaign.fixedLayoutHint'), p.settings.fixedLayout, (v) =>
+    app.store.update((pp) => (pp.settings.fixedLayout = v)),
+  );
 
   const el = h(
     'div.screen.campaign-screen',
     null,
     screenHeader(app, t('ui.campaign.title')),
-    h('div.screen-body', null, h('div.chapter-list', null, cards), h('section.card.section.run-options', null, autoSw.el, fixedSw.el), h('p.muted.center', null, t('ui.campaign.starRule')), loadoutStrip(app, { name: 'campaign' })),
+    h(
+      'div.screen-body',
+      null,
+      h('div.chapter-list', null, cards),
+      h('section.card.section.run-options', null, autoSw.el, fixedSw.el),
+      h('p.muted.center', null, t('ui.campaign.starRule')),
+      loadoutStrip(app, { name: 'campaign' }),
+    ),
   );
   saveSeen(nowSeen);
   // 新得星的那张卡片滚到可见处，最后一颗星落定时撒一把纸屑
@@ -126,11 +139,14 @@ export function campaignScreen(app: App): Screen {
   if (target) {
     requestAnimationFrame(() => target.scrollIntoView({ block: 'center', behavior: motionOK() ? 'smooth' : 'auto' }));
     const n = target.querySelectorAll('.star.earn').length;
-    timer = window.setTimeout(() => {
-      const stars = target.querySelector<HTMLElement>('.stars');
-      if (stars) burst(stars, 10, 40);
-      audio.play('upgrade');
-    }, 520 + n * 180);
+    timer = window.setTimeout(
+      () => {
+        const stars = target.querySelector<HTMLElement>('.stars');
+        if (stars) burst(stars, 10, 40);
+        audio.play('upgrade');
+      },
+      520 + n * 180,
+    );
   }
   return { el, destroy: () => clearTimeout(timer) };
 }

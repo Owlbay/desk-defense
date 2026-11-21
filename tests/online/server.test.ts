@@ -38,7 +38,8 @@ const dev = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0'
 const runs = new Map<string, PlayedRun>();
 function played(seed: string, extra: Partial<RunOptions> = {}): PlayedRun {
   const k = seed + JSON.stringify(extra);
-  if (!runs.has(k)) runs.set(k, playRun({ mode: 'endless', map: 'ch2', difficulty: 'normal', seed, skills: SKILLS, autoWave: true, ...extra }));
+  if (!runs.has(k))
+    runs.set(k, playRun({ mode: 'endless', map: 'ch2', difficulty: 'normal', seed, skills: SKILLS, autoWave: true, ...extra }));
   return runs.get(k)!;
 }
 
@@ -174,17 +175,32 @@ describe('POST /api/runs', () => {
   });
 
   it.each([
-    ['坏 JSON', () => new Request(`${ORIGIN}/api/runs`, { method: 'POST', body: '{', headers: { 'CF-Connecting-IP': '9.9.9.9' } }), 400, 'bad_request'],
+    [
+      '坏 JSON',
+      () => new Request(`${ORIGIN}/api/runs`, { method: 'POST', body: '{', headers: { 'CF-Connecting-IP': '9.9.9.9' } }),
+      400,
+      'bad_request',
+    ],
     ['版本过旧', async () => post({ ...(await body(played('seed-a'))), gameVersion: '0.0.1+c0' }), 409, 'version'],
-    ['得分作假', async () => {
-      const b = await body(played('seed-a'));
-      return post({ ...b, result: { ...b.result, score: b.result.score + 10_000 } });
-    }, 400, 'bad_request'],
+    [
+      '得分作假',
+      async () => {
+        const b = await body(played('seed-a'));
+        return post({ ...b, result: { ...b.result, score: b.result.score + 10_000 } });
+      },
+      400,
+      'bad_request',
+    ],
     ['日志损坏', async () => post({ ...(await body(played('seed-a'))), log: { gz: 'AAAA' } }), 400, 'bad_request'],
-    ['游戏结束后还有指令', async () => {
-      const r = played('seed-a');
-      return post({ ...(await body(r)), log: [...r.log, { tick: r.result.ticks + 100, cmd: { type: 'startWave' } }] });
-    }, 400, 'bad_request'],
+    [
+      '游戏结束后还有指令',
+      async () => {
+        const r = played('seed-a');
+        return post({ ...(await body(r)), log: [...r.log, { tick: r.result.ticks + 100, cmd: { type: 'startWave' } }] });
+      },
+      400,
+      'bad_request',
+    ],
     ['请求过大', () => post({ junk: 'x'.repeat(400_000) }), 413, 'too_large'],
   ])('%s', async (_n, mk, status, code) => {
     const res = await handleSubmit(await mk(), deps);
@@ -269,7 +285,9 @@ describe('GET /api/leaderboard', () => {
     const lb2 = (await res2.json()) as LeaderboardResponse;
     expect(lb2.me).toMatchObject({ rank: 5, nickname: '玩家5' });
     expect(res2.headers.get('Cache-Control')).toContain('private');
-    const none = (await (await handleLeaderboard(get(`/api/leaderboard?board=${board}&around=${dev(77)}`), deps)).json()) as LeaderboardResponse;
+    const none = (await (
+      await handleLeaderboard(get(`/api/leaderboard?board=${board}&around=${dev(77)}`), deps)
+    ).json()) as LeaderboardResponse;
     expect(none.me).toBeNull();
 
     // 命中缓存时不查库

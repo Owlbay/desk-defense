@@ -115,25 +115,49 @@ export class InfoPanel {
       return;
     }
     this.refs = null;
-    if (ui.state.perkTargeting) return this.setSimple('perk', h('div.info-hint', null, h('span.gi', { html: G.target }), t('ui.info.perkTarget')));
+    if (ui.state.perkTargeting)
+      return this.setSimple('perk', h('div.info-hint', null, h('span.gi', { html: G.target }), t('ui.info.perkTarget')));
     if (ui.state.abilityAiming !== null) {
       const ti = this.ctx.world.getTowerInfo(ui.state.abilityAiming);
       const ab = ti?.ability;
-      const what = ab ? t('ui.info.abilWhat', { name: ab.name, target: ABILITY_TARGET_TEXT[ab.target] ?? t('ui.info.pickTarget') }) : t('ui.info.pickTarget');
-      return this.setSimple(`abil:${ui.state.abilityAiming}`, h('div.info-hint', null, h('span.gi', { html: G.sparkle }), t('ui.info.abilHint', { what, cancel: ui.state.touch ? t('ui.info.cancelAbilTouch') : t('ui.info.cancelMouse') })));
+      const what = ab
+        ? t('ui.info.abilWhat', { name: ab.name, target: ABILITY_TARGET_TEXT[ab.target] ?? t('ui.info.pickTarget') })
+        : t('ui.info.pickTarget');
+      return this.setSimple(
+        `abil:${ui.state.abilityAiming}`,
+        h(
+          'div.info-hint',
+          null,
+          h('span.gi', { html: G.sparkle }),
+          t('ui.info.abilHint', { what, cancel: ui.state.touch ? t('ui.info.cancelAbilTouch') : t('ui.info.cancelMouse') }),
+        ),
+      );
     }
     if (buildOpt) {
       const key = `build:${buildOpt.id}:${buildOpt.cost}:${buildOpt.affordable}`;
       const ident = `build:${buildOpt.id}`;
       if (this.mode === key) return;
-      const air = t(buildOpt.hitsAir && buildOpt.hitsGround ? 'ui.info.hitsBoth' : buildOpt.hitsAir ? 'ui.info.hitsAir' : buildOpt.hitsGround ? 'ui.info.hitsGround' : 'ui.info.noAttack');
+      const air = t(
+        buildOpt.hitsAir && buildOpt.hitsGround
+          ? 'ui.info.hitsBoth'
+          : buildOpt.hitsAir
+            ? 'ui.info.hitsAir'
+            : buildOpt.hitsGround
+              ? 'ui.info.hitsGround'
+              : 'ui.info.noAttack',
+      );
       const touch = ui.state.touch;
       this.setSimple(
         key,
         h(
           'div.build-info',
           null,
-          h('div.info-head', null, h('span.info-ico', null, img(towerIcon(buildOpt.id), 'ico')), h('div', null, h('h3', null, buildOpt.name), h('div.tags', null, h('span.tag', null, buildOpt.role), h('span.tag', null, air)))),
+          h(
+            'div.info-head',
+            null,
+            h('span.info-ico', null, img(towerIcon(buildOpt.id), 'ico')),
+            h('div', null, h('h3', null, buildOpt.name), h('div.tags', null, h('span.tag', null, buildOpt.role), h('span.tag', null, air))),
+          ),
           h('p.info-desc', null, buildOpt.desc),
           h('p.muted.small', null, touch ? t('ui.info.buildTouch') : t('ui.info.buildMouse')),
         ),
@@ -212,7 +236,10 @@ export class InfoPanel {
     else if (sp.kind === 'drop' || sp.kind === 'hidden') {
       if (sp.expiresAfterWave !== undefined) {
         const left = sp.expiresAfterWave - st.wave;
-        status = left > 0 ? t('ui.info.sp.closesIn', { wave: sp.expiresAfterWave, n: left }) : t('ui.info.sp.closesNow', { wave: sp.expiresAfterWave });
+        status =
+          left > 0
+            ? t('ui.info.sp.closesIn', { wave: sp.expiresAfterWave, n: left })
+            : t('ui.info.sp.closesNow', { wave: sp.expiresAfterWave });
       } else status = sp.active ? t('ui.info.sp.open') : t('ui.info.sp.closed');
     } else status = sp.active ? t('ui.info.sp.open') : t('ui.info.sp.notOpen');
     setText(r.status, status);
@@ -222,7 +249,10 @@ export class InfoPanel {
     if (r.seal) {
       const sk = st.skills.find((s) => s.id === 'seal_tape');
       r.seal.disabled = !sk?.ready;
-      setText(r.seal.querySelector('.act-sub') ?? r.seal, sk?.ready ? t('ui.info.sp.sealNow') : t('ui.info.cooldownSec', { s: fmtSec(sk?.cd ?? 0) }));
+      setText(
+        r.seal.querySelector('.act-sub') ?? r.seal,
+        sk?.ready ? t('ui.info.sp.sealNow') : t('ui.info.cooldownSec', { s: fmtSec(sk?.cd ?? 0) }),
+      );
     }
   }
 
@@ -258,7 +288,12 @@ export class InfoPanel {
           },
         },
         h('span.gi', { html: G.tape }),
-        h('span.act-text', null, h('span.act-label', null, SKILL_META.seal_tape?.name ?? t('ui.info.sp.seal')), h('span.act-sub', null, '')),
+        h(
+          'span.act-text',
+          null,
+          h('span.act-label', null, SKILL_META.seal_tape?.name ?? t('ui.info.sp.seal')),
+          h('span.act-sub', null, ''),
+        ),
       );
     }
     const icon = sp.icon ? img(enemyIcon(sp.icon), 'ico') : img(svgUrl(drop ? G.parachute : G.warn), 'ico');
@@ -284,7 +319,9 @@ export class InfoPanel {
       ),
       sp.icon ? h('p.muted.small', null, t('ui.info.sp.boxIcon', { name: ENEMY_META[sp.icon]?.name ?? sp.icon })) : null,
       demolish || seal ? h('div.actions', null, demolish, seal) : null,
-      drop && !hasSeal ? h('p.muted.small', null, t('ui.info.sp.sealTip', { skill: SKILL_META.seal_tape?.name ?? t('ui.info.sp.seal') })) : null,
+      drop && !hasSeal
+        ? h('p.muted.small', null, t('ui.info.sp.sealTip', { skill: SKILL_META.seal_tape?.name ?? t('ui.info.sp.seal') }))
+        : null,
       !drop ? h('p.muted.small', null, t('ui.info.sp.edgeFixed')) : null,
     );
     this.swap(node, `sp:${sp.id}`);
@@ -325,7 +362,8 @@ export class InfoPanel {
     const stars: HTMLElement[] = [];
     let starRow: HTMLElement | null = null;
     if (legend) {
-      for (let k = 1; k <= 3; k++) stars.push(h(`span.evo-star${k === 3 ? '.mythic' : ''}`, { title: k === 3 ? t('ui.info.mythicStar') : `★${k}` }));
+      for (let k = 1; k <= 3; k++)
+        stars.push(h(`span.evo-star${k === 3 ? '.mythic' : ''}`, { title: k === 3 ? t('ui.info.mythicStar') : `★${k}` }));
       starRow = h('span.evo-stars', { attrs: { 'aria-label': t('ui.info.evoStars', { n: i.stars ?? 0 }) } }, ...stars);
     }
     const xpFill = h('span.xp-fill');
@@ -363,10 +401,21 @@ export class InfoPanel {
     const upLabel = h('span.act-label');
     const upPrice = h('span.act-sub');
     const upDisc = h('span.disc');
-    const upBtn = h<HTMLButtonElement>('button.btn.act.upgrade', { onclick: () => this.upgrade() }, h('span.gi', { html: legend ? G.star : G.up }), h('span.act-text', null, upLabel, upPrice), upDisc);
+    const upBtn = h<HTMLButtonElement>(
+      'button.btn.act.upgrade',
+      { onclick: () => this.upgrade() },
+      h('span.gi', { html: legend ? G.star : G.up }),
+      h('span.act-text', null, upLabel, upPrice),
+      upDisc,
+    );
     const sellLabel = h('span.act-label');
     const sellSub = h('span.act-sub');
-    const sellBtn = h<HTMLButtonElement>('button.btn.act.sell', { onclick: () => this.sell(false) }, h('span.gi', { html: G.sell }), h('span.act-text', null, sellLabel, sellSub));
+    const sellBtn = h<HTMLButtonElement>(
+      'button.btn.act.sell',
+      { onclick: () => this.sell(false) },
+      h('span.gi', { html: G.sell }),
+      h('span.act-text', null, sellLabel, sellSub),
+    );
     const record = h('span.muted.small');
 
     const traitList = (list: TowerInfo['traits'], evo: boolean) =>
@@ -395,20 +444,53 @@ export class InfoPanel {
       const secs = h('span.cd-secs');
       const charges = ab.maxCharges !== undefined ? h('span.charges') : null;
       const btnText = h('span');
-      const btn = h<HTMLButtonElement>('button.btn.small.ability-cast', { onclick: () => this.castAbility() }, btnText, h('kbd.key-hint.inline', null, 'A'));
+      const btn = h<HTMLButtonElement>(
+        'button.btn.small.ability-cast',
+        { onclick: () => this.castAbility() },
+        btnText,
+        h('kbd.key-hint.inline', null, 'A'),
+      );
       abilityCard = h(
         'div.ability-card',
         null,
-        h('button.ability-ico', { attrs: { 'aria-label': ab.name }, onclick: () => this.castAbility() }, img(abilityIcon(i.id, i.branch), 'ico'), sweep, secs, charges),
+        h(
+          'button.ability-ico',
+          { attrs: { 'aria-label': ab.name }, onclick: () => this.castAbility() },
+          img(abilityIcon(i.id, i.branch), 'ico'),
+          sweep,
+          secs,
+          charges,
+        ),
         h(
           'div.ability-main',
           null,
-          h('div.ability-name', null, h('b', null, ab.name), h('span.tag', null, ABILITY_TARGET_TEXT[ab.target] ?? ''), h('span.muted.small', null, ab.maxCharges !== undefined ? t('ui.info.charged') : t('ui.info.cdMax', { n: Math.round(ab.cdMax) }))),
+          h(
+            'div.ability-name',
+            null,
+            h('b', null, ab.name),
+            h('span.tag', null, ABILITY_TARGET_TEXT[ab.target] ?? ''),
+            h(
+              'span.muted.small',
+              null,
+              ab.maxCharges !== undefined ? t('ui.info.charged') : t('ui.info.cdMax', { n: Math.round(ab.cdMax) }),
+            ),
+          ),
           h('p.ability-desc', null, ab.desc),
         ),
         btn,
       );
-      ability = { card: abilityCard, sweep, secs, btn, btnText, charges, cdMax: ab.cdMax, charged: ab.maxCharges !== undefined, lastPct: -1, wasReady: null };
+      ability = {
+        card: abilityCard,
+        sweep,
+        secs,
+        btn,
+        btnText,
+        charges,
+        cdMax: ab.cdMax,
+        charged: ab.maxCharges !== undefined,
+        lastPct: -1,
+        wasReady: null,
+      };
     }
 
     const lvEl = h('span.lv', null, `Lv${i.level}`);
@@ -488,7 +570,28 @@ export class InfoPanel {
         setTimeout(() => upBtn.classList.remove('success'), 500);
       }
     }
-    this.refs = { key, uid: i.uid, level: i.level, starCount, lastFill: '', xpBar, xpFill, xpText, stars, stats: statEls, modeBtns, upBtn, upLabel, upPrice, upDisc, sellBtn, sellLabel, sellSub, record, ability };
+    this.refs = {
+      key,
+      uid: i.uid,
+      level: i.level,
+      starCount,
+      lastFill: '',
+      xpBar,
+      xpFill,
+      xpText,
+      stars,
+      stats: statEls,
+      modeBtns,
+      upBtn,
+      upLabel,
+      upPrice,
+      upDisc,
+      sellBtn,
+      sellLabel,
+      sellSub,
+      record,
+      ability,
+    };
   }
 
   private applyTower(i: TowerInfo): void {
@@ -505,7 +608,12 @@ export class InfoPanel {
       } else {
         const pct = Math.min(100, (i.evoXp / i.evoXpNext) * 100);
         this.setFill(r, pct / 100, false);
-        setText(r.xpText, stars === 2 && i.evoXp >= i.evoXpNext ? t('ui.info.evoFullGold') : t('ui.info.evoXp', { a: fmtNum(Math.floor(i.evoXp)), b: fmtNum(Math.ceil(i.evoXpNext)) }));
+        setText(
+          r.xpText,
+          stars === 2 && i.evoXp >= i.evoXpNext
+            ? t('ui.info.evoFullGold')
+            : t('ui.info.evoXp', { a: fmtNum(Math.floor(i.evoXp)), b: fmtNum(Math.ceil(i.evoXpNext)) }),
+        );
       }
     } else if (i.level >= i.maxLevel) {
       this.setFill(r, 1, true);
@@ -558,7 +666,10 @@ export class InfoPanel {
       setText(a.secs, !ab.ready && ab.cd > 0 && !hasCharge ? fmtSec(ab.cd) : '');
       if (a.charges) setText(a.charges, `${ab.charges ?? 0}/${ab.maxCharges ?? 0}`);
       const aiming = ui.state.abilityAiming === i.uid;
-      setText(a.btnText, aiming ? t('common.cancel') : ab.ready ? t('ui.info.cast') : charged && !hasCharge ? t('ui.info.noCharge') : t('ui.info.cooling'));
+      setText(
+        a.btnText,
+        aiming ? t('common.cancel') : ab.ready ? t('ui.info.cast') : charged && !hasCharge ? t('ui.info.noCharge') : t('ui.info.cooling'),
+      );
       a.btn.disabled = !ab.ready && !aiming;
       toggle(a.card, 'ready', ab.ready);
       if (ab.ready && a.wasReady === false) replay(a.card, 'ding', 600);
@@ -597,7 +708,8 @@ export class InfoPanel {
     const i = this.info;
     if (!i) return;
     if (i.upgradeCost === null) {
-      if (i.evolveCost !== null && i.evolveCost !== undefined && this.ctx.cmd({ type: 'evolve', uid: i.uid }).ok) this.paidAt = performance.now();
+      if (i.evolveCost !== null && i.evolveCost !== undefined && this.ctx.cmd({ type: 'evolve', uid: i.uid }).ok)
+        this.paidAt = performance.now();
       return;
     }
     if (i.needsBranch) {

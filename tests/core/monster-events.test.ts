@@ -1,16 +1,41 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MONSTER_EVENTS, RANDOM_EVENT_IDS, RANDOM_EVENTS, createWorld, eventSeverity, goldScale, stateHash, World,
-  type EnemyState, type GameEvent, type RandomEventId, type RunOptions,
+  MONSTER_EVENTS,
+  RANDOM_EVENT_IDS,
+  RANDOM_EVENTS,
+  createWorld,
+  eventSeverity,
+  goldScale,
+  stateHash,
+  World,
+  type EnemyState,
+  type GameEvent,
+  type RandomEventId,
+  type RunOptions,
 } from '../../src/core';
 import { AFFIXES, AFFIX_ROLL_IDS, ENEMIES } from '../../src/config/enemies';
 
 /** 文档 09 §3.2：怪物类随机事件 */
-const NEW_EVENTS: RandomEventId[] = ['tea_break', 'medic_squad', 'shield_supply', 'frenzy', 'goldbag', 'bounty', 'golden_elite', 'training'];
+const NEW_EVENTS: RandomEventId[] = [
+  'tea_break',
+  'medic_squad',
+  'shield_supply',
+  'frenzy',
+  'goldbag',
+  'bounty',
+  'golden_elite',
+  'training',
+];
 
 const opts = (o: Partial<RunOptions> = {}, c: RunOptions['custom'] = {}): RunOptions => ({
-  mode: 'custom', map: 'ch1', difficulty: 'normal', seed: 'monster', skills: ['eraser_strike', 'bell', 'seal_tape'], fixedLayout: true,
-  custom: { lives: 100000, startGold: 2000, eventRate: 0, ...c }, ...o,
+  mode: 'custom',
+  map: 'ch1',
+  difficulty: 'normal',
+  seed: 'monster',
+  skills: ['eraser_strike', 'bell', 'seal_tape'],
+  fixedLayout: true,
+  custom: { lives: 100000, startGold: 2000, eventRate: 0, ...c },
+  ...o,
 });
 
 // 测试里直接调用内部方法（伤害 / 漏怪 / 加经验）
@@ -98,7 +123,9 @@ describe('monster events: effects', () => {
     const w = inWave();
     let n = 0;
     expect(w.forceEvent('medic_squad')).toBe(true);
-    run(w, 8, (e) => { if (e.type === 'spawn' && e.enemy === 'whiteout') n++; });
+    run(w, 8, (e) => {
+      if (e.type === 'spawn' && e.enemy === 'whiteout') n++;
+    });
     expect(n).toBe(MONSTER_EVENTS.medicBase);
   });
 
@@ -198,7 +225,9 @@ describe('goldbag (doc 09 §3.2)', () => {
     expect(bag.hp).toBeGreaterThan(h0);
     // 没有塔：袋怪自己跑掉（偷钱），不会一直留在场上
     let leaked = false;
-    run(w, 60, (e) => { if (e.type === 'leak' && e.enemy === 'goldbag') leaked = true; });
+    run(w, 60, (e) => {
+      if (e.type === 'leak' && e.enemy === 'goldbag') leaked = true;
+    });
     expect(leaked).toBe(true);
     expect(w.state.enemies.some((e) => e.id === 'goldbag')).toBe(false);
   });
@@ -225,8 +254,18 @@ describe('golden elite', () => {
 describe('monster events: determinism', () => {
   function play(seed: string): World {
     const only = Object.fromEntries(RANDOM_EVENT_IDS.map((k) => [k, NEW_EVENTS.includes(k)]));
-    const w = createWorld(opts({ seed, map: 'ch2', fixedLayout: false, events: only }, { eventRate: 3, eventHostile: 0.5, startGold: 3000 })) as World;
-    for (const [x, y] of [[3, 3], [6, 3], [8, 4], [4, 9], [7, 9], [9, 11]] as [number, number][]) w.command({ type: 'place', tower: 'pencil', cx: x, cy: y });
+    const w = createWorld(
+      opts({ seed, map: 'ch2', fixedLayout: false, events: only }, { eventRate: 3, eventHostile: 0.5, startGold: 3000 }),
+    ) as World;
+    for (const [x, y] of [
+      [3, 3],
+      [6, 3],
+      [8, 4],
+      [4, 9],
+      [7, 9],
+      [9, 11],
+    ] as [number, number][])
+      w.command({ type: 'place', tower: 'pencil', cx: x, cy: y });
     w.command({ type: 'startWave' });
     for (let tick = 0; tick < 60 * 60 * 8; tick++) {
       const s = w.state;

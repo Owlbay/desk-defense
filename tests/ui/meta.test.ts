@@ -28,12 +28,42 @@ import {
 import { memoryStorage, type KV } from '../../src/meta/storage';
 
 const NORMAL: DifficultyParams = {
-  startGold: 150, lives: 20, hpMul: 1, hpLinear: 0.18, hpExp: 1.04, countMul: 1, countGrowth: 0.08, speedMul: 1, armorStep: 12,
-  rewardMul: 1, xpMul: 1, eliteStart: 30, eliteRate: 0.004, eliteCap: 0.15, maxAffix: 1, bossHpMul: 1, skillCdMul: 1, interestCap: 20, scoreMul: 1,
-  spawnMode: 'roundRobin', maxActiveSpawners: 2, maxDrops: 1, dropWarn: 5, eventRate: 1, eventHostile: 0.5, waveGap: 15, waveMax: 60,
+  startGold: 150,
+  lives: 20,
+  hpMul: 1,
+  hpLinear: 0.18,
+  hpExp: 1.04,
+  countMul: 1,
+  countGrowth: 0.08,
+  speedMul: 1,
+  armorStep: 12,
+  rewardMul: 1,
+  xpMul: 1,
+  eliteStart: 30,
+  eliteRate: 0.004,
+  eliteCap: 0.15,
+  maxAffix: 1,
+  bossHpMul: 1,
+  skillCdMul: 1,
+  interestCap: 20,
+  scoreMul: 1,
+  spawnMode: 'roundRobin',
+  maxActiveSpawners: 2,
+  maxDrops: 1,
+  dropWarn: 5,
+  eventRate: 1,
+  eventHostile: 0.5,
+  waveGap: 15,
+  waveMax: 60,
 };
 
-const endlessOpts = (over: Partial<RunOptions> = {}): RunOptions => ({ mode: 'endless', map: 'ch1', difficulty: 'normal', skills: ['bell'], ...over });
+const endlessOpts = (over: Partial<RunOptions> = {}): RunOptions => ({
+  mode: 'endless',
+  map: 'ch1',
+  difficulty: 'normal',
+  skills: ['bell'],
+  ...over,
+});
 
 describe('profile save/load', () => {
   it('round-trips through storage', () => {
@@ -196,7 +226,8 @@ describe('progress rules', () => {
 
   it('leaderboard keeps top 10 sorted', () => {
     const p = defaultProfile();
-    for (let i = 0; i < 12; i++) insertLeader(p, 'normal', { wave: i, score: i * 10, seed: String(i), date: '', map: 'ch1', perks: [], kills: 0 });
+    for (let i = 0; i < 12; i++)
+      insertLeader(p, 'normal', { wave: i, score: i * 10, seed: String(i), date: '', map: 'ch1', perks: [], kills: 0 });
     const list = p.leaderboard.normal;
     expect(list).toHaveLength(10);
     expect(list[0].score).toBe(110);
@@ -207,7 +238,12 @@ describe('progress rules', () => {
   it('settleRun: endless awards ink, leaderboard (pure separate), clears midRun', () => {
     const p = defaultProfile();
     p.midRun = { v: 1, opts: endlessOpts(), tick: 1, log: [], wave: 1, savedAt: 0 };
-    const r = settleRun(p, endlessOpts({ difficulty: 'hard', pure: true }), { won: false, wavesSurvived: 12, score: 5000, kills: 100, lives: 0, maxLives: 15, seed: 'zz', perks: [] }, '2026-11-19');
+    const r = settleRun(
+      p,
+      endlessOpts({ difficulty: 'hard', pure: true }),
+      { won: false, wavesSurvived: 12, score: 5000, kills: 100, lives: 0, maxLives: 15, seed: 'zz', perks: [] },
+      '2026-11-19',
+    );
     expect(r.ink).toBe(18);
     expect(r.rank).toBe(1);
     expect(p.leaderboard['hard:pure']).toHaveLength(1);
@@ -218,7 +254,11 @@ describe('progress rules', () => {
 
   it('settleRun: campaign win gives stars', () => {
     const p = defaultProfile();
-    const r = settleRun(p, { mode: 'campaign', map: 'ch2', difficulty: 'normal', skills: [] }, { won: true, wavesSurvived: 20, score: 1, kills: 1, lives: 19, maxLives: 20, seed: 's', perks: [] });
+    const r = settleRun(
+      p,
+      { mode: 'campaign', map: 'ch2', difficulty: 'normal', skills: [] },
+      { won: true, wavesSurvived: 20, score: 1, kills: 1, lives: 19, maxLives: 20, seed: 's', perks: [] },
+    );
     expect(r.stars).toBe(3);
     expect(p.currency.star).toBe(3);
     expect(p.campaignWave.ch2).toBe(20);
@@ -264,7 +304,16 @@ describe('custom share code', () => {
 
 describe('custom share code · dynamic battlefield (doc 09)', () => {
   it('round-trips new params, spawn mode, disabled events and auto-wave', () => {
-    const params = { ...NORMAL, spawnMode: 'focus' as const, maxDrops: 3, dropWarn: 3.5, eventRate: 2.2, eventHostile: 0.8, waveGap: 9, waveMax: 45 };
+    const params = {
+      ...NORMAL,
+      spawnMode: 'focus' as const,
+      maxDrops: 3,
+      dropWarn: 3.5,
+      eventRate: 2.2,
+      eventHostile: 0.8,
+      waveGap: 9,
+      waveMax: 45,
+    };
     const code = encodeShare({ params, map: 'ch2', base: 'nightmare', events: { fan: false, coins: false, nap: true }, autoWave: false });
     const r = decodeShare(code, NORMAL);
     expect(r.ok).toBe(true);
@@ -283,7 +332,10 @@ describe('custom share code · dynamic battlefield (doc 09)', () => {
     expect(r.value.params.spawnMode).toBe('roundRobin');
     expect(r.value.events).toBeUndefined();
     expect(r.value.autoWave).toBeUndefined();
-    const bad = decodeShare(btoa(JSON.stringify({ v: 1, p: { ...old, spawnMode: 'teleport', waveGap: 999, eventHostile: -1 }, e: ['fan', 'nope', 3] })), NORMAL);
+    const bad = decodeShare(
+      btoa(JSON.stringify({ v: 1, p: { ...old, spawnMode: 'teleport', waveGap: 999, eventHostile: -1 }, e: ['fan', 'nope', 3] })),
+      NORMAL,
+    );
     expect(bad.ok).toBe(true);
     if (!bad.ok) return;
     expect(bad.value.params.spawnMode).toBe('roundRobin');
@@ -378,7 +430,13 @@ describe('mid-run replay', () => {
 describe('mid-run replay with real core', () => {
   it('fast-forwards to an identical state', async () => {
     const core = await import('../../src/core');
-    const opts: RunOptions = { mode: 'endless', map: 'ch1', difficulty: 'normal', skills: ['eraser_strike', 'bell', 'whiteout_zone'], seed: 'replay-test' };
+    const opts: RunOptions = {
+      mode: 'endless',
+      map: 'ch1',
+      difficulty: 'normal',
+      skills: ['eraser_strike', 'bell', 'whiteout_zone'],
+      seed: 'replay-test',
+    };
     const a = core.createWorld(opts);
     const opt = a.getBuildOptions().find((o) => o.id === 'pencil');
     let placed = 0;

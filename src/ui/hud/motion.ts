@@ -30,10 +30,13 @@ export function replay(el: HTMLElement, cls: string, ms = 600): void {
   if (old !== undefined) clearTimeout(old);
   const arm = () => {
     el.classList.add(cls);
-    m!.set(cls, window.setTimeout(() => {
-      el.classList.remove(cls);
-      m!.delete(cls);
-    }, ms));
+    m!.set(
+      cls,
+      window.setTimeout(() => {
+        el.classList.remove(cls);
+        m!.delete(cls);
+      }, ms),
+    );
   };
   if (el.classList.contains(cls)) {
     el.classList.remove(cls);
@@ -177,7 +180,10 @@ export function sparkle(host: HTMLElement, o: { x?: number; y?: number; n?: numb
       [
         { transform: 'translate(0,0) scale(0.4)', opacity: 1 },
         { transform: `translate(${(Math.cos(a) * d).toFixed(1)}px, ${(Math.sin(a) * d).toFixed(1)}px) scale(1)`, opacity: 1, offset: 0.6 },
-        { transform: `translate(${(Math.cos(a) * d * 1.25).toFixed(1)}px, ${(Math.sin(a) * d * 1.25 + 4).toFixed(1)}px) scale(0)`, opacity: 0 },
+        {
+          transform: `translate(${(Math.cos(a) * d * 1.25).toFixed(1)}px, ${(Math.sin(a) * d * 1.25 + 4).toFixed(1)}px) scale(0)`,
+          opacity: 0,
+        },
       ],
       { duration: 520 + Math.random() * 180, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'both' },
     );

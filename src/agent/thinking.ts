@@ -34,14 +34,24 @@ export interface ClaudeThinkingPlan {
 }
 
 const CLAUDE_NAME = (m: string): string =>
-  m.includes('opus-5-5') ? 'Opus 5.5' : m.includes('fable') ? 'Fable 5.2' : m.includes('sonnet-5-5') ? 'Sonnet 5.5' : m.includes('haiku-5-5') ? 'Haiku 5.5' : m;
+  m.includes('opus-5-5')
+    ? 'Opus 5.5'
+    : m.includes('fable')
+      ? 'Fable 5.2'
+      : m.includes('sonnet-5-5')
+        ? 'Sonnet 5.5'
+        : m.includes('haiku-5-5')
+          ? 'Haiku 5.5'
+          : m;
 
 export function claudeThinkingPlan(model: string, level: ThinkingLevel = 'medium'): ClaudeThinkingPlan {
   if (level !== 'off') {
     return { thinking: { type: 'adaptive', display: 'summarized' }, effort: level, effective: `adaptive · effort ${level}` };
   }
-  if (model.includes('sonnet-5-5')) return { thinking: { type: 'between_tools' }, effort: 'low', effective: t('agent.think.offEffort', { mode: 'between_tools' }) };
-  if (model.includes('haiku-5-5')) return { thinking: { type: 'disabled' }, effort: 'low', effective: t('agent.think.offEffort', { mode: 'disabled' }) };
+  if (model.includes('sonnet-5-5'))
+    return { thinking: { type: 'between_tools' }, effort: 'low', effective: t('agent.think.offEffort', { mode: 'between_tools' }) };
+  if (model.includes('haiku-5-5'))
+    return { thinking: { type: 'disabled' }, effort: 'low', effective: t('agent.think.offEffort', { mode: 'disabled' }) };
   return {
     thinking: { type: 'adaptive', display: 'summarized' },
     effort: 'low',
@@ -59,9 +69,16 @@ export interface PiThinkingPlan {
   note?: string;
 }
 
-const PI_LEVEL: Record<Exclude<ThinkingLevel, 'off'>, PiThinkingLevel> = { low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'xhigh' };
+const PI_LEVEL: Record<Exclude<ThinkingLevel, 'off'>, PiThinkingLevel> = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  xhigh: 'xhigh',
+  max: 'xhigh',
+};
 
-const isClaude5 = (id: string): boolean => /claude-(opus|sonnet|haiku|fable|mythos)-5/.test(id) || /(opus|sonnet|haiku)-5[-.]/.test(id) || id.includes('fable');
+const isClaude5 = (id: string): boolean =>
+  /claude-(opus|sonnet|haiku|fable|mythos)-5/.test(id) || /(opus|sonnet|haiku)-5[-.]/.test(id) || id.includes('fable');
 
 export function piThinkingPlan(
   api: PiApi,
@@ -75,14 +92,20 @@ export function piThinkingPlan(
   switch (api) {
     case 'openai-completions': {
       const fmt = o.thinkingFormat;
-      if (fmt === 'deepseek') return on ? { reasoning: lv, effective: `thinking enabled · reasoning_effort ${lv}` } : { effective: 'thinking {type:"disabled"}' };
-      if (fmt === 'qwen') return on ? { reasoning: lv, effective: `enable_thinking true（${lv}）` } : { effective: 'enable_thinking false' };
+      if (fmt === 'deepseek')
+        return on ? { reasoning: lv, effective: `thinking enabled · reasoning_effort ${lv}` } : { effective: 'thinking {type:"disabled"}' };
+      if (fmt === 'qwen')
+        return on ? { reasoning: lv, effective: `enable_thinking true（${lv}）` } : { effective: 'enable_thinking false' };
       if (o.reasoningModel === false) return { effective: t('agent.think.noParam') };
-      return on ? { reasoning: lv, effective: `reasoning_effort ${lv}` } : { effective: t('agent.think.notSent', { param: 'reasoning_effort' }) };
+      return on
+        ? { reasoning: lv, effective: `reasoning_effort ${lv}` }
+        : { effective: t('agent.think.notSent', { param: 'reasoning_effort' }) };
     }
     case 'openai-responses':
       if (o.reasoningModel === false) return { modelReasoning: false, effective: t('agent.think.nonReasoning') };
-      return on ? { reasoning: lv, modelReasoning: true, effective: `reasoning.effort ${lv}` } : { modelReasoning: false, effective: t('agent.think.notSent', { param: 'reasoning' }) };
+      return on
+        ? { reasoning: lv, modelReasoning: true, effective: `reasoning.effort ${lv}` }
+        : { modelReasoning: false, effective: t('agent.think.notSent', { param: 'reasoning' }) };
     case 'anthropic-messages':
       if (isClaude5(id)) {
         if (!on && id.includes('haiku')) return { modelReasoning: true, effective: 'thinking {type:"disabled"}' };
@@ -92,7 +115,9 @@ export function piThinkingPlan(
           note: on ? t('agent.think.piNoEffort') : t('agent.think.piCantOff', { model: CLAUDE_NAME(id) }),
         };
       }
-      return on ? { reasoning: lv, modelReasoning: true, effective: `thinking ${lv}` } : { modelReasoning: o.reasoningModel, effective: 'thinking {type:"disabled"}' };
+      return on
+        ? { reasoning: lv, modelReasoning: true, effective: `thinking ${lv}` }
+        : { modelReasoning: o.reasoningModel, effective: 'thinking {type:"disabled"}' };
     case 'google-generative-ai':
       return on ? { reasoning: lv, effective: `thinking ${lv}` } : { effective: t('agent.think.googleOff') };
     default:

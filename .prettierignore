@@ -1,0 +1,21 @@
+# 构建产物 / 依赖 / 本地缓存
+dist/
+node_modules/
+.wrangler/
+scripts/out/
+coverage/
+package-lock.json
+
+# 生成文件
+art/gallery.html
+docs/guide/数据/
+
+# 二进制资源
+public/*.png
+
+# 手写排版的静态页与文档：不交给 Prettier（避免 HTML 空白语义变化与 CJK 表格对齐噪声）
+*.html
+*.md
+
+# 工具配置
+.claude/

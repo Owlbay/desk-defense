@@ -62,8 +62,14 @@ export function inDanger(w: IWorld): boolean {
  *   spend：赏金 / 狂暴 / 加练——手里的钱够做一件有用的事（花在输出上）或有就绪技能时才叫。
  */
 export const EVENT_DECIDE: Partial<Record<RandomEventId, 'always' | 'spend'>> = {
-  goldbag: 'always', golden_elite: 'always', medic_squad: 'always', tea_break: 'always', shield_supply: 'always',
-  bounty: 'spend', frenzy: 'spend', training: 'spend',
+  goldbag: 'always',
+  golden_elite: 'always',
+  medic_squad: 'always',
+  tea_break: 'always',
+  shield_supply: 'always',
+  bounty: 'spend',
+  frenzy: 'spend',
+  training: 'spend',
 };
 
 /** 随机事件「开始」时是否值得叫模型（有预警的事件已在预警时叫过，这里只看没有预警的） */

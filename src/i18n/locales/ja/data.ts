@@ -33,7 +33,8 @@ export default {
   'data.tower.pencil.A.name': 'シャープペンシル',
   'data.tower.pencil.A.desc': '攻撃速度 ×{atk}、1 発のダメージ ×{dmg}',
   'data.tower.pencil.B.name': '色鉛筆',
-  'data.tower.pencil.B.desc': '命中時にランダム付与：赤は燃焼（毎秒 {burn}）、青はスロー {slow}、黄は +1 ゴールド（ウェーブごとに最大 15 回）{extra}',
+  'data.tower.pencil.B.desc':
+    '命中時にランダム付与：赤は燃焼（毎秒 {burn}）、青はスロー {slow}、黄は +1 ゴールド（ウェーブごとに最大 15 回）{extra}',
   'data.tower.pencil.B.descDmg': '。1 発のダメージ ×{dmg}',
 
   'data.tower.stapler.name': 'ホッチキス',
@@ -62,15 +63,18 @@ export default {
 
   'data.tower.lamp.name': 'デスクライト',
   'data.tower.lamp.role': 'アーマー無視の光線',
-  'data.tower.lamp.desc': '継続光線でアーマー無視。同じ対象を照らすほど強くなる（毎秒 +{ramp}、最大 ×{cap}）。{detect} マス内のステルスを探知。{link} マス内のデスクライトは自動で連携し、光を 1 台のメインライトに集める',
+  'data.tower.lamp.desc':
+    '継続光線でアーマー無視。同じ対象を照らすほど強くなる（毎秒 +{ramp}、最大 ×{cap}）。{detect} マス内のステルスを探知。{link} マス内のデスクライトは自動で連携し、光を 1 台のメインライトに集める',
   'data.tower.lamp.t2.name': '余熱',
   'data.tower.lamp.t2.desc': 'ターゲットを切り替えても増加の {keep} を保持',
   'data.tower.lamp.t3.name': 'ダブルヘッド',
   'data.tower.lamp.t3.desc': '2 本目の光線で別の対象を照らす（秒間ダメージ {v}、個別に増加）',
   'data.tower.lamp.A.name': 'レーザーポインター',
-  'data.tower.lamp.A.desc': '基本秒間ダメージ ×{dmg}。増加が毎秒 +{ramp}、上限 ×{cap} に。メインライトのとき集光効率 ×{relay}。レーザーポインターがいる連携グループは台数上限なし。サブライトが増えるほどダメージが積み重なる',
+  'data.tower.lamp.A.desc':
+    '基本秒間ダメージ ×{dmg}。増加が毎秒 +{ramp}、上限 ×{cap} に。メインライトのとき集光効率 ×{relay}。レーザーポインターがいる連携グループは台数上限なし。サブライトが増えるほどダメージが積み重なる',
   'data.tower.lamp.B.name': '目にやさしいライト',
-  'data.tower.lamp.B.desc': '基本秒間ダメージ ×{dmg}。射程全体でステルスを探知。照らされた敵の被ダメージ +{vuln}。連携グループの全光線がマークを付け、メインライトのときは光線が対象の位置でサブライトの数だけ短い光線（ダメージ {split}）に分裂',
+  'data.tower.lamp.B.desc':
+    '基本秒間ダメージ ×{dmg}。射程全体でステルスを探知。照らされた敵の被ダメージ +{vuln}。連携グループの全光線がマークを付け、メインライトのときは光線が対象の位置でサブライトの数だけ短い光線（ダメージ {split}）に分裂',
 
   'data.tower.compass.name': 'コンパス',
   'data.tower.compass.role': 'リング切断',
@@ -153,9 +157,11 @@ export default {
   'data.tower.swatter.t3.name': 'ダブルたたき',
   'data.tower.swatter.t3.desc': '1 回で別々の 2 体をたたく。たたき範囲 +{splash} マス',
   'data.tower.swatter.A.name': '電撃ラケット',
-  'data.tower.swatter.A.desc': '命中すると連鎖電撃を放ち、飛行する敵の間を {chain} 回跳ねる。1 回ごとにダメージ ×{mul}、対象を {stun} 秒しびれさせる',
+  'data.tower.swatter.A.desc':
+    '命中すると連鎖電撃を放ち、飛行する敵の間を {chain} 回跳ねる。1 回ごとにダメージ ×{mul}、対象を {stun} 秒しびれさせる',
   'data.tower.swatter.B.name': '捕虫網',
-  'data.tower.swatter.B.desc': '{every} 回目の攻撃ごとに網を投げ、飛行する敵 1 体を {dur} 秒地上に落とす（ボスには無効）。捕まった敵は迷路を歩き、地上タワーの攻撃を受け、被ダメージ +{vuln}',
+  'data.tower.swatter.B.desc':
+    '{every} 回目の攻撃ごとに網を投げ、飛行する敵 1 体を {dur} 秒地上に落とす（ボスには無効）。捕まった敵は迷路を歩き、地上タワーの攻撃を受け、被ダメージ +{vuln}',
 
   'data.combo.pencil_eraser.name': '消しゴム付き鉛筆',
   'data.combo.pencil_eraser.desc': '鉛筆の命中ごとにアーマー −0.5',
@@ -194,7 +200,8 @@ export default {
   'data.enemy.moth.name': '蛾',
   'data.enemy.moth.desc': '飛行。弾を 25% 回避、デスクライトが苦手',
   'data.enemy.goldbag.name': '金貨袋',
-  'data.enemy.goldbag.desc': 'イベントで出現。とても速く、2 秒攻撃されないと急速回復。倒すと硬貨をばらまき、逃すとライフは減らないが大量のゴールドを盗む',
+  'data.enemy.goldbag.desc':
+    'イベントで出現。とても速く、2 秒攻撃されないと急速回復。倒すと硬貨をばらまき、逃すとライフは減らないが大量のゴールドを盗む',
   'data.enemy.crumbmini.name': '紙きれ',
   'data.enemy.crumbmini.desc': '丸めた紙から分裂した切れ端',
   'data.enemy.boss_coffee.name': 'コーヒーのしみ',
@@ -379,7 +386,8 @@ export default {
   'data.map.ch3.name': '絵描きの作業台',
   'data.map.ch1.desc': '北に入口が 1 つ。コップや教科書などの小物はゲームごとに配置が変わる。エンドレス後半は西からも敵が出る',
   'data.map.ch2.desc': '北に入口が 2 つ。キーボードが中央をふさぎ、すき間は 1 つだけ。後半は東からも敵が出る',
-  'data.map.ch3.desc': '2 つの角に入口があり、空中ルートが長い。パレットは固定、絵の具チューブはゲームごとに配置が変わる。後半は西からも敵が出る',
+  'data.map.ch3.desc':
+    '2 つの角に入口があり、空中ルートが長い。パレットは固定、絵の具チューブはゲームごとに配置が変わる。後半は西からも敵が出る',
   'data.spawner.north.name': '北入口',
   'data.spawner.west.name': '西入口',
   'data.spawner.hidden-1.name': '隠し扉',
@@ -535,7 +543,8 @@ export default {
   'data.ability.ruler_b.descArea': 'とその {r} マス内の敵',
   'data.ability.pen_a.name': '揮毫',
   'data.ability.pen_a.form': '書道の大家',
-  'data.ability.pen_a.desc': '指定位置に十字形のインク跡エリア（腕の長さ {arm} マス）を描き、6 秒間インク跡を重ね続ける（0.5 秒ごとに {ink} 層）{dmg}',
+  'data.ability.pen_a.desc':
+    '指定位置に十字形のインク跡エリア（腕の長さ {arm} マス）を描き、6 秒間インク跡を重ね続ける（0.5 秒ごとに {ink} 層）{dmg}',
   'data.ability.pen_a.descDmg': '。さらに毎秒 {dps}×ダメージ係数のダメージ',
   'data.ability.pen_b.name': '不合格',
   'data.ability.pen_b.form': '採点ペン',
@@ -546,10 +555,12 @@ export default {
   'data.ability.calculator_a.descCrit': '、クリティカルダメージさらに +{v}',
   'data.ability.calculator_b.name': '暗算',
   'data.ability.calculator_b.form': 'そろばん名人',
-  'data.ability.calculator_b.desc': 'オーラ内のタワーを 1 基選び、すぐに {levels} レベルアップ（Lv9 まで。Lv10 なら {evo} 星分の進化経験値を獲得）',
+  'data.ability.calculator_b.desc':
+    'オーラ内のタワーを 1 基選び、すぐに {levels} レベルアップ（Lv9 まで。Lv10 なら {evo} 星分の進化経験値を獲得）',
   'data.ability.piggy_a.name': '貯金箱割り',
   'data.ability.piggy_a.form': '打ち出の小づち',
-  'data.ability.piggy_a.desc': 'ウェーブごとの産出の {mul} 倍をすぐに獲得、その後 {mute} ウェーブは産出なし（チャージ制、5 ウェーブごとに 1 回）',
+  'data.ability.piggy_a.desc':
+    'ウェーブごとの産出の {mul} 倍をすぐに獲得、その後 {mute} ウェーブは産出なし（チャージ制、5 ウェーブごとに 1 回）',
   'data.ability.piggy_b.name': '緊急ロック',
   'data.ability.piggy_b.form': '金庫室',
   'data.ability.piggy_b.desc': '10 秒間、敵に突破されてもライフが減らない',

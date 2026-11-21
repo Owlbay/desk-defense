@@ -40,12 +40,15 @@ export default {
 
   // ───────────── 玩法 · 新手入門 ─────────────
   'guide.play.start.title': '新手入門',
-  'guide.play.start.intro': '書桌防線是一款**迷宮式塔防**：塔本身就是牆，你放下的每一座塔都會改變敵人的路線。守住桌子底部的作業簿，別讓生命歸零。',
-  'guide.play.start.1': '**目標**：敵人從頂部入口走向底部的作業簿，每漏一個就扣生命（多數扣 1，膠帶捲扣 2，Boss 扣 5～8）。戰役撐過第 20 波獲勝；無盡比誰撐得久。',
+  'guide.play.start.intro':
+    '書桌防線是一款**迷宮式塔防**：塔本身就是牆，你放下的每一座塔都會改變敵人的路線。守住桌子底部的作業簿，別讓生命歸零。',
+  'guide.play.start.1':
+    '**目標**：敵人從頂部入口走向底部的作業簿，每漏一個就扣生命（多數扣 1，膠帶捲扣 2，Boss 扣 5～8）。戰役撐過第 20 波獲勝；無盡比誰撐得久。',
   'guide.play.start.2': '**先造路，再造塔**：敵人總是走當前最短的路線。用 5 金幣的書本牆把路繞長，每座塔就能多打幾輪。',
   'guide.play.start.3': '**不能堵死**：放塔後每個入口都必須還能走到作業簿，也不能把場上的敵人困住。',
   'guide.play.start.4': '**飛行敵人不走迷宮**：紙飛機和飛蛾從入口直線飛向作業簿，要靠鉛筆、檯燈、尺、鋼筆或蒼蠅拍來打。',
-  'guide.play.start.5': '**金幣來源**：擊殺賞金、清波獎勵（10 + 2 × 波數）、利息（每波結束拿持有金幣的 5%，普通難度上限 20）、提前開波獎勵、存錢筒。',
+  'guide.play.start.5':
+    '**金幣來源**：擊殺賞金、清波獎勵（10 + 2 × 波數）、利息（每波結束拿持有金幣的 5%，普通難度上限 20）、提前開波獎勵、存錢筒。',
   'guide.play.start.6': '**塔會成長**：塔造成傷害就能累積經驗，免費升到 Lv9；也可以花金幣立即升級——經驗條越滿越便宜，滿條半價。',
   'guide.play.start.7': '**放錯了不虧**：放下 5 秒內且還沒開火，可以全額撤銷。出售依等級返還 70%～25% 的投入金幣。',
   'guide.play.start.8': '**看下一波預告**：它會告訴你敵人從哪個入口來，有沒有 Boss、空襲、衝鋒和菁英，提前佈防。',
@@ -95,13 +98,16 @@ export default {
   'guide.play.modes.title': '模式',
   'guide.play.modes.intro': '三種玩法加一個每日挑戰。無盡模式和每日挑戰一開始就能玩；通關戰役第一章後開放自訂模式，並解鎖更多地圖。',
   'guide.play.modes.campaign.name': '戰役',
-  'guide.play.modes.campaign.desc': '3 章，每章一張地圖、20 波手工編排的波次，可選普通或困難。依剩餘生命評 1～3 星，星星用來買永久天賦；新塔和新技能隨進度解鎖。',
+  'guide.play.modes.campaign.desc':
+    '3 章，每章一張地圖、20 波手工編排的波次，可選普通或困難。依剩餘生命評 1～3 星，星星用來買永久天賦；新塔和新技能隨進度解鎖。',
   'guide.play.modes.endless.name': '無盡',
-  'guide.play.modes.endless.desc': '在已通關的地圖上一直打下去。難度從簡單、普通、困難、噩夢到魔境 I～X；每 10 波來一個 Boss 並選一次增益，每 7 波空襲，每 5 波衝鋒。結算時獲得墨水，成績進排行榜。',
+  'guide.play.modes.endless.desc':
+    '在已通關的地圖上一直打下去。難度從簡單、普通、困難、噩夢到魔境 I～X；每 10 波來一個 Boss 並選一次增益，每 7 波空襲，每 5 波衝鋒。結算時獲得墨水，成績進排行榜。',
   'guide.play.modes.daily.name': '每日挑戰',
   'guide.play.modes.daily.desc': '每天一張固定種子的桌面，所有人同圖同規則，比拚當日排行榜。',
   'guide.play.modes.custom.name': '自訂',
-  'guide.play.modes.custom.desc': '從一個難度預設出發，用滑桿調整敵人生命、數量、速度、利息、事件頻率等全部參數，產生分享碼傳給朋友。成績不進排行榜。',
+  'guide.play.modes.custom.desc':
+    '從一個難度預設出發，用滑桿調整敵人生命、數量、速度、利息、事件頻率等全部參數，產生分享碼傳給朋友。成績不進排行榜。',
   'guide.play.modes.maps.title': '三張地圖',
   'guide.play.modes.diff.title': '無盡難度',
   'guide.play.modes.diff.col.name': '難度',
@@ -112,13 +118,16 @@ export default {
   'guide.play.modes.diff.col.interest': '利息上限',
   'guide.play.modes.diff.eliteNever': '不出現',
   'guide.play.modes.diff.abyss': '魔境 {n}',
-  'guide.play.modes.diff.unlock': '解鎖：簡單和普通一開始就能選；普通撐到第 30 波開困難，困難第 40 波開噩夢，噩夢第 35 波開魔境 I，之後每級魔境撐到第 30 波開下一級。',
-  'guide.play.modes.seed': '**種子**：同一個種子代表同樣的雜物配置、波次和事件時間表。暫停選單、結算畫面和排行榜裡都能複製，傳給朋友就能打同一局。',
+  'guide.play.modes.diff.unlock':
+    '解鎖：簡單和普通一開始就能選；普通撐到第 30 波開困難，困難第 40 波開噩夢，噩夢第 35 波開魔境 I，之後每級魔境撐到第 30 波開下一級。',
+  'guide.play.modes.seed':
+    '**種子**：同一個種子代表同樣的雜物配置、波次和事件時間表。暫停選單、結算畫面和排行榜裡都能複製，傳給朋友就能打同一局。',
   'guide.play.modes.score': '**得分** =（撐過的波數 × 100 + 擊殺數 + 剩餘生命 × 50 + 剩餘金幣 × 0.1）× 難度倍率。',
 
   // ───────────── 玩法 · 自動開波 ─────────────
   'guide.play.autowave.title': '自動開波',
-  'guide.play.autowave.intro': '開波方式分手動和自動。簡單難度和還沒通關的第一章預設手動，其他預設自動；在設定或開局頁可以更改。排行榜依開波方式分開記錄。',
+  'guide.play.autowave.intro':
+    '開波方式分手動和自動。簡單難度和還沒通關的第一章預設手動，其他預設自動；在設定或開局頁可以更改。排行榜依開波方式分開記錄。',
   'guide.play.autowave.1': '**手動**：每一波都由你點開始，沒有時間壓力。上一波還沒打完就開下一波，獎勵 5 + 波數 金幣。',
   'guide.play.autowave.2': '**自動**：第一波由你開；之後每波敵人全部出場後開始倒數（普通 20 秒），到 0 自動開下一波。',
   'guide.play.autowave.3': 'Boss 波之前倒數 ×1.5；每波還有時間上限（普通 60 秒），逾時也會開下一波。',
@@ -128,7 +137,8 @@ export default {
 
   // ───────────── 玩法 · 隨機事件 ─────────────
   'guide.play.events.title': '隨機事件',
-  'guide.play.events.intro': '每隔兩三波，桌面上會發生一件事：有的添亂，有的送好處。有預警的事件會提前在螢幕上提示。難度越高，事件越頻繁，壞事也越多。',
+  'guide.play.events.intro':
+    '每隔兩三波，桌面上會發生一件事：有的添亂，有的送好處。有預警的事件會提前在螢幕上提示。難度越高，事件越頻繁，壞事也越多。',
   'guide.play.events.tone.bad': '負面',
   'guide.play.events.tone.good': '正面',
   'guide.play.events.tone.neutral': '中性',
@@ -144,9 +154,11 @@ export default {
   'guide.play.field.1': '**桌邊入口**：北邊的主入口一開始就開放；側邊入口到指定波數才開放。還沒開放的入口也必須留一條通往作業簿的路。',
   'guide.play.field.2': '**暗門**：地圖裡預先設置的隱藏出生點，由事件「暗門」開啟，持續 3 波。在暗門的格子上放一座塔，這扇門就開不了。',
   'guide.play.field.3': '**空降紙箱**：預警幾秒後落地，成為新的障礙和出生點，之後 2～4 波裡有 25%～40% 的敵人從這裡出來。',
-  'guide.play.field.4': '**處理紙箱**：落地後點它拆除（40 + 5 × 波數 金幣），或用技能「封箱膠帶」直接封掉（預警中也行）。落在迷宮後段的紙箱等於替敵人開捷徑，優先處理。',
+  'guide.play.field.4':
+    '**處理紙箱**：落地後點它拆除（40 + 5 × 波數 金幣），或用技能「封箱膠帶」直接封掉（預警中也行）。落在迷宮後段的紙箱等於替敵人開捷徑，優先處理。',
   'guide.play.field.5': '**落點規則**：紙箱只落在離作業簿至少 7 格、周圍一圈沒有塔的空地上。迷宮越緊湊，它能落的地方越少。',
-  'guide.play.field.6': '**出怪方式**：輪流、隨機、包夾（平均分到各入口同時出現）、突襲（整組從同一個入口衝出）。下一波預告寫的就是實際會發生的事。',
+  'guide.play.field.6':
+    '**出怪方式**：輪流、隨機、包夾（平均分到各入口同時出現）、突襲（整組從同一個入口衝出）。下一波預告寫的就是實際會發生的事。',
   'guide.play.field.7': '**特殊波**（無盡）：每 7 波空襲（約 60% 是飛行敵人）；每 5 波衝鋒（快速敵人 ×2）；第 12 波起每 8 波可能出現包夾。',
 
   // ───────────── 玩法 · 進化 ─────────────
@@ -220,7 +232,8 @@ export default {
   'guide.enemy.tag.armored': '護甲',
   'guide.enemy.behavior': '行為',
   'guide.enemy.counter': '對策',
-  'guide.enemy.bossCommon': '**Boss 通用抗性**：減速效果減半；暈眩和定身最多 0.3 秒；不受擊退和處決影響。出場前 3 秒會提示，螢幕頂部有獨立血條。無盡模式每 10 波輪換一個，第 50 波起每次 2 個，第 100 波起 3 個。',
+  'guide.enemy.bossCommon':
+    '**Boss 通用抗性**：減速效果減半；暈眩和定身最多 0.3 秒；不受擊退和處決影響。出場前 3 秒會提示，螢幕頂部有獨立血條。無盡模式每 10 波輪換一個，第 50 波起每次 2 個，第 100 波起 3 個。',
 
   'guide.enemy.crumb.behavior': '最基本的敵人，數量多。',
   'guide.enemy.crumb.counter': '任何塔都能打；鉛筆、釘書機、圓規都很有效。',
@@ -262,11 +275,13 @@ export default {
   'guide.enemy.rules.armor': '**護甲**：每次受到的傷害先減去護甲，最低保留 1 點。檯燈光束、所有持續傷害和技能「大橡皮」無視護甲。',
   'guide.enemy.rules.shield': '**護盾**：先扣護盾再扣生命，護盾不受護甲保護。橡皮擦對護盾造成 3 倍傷害。',
   'guide.enemy.rules.air': '**飛行**：直線飛向作業簿，迷宮無效。能打空中的塔：鉛筆、檯燈、尺、鋼筆、蒼蠅拍。下課鐘和立可白對飛行無效。',
-  'guide.enemy.rules.stealth': '**隱形**：不能被選為目標。靠近任意塔 1.2 格、靠近檯燈 1.5 格、被範圍攻擊打中，或進入立可白、放大鏡區域時現形。',
+  'guide.enemy.rules.stealth':
+    '**隱形**：不能被選為目標。靠近任意塔 1.2 格、靠近檯燈 1.5 格、被範圍攻擊打中，或進入立可白、放大鏡區域時現形。',
   'guide.enemy.rules.elite': '**菁英**：高難度下出現，生命 ×2.5、賞金和經驗 ×2，並帶有 1～4 條詞綴。詳見「詞綴」。',
 
   // ───────────── 詞綴 ─────────────
-  'guide.affix.intro': '高難度下，普通敵人有機率成為**菁英**：生命 ×2.5、體型更大、賞金和經驗 ×2，頭頂顯示詞綴圖示。普通難度每個菁英最多 1 條詞綴，困難和噩夢 2 條，魔境 3 條，魔境 V 起 4 條。',
+  'guide.affix.intro':
+    '高難度下，普通敵人有機率成為**菁英**：生命 ×2.5、體型更大、賞金和經驗 ×2，頭頂顯示詞綴圖示。普通難度每個菁英最多 1 條詞綴，困難和噩夢 2 條，魔境 3 條，魔境 V 起 4 條。',
   'guide.affix.counter': '剋制',
   'guide.affix.hard.counter': '檯燈、橡皮擦、持續傷害。',
   'guide.affix.swift.counter': '膠水、下課鐘、立可白。',
@@ -292,12 +307,14 @@ export default {
   'guide.skill.rules.4': '大橡皮和橫掃尺的傷害會隨波數成長，後期依然有用。',
   'guide.skill.cd': '冷卻 {n} 秒',
   'guide.skill.charge': '充能制',
-  'guide.perk.intro': '無盡和自訂每 10 波選一次，戰役在第 10 波後選一次。三選一，可以花 50 金幣重抽。同一個增益一局只能拿一次（可重複的除外）。',
+  'guide.perk.intro':
+    '無盡和自訂每 10 波選一次，戰役在第 10 波後選一次。三選一，可以花 50 金幣重抽。同一個增益一局只能拿一次（可重複的除外）。',
   'guide.perk.rarity.common': '普通',
   'guide.perk.rarity.rare': '稀有',
   'guide.perk.rarity.epic': '史詩',
   'guide.perk.needsTower': '需要指定一座塔',
-  'guide.talent.intro': '在主選單的「書包」裡購買，永久生效。每一級都可以用星星或墨水購買：星星來自戰役評星（最多 18 顆），墨水來自無盡和自訂的結算。',
+  'guide.talent.intro':
+    '在主選單的「書包」裡購買，永久生效。每一級都可以用星星或墨水購買：星星來自戰役評星（最多 18 顆），墨水來自無盡和自訂的結算。',
   'guide.talent.max': '最高 {n} 級',
   'guide.talent.price': '每級 {star} 星或 {ink} 墨水',
   'guide.talent.tip': '星星優先買單級的大項目（大書包、文具收藏家、幸運籤），多級的小加成用墨水慢慢補。',
@@ -347,43 +364,53 @@ export default {
   'guide.arch.line.core': '尺、圓規（相鄰觸發組合），鋼尺擊退。',
   'guide.arch.line.how': '留一條長直道，把尺放在直道的延長線上，一發穿透一整排；圓規守住轉角。',
   'guide.arch.line.weak': '地形被事件改變後直道容易斷；對分散的敵人效率低。',
-  'guide.arch.prism.name': "光稜陣 · 聚光流",
-  'guide.arch.prism.core': "檯燈 ×3～4，後期換雷射筆（傳奇 A）當核心，配一座護眼檯燈（B）。",
-  'guide.arch.prism.how': "把檯燈兩兩相隔約 2 格沿 Boss 路線擺成一串（中心距 ≤ 2.5 格），聯動組裡只有主燈開火，其餘輔燈把光匯進去，光束持續照射並逐漸增強。一般聯動組最多 4 座；組裡有雷射筆時不限座數。護眼檯燈替整組光束加標記與易傷。",
-  'guide.arch.prism.weak': "成群的小怪和快怪（單體光束，換目標就歸零）；咖啡潑到鏈中間的燈會斷組；事件「檯燈跳電」；「反光」詞綴傷害減半。",
+  'guide.arch.prism.name': '光稜陣 · 聚光流',
+  'guide.arch.prism.core': '檯燈 ×3～4，後期換雷射筆（傳奇 A）當核心，配一座護眼檯燈（B）。',
+  'guide.arch.prism.how':
+    '把檯燈兩兩相隔約 2 格沿 Boss 路線擺成一串（中心距 ≤ 2.5 格），聯動組裡只有主燈開火，其餘輔燈把光匯進去，光束持續照射並逐漸增強。一般聯動組最多 4 座；組裡有雷射筆時不限座數。護眼檯燈替整組光束加標記與易傷。',
+  'guide.arch.prism.weak': '成群的小怪和快怪（單體光束，換目標就歸零）；咖啡潑到鏈中間的燈會斷組；事件「檯燈跳電」；「反光」詞綴傷害減半。',
 
   // ───────────── AI 參戰 ─────────────
-  'guide.ai.intro': '讓大型語言模型像玩家一樣玩這個遊戲，或者在你玩的時候當軍師。AI 的每一步都和你的點擊走同一套驗證，無法作弊；AI 的成績進入獨立的 AI 排行榜。',
+  'guide.ai.intro':
+    '讓大型語言模型像玩家一樣玩這個遊戲，或者在你玩的時候當軍師。AI 的每一步都和你的點擊走同一套驗證，無法作弊；AI 的成績進入獨立的 AI 排行榜。',
   'guide.ai.modes.title': '兩種角色',
   'guide.ai.modes.1': '**AI 玩家**：模型獨立打完一局，你可以旁觀它的思路和每一次操作。',
   'guide.ai.modes.2': '**AI 軍師**：你來玩，模型只看局面並給出建議，建議可以一鍵執行。',
   'guide.ai.setup.title': '三種接入方式',
   'guide.ai.relay.name': '中轉服務或官方 Key',
-  'guide.ai.relay.desc': '從主選單進入「AI 參戰」，在模型一欄選擇中轉服務，貼上服務位址和 API Key，點「取得模型清單」選一個模型，再點「測試連線」。請求由你的瀏覽器直接送到你填寫的位址，不經過我們的伺服器。',
+  'guide.ai.relay.desc':
+    '從主選單進入「AI 參戰」，在模型一欄選擇中轉服務，貼上服務位址和 API Key，點「取得模型清單」選一個模型，再點「測試連線」。請求由你的瀏覽器直接送到你填寫的位址，不經過我們的伺服器。',
   'guide.ai.local.name': '本機模型',
-  'guide.ai.local.desc': '在自己的電腦上執行 Ollama 或 LM Studio，並允許本站跨網域存取（Ollama 設定 OLLAMA_ORIGINS，LM Studio 開啟 Enable CORS），然後在設定頁選擇對應的本機服務。',
+  'guide.ai.local.desc':
+    '在自己的電腦上執行 Ollama 或 LM Studio，並允許本站跨網域存取（Ollama 設定 OLLAMA_ORIGINS，LM Studio 開啟 Enable CORS），然後在設定頁選擇對應的本機服務。',
   'guide.ai.bridge.name': '本機橋接',
-  'guide.ai.bridge.desc': '服務商不允許網頁直接存取時使用：在電腦上執行橋接器（npm run agent:bridge），網頁透過配對碼連接它，由橋接器代為呼叫模型。Key 只留在你的電腦上。',
+  'guide.ai.bridge.desc':
+    '服務商不允許網頁直接存取時使用：在電腦上執行橋接器（npm run agent:bridge），網頁透過配對碼連接它，由橋接器代為呼叫模型。Key 只留在你的電腦上。',
   'guide.ai.demo': '沒有 Key 也能試：選擇「離線示範」，用內建策略體驗整個流程。',
   'guide.ai.tips.title': '常見問題',
   'guide.ai.tips.1': '**連不上**：多半是服務商不允許瀏覽器跨網域存取，改用本機橋接。',
   'guide.ai.tips.2': '**Key 被拒絕**：檢查 Key 是否正確、是否還有額度。建議使用獨立的、設了額度上限的 Key。',
-  'guide.ai.tips.3': '**想看 AI 在想什麼**：對局中開啟「思路與請求」面板，裡面依時間列出每次決策、工具呼叫和用量。這些內容只存在你的瀏覽器裡。',
+  'guide.ai.tips.3':
+    '**想看 AI 在想什麼**：對局中開啟「思路與請求」面板，裡面依時間列出每次決策、工具呼叫和用量。這些內容只存在你的瀏覽器裡。',
   'guide.ai.open': '開啟 AI 參戰',
 
   // ───────────── 常見問題 ─────────────
   'guide.faq.save.q': '進度儲存在哪裡？會不見嗎？',
-  'guide.faq.save.a': '所有進度都自動儲存在目前這個瀏覽器的本機，不需要登入。清除網站資料、使用無痕模式或在設定裡點「清除存檔」會遺失進度。不同裝置之間不會同步。',
+  'guide.faq.save.a':
+    '所有進度都自動儲存在目前這個瀏覽器的本機，不需要登入。清除網站資料、使用無痕模式或在設定裡點「清除存檔」會遺失進度。不同裝置之間不會同步。',
   'guide.faq.offline.q': '能離線玩嗎？怎麼安裝？',
-  'guide.faq.offline.a': '可以。連網開啟一次後，資源會快取到本機。iPhone 和 iPad 在 Safari 裡點「分享」再點「加入主畫面」；Android 和電腦的 Chrome 或 Edge 點選單或網址列裡的「安裝」。',
+  'guide.faq.offline.a':
+    '可以。連網開啟一次後，資源會快取到本機。iPhone 和 iPad 在 Safari 裡點「分享」再點「加入主畫面」；Android 和電腦的 Chrome 或 Edge 點選單或網址列裡的「安裝」。',
   'guide.faq.resume.q': '打到一半離開了，還能繼續嗎？',
   'guide.faq.resume.a': '可以。每打完一波自動存檔一次，回到主選單點「繼續遊戲」，從上一波結束時接著打。',
   'guide.faq.place.q': '為什麼這裡放不了塔？',
-  'guide.faq.place.a': '常見原因：會堵死道路、會困住敵人、有敵人站在這格、這裡是入口或雜物、空降紙箱正在預警、金幣不足，或這座塔在戰役裡還沒解鎖。存錢筒最多 3 個。',
+  'guide.faq.place.a':
+    '常見原因：會堵死道路、會困住敵人、有敵人站在這格、這裡是入口或雜物、空降紙箱正在預警、金幣不足，或這座塔在戰役裡還沒解鎖。存錢筒最多 3 個。',
   'guide.faq.air.q': '為什麼我的塔打不到飛行敵人？',
   'guide.faq.air.a': '只有鉛筆、檯燈、尺、鋼筆和蒼蠅拍能打空中。飛行敵人直線飛向作業簿，把防空塔放在作業簿上方，所有航線都會在那裡匯合。',
   'guide.faq.idle.q': '為什麼我的塔突然不打了？',
-  'guide.faq.idle.a': '可能被癱瘓了（咖啡漬 Boss 或事件「咖啡打翻」）、遇上「檯燈跳電」，或者目標是隱形的、正在彈跳的橡皮筋，或不在射程內。',
+  'guide.faq.idle.a':
+    '可能被癱瘓了（咖啡漬 Boss 或事件「咖啡打翻」）、遇上「檯燈跳電」，或者目標是隱形的、正在彈跳的橡皮筋，或不在射程內。',
   'guide.faq.cooldown.q': '技能冷卻為什麼不走？',
   'guide.faq.cooldown.a': '技能和神話能力的冷卻只在戰鬥進行時計時，波次之間的準備階段不走。',
   'guide.faq.branch.q': '傳奇分支選錯了能改嗎？',
@@ -414,7 +441,8 @@ export default {
 
   // ───────────── 介紹頁 /about ─────────────
   'guide.about.meta.title': '書桌防線 Desk Defense · 用文具蓋迷宮的塔防遊戲',
-  'guide.about.meta.desc': '書桌防線是一款免費的網頁迷宮塔防遊戲：用鉛筆、釘書機、檯燈蓋出迷宮，對抗橡皮屑、紙飛機和咖啡漬。12 座塔、5 種形態、無盡魔境、全服排行榜與每日挑戰，手機和電腦都能玩，可離線。',
+  'guide.about.meta.desc':
+    '書桌防線是一款免費的網頁迷宮塔防遊戲：用鉛筆、釘書機、檯燈蓋出迷宮，對抗橡皮屑、紙飛機和咖啡漬。12 座塔、5 種形態、無盡魔境、全服排行榜與每日挑戰，手機和電腦都能玩，可離線。',
   'guide.about.skip': '跳到主要內容',
   'guide.about.nav.label': '頁面導覽',
   'guide.about.nav.features': '特色',
@@ -442,11 +470,13 @@ export default {
   'guide.about.feature.maze.title': '迷宮塔防',
   'guide.about.feature.maze.desc': '在 12 × 14 的棋盤上自由擺塔，塔會擋路。用 5 金幣的書本牆把路繞長，讓敵人在火力圈裡多轉幾圈。',
   'guide.about.feature.towers.title': '12 座塔，5 種形態',
-  'guide.about.feature.towers.desc': '每座塔從草稿、精良、鍍金成長到傳奇，再進化為神話。傳奇有 A / B 兩條分支，神話帶主動能力，每個階段外觀都不同。',
+  'guide.about.feature.towers.desc':
+    '每座塔從草稿、精良、鍍金成長到傳奇，再進化為神話。傳奇有 A / B 兩條分支，神話帶主動能力，每個階段外觀都不同。',
   'guide.about.feature.field.title': '動態戰場',
   'guide.about.feature.field.desc': '入口會增加，紙箱會空降，檯燈會跳電，咖啡會打翻。23 種隨機事件讓每一局都不一樣。',
   'guide.about.feature.endless.title': '無盡魔境',
-  'guide.about.feature.endless.desc': '戰役 3 章之後是無盡模式：簡單、普通、困難、噩夢，再到魔境 I～X。菁英敵人帶著隨機詞綴，看你能撐到第幾波。',
+  'guide.about.feature.endless.desc':
+    '戰役 3 章之後是無盡模式：簡單、普通、困難、噩夢，再到魔境 I～X。菁英敵人帶著隨機詞綴，看你能撐到第幾波。',
   'guide.about.feature.online.title': '全服排行榜與每日挑戰',
   'guide.about.feature.online.desc': '每天一張固定種子的桌面，所有人同圖比拚。無盡模式每個難度都有全服排行榜。',
   'guide.about.feature.ai.title': 'AI 參戰',
@@ -487,7 +517,8 @@ export default {
   'guide.about.footer.leaderboard': '排行榜',
   'guide.about.footer.label': '頁尾連結',
   'guide.about.footer.note': '書桌防線 Desk Defense，一款網頁塔防遊戲。',
-  'guide.enemy.goldbag.behavior': '飛快地沿路線逃跑；2 秒沒挨打就快速回血。被擊殺時爆出一大把可點擊收集的硬幣；漏走不扣生命，但會偷走一大筆金幣。',
+  'guide.enemy.goldbag.behavior':
+    '飛快地沿路線逃跑；2 秒沒挨打就快速回血。被擊殺時爆出一大把可點擊收集的硬幣；漏走不扣生命，但會偷走一大筆金幣。',
   'guide.enemy.goldbag.counter': '集中火力或用大橡皮等爆發技能一口氣打掉；減速 / 定身讓它多挨幾下，別給它喘息回血的機會。',
   'guide.affix.golden.counter': '金色菁英更耐打，但擊殺後掉落一堆硬幣——優先集火並記得點擊收集。',
 } satisfies Dict;

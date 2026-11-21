@@ -142,7 +142,12 @@ export type TraceKind = TraceBody['k'];
 /** 适配器 / 引擎写入时用的形状：大文本直接给原文（system / observation / toolDefs / raw），由缓冲区去重、脱敏、封顶 */
 export type TraceInput =
   | (Extract<TraceBody, { k: 'decision_start' }> & { observation?: string; system?: string; toolDefs?: unknown })
-  | (Omit<Extract<TraceBody, { k: 'request' }>, 'raw' | 'rawChars' | 'headers'> & { system?: string; toolDefs?: unknown; raw?: unknown; headers?: Record<string, unknown> })
+  | (Omit<Extract<TraceBody, { k: 'request' }>, 'raw' | 'rawChars' | 'headers'> & {
+      system?: string;
+      toolDefs?: unknown;
+      raw?: unknown;
+      headers?: Record<string, unknown>;
+    })
   | (Omit<Extract<TraceBody, { k: 'response' }>, 'raw' | 'rawChars'> & { raw?: unknown })
   | { k: 'request_raw'; n: number; raw: unknown }
   | Exclude<TraceBody, { k: 'decision_start' | 'request' | 'response' | 'request_raw' }>;
@@ -218,15 +223,30 @@ const now = (): number => Date.now();
 function sizeOf(e: TraceEvent): number {
   let n = 120;
   switch (e.k) {
-    case 'request': n += (e.raw?.length ?? 0) + 200; break;
-    case 'request_raw': n += e.raw.length; break;
-    case 'response': n += (e.raw?.length ?? 0) + 100; break;
+    case 'request':
+      n += (e.raw?.length ?? 0) + 200;
+      break;
+    case 'request_raw':
+      n += e.raw.length;
+      break;
+    case 'response':
+      n += (e.raw?.length ?? 0) + 100;
+      break;
     case 'thinking':
-    case 'text': n += e.text.length; break;
-    case 'tool_result': n += e.text.length + (e.effect?.length ?? 0); break;
-    case 'tool_call': n += 200; break;
-    case 'error': n += e.message.length; break;
-    default: break;
+    case 'text':
+      n += e.text.length;
+      break;
+    case 'tool_result':
+      n += e.text.length + (e.effect?.length ?? 0);
+      break;
+    case 'tool_call':
+      n += 200;
+      break;
+    case 'error':
+      n += e.message.length;
+      break;
+    default:
+      break;
   }
   return n;
 }
@@ -340,7 +360,9 @@ export class AgentTrace {
       case 'decision_start': {
         const { observation, system, toolDefs, ...rest } = ev;
         out = {
-          ...rest, d, t,
+          ...rest,
+          d,
+          t,
           observationHash: observation !== undefined ? this.intern(observation) : rest.observationHash,
           systemHash: system !== undefined ? this.intern(system) : rest.systemHash,
           toolsHash: toolDefs !== undefined ? this.internJson(toolDefs) : rest.toolsHash,
@@ -351,7 +373,9 @@ export class AgentTrace {
         const { system, toolDefs, raw, headers, ...rest } = ev;
         const r = raw !== undefined ? redactJson(raw, sec, this.o.maxRawChars) : undefined;
         out = {
-          ...rest, d, t,
+          ...rest,
+          d,
+          t,
           params: rest.params ? (redactValue(rest.params, sec) as Record<string, unknown>) : undefined,
           systemHash: system !== undefined ? this.intern(system) : rest.systemHash,
           toolsHash: toolDefs !== undefined ? this.internJson(toolDefs) : rest.toolsHash,
@@ -411,7 +435,13 @@ export class AgentTrace {
         out = { ...ev, d, t, reason: redactString(ev.reason, sec), effect: ev.effect && redactString(ev.effect, sec) };
         break;
       case 'decision_end':
-        out = { ...ev, d, t, note: ev.note && redactString(ev.note, sec), fallbackReason: ev.fallbackReason && redactString(ev.fallbackReason, sec) };
+        out = {
+          ...ev,
+          d,
+          t,
+          note: ev.note && redactString(ev.note, sec),
+          fallbackReason: ev.fallbackReason && redactString(ev.fallbackReason, sec),
+        };
         break;
     }
     this.store(out);
@@ -534,8 +564,10 @@ export function computeTotals(evs: readonly TraceEvent[]): TraceTotals {
   let skipped = 0;
   let compactions = 0;
   for (const e of evs) {
-    if (e.k === 'decision_start') { decisions++; if (e.skipped) skipped++; }
-    else if (e.k === 'compact') compactions++;
+    if (e.k === 'decision_start') {
+      decisions++;
+      if (e.skipped) skipped++;
+    } else if (e.k === 'compact') compactions++;
     else if (e.k === 'request') requests++;
     else if (e.k === 'response') {
       usage = addUsage(usage, { ...e.usage, requests: 0 });
@@ -548,7 +580,19 @@ export function computeTotals(evs: readonly TraceEvent[]): TraceTotals {
   }
   usage.requests = requests;
   const called = decisions - skipped;
-  return { decisions, skipped, compactions, requestsPerDecision: called > 0 ? requests / called : 0, requests, usage, costUsd, avgLatencyMs: latN ? lat / latN : 0, toolCalls, errors, fallbacks };
+  return {
+    decisions,
+    skipped,
+    compactions,
+    requestsPerDecision: called > 0 ? requests / called : 0,
+    requests,
+    usage,
+    costUsd,
+    avgLatencyMs: latN ? lat / latN : 0,
+    toolCalls,
+    errors,
+    fallbacks,
+  };
 }
 
 /** 工具参数 → 一行文字（tower=pencil x=3 y=5） */
@@ -560,7 +604,10 @@ export function argsLine(args: unknown): string {
 }
 
 /** 对局里一个工具调用涉及的格子（x/y 参数，或 uid 对应的塔） */
-export function cellOfArgs(args: unknown, towerAt?: (uid: number) => { x: number; y: number } | undefined): { x: number; y: number } | undefined {
+export function cellOfArgs(
+  args: unknown,
+  towerAt?: (uid: number) => { x: number; y: number } | undefined,
+): { x: number; y: number } | undefined {
   if (!args || typeof args !== 'object') return undefined;
   const a = args as Record<string, unknown>;
   // act：取第一条带格子 / uid 的动作；preview：第一处假设放置

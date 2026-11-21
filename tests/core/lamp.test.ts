@@ -5,17 +5,46 @@ import { ABILITY_FX } from '../../src/config/evolution';
 
 // 台灯：持续光束 + 递增 + 联动（文档 02 §2.5）
 const opts = (o: Partial<RunOptions> = {}): RunOptions => ({
-  mode: 'custom', map: 'ch1', difficulty: 'normal', seed: 'lamp', skills: [], fixedLayout: true,
-  custom: { startGold: 1e7, lives: 1e6, eventRate: 0 }, autoWave: false, ...o,
+  mode: 'custom',
+  map: 'ch1',
+  difficulty: 'normal',
+  seed: 'lamp',
+  skills: [],
+  fixedLayout: true,
+  custom: { startGold: 1e7, lives: 1e6, eventRate: 0 },
+  autoWave: false,
+  ...o,
 });
 
 type LampT = {
-  uid: number; cx: number; cy: number; damage: number; beamRamp: number; laserUid: number; disabledUntil: number;
-  prism?: number; prismSize?: number; prismLead?: number; prismRelay?: number; prismRole: number; overUntil: number;
-  xp: number; evoXp: number; level: number;
+  uid: number;
+  cx: number;
+  cy: number;
+  damage: number;
+  beamRamp: number;
+  laserUid: number;
+  disabledUntil: number;
+  prism?: number;
+  prismSize?: number;
+  prismLead?: number;
+  prismRelay?: number;
+  prismRole: number;
+  overUntil: number;
+  xp: number;
+  evoXp: number;
+  level: number;
 };
 type Priv = {
-  createEnemy(id: EnemyId, wave: number, eff: number, x: number, y: number, cx: number, cy: number, o: object): EnemyState & Record<string, number>;
+  createEnemy(
+    id: EnemyId,
+    wave: number,
+    eff: number,
+    x: number,
+    y: number,
+    cx: number,
+    cy: number,
+    o: object,
+  ): EnemyState & Record<string, number>;
   rebuildBuckets(): void;
 };
 const priv = (w: IWorld) => w as unknown as Priv;
@@ -47,7 +76,16 @@ function run(w: IWorld, n: number, on?: (e: GameEvent) => void) {
 /** 一排空格（第 6 行起，ch1 固定布局） */
 const ROW = 6;
 /** 8 座链式台灯（相邻 2 格） */
-const POS8: [number, number][] = [[1, 6], [3, 6], [5, 6], [7, 6], [9, 6], [11, 6], [11, 8], [9, 8]];
+const POS8: [number, number][] = [
+  [1, 6],
+  [3, 6],
+  [5, 6],
+  [7, 6],
+  [9, 6],
+  [11, 6],
+  [11, 8],
+  [9, 8],
+];
 
 describe('lamp continuous beam', () => {
   it('ticks every 0.1 s, ramps on the same target and ignores armor', () => {
@@ -57,7 +95,9 @@ describe('lamp continuous beam', () => {
       const e = spawn(w, 5.5, ROW - 1.5);
       e.armor = armor;
       let beams = 0;
-      run(w, 120, (ev) => { if (ev.type === 'beam' && ev.uid === t.uid) beams++; });
+      run(w, 120, (ev) => {
+        if (ev.type === 'beam' && ev.uid === t.uid) beams++;
+      });
       expect(beams).toBeGreaterThanOrEqual(19);
       expect(beams).toBeLessThanOrEqual(20);
       // 2 秒后递增 = 1 + 0.6 × 2
@@ -215,7 +255,9 @@ describe('lamp mythic abilities', () => {
     expect(t.overUntil).toBeGreaterThan(w.state.time);
     expect(h.overUntil).toBeGreaterThan(w.state.time);
     const targets = new Set<string>();
-    run(w, 6, (ev) => { if (ev.type === 'beam' && ev.uid === t.uid) targets.add(`${ev.tx.toFixed(2)},${ev.ty.toFixed(2)}`); });
+    run(w, 6, (ev) => {
+      if (ev.type === 'beam' && ev.uid === t.uid) targets.add(`${ev.tx.toFixed(2)},${ev.ty.toFixed(2)}`);
+    });
     expect(targets.size).toBeGreaterThanOrEqual(ABILITY_FX.lamp_a.beams);
     expect(t.beamRamp).toBeGreaterThan(BRANCH.lamp.A.cap * BRANCH.lamp.A.s1 - 1e-6);
   });

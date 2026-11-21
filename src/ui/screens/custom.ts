@@ -1,5 +1,14 @@
 import type { DifficultyId, DifficultyParams, MapId, RandomEventId } from '../../core/types';
-import { CUSTOM_FIELDS, decodeShare, encodeShare, paramValue, sliderValue, SPAWN_MODES, type CustomField, type NumParamKey } from '../../meta/custom';
+import {
+  CUSTOM_FIELDS,
+  decodeShare,
+  encodeShare,
+  paramValue,
+  sliderValue,
+  SPAWN_MODES,
+  type CustomField,
+  type NumParamKey,
+} from '../../meta/custom';
 import { DIFF_NAME, effectiveAutoWave, MAPS } from '../../meta/progress';
 import { screenHeader, type App, type Screen } from '../App';
 import { audio } from '../audio';
@@ -35,7 +44,13 @@ export function customScreen(app: App): Screen {
 
   const persist = () =>
     app.store.update((pp) => {
-      pp.lastCustom = { map: state.map, base: state.base, params: { ...state.params }, events: { ...state.events }, autoWave: state.autoWave };
+      pp.lastCustom = {
+        map: state.map,
+        base: state.base,
+        params: { ...state.params },
+        events: { ...state.events },
+        autoWave: state.autoWave,
+      };
     });
 
   const presetBox = h('div.seg-grid.presets');
@@ -44,8 +59,12 @@ export function customScreen(app: App): Screen {
   const dynBox = h('div.slider-list');
   const spawnModeBox = h('div.seg-grid.spawn-modes');
   const eventBox = h('div.event-toggles');
-  const codeOut = h<HTMLTextAreaElement>('textarea.input.code', { attrs: { readonly: true, rows: 2, 'aria-label': t('ui.custom.shareCode') } });
-  const codeIn = h<HTMLTextAreaElement>('textarea.input.code', { attrs: { rows: 2, placeholder: t('ui.custom.pastePlaceholder'), 'aria-label': t('ui.custom.importAria') } });
+  const codeOut = h<HTMLTextAreaElement>('textarea.input.code', {
+    attrs: { readonly: true, rows: 2, 'aria-label': t('ui.custom.shareCode') },
+  });
+  const codeIn = h<HTMLTextAreaElement>('textarea.input.code', {
+    attrs: { rows: 2, placeholder: t('ui.custom.pastePlaceholder'), 'aria-label': t('ui.custom.importAria') },
+  });
   const importMsg = h('small.form-msg');
 
   const updateCode = () => {
@@ -219,7 +238,15 @@ export function customScreen(app: App): Screen {
     h(
       'div.screen-body',
       null,
-      h('section.card.section', null, h('h3', null, t('ui.custom.preset')), presetBox, h('h3', null, t('ui.custom.map')), mapBox, layout.el),
+      h(
+        'section.card.section',
+        null,
+        h('h3', null, t('ui.custom.preset')),
+        presetBox,
+        h('h3', null, t('ui.custom.map')),
+        mapBox,
+        layout.el,
+      ),
       h('section.card.section', null, h('h3', null, t('ui.custom.growth')), sliderBox),
       h(
         'section.card.section',
@@ -237,56 +264,71 @@ export function customScreen(app: App): Screen {
         'section.card.section',
         null,
         h('h3', null, t('ui.custom.shareCode')),
-        h('div.code-row', null, codeOut, h(
-          'button.btn.icon-text',
-          {
-            onclick: async () => {
-              const ok = await copyText(codeOut.value);
-              audio.play(ok ? 'select' : 'error');
-              app.toast(ok ? t('ui.custom.copied') : t('ui.custom.copyFailed'), ok ? 'good' : 'warn');
-              if (!ok) codeOut.select();
+        h(
+          'div.code-row',
+          null,
+          codeOut,
+          h(
+            'button.btn.icon-text',
+            {
+              onclick: async () => {
+                const ok = await copyText(codeOut.value);
+                audio.play(ok ? 'select' : 'error');
+                app.toast(ok ? t('ui.custom.copied') : t('ui.custom.copyFailed'), ok ? 'good' : 'warn');
+                if (!ok) codeOut.select();
+              },
             },
-          },
-          h('span.gi', { html: G.copy }),
-          t('ui.custom.copy'),
-        )),
-        h('div.code-row', null, codeIn, h(
-          'button.btn.icon-text',
-          {
-            onclick: () => {
-              const r = decodeShare(codeIn.value, presetParams('normal', state.map));
-              if (!r.ok) {
-                audio.play('error');
-                importMsg.textContent = r.reason;
-                importMsg.className = 'form-msg bad';
-                return;
-              }
-              audio.play('select');
-              state.params = r.value.params;
-              if (r.value.map) state.map = r.value.map;
-              if (r.value.base && PRESETS.includes(r.value.base)) state.base = r.value.base;
-              state.events = { ...(r.value.events ?? {}) };
-              if (r.value.autoWave !== undefined) {
-                state.autoWave = r.value.autoWave;
-                autoSw.input.checked = state.autoWave;
-              }
-              syncSliders();
-              renderPresets();
-              renderMaps();
-              renderSpawnModes();
-              renderEvents();
-              layout.refresh();
-              updateCode();
-              persist();
-              importMsg.textContent = t('ui.custom.imported');
-              importMsg.className = 'form-msg good';
+            h('span.gi', { html: G.copy }),
+            t('ui.custom.copy'),
+          ),
+        ),
+        h(
+          'div.code-row',
+          null,
+          codeIn,
+          h(
+            'button.btn.icon-text',
+            {
+              onclick: () => {
+                const r = decodeShare(codeIn.value, presetParams('normal', state.map));
+                if (!r.ok) {
+                  audio.play('error');
+                  importMsg.textContent = r.reason;
+                  importMsg.className = 'form-msg bad';
+                  return;
+                }
+                audio.play('select');
+                state.params = r.value.params;
+                if (r.value.map) state.map = r.value.map;
+                if (r.value.base && PRESETS.includes(r.value.base)) state.base = r.value.base;
+                state.events = { ...(r.value.events ?? {}) };
+                if (r.value.autoWave !== undefined) {
+                  state.autoWave = r.value.autoWave;
+                  autoSw.input.checked = state.autoWave;
+                }
+                syncSliders();
+                renderPresets();
+                renderMaps();
+                renderSpawnModes();
+                renderEvents();
+                layout.refresh();
+                updateCode();
+                persist();
+                importMsg.textContent = t('ui.custom.imported');
+                importMsg.className = 'form-msg good';
+              },
             },
-          },
-          t('ui.custom.import'),
-        )),
+            t('ui.custom.import'),
+          ),
+        ),
         importMsg,
       ),
-      h('section.card.section', null, h('label.field', null, h('span', null, t('ui.custom.seed')), seedInput), h('p.muted', null, t('ui.custom.footHint'))),
+      h(
+        'section.card.section',
+        null,
+        h('label.field', null, h('span', null, t('ui.custom.seed')), seedInput),
+        h('p.muted', null, t('ui.custom.footHint')),
+      ),
       loadoutStrip(app, { name: 'custom' }),
       h(
         'div.start-bar',

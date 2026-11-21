@@ -49,7 +49,9 @@ function mergeModules(mods: Record<string, { default: Dict }>): Dict {
 }
 
 /** 把浏览器语言映射到支持的语言 */
-export function detectLocale(langs: readonly string[] = typeof navigator !== 'undefined' ? navigator.languages ?? [navigator.language] : []): Locale {
+export function detectLocale(
+  langs: readonly string[] = typeof navigator !== 'undefined' ? (navigator.languages ?? [navigator.language]) : [],
+): Locale {
   for (const raw of langs) {
     const l = raw.toLowerCase();
     if (l.startsWith('zh')) return /tw|hk|mo|hant/.test(l) ? 'zh-TW' : 'zh-CN';
@@ -97,7 +99,7 @@ function interpolate(s: string, p?: Params): string {
   // 复数：'one|other'，按 n 选择（只有含 '|' 且提供了 n 时生效）
   if (s.includes('|') && typeof p.n === 'number') {
     const [one, other] = s.split('|');
-    s = p.n === 1 ? one : other ?? one;
+    s = p.n === 1 ? one : (other ?? one);
   }
   return s.replace(/\{(\w+)\}/g, (m, k: string) => (k in p ? String(p[k]) : m));
 }

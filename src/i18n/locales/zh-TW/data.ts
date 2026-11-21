@@ -62,15 +62,18 @@ export default {
 
   'data.tower.lamp.name': '檯燈',
   'data.tower.lamp.role': '穿甲光束',
-  'data.tower.lamp.desc': '持續光束，無視護甲，同一目標越照越強（每秒 +{ramp}，最多 ×{cap}）；偵測 {detect} 格內隱形；{link} 格內的檯燈自動連動，把光匯聚到一座主燈',
+  'data.tower.lamp.desc':
+    '持續光束，無視護甲，同一目標越照越強（每秒 +{ramp}，最多 ×{cap}）；偵測 {detect} 格內隱形；{link} 格內的檯燈自動連動，把光匯聚到一座主燈',
   'data.tower.lamp.t2.name': '餘溫',
   'data.tower.lamp.t2.desc': '換目標時保留 {keep} 的遞增',
   'data.tower.lamp.t3.name': '雙燈頭',
   'data.tower.lamp.t3.desc': '分出第二道光束照另一個目標（{v} 秒傷，單獨遞增）',
   'data.tower.lamp.A.name': '雷射筆',
-  'data.tower.lamp.A.desc': '基礎秒傷 ×{dmg}，遞增加快到每秒 +{ramp}、上限 ×{cap}；作為主燈時匯聚效率 ×{relay}；有雷射筆的連動組不限座數，每多一座輔燈傷害繼續疊加',
+  'data.tower.lamp.A.desc':
+    '基礎秒傷 ×{dmg}，遞增加快到每秒 +{ramp}、上限 ×{cap}；作為主燈時匯聚效率 ×{relay}；有雷射筆的連動組不限座數，每多一座輔燈傷害繼續疊加',
   'data.tower.lamp.B.name': '護眼檯燈',
-  'data.tower.lamp.B.desc': '基礎秒傷 ×{dmg}；整個射程偵測隱形；被照到的敵人受到傷害 +{vuln}；連動組的所有光束都附帶標記，作為主燈時光束在目標處分裂出（輔燈數）道 {split} 傷害的短光束',
+  'data.tower.lamp.B.desc':
+    '基礎秒傷 ×{dmg}；整個射程偵測隱形；被照到的敵人受到傷害 +{vuln}；連動組的所有光束都附帶標記，作為主燈時光束在目標處分裂出（輔燈數）道 {split} 傷害的短光束',
 
   'data.tower.compass.name': '圓規',
   'data.tower.compass.role': '環形切割',
@@ -155,7 +158,8 @@ export default {
   'data.tower.swatter.A.name': '電蚊拍',
   'data.tower.swatter.A.desc': '拍中後放出連鎖閃電，在飛行敵人之間彈跳 {chain} 次，每跳傷害 ×{mul}，並讓目標麻痺 {stun} 秒',
   'data.tower.swatter.B.name': '捕蟲網',
-  'data.tower.swatter.B.desc': '每第 {every} 次攻擊改為甩網，把 1 個飛行敵人網到地面 {dur} 秒（Boss 不受影響）；被網住的敵人按迷宮行走、會被地面塔攻擊，受到傷害 +{vuln}',
+  'data.tower.swatter.B.desc':
+    '每第 {every} 次攻擊改為甩網，把 1 個飛行敵人網到地面 {dur} 秒（Boss 不受影響）；被網住的敵人按迷宮行走、會被地面塔攻擊，受到傷害 +{vuln}',
 
   'data.combo.pencil_eraser.name': '帶橡皮擦的鉛筆',
   'data.combo.pencil_eraser.desc': '鉛筆每次命中 −0.5 護甲',

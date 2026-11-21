@@ -80,7 +80,11 @@ export const comboTab: TabModule = {
               'div.guide-entity-head',
               null,
               h('div.guide-entity-title', null, h('h3.guide-h3', null, t(`guide.arch.${a.id}.name`))),
-              h('div.guide-arch-icons', { attrs: { 'aria-hidden': 'true' } }, a.towers.map((id) => icon(towerIcon(id, 1), 'guide-ico', 36))),
+              h(
+                'div.guide-arch-icons',
+                { attrs: { 'aria-hidden': 'true' } },
+                a.towers.map((id) => icon(towerIcon(id, 1), 'guide-ico', 36)),
+              ),
             ),
             h(
               'dl.guide-dl',

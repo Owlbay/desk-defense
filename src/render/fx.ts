@@ -77,19 +77,20 @@ interface FloatText {
 
 export type TextStyleKind = 'dmg' | 'crit' | 'dot' | 'shield' | 'gold' | 'goldLoss' | 'heal' | 'info' | 'warn' | 'level' | 'toast';
 
-const STYLE: Record<TextStyleKind, { size: number; color: number; stroke: number; bold: boolean; life: number; vy: number; prio: number }> = {
-  dmg: { size: 11, color: C.white, stroke: C.ink, bold: true, life: 0.6, vy: -28, prio: 0 },
-  dot: { size: 9, color: 0xd8c7f0, stroke: C.ink, bold: false, life: 0.5, vy: -20, prio: 0 },
-  shield: { size: 11, color: C.cyan, stroke: C.ink, bold: true, life: 0.6, vy: -28, prio: 0 },
-  crit: { size: 16, color: C.goldLight, stroke: C.ink, bold: true, life: 0.85, vy: -34, prio: 1 },
-  gold: { size: 12, color: C.goldLight, stroke: C.goldDark, bold: true, life: 0.9, vy: -30, prio: 2 },
-  goldLoss: { size: 13, color: C.bad, stroke: C.ink, bold: true, life: 1.1, vy: -26, prio: 2 },
-  heal: { size: 10, color: 0x9ae6b4, stroke: C.ink, bold: true, life: 0.7, vy: -22, prio: 0 },
-  info: { size: 10, color: C.paper, stroke: C.ink, bold: true, life: 0.8, vy: -22, prio: 1 },
-  warn: { size: 11, color: C.goldLight, stroke: C.ink, bold: true, life: 1.0, vy: -20, prio: 1 },
-  level: { size: 12, color: C.goldLight, stroke: C.ink, bold: true, life: 1.1, vy: -24, prio: 2 },
-  toast: { size: 12, color: C.paper, stroke: C.bad, bold: true, life: 1.4, vy: -14, prio: 3 },
-};
+const STYLE: Record<TextStyleKind, { size: number; color: number; stroke: number; bold: boolean; life: number; vy: number; prio: number }> =
+  {
+    dmg: { size: 11, color: C.white, stroke: C.ink, bold: true, life: 0.6, vy: -28, prio: 0 },
+    dot: { size: 9, color: 0xd8c7f0, stroke: C.ink, bold: false, life: 0.5, vy: -20, prio: 0 },
+    shield: { size: 11, color: C.cyan, stroke: C.ink, bold: true, life: 0.6, vy: -28, prio: 0 },
+    crit: { size: 16, color: C.goldLight, stroke: C.ink, bold: true, life: 0.85, vy: -34, prio: 1 },
+    gold: { size: 12, color: C.goldLight, stroke: C.goldDark, bold: true, life: 0.9, vy: -30, prio: 2 },
+    goldLoss: { size: 13, color: C.bad, stroke: C.ink, bold: true, life: 1.1, vy: -26, prio: 2 },
+    heal: { size: 10, color: 0x9ae6b4, stroke: C.ink, bold: true, life: 0.7, vy: -22, prio: 0 },
+    info: { size: 10, color: C.paper, stroke: C.ink, bold: true, life: 0.8, vy: -22, prio: 1 },
+    warn: { size: 11, color: C.goldLight, stroke: C.ink, bold: true, life: 1.0, vy: -20, prio: 1 },
+    level: { size: 12, color: C.goldLight, stroke: C.ink, bold: true, life: 1.1, vy: -24, prio: 2 },
+    toast: { size: 12, color: C.paper, stroke: C.bad, bold: true, life: 1.4, vy: -14, prio: 3 },
+  };
 
 const MAX_ITEMS = 1400;
 const MAX_TEXTS = 56;
@@ -132,7 +133,10 @@ export class Fx {
 
   constructor(private scene: Phaser.Scene) {
     this.g = scene.add.graphics().setDepth(DEPTH.fx);
-    this.gAdd = scene.add.graphics().setDepth(DEPTH.fx + 1).setBlendMode(Phaser.BlendModes.ADD);
+    this.gAdd = scene.add
+      .graphics()
+      .setDepth(DEPTH.fx + 1)
+      .setBlendMode(Phaser.BlendModes.ADD);
   }
 
   setResolution(r: number): void {
@@ -146,9 +150,7 @@ export class Fx {
 
   private alloc(k: FxKind, x: number, y: number, max: number, color: number): FxItem | null {
     if (this.items.length >= MAX_ITEMS) return null;
-    const it =
-      this.free.pop() ??
-      ({} as FxItem);
+    const it = this.free.pop() ?? ({} as FxItem);
     it.k = k;
     it.x = x;
     it.y = y;
@@ -307,7 +309,13 @@ export class Fx {
   sparkle(x: number, y: number, color: number, n = 6, spread = 16): void {
     n = Math.ceil(n * this.density);
     for (let i = 0; i < n; i++) {
-      const it = this.alloc('star', x + (Math.random() - 0.5) * spread, y + (Math.random() - 0.5) * spread, 0.5 + Math.random() * 0.4, color);
+      const it = this.alloc(
+        'star',
+        x + (Math.random() - 0.5) * spread,
+        y + (Math.random() - 0.5) * spread,
+        0.5 + Math.random() * 0.4,
+        color,
+      );
       if (!it) return;
       it.vy = -20 - Math.random() * 30;
       it.vx = (Math.random() - 0.5) * 20;
@@ -440,7 +448,23 @@ export class Fx {
     if (this.texts.length < MAX_TEXTS) {
       const t = this.scene.add.text(0, 0, '', { fontFamily: FONT, fontSize: '12px' }).setOrigin(0.5, 1).setDepth(DEPTH.text);
       t.setResolution(this.resolution);
-      const ft: FloatText = { t, life: 0, max: 1, y0: 0, rise: 0, prio: 0, active: false, peak: 1, style: '', styleRes: this.resolution, uid: 0, amount: 0, dirty: false, slot: 0, bump: 0 };
+      const ft: FloatText = {
+        t,
+        life: 0,
+        max: 1,
+        y0: 0,
+        rise: 0,
+        prio: 0,
+        active: false,
+        peak: 1,
+        style: '',
+        styleRes: this.resolution,
+        uid: 0,
+        amount: 0,
+        dirty: false,
+        slot: 0,
+        bump: 0,
+      };
       this.texts.push(ft);
       return ft;
     }

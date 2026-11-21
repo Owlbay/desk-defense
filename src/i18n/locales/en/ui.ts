@@ -30,7 +30,8 @@ export default {
   'ui.settings.tutorialResetDone': 'Tutorial reset. It will show again next time you start Chapter 1',
   'ui.settings.wipe': 'Delete save',
   'ui.settings.wipeTitle': 'Delete all save data?',
-  'ui.settings.wipeText': 'Campaign stars, ink, talents, skill levels, leaderboard records and saved runs will be deleted. This cannot be undone.',
+  'ui.settings.wipeText':
+    'Campaign stars, ink, talents, skill levels, leaderboard records and saved runs will be deleted. This cannot be undone.',
   'ui.settings.wipeOk': 'Delete all',
   'ui.settings.wipeDone': 'Save data deleted',
   // 设置 · 主题
@@ -226,7 +227,8 @@ export default {
   'ui.modal.needsTower': 'Needs a tower',
   'ui.modal.legendBranch': 'Legend {b}',
   'ui.modal.branchTitle': '{name} · Choose a legend path',
-  'ui.modal.branchPerk': 'Legend in Sight: this Lv{level} tower becomes a legend right away for half the usual cost. The path can’t be changed later.',
+  'ui.modal.branchPerk':
+    'Legend in Sight: this Lv{level} tower becomes a legend right away for half the usual cost. The path can’t be changed later.',
   'ui.modal.branchCost': 'Spend {n}g to reach Lv10. The path can’t be changed later.',
   'ui.modal.otherTower': 'Pick another tower',
   'ui.modal.thinkAgain': 'Not yet',
@@ -298,23 +300,30 @@ export default {
   'ui.wave.groupEliteAffix': '{name} ×{n} ({elite} elite: {affixes})',
   'ui.tutorial.ok': 'Got it',
   'ui.tutorial.ch1-place.title': 'Place a Pencil tower',
-  'ui.tutorial.ch1-place.body': 'Tap Pencil in the tower bar, then tap an empty tile next to the path. On phones, tap once to preview and again to confirm.',
+  'ui.tutorial.ch1-place.body':
+    'Tap Pencil in the tower bar, then tap an empty tile next to the path. On phones, tap once to preview and again to confirm.',
   'ui.tutorial.ch1-start.title': 'Start wave 1',
   'ui.tutorial.ch1-start.body': 'Tap here when ready. Enemies enter from the top and follow the path to the homework at the bottom.',
   'ui.tutorial.ch1-wall.title': 'Reroute with Book Walls',
-  'ui.tutorial.ch1-wall.body': 'Book Walls are cheap. The new path is highlighted before you place one. A longer path means more hits from your towers. You can’t fully block the path.',
+  'ui.tutorial.ch1-wall.body':
+    'Book Walls are cheap. The new path is highlighted before you place one. A longer path means more hits from your towers. You can’t fully block the path.',
   'ui.tutorial.ch1-upgrade.title': 'Grow your towers',
-  'ui.tutorial.ch1-upgrade.body': 'Select a tower: its XP bar fills with kills, or you can upgrade with gold. The more XP it has, the cheaper the upgrade.',
+  'ui.tutorial.ch1-upgrade.body':
+    'Select a tower: its XP bar fills with kills, or you can upgrade with gold. The more XP it has, the cheaper the upgrade.',
   'ui.tutorial.ch1-sell.title': 'Sell and undo',
-  'ui.tutorial.ch1-sell.body': 'Sell towers you don’t need. Higher levels refund less (70% → 25%). Within 5 seconds of placing, you can undo for a full refund.',
+  'ui.tutorial.ch1-sell.body':
+    'Sell towers you don’t need. Higher levels refund less (70% → 25%). Within 5 seconds of placing, you can undo for a full refund.',
   'ui.tutorial.ch1-boss.title': 'Boss incoming!',
   'ui.tutorial.ch1-boss.body': 'Tap {eraser}, then tap the board to deal heavy damage to enemies in the area.',
   'ui.tutorial.tip-event.title': 'Random events',
-  'ui.tutorial.tip-event.body': 'Events can happen on the desk: red is bad, green is good. The top banner warns you with a countdown. Tap coins and supply crates to collect them.',
+  'ui.tutorial.tip-event.body':
+    'Events can happen on the desk: red is bad, green is good. The top banner warns you with a countdown. Tap coins and supply crates to collect them.',
   'ui.tutorial.tip-drop.title': 'Box drop!',
-  'ui.tutorial.tip-drop.body': 'A box will soon land in the dashed circle and become a new spawner, changing the path. Tap the box to demolish it with gold, or seal it with the {tape} skill.',
+  'ui.tutorial.tip-drop.body':
+    'A box will soon land in the dashed circle and become a new spawner, changing the path. Tap the box to demolish it with gold, or seal it with the {tape} skill.',
   'ui.tutorial.tip-evolve.title': 'Legend evolution',
-  'ui.tutorial.tip-evolve.body': 'XP a legend earns now goes toward evolution. Earn XP or spend gold to gain stars: ★1 and ★2 unlock path traits, ★3 makes it Mythic with an active ability (select it and press A).',
+  'ui.tutorial.tip-evolve.body':
+    'XP a legend earns now goes toward evolution. Earn XP or spend gold to gain stars: ★1 and ★2 unlock path traits, ★3 makes it Mythic with an active ability (select it and press A).',
 
   // ───── 命名空间 ui · 菜单 / 战役 / 书包 / 技能 / 自定义（en） ─────
   'ui.menu.mode.campaign': 'Campaign',
@@ -345,7 +354,7 @@ export default {
   'ui.menu.settings': 'Settings',
   'ui.menu.settingsSub': 'Sound, theme',
   'ui.menu.savedLocal': 'Progress is saved on this device',
-  'ui.menu.noSave': 'This browser can\'t save progress (private mode?)',
+  'ui.menu.noSave': "This browser can't save progress (private mode?)",
   'ui.campaign.title': 'Campaign',
   'ui.campaign.needNormal': 'Clear this chapter on Normal first',
   'ui.campaign.needPrev': 'Clear the previous chapter first',
@@ -381,7 +390,8 @@ export default {
   'ui.talents.perLevel': ' (per level, max {n})',
   'ui.talents.maxed': 'Maxed',
   'ui.talents.or': 'or',
-  'ui.talents.intro': 'Permanent talents. Stars come from campaign ratings ({n} earned so far); ink comes from Endless and Custom. Talents are small boosts; pick "Pure mode" at the start of a run to turn them off.',
+  'ui.talents.intro':
+    'Permanent talents. Stars come from campaign ratings ({n} earned so far); ink comes from Endless and Custom. Talents are small boosts; pick "Pure mode" at the start of a run to turn them off.',
   'ui.skills.title': 'Skills',
   'ui.skills.target.none': 'Whole field · instant',
   'ui.skills.target.circle': 'Circle area',
@@ -410,7 +420,7 @@ export default {
   'ui.skills.loadoutHint': 'Cast with Q / W / E / R in game. All skills start ready.',
   'ui.custom.title': 'Custom',
   'ui.custom.shareCode': 'Share code',
-  'ui.custom.pastePlaceholder': 'Paste a friend\'s share code',
+  'ui.custom.pastePlaceholder': "Paste a friend's share code",
   'ui.custom.importAria': 'Import share code',
   'ui.custom.abyss1': 'Abyss I',
   'ui.custom.seedPlaceholder': 'Blank = random',
@@ -430,7 +440,8 @@ export default {
   'ui.custom.imported': 'Imported',
   'ui.custom.import': 'Import',
   'ui.custom.seed': 'Seed',
-  'ui.custom.footHint': 'Custom runs don\'t go on the leaderboard; only your personal best is kept. Ink is paid at the chosen preset\'s rate.',
+  'ui.custom.footHint':
+    "Custom runs don't go on the leaderboard; only your personal best is kept. Ink is paid at the chosen preset's rate.",
   'ui.custom.start': 'Start',
 
   // ───── 命名空间 ui（en）：无尽 / 排行榜 / 每日挑战 / 在线功能 ─────
@@ -512,7 +523,8 @@ export default {
   'ui.daily.seed': 'Seed {seed}',
   'ui.daily.resetTip': 'New challenge at midnight Beijing time',
   'ui.daily.nextIn': 'Next in',
-  'ui.daily.offlineNote': 'Online features unavailable: the challenge is computed locally and your score will upload once you are back online.',
+  'ui.daily.offlineNote':
+    'Online features unavailable: the challenge is computed locally and your score will upload once you are back online.',
   'ui.daily.start': 'Start challenge',
   'ui.daily.rules': 'Rules',
   'ui.daily.rule1': 'A new challenge every day at midnight Beijing time. Everyone gets the same map and seed.',
@@ -533,20 +545,20 @@ export default {
   'ui.online.edit': 'Edit',
   'ui.online.rename': 'Rename',
   'ui.online.replay': 'Replay',
-  'ui.online.replayOf': '{name}\'s replay',
+  'ui.online.replayOf': "{name}'s replay",
   'ui.online.loading': 'Loading…',
   'ui.online.replaySpeed': 'Replay speed',
   'ui.online.pause': 'Pause',
   'ui.online.resume': 'Resume',
   'ui.online.exit': 'Exit',
   'ui.online.watchReplay': 'Watch replay',
-  'ui.online.watchReplayOf': 'Watch {name}\'s replay',
+  'ui.online.watchReplayOf': "Watch {name}'s replay",
   'ui.online.unavailable': 'Online features unavailable',
   'ui.online.unavailableShort': 'Online unavailable',
   'ui.online.unavailableHint': 'Local leaderboards are unaffected.',
   'ui.online.loadFailed': 'Failed to load',
-  'ui.online.replayLoadFailed': 'Couldn\'t load replay',
-  'ui.online.replayIncompatible': 'This replay can\'t play on the current version',
+  'ui.online.replayLoadFailed': "Couldn't load replay",
+  'ui.online.replayIncompatible': "This replay can't play on the current version",
   'ui.online.boardFailed': 'Failed to load the board',
   'ui.online.replayStatus': '{board} · {map} · wave {wave} · {score} pts · {pct}%',
   'ui.online.replayEnded': 'Replay finished',
@@ -579,7 +591,7 @@ export default {
   'ui.online.totalRuns': '{total} score in total|{total} scores in total',
   'ui.online.retry': 'Retry',
   'ui.online.offline': 'No connection',
-  'ui.online.offlineHint': 'Check back once you\'re online.',
+  'ui.online.offlineHint': "Check back once you're online.",
   'ui.online.emptyBoard': 'No scores on this board yet',
   'ui.online.emptyHint': 'Play a run of Endless and upload your score at the end to get listed.',
 } satisfies Dict;

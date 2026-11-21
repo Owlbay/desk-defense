@@ -66,7 +66,10 @@ wss.on('connection', (ws, req) => {
     .filter(([k, v]) => v && /KEY|TOKEN|SECRET/i.test(k) && v.length >= 8)
     .map(([, v]) => v as string);
   const session = createBridgeSession({
-    provider, code, send, secrets,
+    provider,
+    code,
+    send,
+    secrets,
     log: (s) => {
       if (s === 'paired') {
         console.log(`已配对：${origin ?? '(无 Origin)'}`);

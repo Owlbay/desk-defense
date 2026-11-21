@@ -14,7 +14,12 @@ import { baseCells, coverage as towerCoverage, groundRoutes, type Route } from '
 import { planMaze, type MazePlan } from './maze';
 import type { BattleIntel } from './intel';
 
-const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
+const N4 = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+] as const;
 
 /** 每条路线（出生点 id → 格数） */
 function lens(routes: Route[]): Map<string, number> {
@@ -53,7 +58,17 @@ export function cellCoverage(w: IWorld, x: number, y: number, r = 2.5, routes: R
   return n;
 }
 
-export interface WallInfo { uid: number; x: number; y: number; level: number; invested: number; inPlan: boolean; bonus: boolean; shortens: boolean; cov: number }
+export interface WallInfo {
+  uid: number;
+  x: number;
+  y: number;
+  level: number;
+  invested: number;
+  inPlan: boolean;
+  bonus: boolean;
+  shortens: boolean;
+  cov: number;
+}
 
 /** 每堵墙：拆掉会不会让路线变短、是否在规划里、是否给相邻攻击塔加成、所在格的路线覆盖 */
 export function wallInfo(w: IWorld, plan: MazePlan = planMaze(w)): WallInfo[] {
@@ -82,14 +97,26 @@ export function wallInfo(w: IWorld, plan: MazePlan = planMaze(w)): WallInfo[] {
         if (o && TOWERS[o.id].attacks && t.cx + dx >= 0 && t.cx + dx < g.cols) bonus = true;
       }
     }
-    out.push({ uid: t.uid, x: t.cx, y: t.cy, level: t.level, invested: t.invested, inPlan: inPlan.has(i), bonus, shortens, cov: cellCoverage(w, t.cx, t.cy, 2.5, routes) });
+    out.push({
+      uid: t.uid,
+      x: t.cx,
+      y: t.cy,
+      level: t.level,
+      invested: t.invested,
+      inPlan: inPlan.has(i),
+      bonus,
+      shortens,
+      cov: cellCoverage(w, t.cx, t.cy, 2.5, routes),
+    });
   }
   return out;
 }
 
 /** 无用墙：拆掉不缩短任何路线、不在规划里、不是加成墙。按所在格覆盖从高到低（先腾出好格） */
 export function uselessWalls(w: IWorld, plan?: MazePlan): WallInfo[] {
-  return wallInfo(w, plan).filter((x) => !x.shortens && !x.inPlan && !x.bonus).sort((a, b) => b.cov - a.cov || a.uid - b.uid);
+  return wallInfo(w, plan)
+    .filter((x) => !x.shortens && !x.inPlan && !x.bonus)
+    .sort((a, b) => b.cov - a.cov || a.uid - b.uid);
 }
 
 /** 被挤占格：Lv1 墙占着的、覆盖不少于最好空格的格（换塔不改路线） */
@@ -98,17 +125,20 @@ export function crowdedCells(w: IWorld, walls: WallInfo[] = wallInfo(w)): WallIn
   const routes = groundRoutes(w);
   const onRoute = routeCellSet(w);
   let bestEmpty = 0;
-  for (let y = 0; y < g.rows; y++) for (let x = 0; x < g.cols; x++) {
-    const i = y * g.cols + x;
-    if (g.cells[i] !== CellKind.Empty || onRoute.has(i)) continue;
-    bestEmpty = Math.max(bestEmpty, cellCoverage(w, x, y, 2.5, routes));
-  }
+  for (let y = 0; y < g.rows; y++)
+    for (let x = 0; x < g.cols; x++) {
+      const i = y * g.cols + x;
+      if (g.cells[i] !== CellKind.Empty || onRoute.has(i)) continue;
+      bestEmpty = Math.max(bestEmpty, cellCoverage(w, x, y, 2.5, routes));
+    }
   return walls.filter((x) => x.level === 1 && x.cov >= Math.max(6, bestEmpty)).sort((a, b) => b.cov - a.cov || a.uid - b.uid);
 }
 
 /** 射程内没有任何路线 / 飞行线的攻击塔 */
 export function outOfReach(w: IWorld): number[] {
-  return towerCoverage(w).filter((c) => c.uid !== undefined && c.ground === 0 && c.air === 0).map((c) => c.uid!) ;
+  return towerCoverage(w)
+    .filter((c) => c.uid !== undefined && c.ground === 0 && c.air === 0)
+    .map((c) => c.uid!);
 }
 
 /** 可以回收的攻击塔：最近 2 波 0 伤害 ∪ 够不着任何路线 */
@@ -136,7 +166,12 @@ export function comboState(w: IWorld): ComboState {
   const s = w.state;
   const active: ComboState['active'] = [];
   const lonely: ComboState['lonely'] = [];
-  const unlocked = new Set(w.getBuildOptions().filter((b) => b.unlocked).map((b) => b.id));
+  const unlocked = new Set(
+    w
+      .getBuildOptions()
+      .filter((b) => b.unlocked)
+      .map((b) => b.id),
+  );
   for (const t of [...s.towers.values()].sort((a, b) => a.uid - b.uid)) {
     for (const u of t.comboWith) {
       if (u <= t.uid) continue;
@@ -167,15 +202,39 @@ export function comboLine(w: IWorld): string | undefined {
   if (atk.length < 4 && !st.active.length) return undefined;
   const types = new Set(atk.map((t) => t.id));
   const parts: string[] = [];
-  parts.push(st.active.length ? `激活 ${st.active.map((p) => `#${p.a}+#${p.b} ${p.name}`).slice(0, 4).join('; ')}` : '激活 0');
-  if (st.lonely.length) parts.push(`缺搭档 ${st.lonely.slice(0, 4).map((l) => `#${l.uid}${l.id}(配${l.partner})`).join(' ')}`);
+  parts.push(
+    st.active.length
+      ? `激活 ${st.active
+          .map((p) => `#${p.a}+#${p.b} ${p.name}`)
+          .slice(0, 4)
+          .join('; ')}`
+      : '激活 0',
+  );
+  if (st.lonely.length)
+    parts.push(
+      `缺搭档 ${st.lonely
+        .slice(0, 4)
+        .map((l) => `#${l.uid}${l.id}(配${l.partner})`)
+        .join(' ')}`,
+    );
   parts.push(`塔种 ${types.size}: ${[...types].join(',')}`);
   // 建议：收益大的组合优先（胶水→订书机、台灯↔钢笔、尺子↔圆规）；铅笔→橡皮擦只在下一波有护甲时
   const armorNext = s.nextWave.groups.some((g) => ENEMIES[g.enemy].armor >= 2);
   const rank = (l: ComboState['lonely'][number]): number => {
     const k = `${l.id}>${l.partner}`;
-    return ({ 'glue>stapler': 0, 'stapler>glue': 1, 'lamp>pen': 2, 'pen>lamp': 2, 'compass>ruler': 3, 'ruler>compass': 3, 'eraser>pencil': 4 } as Record<string, number>)[k]
-      ?? (k === 'pencil>eraser' && armorNext ? 5 : 99);
+    return (
+      (
+        {
+          'glue>stapler': 0,
+          'stapler>glue': 1,
+          'lamp>pen': 2,
+          'pen>lamp': 2,
+          'compass>ruler': 3,
+          'ruler>compass': 3,
+          'eraser>pencil': 4,
+        } as Record<string, number>
+      )[k] ?? (k === 'pencil>eraser' && armorNext ? 5 : 99)
+    );
   };
   const best = st.lonely.filter((l) => rank(l) < 99).sort((a, b) => rank(a) - rank(b))[0];
   const sug = best ? ` → {do:"combo",pair:"${pairName(best.id, best.partner)}"}` : '';
@@ -194,15 +253,30 @@ export function reclaimLine(w: IWorld, intel?: BattleIntel, plan: MazePlan = pla
   const parts: string[] = [];
   const fix: string[] = [];
   if (useless.length >= 2) {
-    parts.push(`无用墙 ${useless.length}（拆了路线不变，各退≈${Math.floor(useless[0].invested * 0.7)}g）: ${useless.slice(0, 5).map((x) => `#${x.uid}@${x.x},${x.y}`).join(' ')}`);
+    parts.push(
+      `无用墙 ${useless.length}（拆了路线不变，各退≈${Math.floor(useless[0].invested * 0.7)}g）: ${useless
+        .slice(0, 5)
+        .map((x) => `#${x.uid}@${x.x},${x.y}`)
+        .join(' ')}`,
+    );
     fix.push(`{do:"reclaim",target:"useless_walls"${useless.some((x) => x.cov >= 6) ? ',replaceWith:"dps"' : ''}}`);
   }
   if (idle.length) {
-    parts.push(`零伤害塔 ${idle.slice(0, 4).map((u) => `#${u}${s.towers.get(u)?.id ?? ''}`).join(' ')}`);
+    parts.push(
+      `零伤害塔 ${idle
+        .slice(0, 4)
+        .map((u) => `#${u}${s.towers.get(u)?.id ?? ''}`)
+        .join(' ')}`,
+    );
     fix.push('{do:"reclaim",target:"idle_towers",replaceWith:"dps"}');
   }
   if (crowded.length) {
-    parts.push(`被挤占格 ${crowded.slice(0, 3).map((x) => `${x.x},${x.y}:${x.cov}`).join(' ')}（Lv1 墙占着好格，换塔不改路线）`);
+    parts.push(
+      `被挤占格 ${crowded
+        .slice(0, 3)
+        .map((x) => `${x.x},${x.y}:${x.cov}`)
+        .join(' ')}（Lv1 墙占着好格，换塔不改路线）`,
+    );
     fix.push('{do:"reclaim",target:"cells"}');
   }
   if (!parts.length) return undefined;
@@ -212,7 +286,10 @@ export function reclaimLine(w: IWorld, intel?: BattleIntel, plan: MazePlan = pla
 // ───────────────────────── 迷宫 ─────────────────────────
 
 /** 迷宫强弱：当前路线 vs 规划可达 vs 直线；规划完成度；未利用的障碍物 */
-export function mazeStatus(w: IWorld, plan: MazePlan = planMaze(w)): { len: number; plan: number; base: number; built: number; total: number; left: number; idleObstacles: string[] } {
+export function mazeStatus(
+  w: IWorld,
+  plan: MazePlan = planMaze(w),
+): { len: number; plan: number; base: number; built: number; total: number; left: number; idleObstacles: string[] } {
   const g = w.state.grid;
   const routes = groundRoutes(w).filter((r) => r.status === 'open' && r.kind !== 'drop');
   const len = routes.length ? Math.min(...routes.map((r) => r.len)) : 0;
@@ -228,12 +305,13 @@ export function mazeStatus(w: IWorld, plan: MazePlan = planMaze(w)): { len: numb
   for (const o of g.obstacles) {
     let touchPlan = false;
     let touchTower = false;
-    for (let y = o.y - 1; y <= o.y + o.h; y++) for (let x = o.x - 1; x <= o.x + o.w; x++) {
-      if (x < 0 || y < 0 || x >= g.cols || y >= g.rows) continue;
-      const i = y * g.cols + x;
-      if (unbuilt.has(i)) touchPlan = true;
-      if (g.cells[i] === CellKind.Tower) touchTower = true;
-    }
+    for (let y = o.y - 1; y <= o.y + o.h; y++)
+      for (let x = o.x - 1; x <= o.x + o.w; x++) {
+        if (x < 0 || y < 0 || x >= g.cols || y >= g.rows) continue;
+        const i = y * g.cols + x;
+        if (unbuilt.has(i)) touchPlan = true;
+        if (g.cells[i] === CellKind.Tower) touchTower = true;
+      }
     if (touchPlan && !touchTower) idleObstacles.push(`${o.x},${o.y} ${o.w}×${o.h}`);
   }
   return { len, plan: Math.round(plan.length), base: Math.round(plan.baseLength), built, total: plan.all.length, left, idleObstacles };

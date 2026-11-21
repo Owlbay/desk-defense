@@ -44,7 +44,8 @@ export default {
   'ui.assist.settingsHint': '設定一次模型，在任何模式的對局裡點頂欄的 AI 按鈕（快捷鍵 I）就能讓 AI 替你玩或給建議。',
   'ui.assist.openSettings': '模型設定…',
   'ui.assist.howTitle': '怎麼用',
-  'ui.assist.howPlayer': 'AI 從目前局面接手操作；本局記為「AI 協助」：戰役進度、星星和墨水照常，不進全服榜和每日挑戰榜，本地排行榜另外標記。',
+  'ui.assist.howPlayer':
+    'AI 從目前局面接手操作；本局記為「AI 協助」：戰役進度、星星和墨水照常，不進全服榜和每日挑戰榜，本地排行榜另外標記。',
   'ui.assist.howAdvisor': 'AI 只給建議卡片，點「採納」才執行；不影響成績和上傳。',
   'ui.assist.howButtonTitle': '對局裡的 AI 按鈕',
   'ui.assist.howButton': '頂欄的 AI 按鈕（快捷鍵 I）：隨時啟用、切換角色或停止，停下後操作全部交還給你。',

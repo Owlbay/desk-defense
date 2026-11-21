@@ -120,13 +120,33 @@ function buildTimeline(rng: Rng, ctx: WaveGenContext, w: number, types: TypeCoun
     gi++;
   }
   bosses.forEach((b, i) => {
-    entries.push({ at: 3 + i * 2.5, at0: 3 + i * 2.5, enemy: b, entrance: i % nEnt, elite: false, affixes: [], group: 1, hpMul: bossHpMul, gi: -1 });
+    entries.push({
+      at: 3 + i * 2.5,
+      at0: 3 + i * 2.5,
+      enemy: b,
+      entrance: i % nEnt,
+      elite: false,
+      affixes: [],
+      group: 1,
+      hpMul: bossHpMul,
+      gi: -1,
+    });
   });
   entries.sort((a, b) => a.at - b.at);
   return entries;
 }
 
-function mkEntry(rng: Rng, enemy: EnemyId, at: number, entrance: number, p: number, maxAffix: number, group: number, hpMul: number, gi: number): SpawnEntry {
+function mkEntry(
+  rng: Rng,
+  enemy: EnemyId,
+  at: number,
+  entrance: number,
+  p: number,
+  maxAffix: number,
+  group: number,
+  hpMul: number,
+  gi: number,
+): SpawnEntry {
   let elite = false;
   let affixes: AffixId[] = [];
   if (p > 0 && maxAffix > 0 && !ENEMIES[enemy].boss && rng.chance(p)) {
@@ -257,7 +277,14 @@ function generateCampaign(ctx: WaveGenContext, w: number): WavePlan {
     types.push({ enemy: g.enemy, count: c, interval: g.interval ?? ENEMIES[g.enemy].interval, hpMul: g.hpMul ?? 1, spawn });
   }
   const entries = buildTimeline(rng, ctx, eff, types, bosses, bossHp);
-  return { wave: w, effWave: eff, tags: def.tags ? [...def.tags] : [], entries, groups: summarize(entries), groupSpawn: types.map((t) => t.spawn ?? {}) };
+  return {
+    wave: w,
+    effWave: eff,
+    tags: def.tags ? [...def.tags] : [],
+    entries,
+    groups: summarize(entries),
+    groupSpawn: types.map((t) => t.spawn ?? {}),
+  };
 }
 
 export function generateWave(ctx: WaveGenContext, w: number): WavePlan {
@@ -295,7 +322,9 @@ export function assignSpawners(plan: WavePlan, open: SpawnSlot[], drops: SpawnSl
   for (const gi of gis) {
     const list = byGroup.get(gi)!;
     if (gi < 0) {
-      list.forEach((e, k) => { e.spawner = slots[(k + plan.wave) % n].id; });
+      list.forEach((e, k) => {
+        e.spawner = slots[(k + plan.wave) % n].id;
+      });
       continue;
     }
     const gs = plan.groupSpawn[gi] ?? {};
@@ -323,7 +352,9 @@ export function assignSpawners(plan: WavePlan, open: SpawnSlot[], drops: SpawnSl
         });
         break;
       default:
-        list.forEach((e, j) => { e.spawner = slots[(gi + j) % n].id; });
+        list.forEach((e, j) => {
+          e.spawner = slots[(gi + j) % n].id;
+        });
     }
   }
   // 空降点分走一部分敌人（Boss 除外）

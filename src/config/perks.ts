@@ -2,9 +2,26 @@ import type { Rarity } from '../core/types';
 import { localize } from './text';
 
 export type PerkId =
-  | 'sharpener' | 'quickglue' | 'thickcover' | 'pocketmoney' | 'notes' | 'earlybird'
-  | 'bulb' | 'staples' | 'compound' | 'sale' | 'quickreview' | 'safe' | 'drafting' | 'inkplenty'
-  | 'promotion' | 'scholaraura' | 'pocket' | 'timemgmt' | 'tradein' | 'legend';
+  | 'sharpener'
+  | 'quickglue'
+  | 'thickcover'
+  | 'pocketmoney'
+  | 'notes'
+  | 'earlybird'
+  | 'bulb'
+  | 'staples'
+  | 'compound'
+  | 'sale'
+  | 'quickreview'
+  | 'safe'
+  | 'drafting'
+  | 'inkplenty'
+  | 'promotion'
+  | 'scholaraura'
+  | 'pocket'
+  | 'timemgmt'
+  | 'tradein'
+  | 'legend';
 
 export interface PerkDef {
   id: PerkId;

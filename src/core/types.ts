@@ -18,55 +18,116 @@ export const GRID_ROWS = 14;
 // ───────────────────────── 标识符 ─────────────────────────
 
 export type TowerId =
-  | 'wall' | 'pencil' | 'stapler' | 'glue' | 'lamp' | 'compass'
-  | 'eraser' | 'ruler' | 'pen' | 'calculator' | 'piggy' | 'swatter';
+  'wall' | 'pencil' | 'stapler' | 'glue' | 'lamp' | 'compass' | 'eraser' | 'ruler' | 'pen' | 'calculator' | 'piggy' | 'swatter';
 
 export const TOWER_IDS: TowerId[] = [
-  'wall', 'pencil', 'stapler', 'glue', 'lamp', 'compass',
-  'eraser', 'ruler', 'pen', 'calculator', 'piggy', 'swatter',
+  'wall',
+  'pencil',
+  'stapler',
+  'glue',
+  'lamp',
+  'compass',
+  'eraser',
+  'ruler',
+  'pen',
+  'calculator',
+  'piggy',
+  'swatter',
 ];
 
 export type EnemyId =
-  | 'crumb' | 'inkdot' | 'paperclip' | 'plane' | 'paperball' | 'sticky'
-  | 'rubberband' | 'whiteout' | 'ant' | 'invisink' | 'tape' | 'moth'
-  | 'crumbmini'            // 纸团分裂出的小纸屑（美术复用 crumb，缩小 0.6）
-  | 'goldbag'              // 金币袋怪：只由随机事件召唤（文档 09 §3.2）
-  | 'boss_coffee' | 'boss_coffee_small' | 'boss_shredder' | 'boss_inkbottle' | 'boss_alarm';
+  | 'crumb'
+  | 'inkdot'
+  | 'paperclip'
+  | 'plane'
+  | 'paperball'
+  | 'sticky'
+  | 'rubberband'
+  | 'whiteout'
+  | 'ant'
+  | 'invisink'
+  | 'tape'
+  | 'moth'
+  | 'crumbmini' // 纸团分裂出的小纸屑（美术复用 crumb，缩小 0.6）
+  | 'goldbag' // 金币袋怪：只由随机事件召唤（文档 09 §3.2）
+  | 'boss_coffee'
+  | 'boss_coffee_small'
+  | 'boss_shredder'
+  | 'boss_inkbottle'
+  | 'boss_alarm';
 
-export type AffixId =
-  | 'hard' | 'swift' | 'regen' | 'shield' | 'split'
-  | 'stealth' | 'reflect' | 'unstoppable' | 'rally'
-  | 'golden';              // 金色精英：只由随机事件赋予，不参与随机抽取
+export type AffixId = 'hard' | 'swift' | 'regen' | 'shield' | 'split' | 'stealth' | 'reflect' | 'unstoppable' | 'rally' | 'golden'; // 金色精英：只由随机事件赋予，不参与随机抽取
 
 export type SkillId =
-  | 'eraser_strike' | 'bell' | 'whiteout_zone' | 'caffeine' | 'ruler_sweep'
-  | 'scholarship' | 'relocate' | 'inspiration' | 'magnifier'
-  | 'seal_tape';           // 封箱胶带：封掉一个空降出生点（文档 09 §2.2）
+  | 'eraser_strike'
+  | 'bell'
+  | 'whiteout_zone'
+  | 'caffeine'
+  | 'ruler_sweep'
+  | 'scholarship'
+  | 'relocate'
+  | 'inspiration'
+  | 'magnifier'
+  | 'seal_tape'; // 封箱胶带：封掉一个空降出生点（文档 09 §2.2）
 
 /** 随机事件（文档 09 §3.2） */
 export type RandomEventId =
   // 负面
-  | 'drop_box' | 'lamp_outage' | 'fan' | 'books_fall' | 'homework_check' | 'coffee_spill' | 'reinforce'
-  | 'tea_break' | 'medic_squad' | 'shield_supply'
+  | 'drop_box'
+  | 'lamp_outage'
+  | 'fan'
+  | 'books_fall'
+  | 'homework_check'
+  | 'coffee_spill'
+  | 'reinforce'
+  | 'tea_break'
+  | 'medic_squad'
+  | 'shield_supply'
   // 正面
-  | 'coins' | 'inspiration' | 'nap' | 'praise' | 'supply_crate'
-  | 'goldbag' | 'bounty' | 'golden_elite' | 'training'
+  | 'coins'
+  | 'inspiration'
+  | 'nap'
+  | 'praise'
+  | 'supply_crate'
+  | 'goldbag'
+  | 'bounty'
+  | 'golden_elite'
+  | 'training'
   // 中性
-  | 'tidy' | 'wind' | 'secret_door' | 'frenzy';
+  | 'tidy'
+  | 'wind'
+  | 'secret_door'
+  | 'frenzy';
 
 export const RANDOM_EVENT_IDS: RandomEventId[] = [
-  'drop_box', 'lamp_outage', 'fan', 'books_fall', 'homework_check', 'coffee_spill', 'reinforce',
-  'tea_break', 'medic_squad', 'shield_supply',
-  'coins', 'inspiration', 'nap', 'praise', 'supply_crate',
-  'goldbag', 'bounty', 'golden_elite', 'training',
-  'tidy', 'wind', 'secret_door', 'frenzy',
+  'drop_box',
+  'lamp_outage',
+  'fan',
+  'books_fall',
+  'homework_check',
+  'coffee_spill',
+  'reinforce',
+  'tea_break',
+  'medic_squad',
+  'shield_supply',
+  'coins',
+  'inspiration',
+  'nap',
+  'praise',
+  'supply_crate',
+  'goldbag',
+  'bounty',
+  'golden_elite',
+  'training',
+  'tidy',
+  'wind',
+  'secret_door',
+  'frenzy',
 ];
 
 export type SpawnMode = 'fixed' | 'roundRobin' | 'random' | 'split' | 'focus';
 
-export type TalentId =
-  | 'wallet' | 'bandaid' | 'alarm' | 'study' | 'secondhand'
-  | 'bigbag' | 'luckydraw' | 'collector';
+export type TalentId = 'wallet' | 'bandaid' | 'alarm' | 'study' | 'secondhand' | 'bigbag' | 'luckydraw' | 'collector';
 
 export type DifficultyId = 'easy' | 'normal' | 'hard' | 'nightmare' | 'abyss';
 export type ModeId = 'campaign' | 'endless' | 'custom';
@@ -91,7 +152,7 @@ export interface DifficultyParams {
   armorStep: number;
   rewardMul: number;
   xpMul: number;
-  eliteStart: number;   // 0 或 >999 表示不出现
+  eliteStart: number; // 0 或 >999 表示不出现
   eliteRate: number;
   eliteCap: number;
   maxAffix: number;
@@ -100,14 +161,14 @@ export interface DifficultyParams {
   interestCap: number;
   scoreMul: number;
   // ── 文档 09：动态战场 ──
-  spawnMode: SpawnMode;        // 默认出怪策略
-  maxActiveSpawners: number;   // 同时开放的出生点上限（含空降）
-  maxDrops: number;            // 同时存在的空降出生点上限
-  dropWarn: number;            // 空降预警秒数
-  eventRate: number;           // 随机事件频率倍率（0 = 关闭）
-  eventHostile: number;        // 负面事件占比 0..1
-  waveGap: number;             // 自动波次：本波刷完到下一波的倒计时（秒）
-  waveMax: number;             // 自动波次：每波上限时间（秒）
+  spawnMode: SpawnMode; // 默认出怪策略
+  maxActiveSpawners: number; // 同时开放的出生点上限（含空降）
+  maxDrops: number; // 同时存在的空降出生点上限
+  dropWarn: number; // 空降预警秒数
+  eventRate: number; // 随机事件频率倍率（0 = 关闭）
+  eventHostile: number; // 负面事件占比 0..1
+  waveGap: number; // 自动波次：本波刷完到下一波的倒计时（秒）
+  waveMax: number; // 自动波次：每波上限时间（秒）
 }
 
 // ───────────────────────── 开局参数 ─────────────────────────
@@ -146,10 +207,26 @@ export const CellKind = { Empty: 0, Obstacle: 1, Tower: 2, Spawn: 3, Exit: 4 } a
 export type CellKind = (typeof CellKind)[keyof typeof CellKind];
 
 export interface Obstacle {
-  kind: 'cup' | 'books' | 'keyboard' | 'mouse' | 'palette' | 'paint'
+  kind:
+    | 'cup'
+    | 'books'
+    | 'keyboard'
+    | 'mouse'
+    | 'palette'
+    | 'paint'
     // 随机杂物（文档 09 §5）
-    | 'eraser' | 'pencilcup' | 'sticky' | 'phone' | 'ruler' | 'tape' | 'stapler' | 'clip';
-  x: number; y: number; w: number; h: number;   // 格
+    | 'eraser'
+    | 'pencilcup'
+    | 'sticky'
+    | 'phone'
+    | 'ruler'
+    | 'tape'
+    | 'stapler'
+    | 'clip';
+  x: number;
+  y: number;
+  w: number;
+  h: number; // 格
 }
 
 export interface GridState {
@@ -172,20 +249,21 @@ export interface GridState {
 export interface TowerState {
   uid: number;
   id: TowerId;
-  cx: number; cy: number;              // 所在格
-  level: number;                        // 1..10（墙 1..3）
-  tier: Tier;                           // 由 level / branch 推出
+  cx: number;
+  cy: number; // 所在格
+  level: number; // 1..10（墙 1..3）
+  tier: Tier; // 由 level / branch 推出
   branch: Branch | null;
-  xp: number;                           // 当前等级内的经验
-  xpNext: number;                       // 升到下一级所需（满级为 0）
+  xp: number; // 当前等级内的经验
+  xpNext: number; // 升到下一级所需（满级为 0）
   /** 传奇进化星级（文档 11）；Lv10 之后的经验计入 evoXp */
   stars: 0 | 1 | 2 | 3;
   evoXp: number;
-  evoXpNext: number;                    // 满星为 0
+  evoXpNext: number; // 满星为 0
   /** ★3 主动能力剩余冷却（秒）；充能制能力见 abilityCharges */
   abilityCd: number;
   abilityCharges?: number;
-  invested: number;                     // 已投入金币（出售依据）
+  invested: number; // 已投入金币（出售依据）
   targetMode: TargetMode;
   /** 炮台朝向（弧度） */
   angle: number;
@@ -197,7 +275,7 @@ export interface TowerState {
   placedAt: number;
   undoUntil: number;
   kills: number;
-  damage: number;                       // 累计伤害（结算 MVP）
+  damage: number; // 累计伤害（结算 MVP）
   /** 相邻组合技是否激活（用于画连线）：与之配对的塔 uid 列表 */
   comboWith: number[];
   /** 台灯联动（文档 02 §2.5）：所在联动组编号（组内最小 uid；单独为 0）、组内座数 */
@@ -212,14 +290,17 @@ export interface TowerState {
 export interface EnemyState {
   uid: number;
   id: EnemyId;
-  x: number; y: number;                 // 格坐标（浮点）
-  angle: number;                        // 朝向
-  hp: number; maxHp: number;
-  shield: number; maxShield: number;
+  x: number;
+  y: number; // 格坐标（浮点）
+  angle: number; // 朝向
+  hp: number;
+  maxHp: number;
+  shield: number;
+  maxShield: number;
   armor: number;
-  speed: number;                        // 当前基础速度（未计减速）
-  radius: number;                       // 判定半径（格）
-  scale: number;                        // 渲染缩放（精英 1.2、兵团等）
+  speed: number; // 当前基础速度（未计减速）
+  radius: number; // 判定半径（格）
+  scale: number; // 渲染缩放（精英 1.2、兵团等）
   flying: boolean;
   boss: boolean;
   elite: boolean;
@@ -230,7 +311,8 @@ export interface EnemyState {
   hidden: boolean;
   /** 具备隐形能力（渲染画半透明轮廓/被侦测时的眼睛标记） */
   stealthy: boolean;
-  slowPct: number; slowUntil: number;
+  slowPct: number;
+  slowUntil: number;
   stunUntil: number;
   rootUntil: number;
   inkStacks: number;
@@ -238,7 +320,7 @@ export interface EnemyState {
   burnUntil: number;
   markedUntil: number;
   /** 苍蝇拍·捕虫网：飞行敌人被网到地面，截止时间之前 flying=false 并按迷宫行走 */
-  netUntil: number;                  // 红笔标记 / 护眼灯照射 / 修正带易伤
+  netUntil: number; // 红笔标记 / 护眼灯照射 / 修正带易伤
   /** 跳跃中（橡皮筋）——不可被选中 */
   jumping: boolean;
   /** 最近受击时间（渲染闪白） */
@@ -246,26 +328,25 @@ export interface EnemyState {
   spawnedAt: number;
 }
 
-export type ProjectileKind = 'net' | 'graphite' | 'color' | 'glue' | 'ink' | 'brush' | 'ruler' | 'eraser'
-  | 'nail';                 // 工业钉枪「连环钉」（直线穿透）
+export type ProjectileKind = 'net' | 'graphite' | 'color' | 'glue' | 'ink' | 'brush' | 'ruler' | 'eraser' | 'nail'; // 工业钉枪「连环钉」（直线穿透）
 
 export interface ProjectileState {
   uid: number;
   kind: ProjectileKind;
-  x: number; y: number;
+  x: number;
+  y: number;
   angle: number;
   /** 'color' 弹的颜色：red / blue / yellow（彩色铅笔 ★2 增加 green 中毒 / purple 易伤） */
   color?: 'red' | 'blue' | 'yellow' | 'green' | 'purple';
   towerUid: number;
 }
 
-export type ZoneKind = 'glue' | 'hotglue' | 'whiteout' | 'tape' | 'magnifier'
-  | 'coffee' | 'lava' | 'inkcross' | 'fullcorrect';
+export type ZoneKind = 'glue' | 'hotglue' | 'whiteout' | 'tape' | 'magnifier' | 'coffee' | 'lava' | 'inkcross' | 'fullcorrect';
 
 // ───────────────────────── 动态战场（文档 09） ─────────────────────────
 
 export interface SpawnerState {
-  id: string;                         // 'north' | 'west' | 'drop-3' | 'hidden-1' …
+  id: string; // 'north' | 'west' | 'drop-3' | 'hidden-1' …
   /** 显示名（北入口 / 西入口 / 空降点 / 暗门） */
   name?: string;
   kind: 'edge' | 'hidden' | 'drop';
@@ -289,8 +370,8 @@ export interface RandomEventState {
   desc: string;
   tone: 'bad' | 'good' | 'neutral';
   phase: 'warn' | 'active' | 'done';
-  startsAt: number;                   // 进入 active 的时间
-  endsAt: number;                     // 结束时间（瞬时事件 = startsAt）
+  startsAt: number; // 进入 active 的时间
+  endsAt: number; // 结束时间（瞬时事件 = startsAt）
   /** 影响范围（格），渲染画预警框 */
   area?: { x: number; y: number; w: number; h: number };
 }
@@ -298,9 +379,10 @@ export interface RandomEventState {
 export interface PickupState {
   uid: number;
   kind: 'coin' | 'crate';
-  x: number; y: number;               // 格坐标
+  x: number;
+  y: number; // 格坐标
   until: number;
-  value: number;                      // 硬币金额
+  value: number; // 硬币金额
 }
 
 export interface CrateChoice {
@@ -313,7 +395,12 @@ export interface ZoneState {
   kind: ZoneKind;
   /** 圆形区域：x,y,r；矩形区域（whiteout 2×2、修正带）：x,y,w,h 左上角 + 角度 */
   shape: 'circle' | 'rect';
-  x: number; y: number; r?: number; w?: number; h?: number; angle?: number;
+  x: number;
+  y: number;
+  r?: number;
+  w?: number;
+  h?: number;
+  angle?: number;
   until: number;
   createdAt: number;
 }
@@ -321,13 +408,13 @@ export interface ZoneState {
 export interface SkillState {
   id: SkillId;
   level: number;
-  cd: number;            // 剩余冷却秒（0 = 就绪）
+  cd: number; // 剩余冷却秒（0 = 就绪）
   cdMax: number;
-  charges?: number;      // 充能制技能（搬家）
+  charges?: number; // 充能制技能（搬家）
   maxCharges?: number;
   /** 需要的目标类型 */
   target: 'none' | 'circle' | 'rect2' | 'line' | 'tower' | 'tower+cell' | 'spawner';
-  radius?: number;       // circle 半径（格）
+  radius?: number; // circle 半径（格）
   ready: boolean;
 }
 
@@ -343,16 +430,16 @@ export interface PerkCard {
 export interface WavePreviewGroup {
   enemy: EnemyId;
   count: number;
-  elite: number;           // 其中精英数量
-  affixes: AffixId[];      // 本组出现的词缀（去重）
-  spawner: string;         // 从哪个出生点出来（SpawnerState.id；split 策略为 '*'）
+  elite: number; // 其中精英数量
+  affixes: AffixId[]; // 本组出现的词缀（去重）
+  spawner: string; // 从哪个出生点出来（SpawnerState.id；split 策略为 '*'）
 }
 
 export interface WavePreview {
-  wave: number;            // 下一波的波号（1 起）
+  wave: number; // 下一波的波号（1 起）
   tags: ('boss' | 'air' | 'rush')[];
   groups: WavePreviewGroup[];
-  earlyBonus: number;      // 现在提前开波可得金币（build 阶段为 0 以外的值仅在 wave 阶段有效）
+  earlyBonus: number; // 现在提前开波可得金币（build 阶段为 0 以外的值仅在 wave 阶段有效）
 }
 
 export interface RunStats {
@@ -370,10 +457,10 @@ export interface RunStats {
 
 export interface WorldState {
   opts: RunOptions;
-  params: DifficultyParams;   // 实际生效的参数（含魔境/自定义）
+  params: DifficultyParams; // 实际生效的参数（含魔境/自定义）
   seed: string;
   tick: number;
-  time: number;               // 秒
+  time: number; // 秒
   phase: Phase;
   /** 当前（或最近一次）进行中的波号；开局为 0 */
   wave: number;
@@ -389,9 +476,9 @@ export interface WorldState {
   projectiles: ProjectileState[];
   zones: ZoneState[];
   skills: SkillState[];
-  perks: string[];            // 已获得的增益 id
-  perkChoices: PerkCard[] | null;  // phase === 'perk' 时有值
-  perkRerollCost: number;     // 刷新价格（0 = 免费）
+  perks: string[]; // 已获得的增益 id
+  perkChoices: PerkCard[] | null; // phase === 'perk' 时有值
+  perkRerollCost: number; // 刷新价格（0 = 免费）
   nextWave: WavePreview;
   /** 塔在战役中是否已解锁 */
   unlockedTowers: TowerId[];
@@ -399,10 +486,10 @@ export interface WorldState {
   caffeineUntil: number;
   /** 文档 09 */
   spawners: SpawnerState[];
-  events: RandomEventState[];         // 预警中 / 进行中 + 最近结束的（保留 30 秒）
+  events: RandomEventState[]; // 预警中 / 进行中 + 最近结束的（保留 30 秒）
   eventLog: { wave: number; id: RandomEventId; name: string }[];
   pickups: PickupState[];
-  crateChoice: CrateChoice | null;    // 打开补给箱后待选择（不暂停游戏）
+  crateChoice: CrateChoice | null; // 打开补给箱后待选择（不暂停游戏）
   autoWave: {
     enabled: boolean;
     /** 已开始自动模式（第一波由玩家开始之后） */
@@ -423,10 +510,10 @@ export interface WorldState {
 
 export type Command =
   | { type: 'place'; tower: TowerId; cx: number; cy: number }
-  | { type: 'upgrade'; uid: number; branch?: Branch }   // Lv9→10 必须带 branch；墙 Lv1→3
-  | { type: 'sell'; uid: number }                        // 若可撤销则全额退款
+  | { type: 'upgrade'; uid: number; branch?: Branch } // Lv9→10 必须带 branch；墙 Lv1→3
+  | { type: 'sell'; uid: number } // 若可撤销则全额退款
   | { type: 'setTarget'; uid: number; mode: TargetMode }
-  | { type: 'startWave' }                                // build 阶段开波；wave 阶段 = 提前开下一波
+  | { type: 'startWave' } // build 阶段开波；wave 阶段 = 提前开下一波
   | { type: 'cast'; skill: SkillId; x?: number; y?: number; uid?: number; cx?: number; cy?: number; axis?: 'row' | 'col'; spawner?: string }
   /** 传奇在望：uid 为目标塔，branch 为直接进入的传奇分支 */
   | { type: 'choosePerk'; id: string; uid?: number; branch?: Branch }
@@ -437,8 +524,7 @@ export type Command =
   | { type: 'demolishSpawner'; id: string }
   // 文档 11
   | { type: 'evolve'; uid: number }
-  | { type: 'towerAbility'; uid: number; x?: number; y?: number; angle?: number;
-      axis?: 'row' | 'col'; index?: number; targetUid?: number };
+  | { type: 'towerAbility'; uid: number; x?: number; y?: number; angle?: number; axis?: 'row' | 'col'; index?: number; targetUid?: number };
 
 export interface CommandResult {
   ok: boolean;
@@ -456,7 +542,19 @@ export type GameEvent =
   | { type: 'levelUp'; uid: number; level: number; tier: Tier; tierChanged: boolean; byXp: boolean }
   | { type: 'fire'; uid: number; tower: TowerId; x: number; y: number; tx: number; ty: number }
   /** 光束；台灯另带 ramp（递增进度 0..1）、relay（汇聚倍率）、group（参与汇聚的座数，含主灯） */
-  | { type: 'beam'; uid: number; x: number; y: number; tx: number; ty: number; color: 'warm' | 'cyan' | 'magenta'; width: number; ramp?: number; relay?: number; group?: number }
+  | {
+      type: 'beam';
+      uid: number;
+      x: number;
+      y: number;
+      tx: number;
+      ty: number;
+      color: 'warm' | 'cyan' | 'magenta';
+      width: number;
+      ramp?: number;
+      relay?: number;
+      group?: number;
+    }
   /** 台灯联动：辅灯 from 把光并入主灯 to（每跳一次） */
   | { type: 'prismLink'; from: number; to: number; x: number; y: number; tx: number; ty: number }
   | { type: 'pulse'; x: number; y: number; r: number; color: 'steel' | 'cyan' | 'magenta' | 'gold' | 'ink' }
@@ -472,7 +570,13 @@ export type GameEvent =
   | { type: 'bossSkill'; enemyUid: number; skill: 'spill' | 'shred' | 'inkShield' | 'inkCloud' | 'ring'; x: number; y: number; r: number }
   | { type: 'towerDisabled'; uid: number; until: number }
   | { type: 'skill'; skill: SkillId; x?: number; y?: number; r?: number; cx?: number; cy?: number; axis?: 'row' | 'col'; uid?: number }
-  | { type: 'gold'; amount: number; x?: number; y?: number; reason: 'kill' | 'wave' | 'interest' | 'early' | 'piggy' | 'skill' | 'perk' | 'refund' | 'stolen' | 'color' | 'pickup' }
+  | {
+      type: 'gold';
+      amount: number;
+      x?: number;
+      y?: number;
+      reason: 'kill' | 'wave' | 'interest' | 'early' | 'piggy' | 'skill' | 'perk' | 'refund' | 'stolen' | 'color' | 'pickup';
+    }
   | { type: 'waveStart'; wave: number; tags: WavePreview['tags'] }
   | { type: 'waveEnd'; wave: number; bonus: number; interest: number; piggy: number }
   | { type: 'perkOffer'; cards: PerkCard[] }
@@ -484,15 +588,35 @@ export type GameEvent =
   | { type: 'swat'; uid: number; x: number; y: number; r: number }
   | { type: 'chain'; uid: number; points: { x: number; y: number }[] }
   // 文档 09
-  | { type: 'randomEvent'; uid: number; id: RandomEventId; phase: 'warn' | 'start' | 'end'; name: string; desc: string; tone: 'bad' | 'good' | 'neutral'; area?: { x: number; y: number; w: number; h: number } }
+  | {
+      type: 'randomEvent';
+      uid: number;
+      id: RandomEventId;
+      phase: 'warn' | 'start' | 'end';
+      name: string;
+      desc: string;
+      tone: 'bad' | 'good' | 'neutral';
+      area?: { x: number; y: number; w: number; h: number };
+    }
   | { type: 'spawnerDrop'; id: string; x: number; y: number; phase: 'warn' | 'land' | 'close' | 'demolish' }
   | { type: 'terrainChanged'; reason: 'event' | 'drop' | 'tidy' }
   | { type: 'pickup'; uid: number; kind: 'coin' | 'crate'; x: number; y: number; phase: 'spawn' | 'collect' | 'expire'; value?: number }
-  | { type: 'autoWave'; secondsLeft: number }            // 倒计时剩 3/2/1 秒时各发一次
+  | { type: 'autoWave'; secondsLeft: number } // 倒计时剩 3/2/1 秒时各发一次
   | { type: 'towerMoved'; uid: number; fromX: number; fromY: number; cx: number; cy: number }
   // 文档 11
   | { type: 'evolve'; uid: number; stars: number; mythic: boolean }
-  | { type: 'towerAbility'; uid: number; ability: string; x?: number; y?: number; r?: number; angle?: number; axis?: 'row' | 'col'; index?: number; targetUid?: number };
+  | {
+      type: 'towerAbility';
+      uid: number;
+      ability: string;
+      x?: number;
+      y?: number;
+      r?: number;
+      angle?: number;
+      axis?: 'row' | 'col';
+      index?: number;
+      targetUid?: number;
+    };
 
 // ───────────────────────── 给 UI 的计算视图 ─────────────────────────
 
@@ -504,14 +628,14 @@ export interface BuildOption {
   unlocked: boolean;
   hitsAir: boolean;
   hitsGround: boolean;
-  role: string;           // 定位短语："单体"、"减速"…
-  desc: string;           // 一句话说明
+  role: string; // 定位短语："单体"、"减速"…
+  desc: string; // 一句话说明
   limitReached?: boolean; // 存钱罐上限
 }
 
 export interface StatLine {
-  label: string;          // "伤害"、"攻击间隔"、"射程"…
-  value: string;          // 已格式化
+  label: string; // "伤害"、"攻击间隔"、"射程"…
+  value: string; // 已格式化
 }
 
 export interface TraitLine {
@@ -528,40 +652,45 @@ export interface TowerInfo {
   level: number;
   maxLevel: number;
   tier: Tier;
-  tierName: string;       // 草稿 / 精良 / 镀金 / 传奇·xxx
+  tierName: string; // 草稿 / 精良 / 镀金 / 传奇·xxx
   branch: Branch | null;
   xp: number;
   xpNext: number;
-  xpCapped: boolean;      // 已到经验上限（Lv9；Lv10 后经验计入进化）
+  xpCapped: boolean; // 已到经验上限（Lv9；Lv10 后经验计入进化）
   /** 文档 11：传奇进化 */
   stars: number;
   evoXp: number;
   evoXpNext: number;
-  evolveCost: number | null;    // null = 不能进化（未到 Lv10 / 已满星 / 书本墙）
+  evolveCost: number | null; // null = 不能进化（未到 Lv10 / 已满星 / 书本墙）
   evolveDiscount: number;
   canAffordEvolve: boolean;
-  evoTraits: TraitLine[];       // 当前分支 ★1/★2 特性（unlockLevel 用 11/12 表示 ★1/★2）
+  evoTraits: TraitLine[]; // 当前分支 ★1/★2 特性（unlockLevel 用 11/12 表示 ★1/★2）
   ability?: {
-    id: string; name: string; desc: string;
-    cd: number; cdMax: number; ready: boolean;
-    charges?: number; maxCharges?: number;
+    id: string;
+    name: string;
+    desc: string;
+    cd: number;
+    cdMax: number;
+    ready: boolean;
+    charges?: number;
+    maxCharges?: number;
     target: 'none' | 'circle' | 'rect3' | 'direction' | 'axis' | 'enemy' | 'tower';
     radius?: number;
   };
   stats: StatLine[];
   traits: TraitLine[];
-  range: number;          // 当前射程（格），渲染射程圈；无攻击为 0
-  innerRange?: number;    // 圆规内圈
-  auraRange?: number;     // 计算器光环
-  upgradeCost: number | null;   // null = 已满级
-  upgradeDiscount: number;      // 经验折扣比例 0..0.5
+  range: number; // 当前射程（格），渲染射程圈；无攻击为 0
+  innerRange?: number; // 圆规内圈
+  auraRange?: number; // 计算器光环
+  upgradeCost: number | null; // null = 已满级
+  upgradeDiscount: number; // 经验折扣比例 0..0.5
   needsBranch: boolean;
   branches?: { A: { name: string; desc: string }; B: { name: string; desc: string } };
   canAffordUpgrade: boolean;
   sellValue: number;
-  refundRate: number;           // 0..1
+  refundRate: number; // 0..1
   canUndo: boolean;
-  undoRemaining: number;        // 秒
+  undoRemaining: number; // 秒
   targetMode: TargetMode | null; // 无攻击的塔为 null
   targetModes: TargetMode[];
   kills: number;

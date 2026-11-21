@@ -28,9 +28,19 @@ export const BRIDGE_PROTOCOL = 1;
 export type BridgeClientMsg =
   | { t: 'hello'; code: string; client: string; v: number }
   | {
-      t: 'decide'; id: number; role: AgentRole; point: DecisionPoint; system: [string, string]; message: string; tools: AgentToolDef[]; maxToolCalls: number; remainingTokens: number;
+      t: 'decide';
+      id: number;
+      role: AgentRole;
+      point: DecisionPoint;
+      system: [string, string];
+      message: string;
+      tools: AgentToolDef[];
+      maxToolCalls: number;
+      remainingTokens: number;
       /** 可选（旧桥接器忽略）：上下文模式 / 预算分级给的输出上限、历史压缩阈值、思考覆盖 */
-      maxOutputTokens?: number; historyCompactChars?: number; thinking?: ThinkingLevel;
+      maxOutputTokens?: number;
+      historyCompactChars?: number;
+      thinking?: ThinkingLevel;
     }
   | { t: 'tool_result'; id: number; call: number; result: ToolResult }
   | { t: 'after_result'; id: number; call: number; alive: boolean }
@@ -92,14 +102,21 @@ export function createBridgeSession(o: BridgeSessionOptions): BridgeSession {
   let nextCall = 1;
   const pending = new Map<number, { kind: 'tool' | 'after'; res: (v: unknown) => void }>();
   const running = new Map<number, AbortController>();
-  const wait = <T>(call: number, kind: 'tool' | 'after'): Promise<T> => new Promise((res) => pending.set(call, { kind, res: res as (v: unknown) => void }));
+  const wait = <T>(call: number, kind: 'tool' | 'after'): Promise<T> =>
+    new Promise((res) => pending.set(call, { kind, res: res as (v: unknown) => void }));
 
   const runDecide = async (m: Extract<BridgeClientMsg, { t: 'decide' }>) => {
     const ac = new AbortController();
     running.set(m.id, ac);
     const ctx: DecisionContext = {
-      role: m.role, point: m.point, system: m.system, message: m.message, tools: m.tools,
-      maxToolCalls: Math.min(64, m.maxToolCalls), remainingTokens: m.remainingTokens, signal: ac.signal,
+      role: m.role,
+      point: m.point,
+      system: m.system,
+      message: m.message,
+      tools: m.tools,
+      maxToolCalls: Math.min(64, m.maxToolCalls),
+      remainingTokens: m.remainingTokens,
+      signal: ac.signal,
       ...(m.maxOutputTokens ? { maxOutputTokens: m.maxOutputTokens } : {}),
       ...(m.historyCompactChars ? { historyCompactChars: m.historyCompactChars } : {}),
       ...(m.thinking ? { thinking: m.thinking } : {}),
@@ -108,16 +125,17 @@ export function createBridgeSession(o: BridgeSessionOptions): BridgeSession {
         o.send({ t: 'tool', id: m.id, call, name, input, ...(meta ? { meta } : {}) });
         return wait<ToolResult>(call, 'tool');
       },
-      trace: (o.forwardTrace ?? true)
-        ? (ev) => {
-            try {
-              // 密钥永远不离开桥接器：先脱敏再发（网页那边入库时还会再脱敏一次）
-              o.send({ t: 'trace', id: m.id, ev: redactValue(ev, o.secrets ?? []) as TraceInput });
-            } catch {
-              /* 追踪失败不影响对局 */
+      trace:
+        (o.forwardTrace ?? true)
+          ? (ev) => {
+              try {
+                // 密钥永远不离开桥接器：先脱敏再发（网页那边入库时还会再脱敏一次）
+                o.send({ t: 'trace', id: m.id, ev: redactValue(ev, o.secrets ?? []) as TraceInput });
+              } catch {
+                /* 追踪失败不影响对局 */
+              }
             }
-          }
-        : undefined,
+          : undefined,
       afterRequest: async (ms) => {
         const call = nextCall++;
         o.send({ t: 'after', id: m.id, call, ms });
@@ -135,7 +153,9 @@ export function createBridgeSession(o: BridgeSessionOptions): BridgeSession {
   };
 
   return {
-    get paired() { return paired; },
+    get paired() {
+      return paired;
+    },
     handle(raw: string) {
       let m: BridgeClientMsg;
       try {
@@ -144,10 +164,19 @@ export function createBridgeSession(o: BridgeSessionOptions): BridgeSession {
         o.send({ t: 'error', message: 'bad json' });
         return;
       }
-      if (m.t === 'ping') { o.send({ t: 'pong' }); return; }
+      if (m.t === 'ping') {
+        o.send({ t: 'pong' });
+        return;
+      }
       if (!paired) {
-        if (m.t !== 'hello') { o.send({ t: 'error', message: 'not paired' }); return; }
-        if (used || m.code !== o.code) { o.send({ t: 'error', message: '配对码不对' }); return; }
+        if (m.t !== 'hello') {
+          o.send({ t: 'error', message: 'not paired' });
+          return;
+        }
+        if (used || m.code !== o.code) {
+          o.send({ t: 'error', message: '配对码不对' });
+          return;
+        }
         paired = true;
         if (o.oneTime ?? true) used = true;
         o.log?.('paired');
@@ -155,11 +184,22 @@ export function createBridgeSession(o: BridgeSessionOptions): BridgeSession {
         return;
       }
       switch (m.t) {
-        case 'decide': void runDecide(m); break;
-        case 'tool_result': pending.get(m.call)?.res(m.result); pending.delete(m.call); break;
-        case 'after_result': pending.get(m.call)?.res(m.alive); pending.delete(m.call); break;
-        case 'abort': running.get(m.id)?.abort(); break;
-        default: break;
+        case 'decide':
+          void runDecide(m);
+          break;
+        case 'tool_result':
+          pending.get(m.call)?.res(m.result);
+          pending.delete(m.call);
+          break;
+        case 'after_result':
+          pending.get(m.call)?.res(m.alive);
+          pending.delete(m.call);
+          break;
+        case 'abort':
+          running.get(m.id)?.abort();
+          break;
+        default:
+          break;
       }
     },
     close() {
@@ -189,12 +229,16 @@ export class BridgeProvider implements LLMProvider {
   private nextId = 1;
   private ctxs = new Map<number, { ctx: DecisionContext; resolve: (o: DecisionOutcome) => void }>();
 
-  constructor(private readonly ws: WsLike, welcome: Extract<BridgeServerMsg, { t: 'welcome' }>) {
+  constructor(
+    private readonly ws: WsLike,
+    welcome: Extract<BridgeServerMsg, { t: 'welcome' }>,
+  ) {
     this.id = `bridge:${welcome.provider}`;
     this.model = welcome.model;
     ws.onmessage = (ev) => void this.onMessage(String(ev.data));
     ws.onclose = () => {
-      for (const { resolve } of this.ctxs.values()) resolve({ usage: emptyUsage(), costUsd: 0, toolCalls: 0, ended: false, error: 'bridge disconnected' });
+      for (const { resolve } of this.ctxs.values())
+        resolve({ usage: emptyUsage(), costUsd: 0, toolCalls: 0, ended: false, error: 'bridge disconnected' });
       this.ctxs.clear();
     };
   }
@@ -228,8 +272,15 @@ export class BridgeProvider implements LLMProvider {
       this.ctxs.set(id, { ctx, resolve });
       ctx.signal.addEventListener('abort', () => this.ws.send(JSON.stringify({ t: 'abort', id } satisfies BridgeClientMsg)));
       const msg: BridgeClientMsg = {
-        t: 'decide', id, role: ctx.role, point: ctx.point, system: ctx.system, message: ctx.message,
-        tools: ctx.tools, maxToolCalls: ctx.maxToolCalls, remainingTokens: Number.isFinite(ctx.remainingTokens) ? ctx.remainingTokens : 1e12,
+        t: 'decide',
+        id,
+        role: ctx.role,
+        point: ctx.point,
+        system: ctx.system,
+        message: ctx.message,
+        tools: ctx.tools,
+        maxToolCalls: ctx.maxToolCalls,
+        remainingTokens: Number.isFinite(ctx.remainingTokens) ? ctx.remainingTokens : 1e12,
         ...(ctx.maxOutputTokens ? { maxOutputTokens: ctx.maxOutputTokens } : {}),
         ...(ctx.historyCompactChars ? { historyCompactChars: ctx.historyCompactChars } : {}),
         ...(ctx.thinking ? { thinking: ctx.thinking } : {}),
@@ -244,17 +295,31 @@ export class BridgeProvider implements LLMProvider {
 }
 
 /** 连接本机桥接器并配对（浏览器：connectBridge('ws://127.0.0.1:8787', '123456')） */
-export function connectBridge(url: string, code: string, makeWs: (url: string) => WsLike = (u) => new WebSocket(u) as unknown as WsLike, timeoutMs = 8000): Promise<BridgeProvider> {
+export function connectBridge(
+  url: string,
+  code: string,
+  makeWs: (url: string) => WsLike = (u) => new WebSocket(u) as unknown as WsLike,
+  timeoutMs = 8000,
+): Promise<BridgeProvider> {
   return new Promise((resolve, reject) => {
     const ws = makeWs(url);
-    const timer = setTimeout(() => { ws.close(); reject(new Error('连接桥接器超时')); }, timeoutMs);
-    ws.onerror = () => { clearTimeout(timer); reject(new Error('连不上桥接器：确认已运行 npm run agent:bridge，并允许本地网络访问')); };
+    const timer = setTimeout(() => {
+      ws.close();
+      reject(new Error('连接桥接器超时'));
+    }, timeoutMs);
+    ws.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error('连不上桥接器：确认已运行 npm run agent:bridge，并允许本地网络访问'));
+    };
     ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', code, client: 'desk-defense', v: BRIDGE_PROTOCOL } satisfies BridgeClientMsg));
     ws.onmessage = (ev) => {
       const m = JSON.parse(String(ev.data)) as BridgeServerMsg;
       clearTimeout(timer);
       if (m.t === 'welcome') resolve(new BridgeProvider(ws, m));
-      else if (m.t === 'error') { ws.close(); reject(new Error(m.message)); }
+      else if (m.t === 'error') {
+        ws.close();
+        reject(new Error(m.message));
+      }
     };
   });
 }

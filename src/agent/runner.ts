@@ -14,8 +14,15 @@ import { AgentScheduler } from './scheduler';
 import { scriptedFallback } from './providers/scripted';
 import type { LLMProvider } from './providers/types';
 import {
-  budgetTokens, usageTotal,
-  type AgentReplay, type AgentRunResult, type AgentWaveRow, type DecisionRecord, type FallbackPolicy, type Suggestion, type TokenUsage,
+  budgetTokens,
+  usageTotal,
+  type AgentReplay,
+  type AgentRunResult,
+  type AgentWaveRow,
+  type DecisionRecord,
+  type FallbackPolicy,
+  type Suggestion,
+  type TokenUsage,
 } from './types';
 
 export interface AgentRunConfig {
@@ -107,7 +114,11 @@ export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Pro
   const fallback = (agent.fallback ?? scriptedFallback)(world);
   agent.trace?.addSecret(config.apiKey);
   const engine = new DecisionEngine({
-    world, opts, config, provider: agent.provider, fallback,
+    world,
+    opts,
+    config,
+    provider: agent.provider,
+    fallback,
     elapse: (sec) => sched.elapse(sec),
     fallbackPlaysForHuman: true,
     signal: agent.signal,
@@ -124,15 +135,26 @@ export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Pro
   sched.onEvent = (ev) => {
     engine.onWorldEvent(ev);
     if (ev.type === 'waveStart') fallback.onWaveStart?.(ev.wave);
-    else if (ev.type === 'leak') { leaks++; fallback.onLeak?.(ev.enemy); }
-    else if (ev.type === 'waveEnd') {
+    else if (ev.type === 'leak') {
+      leaks++;
+      fallback.onLeak?.(ev.enemy);
+    } else if (ev.type === 'waveEnd') {
       fallback.onWaveEnd?.(ev.wave);
       cleared = Math.max(cleared, ev.wave);
       const row: AgentWaveRow = {
-        wave: ev.wave, tick: s.tick, gold: Math.floor(s.gold), lives: s.lives, leaks,
-        towers: [...s.towers.values()].filter((t) => t.id !== 'wall').length, score: s.score,
-        tokens: usageTotal(engine.usage), weighted: budgetTokens(engine.usage), requests: engine.usage.requests, costUsd: engine.costUsd,
-        decisions: engine.decisions.length, fallbacks: engine.decisions.filter((d) => d.by === 'fallback').length,
+        wave: ev.wave,
+        tick: s.tick,
+        gold: Math.floor(s.gold),
+        lives: s.lives,
+        leaks,
+        towers: [...s.towers.values()].filter((t) => t.id !== 'wall').length,
+        score: s.score,
+        tokens: usageTotal(engine.usage),
+        weighted: budgetTokens(engine.usage),
+        requests: engine.usage.requests,
+        costUsd: engine.costUsd,
+        decisions: engine.decisions.length,
+        fallbacks: engine.decisions.filter((d) => d.by === 'fallback').length,
       };
       waves.push(row);
       leaks = 0;
@@ -142,7 +164,10 @@ export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Pro
 
   let cancelled = false;
   for (;;) {
-    if (agent.signal?.aborted) { cancelled = true; break; }
+    if (agent.signal?.aborted) {
+      cancelled = true;
+      break;
+    }
     const point = sched.advance();
     if (!point) break;
     const rec = await engine.decide(point, sched.takeRecent());
@@ -154,9 +179,17 @@ export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Pro
   const stop = sched.stopped;
   const tag = agent.provider ? agentTag({ ...config, provider: config.provider }) : { provider: 'baseline', model: fallback.name };
   const result: AgentRunResult = {
-    outcome: cancelled ? 'cancelled' : stop ?? 'cap',
-    wave: s.wave, cleared, score: s.score, lives: s.lives, maxLives: s.maxLives,
-    kills: s.stats.kills, leaks: s.stats.leaks, gold: Math.floor(s.gold), ticks: s.tick, seconds: Math.round(s.time),
+    outcome: cancelled ? 'cancelled' : (stop ?? 'cap'),
+    wave: s.wave,
+    cleared,
+    score: s.score,
+    lives: s.lives,
+    maxLives: s.maxLives,
+    kills: s.stats.kills,
+    leaks: s.stats.leaks,
+    gold: Math.floor(s.gold),
+    ticks: s.tick,
+    seconds: Math.round(s.time),
   };
   const mid = makeMidRun(world);
   const replay: AgentReplay = { ...mid, agent: { ...tag, role: config.role ?? 'player' } };
@@ -177,9 +210,13 @@ export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Pro
     disabledReason: agent.provider ? engine.disabledReason : null,
     budget: config.budget?.tokens || config.budget?.usd ? engine.budgetState() : null,
     play: {
-      idleGold: engine.buildGoldAfter.length ? Math.round(engine.buildGoldAfter.reduce((a, b) => a + b, 0) / engine.buildGoldAfter.length) : 0,
+      idleGold: engine.buildGoldAfter.length
+        ? Math.round(engine.buildGoldAfter.reduce((a, b) => a + b, 0) / engine.buildGoldAfter.length)
+        : 0,
       idleSamples: engine.buildGoldAfter.length,
-      rejected: engine.battle.stats.rejected + engine.decisions.reduce((a, d) => a + d.toolCalls.filter((c) => !c.ok && c.name !== 'act').length, 0),
+      rejected:
+        engine.battle.stats.rejected +
+        engine.decisions.reduce((a, d) => a + d.toolCalls.filter((c) => !c.ok && c.name !== 'act').length, 0),
       recovered: engine.battle.stats.recovered,
       towers: [...s.towers.values()].filter((t) => t.id !== 'wall').length,
       walls: [...s.towers.values()].filter((t) => t.id === 'wall').length,

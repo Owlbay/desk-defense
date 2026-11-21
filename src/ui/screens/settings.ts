@@ -183,12 +183,23 @@ export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLEle
         h('span.switch', null, motionInput, h('span.knob')),
       ),
     ),
-    h('section.card.section', null, h('h3', null, t('ui.settings.sound')), volume(t('ui.settings.sfx'), G.sound, 'sfx'), volume(t('ui.settings.music'), G.music, 'music')),
+    h(
+      'section.card.section',
+      null,
+      h('h3', null, t('ui.settings.sound')),
+      volume(t('ui.settings.sfx'), G.sound, 'sfx'),
+      volume(t('ui.settings.music'), G.music, 'music'),
+    ),
     h(
       'section.card.section',
       null,
       h('h3', null, t('ui.settings.game')),
-      h('div.field-label', null, h('b', null, t('ui.settings.waveMode')), h('small.muted', null, opts.inGame ? t('ui.settings.nextRun') : t('ui.settings.waveModeHint'))),
+      h(
+        'div.field-label',
+        null,
+        h('b', null, t('ui.settings.waveMode')),
+        h('small.muted', null, opts.inGame ? t('ui.settings.nextRun') : t('ui.settings.waveModeHint')),
+      ),
       waveSeg,
       h(
         'label.switch-row',
@@ -265,6 +276,9 @@ export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLEle
 
 export function settingsScreen(app: App): Screen {
   const el = h('div.screen.settings-screen');
-  el.append(screenHeader(app, t('ui.settings.title'), { chips: false }), h('div.screen-body.narrow', null, settingsPanel(app, { host: el }), h('p.muted.center', null, t('ui.settings.footer'))));
+  el.append(
+    screenHeader(app, t('ui.settings.title'), { chips: false }),
+    h('div.screen-body.narrow', null, settingsPanel(app, { host: el }), h('p.muted.center', null, t('ui.settings.footer'))),
+  );
   return { el };
 }

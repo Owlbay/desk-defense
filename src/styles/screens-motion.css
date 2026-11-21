@@ -66,11 +66,21 @@ html.tab-hidden .screen:not(.game-screen) *::after {
   animation: sm-rise var(--dur-m) var(--ease-out) backwards;
   animation-delay: calc(var(--dur-m) + var(--si, 0) * var(--stagger) * 1.5);
 }
-:where(.game-screen.is-entering) :where(.side > :nth-child(2)) { --si: 1; }
-:where(.game-screen.is-entering) :where(.side > :nth-child(3)) { --si: 2; }
-:where(.game-screen.is-entering) :where(.side > :nth-child(4)) { --si: 3; }
-:where(.game-screen.is-entering) :where(.side > :nth-child(5)) { --si: 4; }
-:where(.game-screen.is-entering) :where(.side > :nth-child(n + 6)) { --si: 5; }
+:where(.game-screen.is-entering) :where(.side > :nth-child(2)) {
+  --si: 1;
+}
+:where(.game-screen.is-entering) :where(.side > :nth-child(3)) {
+  --si: 2;
+}
+:where(.game-screen.is-entering) :where(.side > :nth-child(4)) {
+  --si: 3;
+}
+:where(.game-screen.is-entering) :where(.side > :nth-child(5)) {
+  --si: 4;
+}
+:where(.game-screen.is-entering) :where(.side > :nth-child(n + 6)) {
+  --si: 5;
+}
 
 /* 页面内容依次入场 */
 .screen.is-entering:not(.game-screen) .screen-body > :not(.chapter-list, .skill-grid, .talent-grid),
@@ -80,15 +90,31 @@ html.tab-hidden .screen:not(.game-screen) *::after {
   animation: sm-rise var(--dur-m) var(--ease-out) backwards;
   animation-delay: calc(var(--stagger) * (1.5 + var(--si, 0)));
 }
-.screen.is-entering :is(.screen-body, .chapter-list, .skill-grid, .talent-grid, .menu-card, .menu-grid) > :nth-child(2) { --si: 1; }
-.screen.is-entering :is(.screen-body, .chapter-list, .skill-grid, .talent-grid, .menu-card, .menu-grid) > :nth-child(3) { --si: 2; }
-.screen.is-entering :is(.screen-body, .chapter-list, .skill-grid, .talent-grid, .menu-card, .menu-grid) > :nth-child(4) { --si: 3; }
-.screen.is-entering :is(.screen-body, .chapter-list, .skill-grid, .talent-grid, .menu-card, .menu-grid) > :nth-child(5) { --si: 4; }
-.screen.is-entering :is(.screen-body, .chapter-list, .skill-grid, .talent-grid, .menu-card, .menu-grid) > :nth-child(6) { --si: 5; }
-.screen.is-entering :is(.screen-body, .chapter-list, .skill-grid, .talent-grid, .menu-card, .menu-grid) > :nth-child(7) { --si: 6; }
-.screen.is-entering :is(.screen-body, .chapter-list, .skill-grid, .talent-grid, .menu-card, .menu-grid) > :nth-child(n + 8) { --si: 7; }
+.screen.is-entering :is(.screen-body, .chapter-list, .skill-grid, .talent-grid, .menu-card, .menu-grid) > :nth-child(2) {
+  --si: 1;
+}
+.screen.is-entering :is(.screen-body, .chapter-list, .skill-grid, .talent-grid, .menu-card, .menu-grid) > :nth-child(3) {
+  --si: 2;
+}
+.screen.is-entering :is(.screen-body, .chapter-list, .skill-grid, .talent-grid, .menu-card, .menu-grid) > :nth-child(4) {
+  --si: 3;
+}
+.screen.is-entering :is(.screen-body, .chapter-list, .skill-grid, .talent-grid, .menu-card, .menu-grid) > :nth-child(5) {
+  --si: 4;
+}
+.screen.is-entering :is(.screen-body, .chapter-list, .skill-grid, .talent-grid, .menu-card, .menu-grid) > :nth-child(6) {
+  --si: 5;
+}
+.screen.is-entering :is(.screen-body, .chapter-list, .skill-grid, .talent-grid, .menu-card, .menu-grid) > :nth-child(7) {
+  --si: 6;
+}
+.screen.is-entering :is(.screen-body, .chapter-list, .skill-grid, .talent-grid, .menu-card, .menu-grid) > :nth-child(n + 8) {
+  --si: 7;
+}
 /* 四宫格接在上面几个大按钮之后 */
-.screen.is-entering .menu-grid > * { animation-delay: calc(var(--stagger) * (6 + var(--si, 0))); }
+.screen.is-entering .menu-grid > * {
+  animation-delay: calc(var(--stagger) * (6 + var(--si, 0)));
+}
 
 @keyframes sm-rise {
   from {
@@ -156,8 +182,12 @@ html.tab-hidden .screen:not(.game-screen) *::after {
   animation-delay: calc(var(--i, 0) * -3.1s);
   will-change: transform;
 }
-.crumb.c1 { background: var(--surface); }
-.crumb.c2 { background: var(--sky); }
+.crumb.c1 {
+  background: var(--surface);
+}
+.crumb.c2 {
+  background: var(--sky);
+}
 
 @keyframes sm-crumb {
   0% {
@@ -332,14 +362,16 @@ html.tab-hidden .screen:not(.game-screen) *::after {
 }
 
 /* ───────────── 按压 / 悬停 ───────────── */
-:is(.screen:not(.game-screen), .confirm-overlay) :is(.btn, .menu-btn, .seg, .tab, .diff-card, .diff-btn, .abyss-lv, .slot.filled, .event-toggle, .seed-btn) {
+:is(.screen:not(.game-screen), .confirm-overlay)
+  :is(.btn, .menu-btn, .seg, .tab, .diff-card, .diff-btn, .abyss-lv, .slot.filled, .event-toggle, .seed-btn) {
   transition:
     transform var(--dur-s) var(--ease-spring),
     opacity var(--dur-s) linear;
 }
 
 /* 按下：当帧生效（过渡极短），松开再弹回 */
-:is(.screen:not(.game-screen), .confirm-overlay) :is(.btn, .menu-btn, .seg, .tab, .diff-card, .diff-btn, .abyss-lv, .slot.filled, .event-toggle, .seed-btn):active:not(:disabled) {
+:is(.screen:not(.game-screen), .confirm-overlay)
+  :is(.btn, .menu-btn, .seg, .tab, .diff-card, .diff-btn, .abyss-lv, .slot.filled, .event-toggle, .seed-btn):active:not(:disabled) {
   transform: scale(0.97) translateY(2px);
   transition-duration: 40ms;
   transition-timing-function: ease-out;
@@ -350,7 +382,8 @@ html.tab-hidden .screen:not(.game-screen) *::after {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  :is(.screen:not(.game-screen), .confirm-overlay) :is(.btn, .menu-btn, .diff-card, .diff-btn, .slot.filled, .tab, .seg, .abyss-lv):hover:not(:disabled, .locked, :active) {
+  :is(.screen:not(.game-screen), .confirm-overlay)
+    :is(.btn, .menu-btn, .diff-card, .diff-btn, .slot.filled, .tab, .seg, .abyss-lv):hover:not(:disabled, .locked, :active) {
     transform: translateY(-2px);
   }
 
@@ -512,7 +545,14 @@ html.tab-hidden .screen:not(.game-screen) *::after {
   left: 0;
   width: 46%;
   pointer-events: none;
-  background: linear-gradient(100deg, transparent, rgba(190, 150, 255, 0.26) 42%, rgb(var(--hi-rgb) / calc(0.3 * var(--hi-k))) 50%, rgba(190, 150, 255, 0.26) 58%, transparent);
+  background: linear-gradient(
+    100deg,
+    transparent,
+    rgba(190, 150, 255, 0.26) 42%,
+    rgb(var(--hi-rgb) / calc(0.3 * var(--hi-k))) 50%,
+    rgba(190, 150, 255, 0.26) 58%,
+    transparent
+  );
   transform: translateX(-140%) skewX(-18deg);
   animation: sm-sheen 4.4s var(--ease-in-out) infinite;
 }
@@ -640,14 +680,30 @@ html.tab-hidden .screen:not(.game-screen) *::after {
   animation: sm-rise var(--dur-m) var(--ease-out) backwards;
   animation-delay: calc(var(--stagger) * 0.75 * var(--si, 0));
 }
-.board-table .lb-row:nth-child(3) { --si: 1; }
-.board-table .lb-row:nth-child(4) { --si: 2; }
-.board-table .lb-row:nth-child(5) { --si: 3; }
-.board-table .lb-row:nth-child(6) { --si: 4; }
-.board-table .lb-row:nth-child(7) { --si: 5; }
-.board-table .lb-row:nth-child(8) { --si: 6; }
-.board-table .lb-row:nth-child(9) { --si: 7; }
-.board-table .lb-row:nth-child(n + 10) { --si: 8; }
+.board-table .lb-row:nth-child(3) {
+  --si: 1;
+}
+.board-table .lb-row:nth-child(4) {
+  --si: 2;
+}
+.board-table .lb-row:nth-child(5) {
+  --si: 3;
+}
+.board-table .lb-row:nth-child(6) {
+  --si: 4;
+}
+.board-table .lb-row:nth-child(7) {
+  --si: 5;
+}
+.board-table .lb-row:nth-child(8) {
+  --si: 6;
+}
+.board-table .lb-row:nth-child(9) {
+  --si: 7;
+}
+.board-table .lb-row:nth-child(n + 10) {
+  --si: 8;
+}
 
 /* ───────────── 提示 ───────────── */
 .app-toast {

@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { Command, RunOptions } from '../../src/core/types';
 import { dailyInfo, dailyRunOptions } from '../../src/shared/leaderboard';
-import { boardOfRun, dailyDayOfOpts, fmtCountdown, isEligibleRun, makeFeeder, msUntilNextDay, nicknameError } from '../../src/ui/online/util';
+import {
+  boardOfRun,
+  dailyDayOfOpts,
+  fmtCountdown,
+  isEligibleRun,
+  makeFeeder,
+  msUntilNextDay,
+  nicknameError,
+} from '../../src/ui/online/util';
 
 const base: RunOptions = { mode: 'endless', map: 'ch1', difficulty: 'normal', skills: [], seed: 'ABC123', autoWave: true };
 

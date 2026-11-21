@@ -81,42 +81,60 @@ export interface ConnectionDiagnostics {
 }
 
 const PING_TOOL: AgentToolDef = {
-  name: 'end_turn', kind: 'control', roles: ['player'],
+  name: 'end_turn',
+  kind: 'control',
+  roles: ['player'],
   description: 'Call this tool to answer. Put the word "pong" in note.',
-  input_schema: { type: 'object', properties: { note: { type: 'string', description: 'answer' } }, required: [], additionalProperties: false },
+  input_schema: {
+    type: 'object',
+    properties: { note: { type: 'string', description: 'answer' } },
+    required: [],
+    additionalProperties: false,
+  },
 };
 
 export async function testConnection(partial: Partial<AgentModelConfig>, provider?: LLMProvider): Promise<ConnectionDiagnostics> {
   const c = resolveConfig(partial);
   const t0 = Date.now();
-  const diag: ConnectionDiagnostics = { ok: false, reachable: false, toolCalling: false, latencyMs: 0, model: c.model, provider: c.provider, tokens: 0 };
+  const diag: ConnectionDiagnostics = {
+    ok: false,
+    reachable: false,
+    toolCalling: false,
+    latencyMs: 0,
+    model: c.model,
+    provider: c.provider,
+    tokens: 0,
+  };
   try {
     const p = provider ?? (await createProvider(c));
     let called = false;
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), c.decisionTimeoutMs ?? 60_000);
-    const out = await p.decide({
-      role: 'player',
-      point: { seq: 0, tick: 0, time: 0, wave: 0, phase: 'build', reasons: ['game_start'] },
-      system: ['Connection test. Respond only by calling the end_turn tool.', ''],
-      message: 'Connection test: call end_turn with note "pong".',
-      tools: [PING_TOOL],
-      maxToolCalls: 1,
-      remainingTokens: 4000,
-      signal: ac.signal,
-      callTool: async (name) => {
-        called = name === 'end_turn';
-        return { ok: true, text: 'OK', endTurn: true, note: 'pong' };
-      },
-      afterRequest: async () => true,
-    }).finally(() => clearTimeout(timer));
+    const out = await p
+      .decide({
+        role: 'player',
+        point: { seq: 0, tick: 0, time: 0, wave: 0, phase: 'build', reasons: ['game_start'] },
+        system: ['Connection test. Respond only by calling the end_turn tool.', ''],
+        message: 'Connection test: call end_turn with note "pong".',
+        tools: [PING_TOOL],
+        maxToolCalls: 1,
+        remainingTokens: 4000,
+        signal: ac.signal,
+        callTool: async (name) => {
+          called = name === 'end_turn';
+          return { ok: true, text: 'OK', endTurn: true, note: 'pong' };
+        },
+        afterRequest: async () => true,
+      })
+      .finally(() => clearTimeout(timer));
     diag.latencyMs = Date.now() - t0;
     diag.tokens = out.usage.inputTokens + out.usage.outputTokens + out.usage.cacheReadTokens + out.usage.cacheWriteTokens;
     diag.reachable = !out.error || out.usage.requests > 0;
     diag.toolCalling = called;
     diag.ok = called && !out.error;
     if (out.error) diag.error = out.error;
-    if (diag.reachable && !called) diag.advice = (c.toolMode ?? 'native') === 'native' ? t('agent.diag.noToolCall') : t('agent.diag.noJsonAction');
+    if (diag.reachable && !called)
+      diag.advice = (c.toolMode ?? 'native') === 'native' ? t('agent.diag.noToolCall') : t('agent.diag.noJsonAction');
     if (!diag.reachable) diag.hint = corsHint(c);
   } catch (e) {
     diag.latencyMs = Date.now() - t0;

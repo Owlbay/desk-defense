@@ -31,16 +31,47 @@ import {
 } from '../../core/types';
 
 const RANGE: Record<TowerId, number> = {
-  wall: 0, pencil: 2.5, stapler: 1.6, glue: 2.2, lamp: 3.5, compass: 1.8,
-  eraser: 2, ruler: 4.5, pen: 2.8, calculator: 0, piggy: 0, swatter: 3,
+  wall: 0,
+  pencil: 2.5,
+  stapler: 1.6,
+  glue: 2.2,
+  lamp: 3.5,
+  compass: 1.8,
+  eraser: 2,
+  ruler: 4.5,
+  pen: 2.8,
+  calculator: 0,
+  piggy: 0,
+  swatter: 3,
 };
 const INTERVAL: Record<TowerId, number> = {
-  wall: 0, pencil: 0.5, stapler: 1, glue: 0.8, lamp: 1.5, compass: 0.25,
-  eraser: 1, ruler: 2, pen: 1, calculator: 0, piggy: 0, swatter: 1.2,
+  wall: 0,
+  pencil: 0.5,
+  stapler: 1,
+  glue: 0.8,
+  lamp: 1.5,
+  compass: 0.25,
+  eraser: 1,
+  ruler: 2,
+  pen: 1,
+  calculator: 0,
+  piggy: 0,
+  swatter: 1.2,
 };
 const PROJ: Partial<Record<TowerId, ProjectileKind>> = { pencil: 'graphite', glue: 'glue', pen: 'ink', ruler: 'ruler', eraser: 'eraser' };
 const COST: Record<TowerId, number> = {
-  wall: 5, pencil: 20, stapler: 45, glue: 35, lamp: 80, compass: 60, eraser: 40, ruler: 70, pen: 55, calculator: 90, piggy: 100, swatter: 50,
+  wall: 5,
+  pencil: 20,
+  stapler: 45,
+  glue: 35,
+  lamp: 80,
+  compass: 60,
+  eraser: 40,
+  ruler: 70,
+  pen: 55,
+  calculator: 90,
+  piggy: 100,
+  swatter: 50,
 };
 
 interface Proj extends ProjectileState {
@@ -67,8 +98,24 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
   const dist = new Float32Array(cols * rows);
   // 出生点：上边入口、左侧入口（侧边）、一个隐藏暗门
   const spawners: SpawnerState[] = [
-    { id: 'north', kind: 'edge', cells: [{ x: 5, y: 0 }, { x: 6, y: 0 }], active: true },
-    { id: 'west', kind: 'edge', cells: [{ x: 0, y: 5 }, { x: 0, y: 6 }], active: true },
+    {
+      id: 'north',
+      kind: 'edge',
+      cells: [
+        { x: 5, y: 0 },
+        { x: 6, y: 0 },
+      ],
+      active: true,
+    },
+    {
+      id: 'west',
+      kind: 'edge',
+      cells: [
+        { x: 0, y: 5 },
+        { x: 0, y: 6 },
+      ],
+      active: true,
+    },
     { id: 'east', kind: 'edge', cells: [{ x: 11, y: 9 }], active: false },
     { id: 'hidden-1', kind: 'hidden', cells: [{ x: 8, y: 8 }], active: false },
   ];
@@ -78,7 +125,10 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
     for (const sp of spawners) if (sp.active) for (const c of sp.cells) spawns.push({ x: c.x, y: c.y });
   };
   refreshSpawns();
-  const exits = [{ x: 5, y: 13 }, { x: 6, y: 13 }];
+  const exits = [
+    { x: 5, y: 13 },
+    { x: 6, y: 13 },
+  ];
   const obstacles: WorldState['grid']['obstacles'] = [
     { kind: 'cup', x: 1, y: 2, w: 2, h: 2 },
     { kind: 'books', x: 9, y: 4, w: 2, h: 3 },
@@ -96,7 +146,8 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
     { kind: 'stapler', x: 0, y: 12, w: 2, h: 1 },
     { kind: 'clip', x: 11, y: 3, w: 1, h: 1 },
   ];
-  for (const o of obstacles) for (let x = o.x; x < o.x + o.w; x++) for (let y = o.y; y < o.y + o.h; y++) cells[y * cols + x] = CellKind.Obstacle;
+  for (const o of obstacles)
+    for (let x = o.x; x < o.x + o.w; x++) for (let y = o.y; y < o.y + o.h; y++) cells[y * cols + x] = CellKind.Obstacle;
   for (const sp of spawners) for (const c of sp.cells) cells[c.y * cols + c.x] = CellKind.Spawn;
   for (const e of exits) cells[e.y * cols + e.x] = CellKind.Exit;
 
@@ -135,7 +186,7 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
     perks: [],
     perkChoices: null,
     perkRerollCost: 0,
-    nextWave: { wave: 1, tags: [], groups: [], earlyBonus: 0 },  // 由 makePreview() 填充
+    nextWave: { wave: 1, tags: [], groups: [], earlyBonus: 0 }, // 由 makePreview() 填充
     unlockedTowers: ['wall', 'pencil', 'stapler', 'glue', 'lamp', 'compass', 'eraser', 'ruler', 'pen', 'calculator', 'piggy', 'swatter'],
     caffeineUntil: 0,
     spawners,
@@ -227,7 +278,8 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
     if (cx < 0 || cy < 0 || cx >= cols || cy >= rows) return { ok: false, reason: '超出棋盘' };
     const k = cy * cols + cx;
     if (cells[k] !== CellKind.Empty) return { ok: false, reason: cells[k] === CellKind.Tower ? '这里已经有塔了' : '这里不能建造' };
-    for (const e of state.enemies) if (!e.flying && Math.floor(e.x) === cx && Math.floor(e.y) === cy) return { ok: false, reason: '有敌人在这里' };
+    for (const e of state.enemies)
+      if (!e.flying && Math.floor(e.x) === cx && Math.floor(e.y) === cy) return { ok: false, reason: '有敌人在这里' };
     if (state.gold < COST[tower]) return { ok: false, reason: '金币不够' };
     const tmp = new Float32Array(cols * rows);
     if (!flow(k, tmp)) return { ok: false, reason: '会堵死道路' };
@@ -238,8 +290,13 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
     return level >= 10 ? 4 : level >= 7 ? 3 : level >= 4 ? 2 : 1;
   }
 
-  function spawnEnemy(id: EnemyId, opt: { elite?: boolean; affixes?: AffixId[]; group?: number; x?: number; y?: number; spawner?: string } = {}): EnemyState {
-    const from = spawners.find((q) => q.id === opt.spawner && q.active) ?? spawners.filter((q) => q.active)[Math.floor(Math.random() * spawners.filter((q) => q.active).length)];
+  function spawnEnemy(
+    id: EnemyId,
+    opt: { elite?: boolean; affixes?: AffixId[]; group?: number; x?: number; y?: number; spawner?: string } = {},
+  ): EnemyState {
+    const from =
+      spawners.find((q) => q.id === opt.spawner && q.active) ??
+      spawners.filter((q) => q.active)[Math.floor(Math.random() * spawners.filter((q) => q.active).length)];
     const s = from ? from.cells[Math.floor(Math.random() * from.cells.length)] : { x: 5, y: 0 };
     const boss = id.startsWith('boss');
     const flying = id === 'plane' || id === 'moth';
@@ -303,7 +360,21 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
     state.phase = 'wave';
     state.wave++;
     events.push({ type: 'waveStart', wave: state.wave, tags: [] });
-    const roster: EnemyId[] = ['crumb', 'inkdot', 'paperclip', 'plane', 'paperball', 'sticky', 'rubberband', 'whiteout', 'ant', 'invisink', 'tape', 'moth', 'crumbmini'];
+    const roster: EnemyId[] = [
+      'crumb',
+      'inkdot',
+      'paperclip',
+      'plane',
+      'paperball',
+      'sticky',
+      'rubberband',
+      'whiteout',
+      'ant',
+      'invisink',
+      'tape',
+      'moth',
+      'crumbmini',
+    ];
     let t = state.time + 0.3;
     const n = 14 + state.wave * 4;
     for (let i = 0; i < n; i++) {
@@ -436,7 +507,8 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
         const x = 1 + Math.floor(Math.random() * (cols - 4)),
           y = 2 + Math.floor(Math.random() * (rows - 5));
         let ok = true;
-        for (let i = 0; i < 3; i++) if (cells[y * cols + x + i] !== CellKind.Empty && cells[y * cols + x + i] !== CellKind.Tower) ok = false;
+        for (let i = 0; i < 3; i++)
+          if (cells[y * cols + x + i] !== CellKind.Empty && cells[y * cols + x + i] !== CellKind.Tower) ok = false;
         if (ok) area = { x, y, w: 3, h: 1 };
       }
     } else if (id === 'coffee_spill') {
@@ -458,7 +530,16 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
       area,
     };
     state.events.push(e);
-    events.push({ type: 'randomEvent', uid: e.uid, id, phase: info.warn > 0 ? 'warn' : 'start', name: e.name, desc: e.desc, tone: e.tone, area });
+    events.push({
+      type: 'randomEvent',
+      uid: e.uid,
+      id,
+      phase: info.warn > 0 ? 'warn' : 'start',
+      name: e.name,
+      desc: e.desc,
+      tone: e.tone,
+      area,
+    });
     if (info.warn <= 0) startEvent(e);
   }
 
@@ -665,10 +746,28 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
 
   type AbTarget = NonNullable<TowerInfo['ability']>['target'];
   const AB_TARGET: Record<string, AbTarget> = {
-    pencil_A: 'none', pencil_B: 'none', stapler_A: 'direction', stapler_B: 'none', glue_A: 'none', glue_B: 'rect3',
-    lamp_A: 'none', lamp_B: 'none', compass_A: 'none', compass_B: 'enemy', eraser_A: 'none', eraser_B: 'enemy',
-    ruler_A: 'axis', ruler_B: 'enemy', pen_A: 'circle', pen_B: 'none', calculator_A: 'none', calculator_B: 'tower',
-    piggy_A: 'none', piggy_B: 'none', swatter_A: 'none', swatter_B: 'none',
+    pencil_A: 'none',
+    pencil_B: 'none',
+    stapler_A: 'direction',
+    stapler_B: 'none',
+    glue_A: 'none',
+    glue_B: 'rect3',
+    lamp_A: 'none',
+    lamp_B: 'none',
+    compass_A: 'none',
+    compass_B: 'enemy',
+    eraser_A: 'none',
+    eraser_B: 'enemy',
+    ruler_A: 'axis',
+    ruler_B: 'enemy',
+    pen_A: 'circle',
+    pen_B: 'none',
+    calculator_A: 'none',
+    calculator_B: 'tower',
+    piggy_A: 'none',
+    piggy_B: 'none',
+    swatter_A: 'none',
+    swatter_B: 'none',
   };
 
   function evolve(t: TowerState): CommandResult {
@@ -695,14 +794,35 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
       y = cmd.y;
     switch (key) {
       case 'glue_B':
-        state.zones.push({ uid: uid++, kind: 'lava', shape: 'rect', x: (x ?? 0) - 1.5, y: (y ?? 0) - 1.5, w: 3, h: 3, until: now + 8, createdAt: now });
+        state.zones.push({
+          uid: uid++,
+          kind: 'lava',
+          shape: 'rect',
+          x: (x ?? 0) - 1.5,
+          y: (y ?? 0) - 1.5,
+          w: 3,
+          h: 3,
+          until: now + 8,
+          createdAt: now,
+        });
         break;
       case 'pen_A':
         state.zones.push({ uid: uid++, kind: 'inkcross', shape: 'circle', x: x ?? 0, y: y ?? 0, r: 1.5, until: now + 6, createdAt: now });
         break;
       case 'eraser_A': {
         const p = pathsWith(dist)[0] ?? [];
-        for (const c of p) state.zones.push({ uid: uid++, kind: 'fullcorrect', shape: 'rect', x: c.x + 0.1, y: c.y + 0.1, w: 0.8, h: 0.8, until: now + 6, createdAt: now });
+        for (const c of p)
+          state.zones.push({
+            uid: uid++,
+            kind: 'fullcorrect',
+            shape: 'rect',
+            x: c.x + 0.1,
+            y: c.y + 0.1,
+            w: 0.8,
+            h: 0.8,
+            until: now + 6,
+            createdAt: now,
+          });
         break;
       }
       case 'compass_B':
@@ -717,7 +837,8 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
       }
       case 'ruler_A':
         for (const e of state.enemies)
-          if (!e.flying && (cmd.axis === 'row' ? Math.floor(e.y) === cmd.index : Math.floor(e.x) === cmd.index)) e.y = Math.max(0.5, e.y - 2);
+          if (!e.flying && (cmd.axis === 'row' ? Math.floor(e.y) === cmd.index : Math.floor(e.x) === cmd.index))
+            e.y = Math.max(0.5, e.y - 2);
         break;
       case 'pen_B':
         for (const e of state.enemies) if (e.markedUntil > now) damage(e, e.maxHp * 0.1, false, 'true');
@@ -741,7 +862,18 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
       default:
         break;
     }
-    events.push({ type: 'towerAbility', uid: t.uid, ability: key, x, y, r: key === 'stapler_B' ? 2 : 1.5, angle: cmd.angle, axis: cmd.axis, index: cmd.index, targetUid: cmd.targetUid });
+    events.push({
+      type: 'towerAbility',
+      uid: t.uid,
+      ability: key,
+      x,
+      y,
+      r: key === 'stapler_B' ? 2 : 1.5,
+      angle: cmd.angle,
+      axis: cmd.axis,
+      index: cmd.index,
+      targetUid: cmd.targetUid,
+    });
     return { ok: true };
   }
 
@@ -850,15 +982,25 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
       events.push({ type: 'fire', uid: t.uid, tower: t.id, x, y, tx: best.x, ty: best.y });
       const dmg = 6 + t.level * 2;
       if (t.id === 'lamp') {
-        events.push({ type: 'beam', uid: t.uid, x, y, tx: best.x, ty: best.y, color: t.tier === 4 ? (t.branch === 'B' ? 'magenta' : 'cyan') : 'warm', width: 4 });
+        events.push({
+          type: 'beam',
+          uid: t.uid,
+          x,
+          y,
+          tx: best.x,
+          ty: best.y,
+          color: t.tier === 4 ? (t.branch === 'B' ? 'magenta' : 'cyan') : 'warm',
+          width: 4,
+        });
         damage(best, dmg * 2, false, 'true');
         best.burnUntil = now + 1;
       } else if (t.id === 'stapler') {
         events.push({ type: 'pulse', x, y, r, color: 'steel' });
-        for (const e of state.enemies) if (!e.flying && Math.hypot(e.x - x, e.y - y) <= r) {
-          damage(e, dmg);
-          if (Math.random() < 0.2) e.stunUntil = now + 0.8;
-        }
+        for (const e of state.enemies)
+          if (!e.flying && Math.hypot(e.x - x, e.y - y) <= r) {
+            damage(e, dmg);
+            if (Math.random() < 0.2) e.stunUntil = now + 0.8;
+          }
       } else if (t.id === 'swatter') {
         const n = (swatCount.get(t.uid) ?? 0) + 1;
         swatCount.set(t.uid, n);
@@ -902,7 +1044,12 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
         if (!kind) continue;
         const p: Proj = {
           uid: uid++,
-          kind: t.id === 'pencil' && t.tier === 4 && t.branch === 'B' ? 'color' : t.id === 'pen' && t.tier === 4 && t.branch === 'A' ? 'brush' : kind,
+          kind:
+            t.id === 'pencil' && t.tier === 4 && t.branch === 'B'
+              ? 'color'
+              : t.id === 'pen' && t.tier === 4 && t.branch === 'A'
+                ? 'brush'
+                : kind,
           color: (['red', 'blue', 'yellow'] as const)[Math.floor(Math.random() * 3)],
           x,
           y,
@@ -941,7 +1088,16 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
           else {
             e.slowPct = 0.4;
             e.slowUntil = now + 1.5;
-            state.zones.push({ uid: uid++, kind: Math.random() < 0.5 ? 'glue' : 'hotglue', shape: 'circle', x: e.x, y: e.y, r: 0.6, until: now + 3, createdAt: now });
+            state.zones.push({
+              uid: uid++,
+              kind: Math.random() < 0.5 ? 'glue' : 'hotglue',
+              shape: 'circle',
+              x: e.x,
+              y: e.y,
+              r: 0.6,
+              until: now + 3,
+              createdAt: now,
+            });
           }
         }
         if (p.kind === 'ink' || p.kind === 'brush') e.inkStacks = Math.min(5, e.inkStacks + 1);
@@ -954,7 +1110,8 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
     }
     state.projectiles = projs;
     // 治疗
-    if (state.tick % 60 === 0) for (const e of state.enemies) if (e.id === 'whiteout') events.push({ type: 'heal', x: e.x, y: e.y, amount: 3 });
+    if (state.tick % 60 === 0)
+      for (const e of state.enemies) if (e.id === 'whiteout') events.push({ type: 'heal', x: e.x, y: e.y, amount: 3 });
     // Boss 技能
     if (state.tick % 300 === 0)
       for (const e of state.enemies) {
@@ -1000,7 +1157,8 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
     if (state.phase === 'wave' && spawnQueue.length === 0 && state.enemies.length === 0) {
       state.phase = 'build';
       events.push({ type: 'waveEnd', wave: state.wave, bonus: 10, interest: 0, piggy: 0 });
-      for (const sp of [...spawners]) if (sp.kind === 'drop' && sp.expiresAfterWave !== undefined && sp.expiresAfterWave <= state.wave) closeSpawner(sp.id, 'close');
+      for (const sp of [...spawners])
+        if (sp.kind === 'drop' && sp.expiresAfterWave !== undefined && sp.expiresAfterWave <= state.wave) closeSpawner(sp.id, 'close');
     }
   }
 
@@ -1022,9 +1180,29 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
         if (!chk.ok) return chk;
         const k = cmd.cy * cols + cmd.cx;
         const t: TowerState = {
-          uid: uid++, id: cmd.tower, cx: cmd.cx, cy: cmd.cy, level: 1, tier: 1, branch: null, xp: 0, xpNext: 30, stars: 0, evoXp: 0, evoXpNext: 0, abilityCd: 0,
-          invested: COST[cmd.tower], targetMode: 'first', angle: -Math.PI / 2, lastFire: -1, disabledUntil: 0, placedAt: now,
-          undoUntil: now + 5, kills: 0, damage: 0, comboWith: [],
+          uid: uid++,
+          id: cmd.tower,
+          cx: cmd.cx,
+          cy: cmd.cy,
+          level: 1,
+          tier: 1,
+          branch: null,
+          xp: 0,
+          xpNext: 30,
+          stars: 0,
+          evoXp: 0,
+          evoXpNext: 0,
+          abilityCd: 0,
+          invested: COST[cmd.tower],
+          targetMode: 'first',
+          angle: -Math.PI / 2,
+          lastFire: -1,
+          disabledUntil: 0,
+          placedAt: now,
+          undoUntil: now + 5,
+          kills: 0,
+          damage: 0,
+          comboWith: [],
         };
         state.towers.set(t.uid, t);
         cells[k] = CellKind.Tower;
@@ -1096,14 +1274,44 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
         if (!s) return { ok: false, reason: '没有这个技能' };
         if (s.cd > 0) return { ok: false, reason: '技能冷却中' };
         s.cd = s.cdMax;
-        const ev: GameEvent = { type: 'skill', skill: cmd.skill, x: cmd.x, y: cmd.y, cx: cmd.cx, cy: cmd.cy, axis: cmd.axis, uid: cmd.uid, r: s.radius };
+        const ev: GameEvent = {
+          type: 'skill',
+          skill: cmd.skill,
+          x: cmd.x,
+          y: cmd.y,
+          cx: cmd.cx,
+          cy: cmd.cy,
+          axis: cmd.axis,
+          uid: cmd.uid,
+          r: s.radius,
+        };
         if (cmd.skill === 'eraser_strike')
           for (const e of state.enemies) if (Math.hypot(e.x - (cmd.x ?? 0), e.y - (cmd.y ?? 0)) < 1.5) damage(e, 60);
         if (cmd.skill === 'bell') for (const e of state.enemies) if (!e.flying) e.stunUntil = now + 2.5;
         if (cmd.skill === 'caffeine') state.caffeineUntil = now + 8;
         if (cmd.skill === 'whiteout_zone')
-          state.zones.push({ uid: uid++, kind: 'whiteout', shape: 'rect', x: cmd.cx ?? 0, y: cmd.cy ?? 0, w: 2, h: 2, until: now + 8, createdAt: now });
-        if (cmd.skill === 'magnifier') state.zones.push({ uid: uid++, kind: 'magnifier', shape: 'circle', x: cmd.x ?? 0, y: cmd.y ?? 0, r: 2, until: now + 6, createdAt: now });
+          state.zones.push({
+            uid: uid++,
+            kind: 'whiteout',
+            shape: 'rect',
+            x: cmd.cx ?? 0,
+            y: cmd.cy ?? 0,
+            w: 2,
+            h: 2,
+            until: now + 8,
+            createdAt: now,
+          });
+        if (cmd.skill === 'magnifier')
+          state.zones.push({
+            uid: uid++,
+            kind: 'magnifier',
+            shape: 'circle',
+            x: cmd.x ?? 0,
+            y: cmd.y ?? 0,
+            r: 2,
+            until: now + 6,
+            createdAt: now,
+          });
         if (cmd.skill === 'ruler_sweep')
           for (const e of state.enemies) if (cmd.axis === 'row' ? Math.floor(e.y) === cmd.cy : Math.floor(e.x) === cmd.cx) damage(e, 40);
         if (cmd.skill === 'seal_tape') {
@@ -1148,7 +1356,11 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
 
   function updateCombos(): void {
     const pairs: [TowerId, TowerId][] = [
-      ['pencil', 'eraser'], ['glue', 'stapler'], ['lamp', 'pen'], ['ruler', 'compass'], ['calculator', 'piggy'],
+      ['pencil', 'eraser'],
+      ['glue', 'stapler'],
+      ['lamp', 'pen'],
+      ['ruler', 'compass'],
+      ['calculator', 'piggy'],
     ];
     for (const t of state.towers.values()) t.comboWith = [];
     for (const a of state.towers.values())
@@ -1195,20 +1407,54 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
       const t = state.towers.get(id);
       if (!t) return null;
       return {
-        uid: t.uid, id: t.id, name: t.id, level: t.level, maxLevel: 10, tier: t.tier, tierName: '', branch: t.branch,
-        xp: t.xp, xpNext: t.xpNext, xpCapped: false, stats: [], traits: [],
-        stars: t.stars, evoXp: t.evoXp, evoXpNext: t.evoXpNext, evolveCost: t.level >= 10 && t.stars < 3 && t.id !== 'wall' ? 200 : null,
-        evolveDiscount: 0, canAffordEvolve: true, evoTraits: [],
+        uid: t.uid,
+        id: t.id,
+        name: t.id,
+        level: t.level,
+        maxLevel: 10,
+        tier: t.tier,
+        tierName: '',
+        branch: t.branch,
+        xp: t.xp,
+        xpNext: t.xpNext,
+        xpCapped: false,
+        stats: [],
+        traits: [],
+        stars: t.stars,
+        evoXp: t.evoXp,
+        evoXpNext: t.evoXpNext,
+        evolveCost: t.level >= 10 && t.stars < 3 && t.id !== 'wall' ? 200 : null,
+        evolveDiscount: 0,
+        canAffordEvolve: true,
+        evoTraits: [],
         ability:
           t.stars >= 3
             ? {
-                id: `${t.id}_${t.branch}`, name: '能力', desc: '', cd: t.abilityCd, cdMax: 8, ready: t.abilityCd <= 0,
-                target: AB_TARGET[`${t.id}_${t.branch ?? 'A'}`] ?? 'none', radius: 1.5,
+                id: `${t.id}_${t.branch}`,
+                name: '能力',
+                desc: '',
+                cd: t.abilityCd,
+                cdMax: 8,
+                ready: t.abilityCd <= 0,
+                target: AB_TARGET[`${t.id}_${t.branch ?? 'A'}`] ?? 'none',
+                radius: 1.5,
               }
             : undefined,
-        range: RANGE[t.id] + t.level * 0.06, innerRange: t.id === 'compass' ? 0.8 : undefined, auraRange: t.id === 'calculator' ? 2 : undefined,
-        upgradeCost: 10, upgradeDiscount: 0, needsBranch: t.level === 9, canAffordUpgrade: true, sellValue: 10, refundRate: 0.7,
-        canUndo: false, undoRemaining: 0, targetMode: 'first', targetModes: ['first'], kills: 0, damage: 0,
+        range: RANGE[t.id] + t.level * 0.06,
+        innerRange: t.id === 'compass' ? 0.8 : undefined,
+        auraRange: t.id === 'calculator' ? 2 : undefined,
+        upgradeCost: 10,
+        upgradeDiscount: 0,
+        needsBranch: t.level === 9,
+        canAffordUpgrade: true,
+        sellValue: 10,
+        refundRate: 0.7,
+        canUndo: false,
+        undoRemaining: 0,
+        targetMode: 'first',
+        targetModes: ['first'],
+        kills: 0,
+        damage: 0,
       };
     },
     baseRange(tower) {

@@ -39,7 +39,10 @@ export class AiMenu {
     this.label = h('span.ai-btn-label', null, 'AI');
     this.btn = h<HTMLButtonElement>(
       'button.btn.ai-btn',
-      { attrs: { type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-controls': 'ai-menu' }, onclick: () => (audio.play('click'), this.toggle()) },
+      {
+        attrs: { type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-controls': 'ai-menu' },
+        onclick: () => (audio.play('click'), this.toggle()),
+      },
       h('span.gi', { html: AI_GLYPH }),
       this.label,
     );
@@ -49,7 +52,12 @@ export class AiMenu {
     const item = (glyph: string, role: 'menuitemradio' | 'menuitem', on: () => void): Item => {
       const title = h('b');
       const sub = h('small');
-      const el = h<HTMLButtonElement>('button.ai-menu-item', { attrs: { type: 'button', role }, onclick: () => on() }, h('span.gi', { html: glyph }), h('span.ai-menu-text', null, title, sub));
+      const el = h<HTMLButtonElement>(
+        'button.ai-menu-item',
+        { attrs: { type: 'button', role }, onclick: () => on() },
+        h('span.gi', { html: glyph }),
+        h('span.ai-menu-text', null, title, sub),
+      );
       return { el, title, sub };
     };
     this.items = {
@@ -210,7 +218,10 @@ export class AiMenu {
   }
 
   private toastOn(role: AiRole, launch: AiLaunch): void {
-    this.ctx.toast(role === 'player' ? t('ui.assist.enabledPlayer', { model: launch.label }) : t('ui.assist.enabledAdvisor', { model: launch.label }), 'good');
+    this.ctx.toast(
+      role === 'player' ? t('ui.assist.enabledPlayer', { model: launch.label }) : t('ui.assist.enabledAdvisor', { model: launch.label }),
+      'good',
+    );
   }
 
   /** 启用（或切换到）某个角色：按保存的模型设置；没有可用的模型时问要不要离线演示 / 去配置 */

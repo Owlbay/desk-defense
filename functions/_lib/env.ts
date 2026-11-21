@@ -20,7 +20,9 @@ export interface Env {
 export const DEV_SALT = 'desk-defense-dev-salt';
 
 export function depsFromEnv(env: Env): Deps {
-  const versions = env.ACCEPT_GAME_VERSIONS?.split(',').map((s) => s.trim()).filter(Boolean);
+  const versions = env.ACCEPT_GAME_VERSIONS?.split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
   return {
     db: env.DB ?? null,
     now: () => Date.now(),

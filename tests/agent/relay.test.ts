@@ -4,9 +4,22 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getModels } from '@mariozechner/pi-ai';
 import {
-  classifyRelayError, detectRelayApi, groupModels, listModels, listRelayModels, modelFamily, normalizeRelayBase, parseRelayUrl,
-  relayHost, relayProbeOrder, resolveConfig, saveableConfig, testConnection, validateConfig,
-  type ConnectionDiagnostics, type RelayApi,
+  classifyRelayError,
+  detectRelayApi,
+  groupModels,
+  listModels,
+  listRelayModels,
+  modelFamily,
+  normalizeRelayBase,
+  parseRelayUrl,
+  relayHost,
+  relayProbeOrder,
+  resolveConfig,
+  saveableConfig,
+  testConnection,
+  validateConfig,
+  type ConnectionDiagnostics,
+  type RelayApi,
 } from '../../src/agent';
 import { buildPiModel } from '../../src/agent/providers/pi';
 
@@ -52,7 +65,9 @@ describe('normalizeRelayBase', () => {
       for (const a of ['openai-completions', 'openai-responses', 'anthropic-messages'] as RelayApi[]) {
         const once = normalizeRelayBase(input, a);
         expect(normalizeRelayBase(once, a)).toBe(once);
-        if (a !== 'anthropic-messages') for (const b of ['openai-completions', 'anthropic-messages'] as RelayApi[]) expect(normalizeRelayBase(once, b)).toBe(normalizeRelayBase(input, b));
+        if (a !== 'anthropic-messages')
+          for (const b of ['openai-completions', 'anthropic-messages'] as RelayApi[])
+            expect(normalizeRelayBase(once, b)).toBe(normalizeRelayBase(input, b));
       }
     }
   });
@@ -101,7 +116,9 @@ describe('模型分组与探测顺序', () => {
     expect(classifyRelayError('error: 404 page not found', false)).toBe('not_found');
     expect(classifyRelayError('error: 400 The model `gpt-x` does not exist or you do not have access to it.', false)).toBe('model');
     expect(classifyRelayError('error: 503 当前分组 default 下对于模型 foo 无可用渠道', false)).toBe('model');
-    expect(classifyRelayError('error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: foo"}}', false)).toBe('model');
+    expect(classifyRelayError('error: 404 {"type":"error","error":{"type":"not_found_error","message":"model: foo"}}', false)).toBe(
+      'model',
+    );
     expect(classifyRelayError('error: 429 rate limit exceeded', false)).toBe('rate');
     expect(classifyRelayError(undefined, true)).toBe('no_tools');
     expect(classifyRelayError('error: 500 boom', true, 10)).toBe('other');
@@ -111,9 +128,20 @@ describe('模型分组与探测顺序', () => {
 describe('validateConfig / resolveConfig（relay）', () => {
   it('需要地址；不接受 google 接口；Key 不会被保存', () => {
     expect(validateConfig({ provider: 'pi', preset: 'relay', model: 'gpt-5-mini' })).toContain('中转服务需要填写服务地址');
-    expect(validateConfig({ provider: 'pi', preset: 'relay', model: 'm', baseUrl: 'https://r.test/v1', api: 'google-generative-ai' }).join()).toMatch(/中转服务只支持/);
-    expect(validateConfig({ provider: 'pi', preset: 'relay', model: 'm', baseUrl: 'https://r.test/v1', api: 'openai-responses' })).toEqual([]);
-    const c = resolveConfig({ provider: 'pi', preset: 'relay', model: 'claude-sonnet-5-5', baseUrl: 'https://r.test', api: 'anthropic-messages', apiKey: KEY });
+    expect(
+      validateConfig({ provider: 'pi', preset: 'relay', model: 'm', baseUrl: 'https://r.test/v1', api: 'google-generative-ai' }).join(),
+    ).toMatch(/中转服务只支持/);
+    expect(validateConfig({ provider: 'pi', preset: 'relay', model: 'm', baseUrl: 'https://r.test/v1', api: 'openai-responses' })).toEqual(
+      [],
+    );
+    const c = resolveConfig({
+      provider: 'pi',
+      preset: 'relay',
+      model: 'claude-sonnet-5-5',
+      baseUrl: 'https://r.test',
+      api: 'anthropic-messages',
+      apiKey: KEY,
+    });
     expect(c.api).toBe('anthropic-messages');
     expect(JSON.stringify(saveableConfig(c))).not.toContain(KEY);
   });
@@ -124,9 +152,16 @@ describe('validateConfig / resolveConfig（relay）', () => {
     expect(comp).toMatchObject({ api: 'openai-completions', provider: 'relay', baseUrl: 'https://r.test/v1', reasoning: true });
     // 中转推理模型：开启推理强度控制；deepseek 系列使用 deepseek 思考参数格式；中转默认 low
     expect((comp as { compat?: Record<string, unknown> }).compat).toMatchObject({ supportsReasoningEffort: true });
-    expect((buildPiModel(resolveConfig({ ...base, model: 'deepseek-flash', api: 'openai-completions' })) as { compat?: Record<string, unknown> }).compat).toMatchObject({ thinkingFormat: 'deepseek' });
+    expect(
+      (buildPiModel(resolveConfig({ ...base, model: 'deepseek-flash', api: 'openai-completions' })) as { compat?: Record<string, unknown> })
+        .compat,
+    ).toMatchObject({ thinkingFormat: 'deepseek' });
     expect(resolveConfig({ ...base, api: 'openai-completions' }).effort).toBe('low');
-    expect((comp as { compat?: Record<string, unknown> }).compat).toMatchObject({ supportsStore: false, supportsDeveloperRole: false, maxTokensField: 'max_tokens' });
+    expect((comp as { compat?: Record<string, unknown> }).compat).toMatchObject({
+      supportsStore: false,
+      supportsDeveloperRole: false,
+      maxTokensField: 'max_tokens',
+    });
     const resp = buildPiModel(resolveConfig({ ...base, api: 'openai-responses' }));
     expect(resp.baseUrl).toBe('https://r.test/v1');
     expect((resp as { compat?: Record<string, unknown> }).compat).toMatchObject({ sendSessionIdHeader: false });
@@ -141,11 +176,19 @@ describe('validateConfig / resolveConfig（relay）', () => {
 
 // ───────────────────────── fetch mocks ─────────────────────────
 
-const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+const json = (status: number, body: unknown) =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const sse = (events: [string, unknown][]) =>
-  new Response(events.map(([e, d]) => `event: ${e}\ndata: ${JSON.stringify(d)}\n\n`).join(''), { status: 200, headers: { 'content-type': 'text/event-stream' } });
+  new Response(events.map(([e, d]) => `event: ${e}\ndata: ${JSON.stringify(d)}\n\n`).join(''), {
+    status: 200,
+    headers: { 'content-type': 'text/event-stream' },
+  });
 
-interface Seen { url: string; headers: Record<string, string>; body: Record<string, unknown> | null }
+interface Seen {
+  url: string;
+  headers: Record<string, string>;
+  body: Record<string, unknown> | null;
+}
 function headersOf(init?: RequestInit, req?: Request): Record<string, string> {
   const out: Record<string, string> = {};
   new Headers(init?.headers ?? req?.headers).forEach((v, k) => (out[k] = v));
@@ -157,7 +200,11 @@ function mockFetch(handler: (url: string, seen: Seen) => Response | Promise<Resp
     const req = input instanceof Request ? input : undefined;
     const url = req ? req.url : String(input);
     const raw = init?.body ?? (req ? await req.clone().text() : null);
-    const s: Seen = { url, headers: headersOf(init, req), body: typeof raw === 'string' && raw ? (JSON.parse(raw) as Record<string, unknown>) : null };
+    const s: Seen = {
+      url,
+      headers: headersOf(init, req),
+      body: typeof raw === 'string' && raw ? (JSON.parse(raw) as Record<string, unknown>) : null,
+    };
     seen.push(s);
     return handler(url, s);
   });
@@ -174,7 +221,9 @@ describe('listRelayModels（mock fetch）', () => {
   });
 
   it('Bearer 被拒 → 改用 x-api-key + anthropic-version', async () => {
-    const m = mockFetch((_u, s) => (s.headers['x-api-key'] ? json(200, { data: [{ id: 'claude-opus-5-5' }] }) : json(401, { error: 'nope' })));
+    const m = mockFetch((_u, s) =>
+      s.headers['x-api-key'] ? json(200, { data: [{ id: 'claude-opus-5-5' }] }) : json(401, { error: 'nope' }),
+    );
     const r = await listRelayModels('https://r.test', KEY, m.fn);
     expect(r).toMatchObject({ ok: true, models: ['claude-opus-5-5'], auth: 'x-api-key' });
     expect(m.seen[1].headers['anthropic-version']).toBe('2023-06-01');
@@ -197,21 +246,33 @@ describe('listRelayModels（mock fetch）', () => {
 
 describe('detectRelayApi（mock probe）', () => {
   const diag = (over: Partial<ConnectionDiagnostics>): ConnectionDiagnostics => ({
-    ok: false, reachable: false, toolCalling: false, latencyMs: 10, model: 'm', provider: 'pi', tokens: 0, ...over,
+    ok: false,
+    reachable: false,
+    toolCalling: false,
+    latencyMs: 10,
+    model: 'm',
+    provider: 'pi',
+    tokens: 0,
+    ...over,
   });
   const cfg = { provider: 'pi' as const, preset: 'relay' as const, baseUrl: 'https://r.test/v1/messages', apiKey: KEY };
 
   it('按顺序探测，第一个调用了工具的即为结果；每种接口用各自规范化后的地址', async () => {
     const tried: { api?: string; baseUrl?: string; toolMode?: string }[] = [];
     const progress: string[] = [];
-    const r = await detectRelayApi({ ...cfg, model: 'gpt-5-mini' }, {
-      probe: async (c) => {
-        tried.push({ api: c.api, baseUrl: c.baseUrl, toolMode: c.toolMode });
-        expect(c.maxRetries).toBe(0);
-        return c.api === 'openai-completions' ? diag({ ok: true, reachable: true, toolCalling: true, tokens: 30 }) : diag({ error: 'error: 404 Not Found' });
+    const r = await detectRelayApi(
+      { ...cfg, model: 'gpt-5-mini' },
+      {
+        probe: async (c) => {
+          tried.push({ api: c.api, baseUrl: c.baseUrl, toolMode: c.toolMode });
+          expect(c.maxRetries).toBe(0);
+          return c.api === 'openai-completions'
+            ? diag({ ok: true, reachable: true, toolCalling: true, tokens: 30 })
+            : diag({ error: 'error: 404 Not Found' });
+        },
+        onProgress: (api) => progress.push(api),
       },
-      onProgress: (api) => progress.push(api),
-    });
+    );
     expect(r.ok).toBe(true);
     expect(r.api).toBe('openai-completions');
     expect(tried).toEqual([
@@ -224,15 +285,21 @@ describe('detectRelayApi（mock probe）', () => {
 
   it('Claude 模型先试 Anthropic Messages（成功就不再发别的请求）', async () => {
     const tried: string[] = [];
-    const r = await detectRelayApi({ ...cfg, model: 'claude-sonnet-5-5' }, {
-      probe: async (c) => (tried.push(`${c.api} ${c.baseUrl}`), diag({ ok: true, reachable: true, toolCalling: true, tokens: 9 })),
-    });
+    const r = await detectRelayApi(
+      { ...cfg, model: 'claude-sonnet-5-5' },
+      {
+        probe: async (c) => (tried.push(`${c.api} ${c.baseUrl}`), diag({ ok: true, reachable: true, toolCalling: true, tokens: 9 })),
+      },
+    );
     expect(r).toMatchObject({ ok: true, api: 'anthropic-messages' });
     expect(tried).toEqual(['anthropic-messages https://r.test']);
   });
 
   it('全部网络错误 ⇒ CORS 诊断', async () => {
-    const r = await detectRelayApi({ ...cfg, model: 'gpt-5' }, { probe: async () => diag({ reachable: true, error: 'error: Connection error.' }) });
+    const r = await detectRelayApi(
+      { ...cfg, model: 'gpt-5' },
+      { probe: async () => diag({ reachable: true, error: 'error: Connection error.' }) },
+    );
     expect(r.ok).toBe(false);
     expect(r.attempts).toHaveLength(3);
     expect(r.failure).toBe('cors');
@@ -241,29 +308,39 @@ describe('detectRelayApi（mock probe）', () => {
   });
 
   it('401 ⇒ Key；模型不存在 ⇒ 去选模型；能回复但不调用工具 ⇒ 给出接口并建议 JSON 模式', async () => {
-    const auth = await detectRelayApi({ ...cfg, model: 'gpt-5' }, {
-      probe: async (c) => diag({ error: c.api === 'openai-responses' ? 'error: 404 Not Found' : 'error: 401 Unauthorized' }),
-    });
+    const auth = await detectRelayApi(
+      { ...cfg, model: 'gpt-5' },
+      {
+        probe: async (c) => diag({ error: c.api === 'openai-responses' ? 'error: 404 Not Found' : 'error: 401 Unauthorized' }),
+      },
+    );
     expect(auth.failure).toBe('auth');
     expect(auth.message).toMatch(/Key/);
     const model = await detectRelayApi({ ...cfg, model: 'gpt-x' }, { probe: async () => diag({ error: 'error: 400 model_not_found' }) });
     expect(model.failure).toBe('model');
     expect(model.message).toMatch(/模型列表/);
-    const partial = await detectRelayApi({ ...cfg, model: 'tiny' }, {
-      probe: async (c) => (c.api === 'openai-completions' ? diag({ reachable: true, tokens: 12 }) : diag({ error: 'error: 404 Not Found' })),
-    });
+    const partial = await detectRelayApi(
+      { ...cfg, model: 'tiny' },
+      {
+        probe: async (c) =>
+          c.api === 'openai-completions' ? diag({ reachable: true, tokens: 12 }) : diag({ error: 'error: 404 Not Found' }),
+      },
+    );
     expect(partial).toMatchObject({ ok: false, api: 'openai-completions', failure: 'no_tools' });
     expect(partial.message).toMatch(/JSON/);
   });
 
   it('probe 抛异常也能继续', async () => {
     let n = 0;
-    const r = await detectRelayApi({ ...cfg, model: 'gpt-5' }, {
-      probe: async () => {
-        if (n++ === 0) throw new Error('boom');
-        return diag({ ok: true, reachable: true, toolCalling: true, tokens: 5 });
+    const r = await detectRelayApi(
+      { ...cfg, model: 'gpt-5' },
+      {
+        probe: async () => {
+          if (n++ === 0) throw new Error('boom');
+          return diag({ ok: true, reachable: true, toolCalling: true, tokens: 5 });
+        },
       },
-    });
+    );
     expect(r).toMatchObject({ ok: true, api: 'openai-completions' });
   });
 });
@@ -274,7 +351,12 @@ describe('relay 经 pi 端到端（mock fetch，不用 Claude 官方适配器）
   afterEach(() => vi.unstubAllGlobals());
 
   const relayCfg = (api: RelayApi, model = 'relay-model') => ({
-    provider: 'pi' as const, preset: 'relay' as const, api, model, apiKey: KEY, browser: true,
+    provider: 'pi' as const,
+    preset: 'relay' as const,
+    api,
+    model,
+    apiKey: KEY,
+    browser: true,
     baseUrl: normalizeRelayBase('https://r.test/v1/', api),
   });
 
@@ -282,10 +364,33 @@ describe('relay 经 pi 端到端（mock fetch，不用 Claude 官方适配器）
     const m = mockFetch(() =>
       sse([
         ['response.created', { type: 'response.created', response: { id: 'resp_1' } }],
-        ['response.output_item.added', { type: 'response.output_item.added', output_index: 0, item: { type: 'function_call', id: 'fc_1', call_id: 'call_1', name: 'end_turn', arguments: '' } }],
-        ['response.function_call_arguments.delta', { type: 'response.function_call_arguments.delta', item_id: 'fc_1', output_index: 0, delta: '{"note":"pong"}' }],
-        ['response.output_item.done', { type: 'response.output_item.done', output_index: 0, item: { type: 'function_call', id: 'fc_1', call_id: 'call_1', name: 'end_turn', arguments: '{"note":"pong"}' } }],
-        ['response.completed', { type: 'response.completed', response: { id: 'resp_1', status: 'completed', usage: { input_tokens: 20, output_tokens: 5, total_tokens: 25 } } }],
+        [
+          'response.output_item.added',
+          {
+            type: 'response.output_item.added',
+            output_index: 0,
+            item: { type: 'function_call', id: 'fc_1', call_id: 'call_1', name: 'end_turn', arguments: '' },
+          },
+        ],
+        [
+          'response.function_call_arguments.delta',
+          { type: 'response.function_call_arguments.delta', item_id: 'fc_1', output_index: 0, delta: '{"note":"pong"}' },
+        ],
+        [
+          'response.output_item.done',
+          {
+            type: 'response.output_item.done',
+            output_index: 0,
+            item: { type: 'function_call', id: 'fc_1', call_id: 'call_1', name: 'end_turn', arguments: '{"note":"pong"}' },
+          },
+        ],
+        [
+          'response.completed',
+          {
+            type: 'response.completed',
+            response: { id: 'resp_1', status: 'completed', usage: { input_tokens: 20, output_tokens: 5, total_tokens: 25 } },
+          },
+        ],
       ]),
     );
     vi.stubGlobal('fetch', m.fn);
@@ -303,11 +408,39 @@ describe('relay 经 pi 端到端（mock fetch，不用 Claude 官方适配器）
     const text = '{"actions":[{"tool":"end_turn","args":{"note":"pong"}}]}';
     const m = mockFetch(() =>
       sse([
-        ['response.output_item.added', { type: 'response.output_item.added', output_index: 0, item: { type: 'message', id: 'msg_1', role: 'assistant', content: [] } }],
-        ['response.content_part.added', { type: 'response.content_part.added', item_id: 'msg_1', output_index: 0, content_index: 0, part: { type: 'output_text', text: '' } }],
-        ['response.output_text.delta', { type: 'response.output_text.delta', item_id: 'msg_1', output_index: 0, content_index: 0, delta: text }],
-        ['response.output_item.done', { type: 'response.output_item.done', output_index: 0, item: { type: 'message', id: 'msg_1', role: 'assistant', content: [{ type: 'output_text', text }] } }],
-        ['response.completed', { type: 'response.completed', response: { id: 'r', status: 'completed', usage: { input_tokens: 20, output_tokens: 9, total_tokens: 29 } } }],
+        [
+          'response.output_item.added',
+          { type: 'response.output_item.added', output_index: 0, item: { type: 'message', id: 'msg_1', role: 'assistant', content: [] } },
+        ],
+        [
+          'response.content_part.added',
+          {
+            type: 'response.content_part.added',
+            item_id: 'msg_1',
+            output_index: 0,
+            content_index: 0,
+            part: { type: 'output_text', text: '' },
+          },
+        ],
+        [
+          'response.output_text.delta',
+          { type: 'response.output_text.delta', item_id: 'msg_1', output_index: 0, content_index: 0, delta: text },
+        ],
+        [
+          'response.output_item.done',
+          {
+            type: 'response.output_item.done',
+            output_index: 0,
+            item: { type: 'message', id: 'msg_1', role: 'assistant', content: [{ type: 'output_text', text }] },
+          },
+        ],
+        [
+          'response.completed',
+          {
+            type: 'response.completed',
+            response: { id: 'r', status: 'completed', usage: { input_tokens: 20, output_tokens: 9, total_tokens: 29 } },
+          },
+        ],
       ]),
     );
     vi.stubGlobal('fetch', m.fn);
@@ -318,10 +451,23 @@ describe('relay 经 pi 端到端（mock fetch，不用 Claude 官方适配器）
   });
 
   it('openai-completions：POST {根}/v1/chat/completions，用 max_tokens、不发 store', async () => {
-    const chunk = (delta: unknown, finish: string | null = null, usage?: unknown) => ({ id: 'c1', object: 'chat.completion.chunk', created: 1, model: 'relay-model', choices: [{ index: 0, delta, finish_reason: finish }], ...(usage ? { usage } : {}) });
+    const chunk = (delta: unknown, finish: string | null = null, usage?: unknown) => ({
+      id: 'c1',
+      object: 'chat.completion.chunk',
+      created: 1,
+      model: 'relay-model',
+      choices: [{ index: 0, delta, finish_reason: finish }],
+      ...(usage ? { usage } : {}),
+    });
     const m = mockFetch(() =>
       sse([
-        ['message', chunk({ role: 'assistant', tool_calls: [{ index: 0, id: 'call_1', type: 'function', function: { name: 'end_turn', arguments: '' } }] })],
+        [
+          'message',
+          chunk({
+            role: 'assistant',
+            tool_calls: [{ index: 0, id: 'call_1', type: 'function', function: { name: 'end_turn', arguments: '' } }],
+          }),
+        ],
         ['message', chunk({ tool_calls: [{ index: 0, function: { arguments: '{"note":"pong"}' } }] })],
         ['message', chunk({}, 'tool_calls', { prompt_tokens: 20, completion_tokens: 5, total_tokens: 25 })],
       ]),
@@ -339,9 +485,29 @@ describe('relay 经 pi 端到端（mock fetch，不用 Claude 官方适配器）
   it('anthropic-messages：POST {根}/v1/messages（地址不重复 /v1），x-api-key + 浏览器直连头', async () => {
     const m = mockFetch(() =>
       sse([
-        ['message_start', { type: 'message_start', message: { id: 'msg_1', type: 'message', role: 'assistant', model: 'claude-x', content: [], stop_reason: null, usage: { input_tokens: 20, output_tokens: 1 } } }],
-        ['content_block_start', { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'tu_1', name: 'end_turn', input: {} } }],
-        ['content_block_delta', { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '{"note":"pong"}' } }],
+        [
+          'message_start',
+          {
+            type: 'message_start',
+            message: {
+              id: 'msg_1',
+              type: 'message',
+              role: 'assistant',
+              model: 'claude-x',
+              content: [],
+              stop_reason: null,
+              usage: { input_tokens: 20, output_tokens: 1 },
+            },
+          },
+        ],
+        [
+          'content_block_start',
+          { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'tu_1', name: 'end_turn', input: {} } },
+        ],
+        [
+          'content_block_delta',
+          { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '{"note":"pong"}' } },
+        ],
         ['content_block_stop', { type: 'content_block_stop', index: 0 }],
         ['message_delta', { type: 'message_delta', delta: { stop_reason: 'tool_use' }, usage: { output_tokens: 5 } }],
         ['message_stop', { type: 'message_stop' }],
@@ -360,7 +526,25 @@ describe('relay 经 pi 端到端（mock fetch，不用 Claude 官方适配器）
     const m = mockFetch((url) => {
       if (url.endsWith('/responses')) return json(404, { error: { message: 'Not Found' } });
       return sse([
-        ['message', { id: 'c', object: 'chat.completion.chunk', created: 1, model: 'gpt-5', choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{ index: 0, id: 'k', type: 'function', function: { name: 'end_turn', arguments: '{}' } }] }, finish_reason: 'tool_calls' }] }],
+        [
+          'message',
+          {
+            id: 'c',
+            object: 'chat.completion.chunk',
+            created: 1,
+            model: 'gpt-5',
+            choices: [
+              {
+                index: 0,
+                delta: {
+                  role: 'assistant',
+                  tool_calls: [{ index: 0, id: 'k', type: 'function', function: { name: 'end_turn', arguments: '{}' } }],
+                },
+                finish_reason: 'tool_calls',
+              },
+            ],
+          },
+        ],
       ]);
     });
     vi.stubGlobal('fetch', m.fn);
@@ -396,4 +580,3 @@ describe('旧页面加载不到新分包', () => {
     expect(classifyRelayError('TypeError: Failed to fetch', false, 0)).toBe('cors');
   });
 });
-

@@ -26,12 +26,22 @@ export interface LocalReplay {
 export function openLocalReplay(
   app: App,
   run: LocalReplay,
-  o: { title: string; subtitle: string; wave: number; score: number; /** 对局时记录的思路与请求（有就在旁边显示，随回放进度展开） */ trace?: TraceExport },
+  o: {
+    title: string;
+    subtitle: string;
+    wave: number;
+    score: number;
+    /** 对局时记录的思路与请求（有就在旁边显示，随回放进度展开） */ trace?: TraceExport;
+  },
 ): () => void {
   const sub = h('small.muted', null, o.subtitle);
   const stage = h('div.replay-stage');
   const speedBox = h('div.replay-speed', { attrs: { role: 'group', 'aria-label': t('agent.replay.speed') } });
-  const pauseBtn = h<HTMLButtonElement>('button.btn.small', { attrs: { type: 'button', 'aria-label': t('agent.replay.pause') } }, h('span.gi', { html: G.pause }));
+  const pauseBtn = h<HTMLButtonElement>(
+    'button.btn.small',
+    { attrs: { type: 'button', 'aria-label': t('agent.replay.pause') } },
+    h('span.gi', { html: G.pause }),
+  );
   const exitBtn = h('button.btn.small', { attrs: { type: 'button' } }, h('span.gi', { html: G.close }), t('agent.replay.exit'));
   const root = h(
     'div.replay-view.ai-replay',
@@ -189,8 +199,14 @@ export function openLocalReplay(
             null,
             h('h3', null, t('agent.replay.ended')),
             h('p', null, t('agent.replay.result', { n: o.wave, wave: o.wave, score: fmtNum(o.score) })),
-            Math.round(st.score) !== o.score ? h('small.muted', null, t('agent.replay.mismatch')) : h('small.muted', null, t('agent.replay.match')),
-            h('button.btn.primary', { attrs: { type: 'button' }, onclick: () => (audio.play('click'), close()) }, t('agent.replay.exitReplay')),
+            Math.round(st.score) !== o.score
+              ? h('small.muted', null, t('agent.replay.mismatch'))
+              : h('small.muted', null, t('agent.replay.match')),
+            h(
+              'button.btn.primary',
+              { attrs: { type: 'button' }, onclick: () => (audio.play('click'), close()) },
+              t('agent.replay.exitReplay'),
+            ),
           ),
         ),
       );

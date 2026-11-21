@@ -79,7 +79,8 @@ export function randomId(len = 14): string {
 
 const RUN_ID_RE = /^[0-9a-z]{8,32}$/;
 
-const clientIp = (req: Request): string => req.headers.get('CF-Connecting-IP') ?? req.headers.get('X-Forwarded-For')?.split(',')[0].trim() ?? 'unknown';
+const clientIp = (req: Request): string =>
+  req.headers.get('CF-Connecting-IP') ?? req.headers.get('X-Forwarded-For')?.split(',')[0].trim() ?? 'unknown';
 
 function notConfigured(): Response {
   return apiError('not_configured', '在线功能暂未开放（服务器未配置数据库）');
@@ -265,7 +266,14 @@ export async function handleGetRun(req: Request, deps: Deps, id: string): Promis
     status: r.status,
     createdAt: Number(r.created_at),
     ...(r.agent_provider && r.agent_model
-      ? { agent: agentBadge({ provider: r.agent_provider, model: r.agent_model, mode: r.agent_mode === 'realtime' ? 'realtime' : 'pause', botShare: Number(r.agent_bot_share ?? 0) }) }
+      ? {
+          agent: agentBadge({
+            provider: r.agent_provider,
+            model: r.agent_model,
+            mode: r.agent_mode === 'realtime' ? 'realtime' : 'pause',
+            botShare: Number(r.agent_bot_share ?? 0),
+          }),
+        }
       : {}),
   };
   return json(detail, { cacheControl: 'public, max-age=300' });

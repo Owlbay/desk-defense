@@ -56,7 +56,10 @@ export class BuildBar {
     if (!o.unlocked) {
       audio.play('error');
       const u = parseUnlock(TOWER_META[id]?.unlock);
-      this.ctx.toast(u ? t('ui.build.unlockAt', { name: o.name, chapter: u.chapter, wave: u.wave }) : t('ui.build.locked', { name: o.name }), 'warn');
+      this.ctx.toast(
+        u ? t('ui.build.unlockAt', { name: o.name, chapter: u.chapter, wave: u.wave }) : t('ui.build.locked', { name: o.name }),
+        'warn',
+      );
       return;
     }
     if (o.limitReached) {
@@ -138,7 +141,8 @@ export class BuildBar {
     opts.forEach((o, i) => {
       const price = h('span.b-price');
       const airOnly = o.hitsAir && !o.hitsGround;
-      const air = o.hitsAir && o.hitsGround ? t('ui.build.airGround') : airOnly ? t('ui.build.airOnly') : o.hitsGround ? t('ui.build.ground') : '';
+      const air =
+        o.hitsAir && o.hitsGround ? t('ui.build.airGround') : airOnly ? t('ui.build.airOnly') : o.hitsGround ? t('ui.build.ground') : '';
       const el = h<HTMLButtonElement>(
         'button.build-btn',
         {

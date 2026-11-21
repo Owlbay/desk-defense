@@ -13,7 +13,14 @@ import { describe, expect, it } from 'vitest';
 const ROOT = join(__dirname, '..');
 const SCAN = ['src/ui', 'src/main.ts', 'src/render'];
 /** 不属于界面文字的文件（主题 / 背景由主题工程负责，dev 目录是渲染调试页，guide 由介绍页负责） */
-const SKIP = [/^src\/render\/palette\.ts$/, /^src\/render\/background\.ts$/, /^src\/render\/dev\//, /^src\/ui\/theme\.ts$/, /^src\/ui\/screens\/guide\.ts$/, /^src\/ui\/guide\//];
+const SKIP = [
+  /^src\/render\/palette\.ts$/,
+  /^src\/render\/background\.ts$/,
+  /^src\/render\/dev\//,
+  /^src\/ui\/theme\.ts$/,
+  /^src\/ui\/screens\/guide\.ts$/,
+  /^src\/ui\/guide\//,
+];
 const NS = ['common', 'ui', 'agent'];
 const LOCALES = ['zh-CN', 'zh-TW', 'en', 'ja'];
 const CJK = /[぀-ヿ㐀-鿿＀-￯]/;
@@ -36,11 +43,16 @@ function cjkLiterals(file: string): string[] {
   const out: string[] = [];
   const visit = (n: ts.Node): void => {
     if (
-      (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n)) &&
+      (ts.isStringLiteral(n) ||
+        ts.isNoSubstitutionTemplateLiteral(n) ||
+        ts.isTemplateHead(n) ||
+        ts.isTemplateMiddle(n) ||
+        ts.isTemplateTail(n)) &&
       CJK.test(n.text)
     ) {
       const line = sf.getLineAndCharacterOfPosition(n.getStart()).line;
-      if (!/i18n-ignore/.test(lines[line] ?? '') && !/i18n-ignore/.test(lines[line - 1] ?? '')) out.push(`${file}:${line + 1}: ${n.text.slice(0, 60)}`);
+      if (!/i18n-ignore/.test(lines[line] ?? '') && !/i18n-ignore/.test(lines[line - 1] ?? ''))
+        out.push(`${file}:${line + 1}: ${n.text.slice(0, 60)}`);
     }
     ts.forEachChild(n, visit);
   };

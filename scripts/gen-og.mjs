@@ -29,12 +29,26 @@ const grain = [];
 for (let x = 23; x < 1200; x += 46) grain.push(`M${x} 0V630`);
 
 const towers = [
-  ['towers/wall_l1', 0, 1], ['towers/stapler_t2', 1, 1], ['towers/wall_l2', 2, 1], ['towers/glue_t2', 3, 1], ['towers/wall_l1', 4, 1], ['towers/pencil_t3', 5, 1],
-  ['towers/lamp_t3', 1, 3], ['towers/wall_l3', 2, 3], ['towers/compass_t4a', 3, 3], ['towers/wall_l1', 4, 3], ['towers/wall_l2', 5, 3], ['towers/swatter_t2', 6, 3],
+  ['towers/wall_l1', 0, 1],
+  ['towers/stapler_t2', 1, 1],
+  ['towers/wall_l2', 2, 1],
+  ['towers/glue_t2', 3, 1],
+  ['towers/wall_l1', 4, 1],
+  ['towers/pencil_t3', 5, 1],
+  ['towers/lamp_t3', 1, 3],
+  ['towers/wall_l3', 2, 3],
+  ['towers/compass_t4a', 3, 3],
+  ['towers/wall_l1', 4, 3],
+  ['towers/wall_l2', 5, 3],
+  ['towers/swatter_t2', 6, 3],
 ];
 const foes = [
-  ['enemies/crumb', 4, 0, 0.58], ['enemies/inkdot', 5, 0, 0.58], ['enemies/paperclip', 4, 2, 0.58], ['enemies/paperball', 2, 2, 0.58],
-  ['enemies/plane', 3, 2, 0.62], ['enemies/boss_coffee', 1, 4, 0.94],
+  ['enemies/crumb', 4, 0, 0.58],
+  ['enemies/inkdot', 5, 0, 0.58],
+  ['enemies/paperclip', 4, 2, 0.58],
+  ['enemies/paperball', 2, 2, 0.58],
+  ['enemies/plane', 3, 2, 0.62],
+  ['enemies/boss_coffee', 1, 4, 0.94],
 ];
 const forms = ['pencil_t1', 'pencil_t2', 'pencil_t3', 'pencil_t4a', 'pencil_t5a'];
 
@@ -78,6 +92,11 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" widt
 
 mkdirSync(resolve(root, 'scripts/og'), { recursive: true });
 writeFileSync(resolve(root, 'scripts/og/og.svg'), svg);
-const png = new Resvg(svg, { fitTo: { mode: 'width', value: 1200 }, font: { loadSystemFonts: true, defaultFontFamily: 'Hiragino Sans GB' } }).render().asPng();
+const png = new Resvg(svg, {
+  fitTo: { mode: 'width', value: 1200 },
+  font: { loadSystemFonts: true, defaultFontFamily: 'Hiragino Sans GB' },
+})
+  .render()
+  .asPng();
 writeFileSync(resolve(root, 'public/og.png'), png);
 console.log(`og.svg ${(svg.length / 1024).toFixed(0)} KB → public/og.png ${(png.length / 1024).toFixed(0)} KB`);

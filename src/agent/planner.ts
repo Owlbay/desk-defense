@@ -43,34 +43,95 @@ export interface IntentOutcome {
 
 /** 每种塔"单位覆盖"的大致价值（秒伤量级），只用于买 / 升比较（与 scripts/bots/strategy.ts 一致） */
 export const POWER: Record<TowerId, number> = {
-  wall: 0, pencil: 16, stapler: 26, glue: 12, lamp: 24, compass: 40, eraser: 10, ruler: 24, pen: 20, calculator: 0, piggy: 0, swatter: 30,
+  wall: 0,
+  pencil: 16,
+  stapler: 26,
+  glue: 12,
+  lamp: 24,
+  compass: 40,
+  eraser: 10,
+  ruler: 24,
+  pen: 20,
+  calculator: 0,
+  piggy: 0,
+  swatter: 30,
 };
 
 /** 传奇分支缺省（高手机器人的选择） */
 export const DEFAULT_BRANCH: Partial<Record<TowerId, Branch>> = {
-  pencil: 'A', stapler: 'B', glue: 'B', lamp: 'A', compass: 'B', eraser: 'A', ruler: 'B', pen: 'B', calculator: 'A', piggy: 'A', swatter: 'A',
+  pencil: 'A',
+  stapler: 'B',
+  glue: 'B',
+  lamp: 'A',
+  compass: 'B',
+  eraser: 'A',
+  ruler: 'B',
+  pen: 'B',
+  calculator: 'A',
+  piggy: 'A',
+  swatter: 'A',
 };
 
 /** spend 的买塔轮换（无状态：按已有数量决定下一座） */
 const ROTATION: TowerId[] = [
-  'pencil', 'pencil', 'pencil', 'pencil', 'eraser', 'pencil', 'pencil', 'lamp', 'pencil', 'pencil', 'glue', 'pencil', 'lamp', 'pencil', 'eraser',
-  'pencil', 'compass', 'pencil', 'lamp', 'pencil', 'stapler', 'pencil', 'compass', 'ruler', 'lamp', 'pencil',
+  'pencil',
+  'pencil',
+  'pencil',
+  'pencil',
+  'eraser',
+  'pencil',
+  'pencil',
+  'lamp',
+  'pencil',
+  'pencil',
+  'glue',
+  'pencil',
+  'lamp',
+  'pencil',
+  'eraser',
+  'pencil',
+  'compass',
+  'pencil',
+  'lamp',
+  'pencil',
+  'stapler',
+  'pencil',
+  'compass',
+  'ruler',
+  'lamp',
+  'pencil',
 ];
 /** 墙的投入上限：塔投入的这个比例 + 25（高手机器人 0.5） */
 const WALL_SHARE = 0.5;
 
 function levelGain(id: TowerId, next: number): number {
   let g = 0.186;
-  if (next === 4) g += ({ pencil: 0.15, compass: 0.25, lamp: 0.3, stapler: 0.1, eraser: 0.3, pen: 0.2 } as Partial<Record<TowerId, number>>)[id] ?? 0.1;
-  if (next === 7) g += ({ pencil: 1.0, lamp: 0.8, ruler: 1.6, compass: 0.4, stapler: 0.3, pen: 0.3, glue: 0.3, eraser: 0.3 } as Partial<Record<TowerId, number>>)[id] ?? 0.2;
+  if (next === 4)
+    g += ({ pencil: 0.15, compass: 0.25, lamp: 0.3, stapler: 0.1, eraser: 0.3, pen: 0.2 } as Partial<Record<TowerId, number>>)[id] ?? 0.1;
+  if (next === 7)
+    g +=
+      (
+        { pencil: 1.0, lamp: 0.8, ruler: 1.6, compass: 0.4, stapler: 0.3, pen: 0.3, glue: 0.3, eraser: 0.3 } as Partial<
+          Record<TowerId, number>
+        >
+      )[id] ?? 0.2;
   if (next === 10) g += 0.5;
   return g;
 }
 
 /** 路线采样（带出生点 id 与进度 f） */
-export interface RSample extends Sample { sp: string; f: number }
+export interface RSample extends Sample {
+  sp: string;
+  f: number;
+}
 
-interface Slot { x: number; y: number; i: number; wallUid: number; plan: boolean }
+interface Slot {
+  x: number;
+  y: number;
+  i: number;
+  wallUid: number;
+  plan: boolean;
+}
 
 // 可自动挪位的放置失败原因（CommandResult.code，与界面语言无关）
 const FIXABLE = new Set(['enemyHere', 'cantBuild', 'occupied', 'blocksPath', 'trapsEnemy']);
@@ -94,7 +155,11 @@ export class Planner {
   /** 规划路线（迷宫建成后）经过的格子：不在这里放塔，免得堵住规划 */
   private planned = new Set<number>();
 
-  constructor(readonly w: IWorld, private readonly send: Send, readonly state: PlannerState = {}) {
+  constructor(
+    readonly w: IWorld,
+    private readonly send: Send,
+    readonly state: PlannerState = {},
+  ) {
     this.plan = planMaze(w);
     this.cols = w.state.grid.cols;
     this.rows = w.state.grid.rows;
@@ -174,7 +239,10 @@ export class Planner {
   private refresh(): void {
     const g = this.w.state.grid;
     const nSeg = this.activeSegments();
-    const key = `${g.version}|${nSeg}|${this.w.state.spawners.filter((s) => s.active).map((s) => s.id).join(',')}|${this.reserved.size}`;
+    const key = `${g.version}|${nSeg}|${this.w.state.spawners
+      .filter((s) => s.active)
+      .map((s) => s.id)
+      .join(',')}|${this.reserved.size}`;
     if (key === this.cacheKey) return;
     this.cacheKey = key;
     const cells = targetCells(this.w, this.plan, nSeg, this.scratch);
@@ -225,7 +293,12 @@ export class Planner {
 
   private adjacent(x: number, y: number, id: TowerId): boolean {
     const g = this.w.state.grid;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ]) {
       const nx = x + dx;
       const ny = y + dy;
       if (nx < 0 || ny < 0 || nx >= this.cols || ny >= this.rows) continue;
@@ -236,7 +309,11 @@ export class Planner {
   }
 
   /** 目标 → 采样集合与对空权重 */
-  private samplesFor(id: TowerId, target: string, which: 'near' | 'final' | 'current' = 'near'): { ground: RSample[]; air: RSample[]; airW: number } {
+  private samplesFor(
+    id: TowerId,
+    target: string,
+    which: 'near' | 'final' | 'current' = 'near',
+  ): { ground: RSample[]; air: RSample[]; airW: number } {
     this.refresh();
     const def = TOWERS[id];
     const [kind, arg] = target.split(':');
@@ -245,21 +322,36 @@ export class Planner {
     let air = def.hitsAir ? this.aS : [];
     let airW = 1;
     switch (kind) {
-      case 'early': ground = ground.filter((s) => s.f <= 0.4); break;
-      case 'exit': ground = ground.filter((s) => s.f >= 0.6); air = air.filter((s) => s.f >= 0.5); break;
-      case 'route': if (arg) { ground = ground.filter((s) => s.sp === arg); air = air.filter((s) => s.sp === arg); } break;
+      case 'early':
+        ground = ground.filter((s) => s.f <= 0.4);
+        break;
+      case 'exit':
+        ground = ground.filter((s) => s.f >= 0.6);
+        air = air.filter((s) => s.f >= 0.5);
+        break;
+      case 'route':
+        if (arg) {
+          ground = ground.filter((s) => s.sp === arg);
+          air = air.filter((s) => s.sp === arg);
+        }
+        break;
       case 'seg': {
         // seg:x1,y1-x2,y2 → 只看这个矩形（外扩半格）里的路线采样（漏怪缺口）
         const m = /^(\d+),(\d+)-(\d+),(\d+)$/.exec(arg ?? '');
         if (m) {
           const [x1, y1, x2, y2] = [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])];
-          const inBox = (q: RSample) => q.x >= Math.min(x1, x2) - 0.5 && q.x <= Math.max(x1, x2) + 1.5 && q.y >= Math.min(y1, y2) - 0.5 && q.y <= Math.max(y1, y2) + 1.5;
+          const inBox = (q: RSample) =>
+            q.x >= Math.min(x1, x2) - 0.5 &&
+            q.x <= Math.max(x1, x2) + 1.5 &&
+            q.y >= Math.min(y1, y2) - 0.5 &&
+            q.y <= Math.max(y1, y2) + 1.5;
           ground = ground.filter(inBox);
           air = air.filter(inBox);
         }
         break;
       }
-      case 'air': case 'airline': {
+      case 'air':
+      case 'airline': {
         air = def.hitsAir ? this.aS.filter((s) => !arg || s.sp === arg) : [];
         ground = ground.map((s) => ({ ...s, w: s.w * 0.1 }));
         airW = 3;
@@ -267,12 +359,14 @@ export class Planner {
       }
       case 'chokepoint': {
         // 多条路线汇合处：每个采样按附近（0.75 格内）经过的路线条数加权
-        const near = (s: RSample) => new Set(this.gS.filter((o) => Math.abs(o.x - s.x) <= 0.75 && Math.abs(o.y - s.y) <= 0.75).map((o) => o.sp)).size;
+        const near = (s: RSample) =>
+          new Set(this.gS.filter((o) => Math.abs(o.x - s.x) <= 0.75 && Math.abs(o.y - s.y) <= 0.75).map((o) => o.sp)).size;
         ground = ground.map((s) => ({ ...s, w: s.w * near(s) ** 2 }));
         void base;
         break;
       }
-      default: break;
+      default:
+        break;
     }
     return { ground, air, airW };
   }
@@ -337,7 +431,8 @@ export class Planner {
   /** 放一座塔（必要时先卖掉该格的 Lv1 墙）；返回结果行 */
   private placeAt(id: TowerId, sl: Slot): { ok: boolean; line: string; spent: number } {
     const cost = this.cost(id);
-    if (this.gold() + (sl.wallUid ? 3 : 0) < cost) return { ok: false, line: `${id}@${sl.x},${sl.y} 金币不足 (cost ${cost}, gold ${this.gold()})`, spent: 0 };
+    if (this.gold() + (sl.wallUid ? 3 : 0) < cost)
+      return { ok: false, line: `${id}@${sl.x},${sl.y} 金币不足 (cost ${cost}, gold ${this.gold()})`, spent: 0 };
     const g0 = this.w.state.gold;
     if (sl.wallUid) {
       const r = this.exec({ type: 'sell', uid: sl.wallUid });
@@ -351,7 +446,11 @@ export class Planner {
     const uid = this.w.state.grid.towerAt[sl.i];
     if (id === 'lamp' && uid && r.queuedFor === undefined) this.exec({ type: 'setTarget', uid, mode: 'strong' });
     const spent = r.queuedFor !== undefined ? cost : Math.round(g0 - this.w.state.gold);
-    return { ok: true, line: `${id}#${r.queuedFor !== undefined ? '?' : uid}@${sl.x},${sl.y}${sl.wallUid ? '(replaced wall)' : ''} -${spent}g`, spent };
+    return {
+      ok: true,
+      line: `${id}#${r.queuedFor !== undefined ? '?' : uid}@${sl.x},${sl.y}${sl.wallUid ? '(replaced wall)' : ''} -${spent}g`,
+      spent,
+    };
   }
 
   // ───────────── 意图 ─────────────
@@ -373,7 +472,10 @@ export class Planner {
         const c = this.bestFunnelWall(route);
         if (!c) break;
         const r = this.exec({ type: 'place', tower: 'wall', cx: c.x, cy: c.y });
-        if (!r.ok) { skip(r.reason ?? 'invalid'); break; }
+        if (!r.ok) {
+          skip(r.reason ?? 'invalid');
+          break;
+        }
         spent += wallCost;
         done++;
       }
@@ -383,14 +485,20 @@ export class Planner {
           if (!this.empty(i)) continue;
           if (spent + wallCost > cap || this.gold() < wallCost) break outer;
           const r = this.exec({ type: 'place', tower: 'wall', cx: i % this.cols, cy: Math.floor(i / this.cols) });
-          if (r.ok) { spent += wallCost; done++; } else skip(r.reason ?? 'invalid');
+          if (r.ok) {
+            spent += wallCost;
+            done++;
+          } else skip(r.reason ?? 'invalid');
         }
       }
     }
     const after = this.pathLens();
     const pg = this.mazeProgress();
     const sk = skipped.size ? ` skipped ${[...skipped].map(([k, v]) => `${k}×${v}`).join(',')}` : '';
-    const tail = style === 'serpentine' ? ` | plan ${pg.built}/${pg.total} cells, L${Math.round(this.plan.length)} when done, ${pg.left} left ≈${pg.left * wallCost}g` : '';
+    const tail =
+      style === 'serpentine'
+        ? ` | plan ${pg.built}/${pg.total} cells, L${Math.round(this.plan.length)} when done, ${pg.left} left ≈${pg.left * wallCost}g`
+        : '';
     const text = done
       ? `maze ${style}: +${done} walls -${spent}g path ${before.join('/')}→${after.join('/')}${sk}${tail}`
       : `maze ${style}: nothing built (${this.gold() < wallCost ? `gold ${this.gold()}` : pg.left === 0 && style === 'serpentine' ? 'plan complete' : 'no useful wall'})${sk}${tail}`;
@@ -436,15 +544,17 @@ export class Planner {
     };
     const cur = pick(paths);
     const cand = new Set<number>();
-    for (const p of paths) for (const c of p) {
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-        const x = c.x + dx;
-        const y = c.y + dy;
-        if (x < 0 || y < 0 || x >= this.cols || y >= this.rows) continue;
-        const i = y * this.cols + x;
-        if (this.empty(i)) cand.add(i);
+    for (const p of paths)
+      for (const c of p) {
+        for (let dy = -1; dy <= 1; dy++)
+          for (let dx = -1; dx <= 1; dx++) {
+            const x = c.x + dx;
+            const y = c.y + dy;
+            if (x < 0 || y < 0 || x >= this.cols || y >= this.rows) continue;
+            const i = y * this.cols + x;
+            if (this.empty(i)) cand.add(i);
+          }
       }
-    }
     let best: { x: number; y: number; gain: number } | null = null;
     for (const i of [...cand].sort((a, b) => a - b)) {
       const x = i % this.cols;
@@ -469,15 +579,26 @@ export class Planner {
     let done = 0;
     const tried = new Set<number>();
     for (let k = 0; k < Math.min(8, Math.max(1, count)); k++) {
-      if (this.gold() < this.cost(id)) { lines.push(`stop: 金币不足 (cost ${this.cost(id)}, gold ${this.gold()})`); break; }
+      if (this.gold() < this.cost(id)) {
+        lines.push(`stop: 金币不足 (cost ${this.cost(id)}, gold ${this.gold()})`);
+        break;
+      }
       let placed = false;
       for (let attempt = 0; attempt < 4 && !placed; attempt++) {
         const b = this.bestSlot(id, tgt, tried);
-        if (!b) { lines.push('stop: no valid cell'); k = 99; break; }
+        if (!b) {
+          lines.push('stop: no valid cell');
+          k = 99;
+          break;
+        }
         tried.add(b.slot.i);
         const r = this.placeAt(id, b.slot);
-        if (r.ok) { placed = true; spent += r.spent; done++; lines.push(`${r.line} cov${Math.round(b.v * 10) / 10}`); }
-        else lines.push(`skip ${r.line}`);
+        if (r.ok) {
+          placed = true;
+          spent += r.spent;
+          done++;
+          lines.push(`${r.line} cov${Math.round(b.v * 10) / 10}`);
+        } else lines.push(`skip ${r.line}`);
       }
       if (!placed && k < 99) break;
     }
@@ -523,7 +644,10 @@ export class Planner {
         break;
       }
       const r = this.upgradeOne(c.t, c.evolve);
-      if (!r.ok) { lines.push(`#${c.t.uid} ${r.reason}`); break; }
+      if (!r.ok) {
+        lines.push(`#${c.t.uid} ${r.reason}`);
+        break;
+      }
       spent += r.spent;
       done++;
       lines.push(r.line);
@@ -533,29 +657,38 @@ export class Planner {
 
   private upgradeOne(t: TowerState, evolve: boolean): { ok: boolean; reason?: string; line: string; spent: number } {
     const g0 = this.w.state.gold;
-    const cmd: Command = evolve ? { type: 'evolve', uid: t.uid }
-      : t.level === 9 ? { type: 'upgrade', uid: t.uid, branch: DEFAULT_BRANCH[t.id] ?? 'A' } : { type: 'upgrade', uid: t.uid };
+    const cmd: Command = evolve
+      ? { type: 'evolve', uid: t.uid }
+      : t.level === 9
+        ? { type: 'upgrade', uid: t.uid, branch: DEFAULT_BRANCH[t.id] ?? 'A' }
+        : { type: 'upgrade', uid: t.uid };
     const r = this.exec(cmd);
     if (!r.ok) return { ok: false, reason: r.reason ?? 'invalid', line: '', spent: 0 };
     const nt = this.w.state.towers.get(t.uid);
     const spent = Math.round(g0 - this.w.state.gold);
-    return { ok: true, line: `#${t.uid} ${t.id} →${evolve ? `★${nt?.stars ?? '?'}` : `L${nt?.level ?? '?'}${nt?.branch ? nt.branch : ''}`} -${spent}g`, spent };
+    return {
+      ok: true,
+      line: `#${t.uid} ${t.id} →${evolve ? `★${nt?.stars ?? '?'}` : `L${nt?.level ?? '?'}${nt?.branch ? nt.branch : ''}`} -${spent}g`,
+      spent,
+    };
   }
 
   /** 每条飞行线的对空火力（覆盖 × 威力），最弱的排前面 */
   airLines(): { id: string; power: number }[] {
     this.refresh();
     const ids = [...new Set(this.aS.map((s) => s.sp))];
-    return ids.map((id) => {
-      const line = this.aS.filter((s) => s.sp === id);
-      let p = 0;
-      for (const t of this.attackers()) {
-        if (!TOWERS[t.id].hitsAir) continue;
-        const r = this.range(t.id);
-        p += sampleCov(t.cx, t.cy, r.r, 0, line) * (POWER[t.id] || 10) * 1.186 ** (t.level - 1);
-      }
-      return { id, power: Math.round(p) };
-    }).sort((a, b) => a.power - b.power);
+    return ids
+      .map((id) => {
+        const line = this.aS.filter((s) => s.sp === id);
+        let p = 0;
+        for (const t of this.attackers()) {
+          if (!TOWERS[t.id].hitsAir) continue;
+          const r = this.range(t.id);
+          p += sampleCov(t.cx, t.cy, r.r, 0, line) * (POWER[t.id] || 10) * 1.186 ** (t.level - 1);
+        }
+        return { id, power: Math.round(p) };
+      })
+      .sort((a, b) => a.power - b.power);
   }
 
   antiAir(line?: string, count = 1): IntentOutcome {
@@ -591,19 +724,35 @@ export class Planner {
         const weak = this.airLines().find((l) => l.power < 40);
         if (weak && budget >= this.cost('pencil')) {
           const o = this.antiAir(weak.id, 1);
-          if (o.done) { spent += o.spent; done += o.done; aa.push(weak.id); continue; }
+          if (o.done) {
+            spent += o.spent;
+            done += o.done;
+            aa.push(weak.id);
+            continue;
+          }
         }
       }
       // 迷宫：墙的投入 ≤ 50% 塔的投入 + 25（maze 优先时不设限）
-      const wallInv = this.towers().filter((t) => t.id === 'wall').reduce((x, t) => x + t.invested, 0);
+      const wallInv = this.towers()
+        .filter((t) => t.id === 'wall')
+        .reduce((x, t) => x + t.invested, 0);
       const towerInv = atk.reduce((x, t) => x + t.invested, 0);
       if (atk.length >= 3 && this.mazeProgress().left > 0 && (focus === 'maze' || wallInv < WALL_SHARE * towerInv + 25)) {
         const cap = focus === 'maze' ? budget : Math.max(this.cost('wall'), Math.min(budget, WALL_SHARE * towerInv + 25 - wallInv));
         const o = this.maze('serpentine', cap, undefined, true);
-        if (o.done) { spent += o.spent; done += o.done; walls += o.done; wallGold += o.spent; continue; }
+        if (o.done) {
+          spent += o.spent;
+          done += o.done;
+          walls += o.done;
+          wallGold += o.spent;
+          continue;
+        }
       }
       const id = this.nextRotation();
-      const slot = id && atk.length < maxTowers && focus !== 'upgrades' ? this.bestSlot(id, id === 'eraser' || id === 'glue' ? 'early' : 'route') : null;
+      const slot =
+        id && atk.length < maxTowers && focus !== 'upgrades'
+          ? this.bestSlot(id, id === 'eraser' || id === 'glue' ? 'early' : 'route')
+          : null;
       const up = atk.length >= Math.min(2 + wave, 6) && focus !== 'towers' ? this.upgradeCandidates('dps')[0] : undefined;
       let buy = !!slot;
       if (slot && up && id && focus === 'balanced') {
@@ -617,19 +766,37 @@ export class Planner {
           if (id !== 'pencil' && budget >= this.cost('pencil') && this.urgent()) {
             const ps = this.bestSlot('pencil');
             const r = ps ? this.placeAt('pencil', ps.slot) : null;
-            if (r?.ok) { spent += r.spent; done++; built.push(r.line.replace(/ -\d+g$/, '')); continue; }
+            if (r?.ok) {
+              spent += r.spent;
+              done++;
+              built.push(r.line.replace(/ -\d+g$/, ''));
+              continue;
+            }
           }
           saving = `saving for ${id} ${this.cost(id)}g`;
           break;
         }
         const r = this.placeAt(id, slot.slot);
-        if (r.ok) { spent += r.spent; done++; built.push(r.line.replace(/ -\d+g$/, '')); continue; }
+        if (r.ok) {
+          spent += r.spent;
+          done++;
+          built.push(r.line.replace(/ -\d+g$/, ''));
+          continue;
+        }
         break;
       }
       if (up) {
-        if (budget < up.cost) { saving = `saving for #${up.t.uid} ${up.evolve ? 'evolve' : 'upgrade'} ${up.cost}g`; break; }
+        if (budget < up.cost) {
+          saving = `saving for #${up.t.uid} ${up.evolve ? 'evolve' : 'upgrade'} ${up.cost}g`;
+          break;
+        }
         const r = this.upgradeOne(up.t, up.evolve);
-        if (r.ok) { spent += r.spent; done++; ups.push(r.line.replace(/ -\d+g$/, '')); continue; }
+        if (r.ok) {
+          spent += r.spent;
+          done++;
+          ups.push(r.line.replace(/ -\d+g$/, ''));
+          continue;
+        }
         break;
       }
       break;
@@ -643,7 +810,9 @@ export class Planner {
     if (ups.length) parts.push(`up ${ups.join(' ')}`);
     parts.push(`spent ${g0 - left}g, gold ${left}${saving ? ` (${saving})` : ''}`);
     parts.push(`path ${path0.join('/')}→${this.pathLens().join('/')}`);
-    parts.push(`maze ${pg.built}/${pg.total} (L${Math.round(this.plan.length)} when done${pg.left ? `, ≈${pg.left * this.cost('wall')}g of walls left` : ''})`);
+    parts.push(
+      `maze ${pg.built}/${pg.total} (L${Math.round(this.plan.length)} when done${pg.left ? `, ≈${pg.left * this.cost('wall')}g of walls left` : ''})`,
+    );
     return { ok: true, text: `spend→${reserve}: ${done ? '' : 'nothing bought; '}${parts.join(' | ')}`, spent, done };
   }
 
@@ -682,7 +851,10 @@ export class Planner {
     const skipped: string[] = [];
     for (const [id, fit] of Object.entries(cand) as [TowerId, number][]) {
       if (!this.unlocked(id)) continue;
-      if (this.cost(id) > this.gold()) { skipped.push(`${id} ${this.cost(id)}g`); continue; }
+      if (this.cost(id) > this.gold()) {
+        skipped.push(`${id} ${this.cost(id)}g`);
+        continue;
+      }
       const b = this.bestSlot(id, target ?? PURPOSE_TARGET[purpose] ?? 'route');
       if (!b || b.v < 0.5) continue;
       const score = (b.v * (POWER[id] || 10) * fit) / this.cost(id) / (1 + 0.12 * (have.get(id) ?? 0));
@@ -699,7 +871,10 @@ export class Planner {
     let done = 0;
     for (let k = 0; k < Math.min(6, Math.max(1, count)); k++) {
       const pick = this.towerForPurpose(purpose, target || undefined);
-      if (!pick) { lines.push(`stop: no affordable ${purpose} tower with a useful cell (gold ${this.gold()})`); break; }
+      if (!pick) {
+        lines.push(`stop: no affordable ${purpose} tower with a useful cell (gold ${this.gold()})`);
+        break;
+      }
       const o = this.buildNear(pick.id, target || PURPOSE_TARGET[purpose] || 'route', 1);
       spent += o.spent;
       done += o.done;
@@ -731,7 +906,12 @@ export class Planner {
     const x = i % this.cols;
     const y = (i - x) / this.cols;
     const out: number[] = [];
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ]) {
       const nx = x + dx;
       const ny = y + dy;
       if (nx >= 0 && ny >= 0 && nx < this.cols && ny < this.rows) out.push(ny * this.cols + nx);
@@ -744,7 +924,8 @@ export class Planner {
     const [pa, pb] = pair.split('+') as TowerId[];
     const cb = COMBOS.find((c) => (c.a === pa && c.b === pb) || (c.a === pb && c.b === pa));
     if (!cb) return { ok: false, text: `combo: unknown pair "${pair}" (${COMBO_PAIRS.join(' | ')})`, spent: 0, done: 0 };
-    for (const id of [cb.a, cb.b]) if (!this.unlocked(id)) return { ok: false, text: `combo ${pair}: ${id} locked or at limit`, spent: 0, done: 0 };
+    for (const id of [cb.a, cb.b])
+      if (!this.unlocked(id)) return { ok: false, text: `combo ${pair}: ${id} locked or at limit`, spent: 0, done: 0 };
     const slotMap = new Map(this.slots().map((sl) => [sl.i, sl]));
     const value = (id: TowerId, sl: Slot): number => {
       if (!sl.wallUid) {
@@ -776,7 +957,10 @@ export class Planner {
     // 2) 新的一对：A 的前几个好格 × 相邻的 B 格
     let fresh: { first: TowerId; s1: Slot; second: TowerId; s2: Slot; v: number } | null = null;
     if (this.gold() >= this.cost(cb.a) + this.cost(cb.b)) {
-      for (const [first, second] of [[cb.a, cb.b], [cb.b, cb.a]] as [TowerId, TowerId][]) {
+      for (const [first, second] of [
+        [cb.a, cb.b],
+        [cb.b, cb.a],
+      ] as [TowerId, TowerId][]) {
         for (const c1 of this.rankSlots(first, near, 8)) {
           if (c1.v < floor(first)) continue;
           for (const ni of this.neighbors(c1.slot.i)) {
@@ -795,8 +979,11 @@ export class Planner {
     let done = 0;
     if (anchor && (!fresh || anchor.v >= 0.6 * fresh.v) && this.gold() >= this.cost(anchor.partner)) {
       const r = this.placeAt(anchor.partner, anchor.sl);
-      if (r.ok) { spent += r.spent; done++; lines.push(`${r.line} next to #${anchor.uid}`); }
-      else lines.push(`skip ${r.line}`);
+      if (r.ok) {
+        spent += r.spent;
+        done++;
+        lines.push(`${r.line} next to #${anchor.uid}`);
+      } else lines.push(`skip ${r.line}`);
     } else if (fresh) {
       const r1 = this.placeAt(fresh.first, fresh.s1);
       if (r1.ok) {
@@ -804,19 +991,38 @@ export class Planner {
         done++;
         lines.push(r1.line);
         // 第二座：首选格被拒（放了第一座后会堵路等）就换第一座的其他邻格
-        const alts = [fresh.s2, ...this.neighbors(fresh.s1.i).map((ni) => slotMap.get(ni)).filter((x): x is Slot => !!x && x.i !== fresh!.s2.i)];
+        const alts = [
+          fresh.s2,
+          ...this.neighbors(fresh.s1.i)
+            .map((ni) => slotMap.get(ni))
+            .filter((x): x is Slot => !!x && x.i !== fresh!.s2.i),
+        ];
         let ok2 = false;
         for (const sl of alts) {
-          if (this.gold() < this.cost(fresh.second)) { lines.push(`stop: 金币不足 for ${fresh.second}`); break; }
+          if (this.gold() < this.cost(fresh.second)) {
+            lines.push(`stop: 金币不足 for ${fresh.second}`);
+            break;
+          }
           if (!sl.wallUid && !this.w.canPlace(fresh.second, sl.x, sl.y).ok) continue;
           const r2 = this.placeAt(fresh.second, sl);
-          if (r2.ok) { spent += r2.spent; done++; lines.push(r2.line); ok2 = true; break; }
+          if (r2.ok) {
+            spent += r2.spent;
+            done++;
+            lines.push(r2.line);
+            ok2 = true;
+            break;
+          }
         }
         if (!ok2) lines.push(`${fresh.second}: no adjacent cell left`);
       } else lines.push(`skip ${r1.line}`);
     } else {
       const need = this.cost(cb.a) + this.cost(cb.b);
-      return { ok: false, text: `combo ${cb.a}+${cb.b}: ${this.gold() < need && !anchor ? `金币不足 (pair ${need}g, gold ${this.gold()})` : 'no adjacent pair of good cells (each ≥70% of its best spot)'}`, spent: 0, done: 0 };
+      return {
+        ok: false,
+        text: `combo ${cb.a}+${cb.b}: ${this.gold() < need && !anchor ? `金币不足 (pair ${need}g, gold ${this.gold()})` : 'no adjacent pair of good cells (each ≥70% of its best spot)'}`,
+        spent: 0,
+        done: 0,
+      };
     }
     return { ok: done > 0, text: `combo ${cb.a}+${cb.b} (${cb.name}): ${lines.join('; ')}`, spent, done };
   }
@@ -826,10 +1032,22 @@ export class Planner {
     if (!this.unlocked('calculator')) return { ok: false, text: 'support: calculator locked or at limit', spent: 0, done: 0 };
     const b = this.bestSlot('calculator');
     const min = 2.2 * POWER.pencil;
-    if (!b || b.v < min) return { ok: false, text: `support: no cell where the aura covers ≥2 strong towers (best ${Math.round(b?.v ?? 0)} < ${Math.round(min)}); build more towers close together first`, spent: 0, done: 0 };
-    if (this.gold() < this.cost('calculator')) return { ok: false, text: `support: 金币不足 (calculator ${this.cost('calculator')}g, gold ${this.gold()})`, spent: 0, done: 0 };
+    if (!b || b.v < min)
+      return {
+        ok: false,
+        text: `support: no cell where the aura covers ≥2 strong towers (best ${Math.round(b?.v ?? 0)} < ${Math.round(min)}); build more towers close together first`,
+        spent: 0,
+        done: 0,
+      };
+    if (this.gold() < this.cost('calculator'))
+      return { ok: false, text: `support: 金币不足 (calculator ${this.cost('calculator')}g, gold ${this.gold()})`, spent: 0, done: 0 };
     const r = this.placeAt('calculator', b.slot);
-    return { ok: r.ok, text: `support: ${r.line} aura covers ≈${Math.round(b.v)} dps-units`, spent: r.ok ? r.spent : 0, done: r.ok ? 1 : 0 };
+    return {
+      ok: r.ok,
+      text: `support: ${r.line} aura covers ≈${Math.round(b.v)} dps-units`,
+      spent: r.ok ? r.spent : 0,
+      done: r.ok ? 1 : 0,
+    };
   }
 
   /** economy：安全时（满血、下一波没有"危险"、已有 ≥4 座攻击塔）早放存钱罐，挨着计算器更好 */
@@ -838,21 +1056,36 @@ export class Planner {
     if (!this.unlocked('piggy')) return { ok: false, text: 'economy: piggy locked or at limit (max 3)', spent: 0, done: 0 };
     // 存钱罐 100g ≈ 5 支铅笔，回本要 ~12 波：只有防线明显有余量时才放（脚本评测：宽松条件下困难难度失守 2 局）
     const th = threatEstimate(this.w);
-    const why = s.lives < s.maxLives ? 'lives lost — defend first'
-      : this.attackers().length < 6 ? 'fewer than 6 attack towers'
-        : th.some((t) => t.ratio < 3) ? `next wave not comfortably safe (min ×${Math.min(...th.map((t) => t.ratio))} < 3)`
-          : s.wave >= 40 ? 'too late for payback' : '';
+    const why =
+      s.lives < s.maxLives
+        ? 'lives lost — defend first'
+        : this.attackers().length < 6
+          ? 'fewer than 6 attack towers'
+          : th.some((t) => t.ratio < 3)
+            ? `next wave not comfortably safe (min ×${Math.min(...th.map((t) => t.ratio))} < 3)`
+            : s.wave >= 40
+              ? 'too late for payback'
+              : '';
     if (why) return { ok: false, text: `economy: not safe (${why})`, spent: 0, done: 0 };
     const lines: string[] = [];
     let spent = 0;
     let done = 0;
     for (let k = 0; k < Math.min(3, Math.max(1, count)); k++) {
       if (!this.unlocked('piggy')) break;
-      if (this.gold() < this.cost('piggy')) { lines.push(`stop: 金币不足 (piggy ${this.cost('piggy')}g)`); break; }
+      if (this.gold() < this.cost('piggy')) {
+        lines.push(`stop: 金币不足 (piggy ${this.cost('piggy')}g)`);
+        break;
+      }
       const b = this.bestSlot('piggy');
-      if (!b) { lines.push('stop: no cell'); break; }
+      if (!b) {
+        lines.push('stop: no cell');
+        break;
+      }
       const r = this.placeAt('piggy', b.slot);
-      if (!r.ok) { lines.push(`skip ${r.line}`); break; }
+      if (!r.ok) {
+        lines.push(`skip ${r.line}`);
+        break;
+      }
       spent += r.spent;
       done++;
       lines.push(r.line);
@@ -886,7 +1119,12 @@ export class Planner {
       const freed: { x: number; y: number; i: number; cov: number }[] = [];
       if (dry) {
         const list = uselessWalls(this.w, this.plan).slice(0, cap);
-        return { ok: true, text: `reclaim useless_walls (dry): ${list.length ? list.map((x) => `#${x.uid}@${x.x},${x.y} cov${x.cov}`).join(' ') : 'none'}`, spent: 0, done: 0 };
+        return {
+          ok: true,
+          text: `reclaim useless_walls (dry): ${list.length ? list.map((x) => `#${x.uid}@${x.x},${x.y} cov${x.cov}`).join(' ') : 'none'}`,
+          spent: 0,
+          done: 0,
+        };
       }
       for (let k = 0; k < cap; k++) {
         const c = uselessWalls(this.w, this.plan).find((x) => !this.reserved.has(x.y * this.cols + x.x));
@@ -894,7 +1132,10 @@ export class Planner {
         const before = this.pathLens();
         const g0 = this.w.state.gold;
         const r = this.exec({ type: 'sell', uid: c.uid });
-        if (!r.ok) { lines.push(`#${c.uid} ${r.reason}`); break; }
+        if (!r.ok) {
+          lines.push(`#${c.uid} ${r.reason}`);
+          break;
+        }
         const after = this.pathLens();
         if (after.some((l, j) => l < (before[j] ?? 0))) {
           // 复核失败：补回去，停
@@ -917,7 +1158,11 @@ export class Planner {
           const v = this.slotValue(id, sl, this.samplesFor(id, 'route', 'current'));
           if (v < 1 || !this.w.canPlace(id, f.x, f.y).ok) continue;
           const r = this.placeAt(id, sl);
-          if (r.ok) { spent += r.spent; done++; built.push(r.line); }
+          if (r.ok) {
+            spent += r.spent;
+            done++;
+            built.push(r.line);
+          }
         }
         if (built.length) lines.push(`rebuilt ${built.join(' ')}`);
       }
@@ -925,7 +1170,13 @@ export class Planner {
     }
     if (target === 'idle_towers') {
       const list = idleTowers(this.w, this.state.intel).slice(0, cap);
-      if (dry) return { ok: true, text: `reclaim idle_towers (dry): ${list.length ? list.map((u) => `#${u}${this.w.state.towers.get(u)?.id ?? ''}`).join(' ') : 'none'}`, spent: 0, done: 0 };
+      if (dry)
+        return {
+          ok: true,
+          text: `reclaim idle_towers (dry): ${list.length ? list.map((u) => `#${u}${this.w.state.towers.get(u)?.id ?? ''}`).join(' ') : 'none'}`,
+          spent: 0,
+          done: 0,
+        };
       let sold = 0;
       for (const uid of list) {
         const t = this.w.state.towers.get(uid);
@@ -934,7 +1185,10 @@ export class Planner {
         const keepWall = shortensRoutes(this.w, [i]);
         const g0 = this.w.state.gold;
         const r = this.exec({ type: 'sell', uid });
-        if (!r.ok) { lines.push(`#${uid} ${r.reason}`); continue; }
+        if (!r.ok) {
+          lines.push(`#${uid} ${r.reason}`);
+          continue;
+        }
         if (keepWall) this.exec({ type: 'place', tower: 'wall', cx: t.cx, cy: t.cy });
         const got = Math.round(this.w.state.gold - g0);
         spent -= got;
@@ -956,14 +1210,29 @@ export class Planner {
     }
     // cells：被挤占的好格换成塔
     const list = crowdedCells(this.w, wallInfo(this.w, this.plan)).slice(0, cap);
-    if (dry) return { ok: true, text: `reclaim cells (dry): ${list.length ? list.map((x) => `${x.x},${x.y}:${x.cov}`).join(' ') : 'none'}`, spent: 0, done: 0 };
+    if (dry)
+      return {
+        ok: true,
+        text: `reclaim cells (dry): ${list.length ? list.map((x) => `${x.x},${x.y}:${x.cov}`).join(' ') : 'none'}`,
+        spent: 0,
+        done: 0,
+      };
     for (const c of list) {
       const id = this.resolveTower(replaceWith ?? 'dps');
-      if (!id) { lines.push('stop: no affordable tower'); break; }
-      if (this.gold() + 3 < this.cost(id)) { lines.push(`stop: 金币不足 (${id} ${this.cost(id)}g)`); break; }
+      if (!id) {
+        lines.push('stop: no affordable tower');
+        break;
+      }
+      if (this.gold() + 3 < this.cost(id)) {
+        lines.push(`stop: 金币不足 (${id} ${this.cost(id)}g)`);
+        break;
+      }
       const r = this.placeAt(id, { x: c.x, y: c.y, i: c.y * this.cols + c.x, wallUid: c.uid, plan: true });
-      if (r.ok) { spent += r.spent; done++; lines.push(`${r.line} cov${c.cov}`); }
-      else lines.push(`skip ${r.line}`);
+      if (r.ok) {
+        spent += r.spent;
+        done++;
+        lines.push(`${r.line} cov${c.cov}`);
+      } else lines.push(`skip ${r.line}`);
     }
     if (!list.length) lines.push('no crowded cells');
     return { ok: done > 0, text: `reclaim cells: ${lines.join('; ')}`, spent, done };
@@ -975,7 +1244,9 @@ export class Planner {
     const r1 = this.reclaim('useless_walls', 12);
     const r2 = this.maze(style, budget, route);
     return {
-      ok: r1.done + r2.done > 0, done: r1.done + r2.done, spent: r1.spent + r2.spent,
+      ok: r1.done + r2.done > 0,
+      done: r1.done + r2.done,
+      spent: r1.spent + r2.spent,
       text: `rebuild_maze: ${r1.text.replace(/^reclaim useless_walls: /, 'cleared ')} | ${r2.text} | path ${before.join('/')}→${this.pathLens().join('/')}`,
     };
   }
@@ -997,16 +1268,17 @@ export class Planner {
     for (const p of this.w.currentPaths()) for (const c of p) onRoute.add(c.y * this.cols + c.x);
     const s = this.samplesFor(id, 'route');
     let best: { x: number; y: number; v: number } | null = null;
-    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
-      const nx = x + dx;
-      const ny = y + dy;
-      if ((dx === 0 && dy === 0) || nx < 0 || ny < 0 || nx >= this.cols || ny >= this.rows) continue;
-      const i = ny * this.cols + nx;
-      if (!this.empty(i) || onRoute.has(i) || this.planned.has(i)) continue;
-      if (!this.w.canPlace(id, nx, ny).ok) continue;
-      const v = this.slotValue(id, { x: nx, y: ny }, s) - 0.01 * Math.max(Math.abs(dx), Math.abs(dy));
-      if (!best || v > best.v) best = { x: nx, y: ny, v };
-    }
+    for (let dy = -2; dy <= 2; dy++)
+      for (let dx = -2; dx <= 2; dx++) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if ((dx === 0 && dy === 0) || nx < 0 || ny < 0 || nx >= this.cols || ny >= this.rows) continue;
+        const i = ny * this.cols + nx;
+        if (!this.empty(i) || onRoute.has(i) || this.planned.has(i)) continue;
+        if (!this.w.canPlace(id, nx, ny).ok) continue;
+        const v = this.slotValue(id, { x: nx, y: ny }, s) - 0.01 * Math.max(Math.abs(dx), Math.abs(dy));
+        if (!best || v > best.v) best = { x: nx, y: ny, v };
+      }
     return best;
   }
 }

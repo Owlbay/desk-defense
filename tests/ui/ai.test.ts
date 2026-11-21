@@ -10,7 +10,15 @@ import { fmtCost, fmtTokens, providerLabel } from '../../src/ui/ai/format';
 import { attachAi, clearAiLaunch, requestAiLaunch } from '../../src/ui/ai/launch';
 import { bridgeCommands, detectOs, localGuides, networkNotes } from '../../src/ui/ai/snippets';
 
-const OPTS: RunOptions = { mode: 'endless', map: 'ch1', difficulty: 'normal', seed: 'ai-ui', skills: ['eraser_strike', 'bell'], pure: true, autoWave: true };
+const OPTS: RunOptions = {
+  mode: 'endless',
+  map: 'ch1',
+  difficulty: 'normal',
+  seed: 'ai-ui',
+  skills: ['eraser_strike', 'bell'],
+  pure: true,
+  autoWave: true,
+};
 
 describe('军师动作解析', () => {
   it('位置参数 / key=value / JSON / 带编号和反引号', () => {
@@ -29,7 +37,10 @@ describe('军师动作解析', () => {
   it('cast_skill 按参数形状取字段', () => {
     expect(parseAction('cast_skill eraser_strike 5,11')).toEqual({ name: 'cast_skill', input: { skill: 'eraser_strike', x: 5, y: 11 } });
     expect(parseAction('cast_skill bell')).toEqual({ name: 'cast_skill', input: { skill: 'bell' } });
-    expect(parseAction('cast_skill ruler_sweep row 6')).toEqual({ name: 'cast_skill', input: { skill: 'ruler_sweep', axis: 'row', index: 6 } });
+    expect(parseAction('cast_skill ruler_sweep row 6')).toEqual({
+      name: 'cast_skill',
+      input: { skill: 'ruler_sweep', axis: 'row', index: 6 },
+    });
     expect(parseAction('cast_skill relocate 3 4 5')).toEqual({ name: 'cast_skill', input: { skill: 'relocate', uid: 3, x: 4, y: 5 } });
     expect(parseAction('cast_skill seal_tape drop-2')).toEqual({ name: 'cast_skill', input: { skill: 'seal_tape', spawner: 'drop-2' } });
   });
@@ -72,7 +83,9 @@ describe('军师动作解析', () => {
     expect(describeCall(null, 'start_wave', {})).toBe('开始下一波');
     expect(describeCall(null, 'get_state', {})).toBeNull();
     expect(describeCall(null, 'end_turn', { note: 'x' })).toBeNull();
-    expect(failReason({ result: 'REJECTED {"type":"place","tower":"pencil","cx":1,"cy":1}: 会堵死道路 (cost 20, gold 8)' })).toBe('会堵死道路');
+    expect(failReason({ result: 'REJECTED {"type":"place","tower":"pencil","cx":1,"cy":1}: 会堵死道路 (cost 20, gold 8)' })).toBe(
+      '会堵死道路',
+    );
     expect(failReason({ result: 'ERROR invalid input: input.y is required' })).toBe('invalid input: input.y is required');
   });
 });
@@ -138,7 +151,11 @@ describe('设置保存与上传标记', () => {
     const mem = new Map<string, string>();
     const g = globalThis as { localStorage?: unknown };
     const had = g.localStorage;
-    g.localStorage = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v), removeItem: (k: string) => void mem.delete(k) };
+    g.localStorage = {
+      getItem: (k: string) => mem.get(k) ?? null,
+      setItem: (k: string, v: string) => void mem.set(k, v),
+      removeItem: (k: string) => void mem.delete(k),
+    };
     onTestFinished(() => void (g.localStorage = had));
     const { defaultSetup, saveSetup, loadSetup, AI_SETUP_KEY } = await import('../../src/ui/ai/store');
     const { saveableConfig, resolveConfig } = await import('../../src/agent');
@@ -161,8 +178,22 @@ describe('设置保存与上传标记', () => {
     // 中转服务：接口检测结果是不含 Key 的普通设置，可以保存
     const r = defaultSetup();
     r.source = 'relay';
-    r.per.relay = { baseUrl: 'https://relay.test/v1', model: 'gpt-5-mini', relayApi: 'auto', detected: { api: 'openai-responses', for: 'https://relay.test|gpt-5-mini' } };
-    r.lastConfig = saveableConfig(resolveConfig({ provider: 'pi', preset: 'relay', api: 'openai-responses', baseUrl: 'https://relay.test/v1', model: 'gpt-5-mini', apiKey: 'test-RELAYKEY' }));
+    r.per.relay = {
+      baseUrl: 'https://relay.test/v1',
+      model: 'gpt-5-mini',
+      relayApi: 'auto',
+      detected: { api: 'openai-responses', for: 'https://relay.test|gpt-5-mini' },
+    };
+    r.lastConfig = saveableConfig(
+      resolveConfig({
+        provider: 'pi',
+        preset: 'relay',
+        api: 'openai-responses',
+        baseUrl: 'https://relay.test/v1',
+        model: 'gpt-5-mini',
+        apiKey: 'test-RELAYKEY',
+      }),
+    );
     saveSetup(r);
     const raw2 = mem.get(AI_SETUP_KEY) ?? '';
     expect(raw2).not.toContain('RELAYKEY');
@@ -175,11 +206,31 @@ describe('设置保存与上传标记', () => {
     const share = botShareOf([{ by: 'agent' }, { by: 'agent' }, { by: 'fallback' }, { by: 'agent' }]);
     expect(share).toBe(0.25);
     expect(botShareOf([])).toBe(0);
-    const meta = agentMetaOf({ agent: { provider: 'pi:Ollama', model: 'qwen3:8b 中文 tag', role: 'player' }, mode: 'pause', botShare: share, decisions: 4, usage, costUsd: 0.123456 });
-    expect(meta).toMatchObject({ provider: 'pi:ollama', model: 'qwen3:8b____tag', mode: 'pause', botShare: 0.25, decisions: 4, tokens: 6500, costUsd: 0.1235 });
+    const meta = agentMetaOf({
+      agent: { provider: 'pi:Ollama', model: 'qwen3:8b 中文 tag', role: 'player' },
+      mode: 'pause',
+      botShare: share,
+      decisions: 4,
+      usage,
+      costUsd: 0.123456,
+    });
+    expect(meta).toMatchObject({
+      provider: 'pi:ollama',
+      model: 'qwen3:8b____tag',
+      mode: 'pause',
+      botShare: 0.25,
+      decisions: 4,
+      tokens: 6500,
+      costUsd: 0.1235,
+    });
     expect(sanitizeAgentMeta(meta)).toEqual({ ok: true, value: meta });
 
-    const base = { agent: { provider: 'claude-native', model: 'claude-sonnet-5-5', role: 'player' }, opts: OPTS, takenOver: false, decisions: 3 };
+    const base = {
+      agent: { provider: 'claude-native', model: 'claude-sonnet-5-5', role: 'player' },
+      opts: OPTS,
+      takenOver: false,
+      decisions: 3,
+    };
     expect(aiBoardBlocker(base)).toBeNull();
     expect(aiBoardBlocker({ ...base, agent: { ...base.agent, role: 'advisor' } })).toContain('军师');
     expect(aiBoardBlocker({ ...base, takenOver: true })).toContain('接管');
@@ -191,7 +242,11 @@ describe('设置保存与上传标记', () => {
   it('连接诊断：报错且没收到任何 token ⇒ 视为没连通（不建议切 JSON 模式）', async () => {
     const { normalizeDiag } = await import('../../src/ui/ai/setup');
     const base = { ok: false, reachable: true, toolCalling: false, latencyMs: 900, model: 'm', provider: 'pi', tokens: 0 };
-    expect(normalizeDiag({ ...base, error: 'error: Connection error.', advice: 'x' })).toMatchObject({ reachable: false, network: true, advice: undefined });
+    expect(normalizeDiag({ ...base, error: 'error: Connection error.', advice: 'x' })).toMatchObject({
+      reachable: false,
+      network: true,
+      advice: undefined,
+    });
     expect(normalizeDiag({ ...base, error: '401 invalid api key' })).toMatchObject({ reachable: false, network: false });
     // 真的连上了、只是没调用工具：保持原判
     expect(normalizeDiag({ ...base, tokens: 42, advice: '换模型' })).toMatchObject({ reachable: true, network: false, advice: '换模型' });

@@ -5,13 +5,18 @@
  *   选增益 → 维护迷宫 → 买塔 / 升级 → 放技能 → （高手）安全时提前开波
  */
 import {
-  CellKind, generateWave, type Branch, type IWorld, type PerkCard, type SkillId, type TowerId, type TowerState,
+  CellKind,
+  generateWave,
+  type Branch,
+  type IWorld,
+  type PerkCard,
+  type SkillId,
+  type TowerId,
+  type TowerState,
 } from '../../src/core';
 import { COMBOS, TOWERS } from '../../src/config/towers';
 import { rawUpgradeCost } from '../../src/core/scaling';
-import {
-  airSamples, coverage, groundSamples, planMaze, spawnerKey, targetCells, type MazePlan, type Sample,
-} from './maze';
+import { airSamples, coverage, groundSamples, planMaze, spawnerKey, targetCells, type MazePlan, type Sample } from './maze';
 
 export interface BotParams {
   name: string;
@@ -71,18 +76,41 @@ export interface BotParams {
 
 /** 每种塔"单位覆盖"的大致价值（秒伤量级），只用于机器人的买/升比较 */
 const POWER: Record<TowerId, number> = {
-  wall: 0, pencil: 16, stapler: 26, glue: 12, lamp: 24, compass: 40, eraser: 10, ruler: 24, pen: 20, calculator: 0, piggy: 0, swatter: 30,
+  wall: 0,
+  pencil: 16,
+  stapler: 26,
+  glue: 12,
+  lamp: 24,
+  compass: 40,
+  eraser: 10,
+  ruler: 24,
+  pen: 20,
+  calculator: 0,
+  piggy: 0,
+  swatter: 30,
 };
 /** 下一级的额外收益系数（形态跃迁） */
 function levelGain(id: TowerId, next: number): number {
   let g = 0.186;
-  if (next === 4) g += ({ pencil: 0.15, compass: 0.25, lamp: 0.3, stapler: 0.1, eraser: 0.3, pen: 0.2 } as Partial<Record<TowerId, number>>)[id] ?? 0.1;
-  if (next === 7) g += ({ pencil: 1.0, lamp: 0.8, ruler: 1.6, compass: 0.4, stapler: 0.3, pen: 0.3, glue: 0.3, eraser: 0.3 } as Partial<Record<TowerId, number>>)[id] ?? 0.2;
+  if (next === 4)
+    g += ({ pencil: 0.15, compass: 0.25, lamp: 0.3, stapler: 0.1, eraser: 0.3, pen: 0.2 } as Partial<Record<TowerId, number>>)[id] ?? 0.1;
+  if (next === 7)
+    g +=
+      (
+        { pencil: 1.0, lamp: 0.8, ruler: 1.6, compass: 0.4, stapler: 0.3, pen: 0.3, glue: 0.3, eraser: 0.3 } as Partial<
+          Record<TowerId, number>
+        >
+      )[id] ?? 0.2;
   if (next === 10) g += 0.5;
   return g;
 }
 
-interface Slot { cx: number; cy: number; i: number; wallUid: number }
+interface Slot {
+  cx: number;
+  cy: number;
+  i: number;
+  wallUid: number;
+}
 
 export class StrategyBot {
   readonly p: BotParams;
@@ -117,7 +145,9 @@ export class StrategyBot {
     this.rngState = h || 1;
   }
 
-  get probe(): number { return this.probeUid; }
+  get probe(): number {
+    return this.probeUid;
+  }
 
   private rand(): number {
     this.rngState = (Math.imul(this.rngState, 1664525) + 1013904223) >>> 0;
@@ -144,7 +174,10 @@ export class StrategyBot {
   // ───────────── 主决策 ─────────────
   act(phase: 'build' | 'wave'): void {
     const s = this.w.state;
-    if (s.phase === 'perk') { this.choosePerk(); return; }
+    if (s.phase === 'perk') {
+      this.choosePerk();
+      return;
+    }
     this.spend();
     this.maybeDemolish();
     if (phase === 'wave') {
@@ -221,14 +254,19 @@ export class StrategyBot {
           const elite = en.find((e) => e.elite && !e.boss && e.affixes.length > 0);
           // 深钻打掉血最多的；精准测量标在敌群里生命最多的
           const hurt = en.reduce((a, b) => (b.maxHp - b.hp > a.maxHp - a.hp ? b : a), en[0]);
-          const inDense = en.filter((e) => (e.x - dense.x) ** 2 + (e.y - dense.y) ** 2 <= 2.25).reduce((a, b) => (b.hp > a.hp ? b : a), strong);
+          const inDense = en
+            .filter((e) => (e.x - dense.x) ** 2 + (e.y - dense.y) ** 2 <= 2.25)
+            .reduce((a, b) => (b.hp > a.hp ? b : a), strong);
           const tgt = ab.id === 'eraser_b' ? elite : ab.id === 'compass_b' ? hurt : ab.id === 'ruler_b' ? inDense : strong;
           if (tgt) this.w.command({ type: 'towerAbility', uid: t.uid, targetUid: tgt.uid });
           break;
         }
         case 'tower': {
-          const cand = this.towers().filter((o) => o.id !== 'wall' && o.uid !== t.uid && o.level < 9
-            && (o.cx - t.cx) ** 2 + (o.cy - t.cy) ** 2 <= (info!.auraRange ?? 2) ** 2)
+          const cand = this.towers()
+            .filter(
+              (o) =>
+                o.id !== 'wall' && o.uid !== t.uid && o.level < 9 && (o.cx - t.cx) ** 2 + (o.cy - t.cy) ** 2 <= (info!.auraRange ?? 2) ** 2,
+            )
             .sort((a, b) => b.level - a.level)[0];
           if (cand) this.w.command({ type: 'towerAbility', uid: t.uid, targetUid: cand.uid });
           break;
@@ -237,8 +275,12 @@ export class StrategyBot {
     }
   }
 
-  private towers(): TowerState[] { return [...this.w.state.towers.values()]; }
-  private attackers(): TowerState[] { return this.towers().filter((t) => TOWERS[t.id].attacks); }
+  private towers(): TowerState[] {
+    return [...this.w.state.towers.values()];
+  }
+  private attackers(): TowerState[] {
+    return this.towers().filter((t) => TOWERS[t.id].attacks);
+  }
 
   private currentSegments(): number {
     return Math.min(this.plan.segments.length, Math.max(0, this.p.mazeSegments(Math.max(1, this.w.state.wave + 1))));
@@ -306,10 +348,11 @@ export class StrategyBot {
   private offPlanSlots(): Slot[] {
     const g = this.w.state.grid;
     const out: Slot[] = [];
-    for (let cy = 0; cy < g.rows; cy++) for (let cx = 0; cx < g.cols; cx++) {
-      const i = cy * g.cols + cx;
-      if (g.cells[i] === CellKind.Empty) out.push({ cx, cy, i, wallUid: 0 });
-    }
+    for (let cy = 0; cy < g.rows; cy++)
+      for (let cx = 0; cx < g.cols; cx++) {
+        const i = cy * g.cols + cx;
+        if (g.cells[i] === CellKind.Empty) out.push({ cx, cy, i, wallUid: 0 });
+      }
     return out;
   }
 
@@ -356,7 +399,12 @@ export class StrategyBot {
 
   private adjacent(sl: { cx: number; cy: number }, id: TowerId): boolean {
     const g = this.w.state.grid;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ]) {
       const x = sl.cx + dx;
       const y = sl.cy + dy;
       if (x < 0 || y < 0 || x >= g.cols || y >= g.rows) continue;
@@ -393,7 +441,8 @@ export class StrategyBot {
     if (r.ok) this.otherSpent += g0 - w.state.gold;
     if (!r.ok && sl.wallUid) w.command({ type: 'place', tower: 'wall', cx: sl.cx, cy: sl.cy });
     if (r.ok && id === 'pencil' && this.p.xpProbe && !this.probeUid) this.probeUid = w.state.grid.towerAt[sl.i];
-    if (r.ok && id === 'lamp' && this.p.skillUse !== 'rare') w.command({ type: 'setTarget', uid: w.state.grid.towerAt[sl.i], mode: 'strong' });
+    if (r.ok && id === 'lamp' && this.p.skillUse !== 'rare')
+      w.command({ type: 'setTarget', uid: w.state.grid.towerAt[sl.i], mode: 'strong' });
     return r.ok;
   }
 
@@ -402,7 +451,8 @@ export class StrategyBot {
     const atk = this.attackers();
     for (let k = 0; k < this.p.opening.length; k++) {
       const want = this.p.opening.slice(0, k + 1).filter((x) => x === this.p.opening[k]).length;
-      if (atk.filter((t) => t.id === this.p.opening[k]).length < want && s.unlockedTowers.includes(this.p.opening[k])) return this.p.opening[k];
+      if (atk.filter((t) => t.id === this.p.opening[k]).length < want && s.unlockedTowers.includes(this.p.opening[k]))
+        return this.p.opening[k];
     }
     for (let k = 0; k < this.p.rotation.length; k++) {
       const id = this.p.rotation[(this.rot + k) % this.p.rotation.length];
@@ -411,8 +461,14 @@ export class StrategyBot {
       if (id === 'calculator' && this.attackers().length < 8) continue;
       this.rot = (this.rot + k) % this.p.rotation.length;
       // 飞行敌人漏过：轮到铅笔时改买苍蝇拍（数量随波数放宽）
-      if (id === 'pencil' && this.p.swatters && s.unlockedTowers.includes('swatter')
-        && this.airLeaks > 0 && this.towers().filter((t) => t.id === 'swatter').length < this.p.swatters(s.wave + 1)) return 'swatter';
+      if (
+        id === 'pencil' &&
+        this.p.swatters &&
+        s.unlockedTowers.includes('swatter') &&
+        this.airLeaks > 0 &&
+        this.towers().filter((t) => t.id === 'swatter').length < this.p.swatters(s.wave + 1)
+      )
+        return 'swatter';
       return id;
     }
     return null;
@@ -433,7 +489,12 @@ export class StrategyBot {
         if (r === 'done') continue;
       }
       if (this.p.looseWalls && atk >= 3 && this.looseWall(wave)) continue;
-      if (atk >= Math.min(minAtk, 3) && this.wallSpent < this.p.wallShare * (this.otherSpent + this.wallSpent) + 25 && this.buildWalls(budget)) continue;
+      if (
+        atk >= Math.min(minAtk, 3) &&
+        this.wallSpent < this.p.wallShare * (this.otherSpent + this.wallSpent) + 25 &&
+        this.buildWalls(budget)
+      )
+        continue;
       const id = this.nextRotation();
       if (!id) return;
       const cost = this.cost(id);
@@ -539,15 +600,25 @@ export class StrategyBot {
     const g = s.grid;
     let best: [number, number] | null = null;
     let bv = cur;
-    for (const p of this.w.currentPaths()) for (const c of p) {
-      for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const x = c.x + dx;
-        const y = c.y + dy;
-        if (x < 0 || y < 0 || x >= g.cols || y >= g.rows || g.cells[y * g.cols + x] !== CellKind.Empty) continue;
-        const l = len(this.w.previewPath('wall', x, y));
-        if (l > bv) { bv = l; best = [x, y]; }
+    for (const p of this.w.currentPaths())
+      for (const c of p) {
+        for (const [dx, dy] of [
+          [0, 0],
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ]) {
+          const x = c.x + dx;
+          const y = c.y + dy;
+          if (x < 0 || y < 0 || x >= g.cols || y >= g.rows || g.cells[y * g.cols + x] !== CellKind.Empty) continue;
+          const l = len(this.w.previewPath('wall', x, y));
+          if (l > bv) {
+            bv = l;
+            best = [x, y];
+          }
+        }
       }
-    }
     if (!best) return false;
     return this.w.command({ type: 'place', tower: 'wall', cx: best[0], cy: best[1] }).ok;
   }
@@ -565,7 +636,10 @@ export class StrategyBot {
         if (spent + wallCost > cap || s.gold < wallCost) return spent > 0;
         const cx = i % g.cols;
         const cy = (i - cx) / g.cols;
-        if (this.w.command({ type: 'place', tower: 'wall', cx, cy }).ok) { spent += wallCost; this.wallSpent += wallCost; }
+        if (this.w.command({ type: 'place', tower: 'wall', cx, cy }).ok) {
+          spent += wallCost;
+          this.wallSpent += wallCost;
+        }
       }
     }
     return spent > 0;
@@ -576,7 +650,12 @@ export class StrategyBot {
     for (const t of this.towers()) {
       if (t.id !== 'wall' || t.level >= 3) continue;
       let n = 0;
-      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ]) {
         const x = t.cx + dx;
         const y = t.cy + dy;
         if (x < 0 || y < 0 || x >= g.cols || y >= g.rows) continue;
@@ -599,7 +678,9 @@ export class StrategyBot {
     if (this.p.upgrade === 'rare') {
       // 新手：钱很多才升，随便挑一座最低级的
       if (s.gold < 250) return null;
-      const list = this.attackers().filter((t) => t.level < 9).sort((a, b) => a.level - b.level);
+      const list = this.attackers()
+        .filter((t) => t.level < 9)
+        .sort((a, b) => a.level - b.level);
       const t = list[0];
       if (!t) return null;
       const info = this.w.getTowerInfo(t.uid)!;
@@ -612,7 +693,7 @@ export class StrategyBot {
         // 传奇进化：每星 +12% 伤害等；★3 另有主动能力
         if (info.evolveCost === null || this.p.upgrade !== 'value') continue;
         let eff: number;
-        if (t.id === 'piggy' || t.id === 'calculator') eff = 0.002 * 10 / info.evolveCost;
+        if (t.id === 'piggy' || t.id === 'calculator') eff = (0.002 * 10) / info.evolveCost;
         else {
           const r = this.ranges(t.id);
           let cov = TOWERS[t.id].hitsGround ? coverage(t.cx, t.cy, r.r, r.inner, this.gSamples) : 0;
@@ -626,9 +707,9 @@ export class StrategyBot {
       if (info.upgradeCost === null) continue;
       let eff: number;
       if (t.id === 'piggy') {
-        eff = t.level < 9 ? 0.5 * 2 / info.upgradeCost * 10 : 0;
+        eff = t.level < 9 ? ((0.5 * 2) / info.upgradeCost) * 10 : 0;
       } else if (t.id === 'calculator') {
-        eff = (0.01 * this.slotValue('calculator', t as unknown as Slot)) / info.upgradeCost * 3;
+        eff = ((0.01 * this.slotValue('calculator', t as unknown as Slot)) / info.upgradeCost) * 3;
       } else {
         const r = this.ranges(t.id);
         let cov = TOWERS[t.id].hitsGround ? coverage(t.cx, t.cy, r.r, r.inner, this.gSamples) : 0;
@@ -666,7 +747,8 @@ export class StrategyBot {
     const sorted = cards.slice().sort((a, b) => rank(a) - rank(b));
     for (const c of sorted) {
       if (c.needsTower) {
-        const cand = this.towers().filter((t) => t.id !== 'wall' && t.level >= 7 && t.level < 10)
+        const cand = this.towers()
+          .filter((t) => t.id !== 'wall' && t.level >= 7 && t.level < 10)
           .sort((a, b) => b.level - a.level || b.damage - a.damage)[0];
         if (!cand) continue;
         const br = this.p.branches[cand.id] ?? 'A';
@@ -674,7 +756,10 @@ export class StrategyBot {
         // 高手（smart）直接选分支进 Lv10；其余只拿 Lv9 + 半价
         const withBranch = this.p.skillUse === 'smart' && s.gold >= halfCost;
         const r = this.w.command({ type: 'choosePerk', id: c.id, uid: cand.uid, branch: withBranch ? br : undefined });
-        if (r.ok) { this.goldUpgraded.add(cand.uid); return; }
+        if (r.ok) {
+          this.goldUpgraded.add(cand.uid);
+          return;
+        }
         continue;
       }
       if (this.w.command({ type: 'choosePerk', id: c.id }).ok) return;
@@ -691,7 +776,10 @@ export class StrategyBot {
       for (const b of en) {
         const dx = a.x - b.x;
         const dy = a.y - b.y;
-        if (dx * dx + dy * dy <= r * r) { v += b.hp + b.shield; n++; }
+        if (dx * dx + dy * dy <= r * r) {
+          v += b.hp + b.shield;
+          n++;
+        }
       }
       if (!best || v > best.v) best = { x: a.x, y: a.y, v, n };
     }
@@ -711,7 +799,9 @@ export class StrategyBot {
       if (!sk.ready) continue;
       if (sk.id === 'scholarship') this.w.command({ type: 'cast', skill: sk.id });
       if (sk.id === 'inspiration') {
-        const t = this.attackers().filter((t) => t.level < 9).sort((a, b) => b.level - a.level || b.damage - a.damage)[0];
+        const t = this.attackers()
+          .filter((t) => t.level < 9)
+          .sort((a, b) => b.level - a.level || b.damage - a.damage)[0];
         if (t) this.w.command({ type: 'cast', skill: sk.id, uid: t.uid });
       }
     }
@@ -738,7 +828,9 @@ export class StrategyBot {
           this.w.command({ type: 'cast', skill: sk.id });
           break;
         case 'inspiration': {
-          const t = this.attackers().filter((t) => t.level < 9).sort((a, b) => b.level - a.level || b.damage - a.damage)[0];
+          const t = this.attackers()
+            .filter((t) => t.level < 9)
+            .sort((a, b) => b.level - a.level || b.damage - a.damage)[0];
           if (t) this.w.command({ type: 'cast', skill: sk.id, uid: t.uid });
           break;
         }
@@ -768,7 +860,10 @@ export class StrategyBot {
         case 'bell': {
           const ground = en.filter((e) => !e.flying).length;
           const bossE = this.bossTarget();
-          if (bossE && mode !== 'rare' && bossE.y > 6) { this.w.command({ type: 'cast', skill: sk.id }); break; }
+          if (bossE && mode !== 'rare' && bossE.y > 6) {
+            this.w.command({ type: 'cast', skill: sk.id });
+            break;
+          }
           if (mode === 'smart' && !(danger && ground >= 4) && !(boss && ground >= 6)) break;
           if (mode !== 'smart' && ground < 8) break;
           this.w.command({ type: 'cast', skill: sk.id });
@@ -786,7 +881,11 @@ export class StrategyBot {
           for (const e of en) rows.set(Math.floor(e.y), (rows.get(Math.floor(e.y)) ?? 0) + e.hp);
           let br = -1;
           let bv = 0;
-          for (const [r, v] of rows) if (v > bv) { bv = v; br = r; }
+          for (const [r, v] of rows)
+            if (v > bv) {
+              bv = v;
+              br = r;
+            }
           if (br < 0) break;
           if (mode === 'smart' && bv < totalHp * 0.25 && !danger) break;
           this.w.command({ type: 'cast', skill: sk.id, cy: br, axis: 'row' });

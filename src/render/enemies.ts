@@ -199,7 +199,14 @@ class EnemyView {
     if (e.group > 1) {
       if (!this.label) {
         this.label = this.ctx.scene.add
-          .text(0, 0, '', { fontFamily: FONT, fontSize: '10px', fontStyle: 'bold', color: hex(C.paper), stroke: hex(C.ink), strokeThickness: 3 })
+          .text(0, 0, '', {
+            fontFamily: FONT,
+            fontSize: '10px',
+            fontStyle: 'bold',
+            color: hex(C.paper),
+            stroke: hex(C.ink),
+            strokeThickness: 3,
+          })
           .setOrigin(0, 0.5);
         this.label.setResolution(Math.min(4, this.ctx.zoom));
         this.root.add(this.label);
@@ -397,14 +404,25 @@ class EnemyView {
         // 金币袋怪 / 金色精英：往上冒的小金星
         if ((e.id === 'goldbag' || e.affixes.includes('golden')) && Math.random() < 0.5)
           fx.mote(this.x + (Math.random() - 0.5) * 14, this.y - 6 - this.lift, C.goldLight, -18, 0.5, 1.8);
-        if (e.burnUntil > now) fx.mote(this.x + (Math.random() - 0.5) * 10, this.y - 4 - this.lift, Math.random() < 0.3 ? C.goldLight : C.lamp, -26, 0.45, 2.2);
+        if (e.burnUntil > now)
+          fx.mote(this.x + (Math.random() - 0.5) * 10, this.y - 4 - this.lift, Math.random() < 0.3 ? C.goldLight : C.lamp, -26, 0.45, 2.2);
         // 流血：一滴一滴往下掉
-        if (e.bleedStacks > 0 && Math.random() < 0.35 + 0.15 * Math.min(4, e.bleedStacks)) fx.drip(this.x + (Math.random() - 0.5) * 8, this.y - this.lift, C.bookRed, 1.7);
+        if (e.bleedStacks > 0 && Math.random() < 0.35 + 0.15 * Math.min(4, e.bleedStacks))
+          fx.drip(this.x + (Math.random() - 0.5) * 8, this.y - this.lift, C.bookRed, 1.7);
         // 墨迹：偶尔滴墨
-        if (e.inkStacks > 0 && Math.random() < 0.12 * Math.min(5, e.inkStacks)) fx.drip(this.x + (Math.random() - 0.5) * 10, this.y + 2 - this.lift, C.inkBlue, 2);
+        if (e.inkStacks > 0 && Math.random() < 0.12 * Math.min(5, e.inkStacks))
+          fx.drip(this.x + (Math.random() - 0.5) * 10, this.y + 2 - this.lift, C.inkBlue, 2);
         // 减速：身后留下一小串冷色的点（减弱动效时不出）
         if (!ctx.reduced && e.slowUntil > now && e.slowPct > 0 && !stunned && Math.random() < 0.45)
-          fx.mote(this.x - Math.cos(e.angle) * 7 + (Math.random() - 0.5) * 5, this.y - Math.sin(e.angle) * 7 + 3 - this.lift, C.blueCap, -4, 0.4, 1.8, false);
+          fx.mote(
+            this.x - Math.cos(e.angle) * 7 + (Math.random() - 0.5) * 5,
+            this.y - Math.sin(e.angle) * 7 + 3 - this.lift,
+            C.blueCap,
+            -4,
+            0.4,
+            1.8,
+            false,
+          );
       }
     }
   }
@@ -420,8 +438,19 @@ class EnemyView {
     if (golden) {
       const gp = 0.5 + 0.5 * Math.sin(this.ctx.vtime * 4 + this.phase);
       const d = r * (4 + 0.6 * gp) * k;
-      this.halo.setVisible(true).setTint(C.gold).setPosition(0, bodyY).setDisplaySize(d, d).setAlpha(0.6 + 0.3 * gp);
-    } else if (B.haloAlpha > 0) this.halo.setVisible(true).setTint(C.lampLight).setPosition(0, bodyY).setDisplaySize(r * 3.4 * k, r * 3.4 * k).setAlpha(B.haloAlpha);
+      this.halo
+        .setVisible(true)
+        .setTint(C.gold)
+        .setPosition(0, bodyY)
+        .setDisplaySize(d, d)
+        .setAlpha(0.6 + 0.3 * gp);
+    } else if (B.haloAlpha > 0)
+      this.halo
+        .setVisible(true)
+        .setTint(C.lampLight)
+        .setPosition(0, bodyY)
+        .setDisplaySize(r * 3.4 * k, r * 3.4 * k)
+        .setAlpha(B.haloAlpha);
     else this.halo.setVisible(false);
     // 精英环
     if (e.elite) {
@@ -436,7 +465,11 @@ class EnemyView {
     } else this.eliteRing.setVisible(false);
     // 定身
     if (e.rootUntil > now) {
-      this.rootBlob.setVisible(true).setPosition(0, r * 0.5 * k).setDisplaySize(r * 2.2 * k, r * 0.9 * k).setAlpha(0.85);
+      this.rootBlob
+        .setVisible(true)
+        .setPosition(0, r * 0.5 * k)
+        .setDisplaySize(r * 2.2 * k, r * 0.9 * k)
+        .setAlpha(0.85);
     } else this.rootBlob.setVisible(false);
     // 减速外圈
     if (e.slowUntil > now && e.slowPct > 0) {
@@ -471,7 +504,9 @@ class EnemyView {
       const im = this.inks[i];
       if (i < ink) {
         const d = (4.4 + (i % 2) * 1.2) * k;
-        im.setVisible(true).setPosition(INK_OFFS[i][0] * r * k, bodyY + INK_OFFS[i][1] * r * k).setDisplaySize(d, d);
+        im.setVisible(true)
+          .setPosition(INK_OFFS[i][0] * r * k, bodyY + INK_OFFS[i][1] * r * k)
+          .setDisplaySize(d, d);
       } else if (im.visible) im.setVisible(false);
     }
     // 血条（宽为体型 1.1 倍，高 3px；护盾为青色段）
@@ -484,14 +519,23 @@ class EnemyView {
       const by = top - 6 - h / 2;
       barTop = by - h / 2;
       const bx = -w / 2;
-      this.barBg.setVisible(true).setPosition((bx - 1) * k, by * k).setDisplaySize((w + 2) * k, (h + 2) * k);
+      this.barBg
+        .setVisible(true)
+        .setPosition((bx - 1) * k, by * k)
+        .setDisplaySize((w + 2) * k, (h + 2) * k);
       const hpw = w * Phaser.Math.Clamp(e.hp / Math.max(1, e.maxHp), 0, 1);
-      this.barHp.setVisible(hpw > 0).setPosition(bx * k, by * k).setDisplaySize(Math.max(0.01, hpw) * k, h * k);
+      this.barHp
+        .setVisible(hpw > 0)
+        .setPosition(bx * k, by * k)
+        .setDisplaySize(Math.max(0.01, hpw) * k, h * k);
       this.barHp.setTint(e.boss ? C.alarmRed : C.bad);
       if (e.shield > 0) {
         const sw = Math.min(w, (w * e.shield) / Math.max(1, e.maxHp));
         const sx = Math.min(bx + hpw, bx + w - sw);
-        this.barSh.setVisible(true).setPosition(sx * k, by * k).setDisplaySize(sw * k, h * k);
+        this.barSh
+          .setVisible(true)
+          .setPosition(sx * k, by * k)
+          .setDisplaySize(sw * k, h * k);
       } else this.barSh.setVisible(false);
     } else {
       this.barBg.setVisible(false);
@@ -535,7 +579,10 @@ class EnemyView {
     } else if (this.net.visible) this.net.setVisible(false);
     // 被侦测的隐形敌人：眼睛
     if (e.stealthy && !e.hidden) {
-      this.eye.setVisible(true).setPosition(-r * 0.95 * k, (top - 1) * k).setDisplaySize(12 * k, 12 * k);
+      this.eye
+        .setVisible(true)
+        .setPosition(-r * 0.95 * k, (top - 1) * k)
+        .setDisplaySize(12 * k, 12 * k);
     } else this.eye.setVisible(false);
     if (this.label && this.label.visible) this.label.setPosition(r * 0.6 * k, r * 0.5 * k + bodyY).setScale(k);
   }

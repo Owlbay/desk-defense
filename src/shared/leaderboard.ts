@@ -59,15 +59,41 @@ export const LEADERBOARD_MAX_LIMIT = 100;
 export const MAPS = ['ch1', 'ch2', 'ch3'] as const satisfies readonly MapId[];
 export const DIFFICULTIES = ['easy', 'normal', 'hard', 'nightmare', 'abyss'] as const satisfies readonly DifficultyId[];
 export const SKILLS = [
-  'eraser_strike', 'bell', 'whiteout_zone', 'caffeine', 'ruler_sweep',
-  'scholarship', 'relocate', 'inspiration', 'magnifier', 'seal_tape',
+  'eraser_strike',
+  'bell',
+  'whiteout_zone',
+  'caffeine',
+  'ruler_sweep',
+  'scholarship',
+  'relocate',
+  'inspiration',
+  'magnifier',
+  'seal_tape',
 ] as const satisfies readonly SkillId[];
 export const TALENTS = [
-  'wallet', 'bandaid', 'alarm', 'study', 'secondhand', 'bigbag', 'luckydraw', 'collector',
+  'wallet',
+  'bandaid',
+  'alarm',
+  'study',
+  'secondhand',
+  'bigbag',
+  'luckydraw',
+  'collector',
 ] as const satisfies readonly TalentId[];
 export const COMMAND_TYPES = [
-  'place', 'upgrade', 'sell', 'setTarget', 'startWave', 'cast', 'choosePerk', 'rerollPerks',
-  'collect', 'chooseCrate', 'demolishSpawner', 'evolve', 'towerAbility',
+  'place',
+  'upgrade',
+  'sell',
+  'setTarget',
+  'startWave',
+  'cast',
+  'choosePerk',
+  'rerollPerks',
+  'collect',
+  'chooseCrate',
+  'demolishSpawner',
+  'evolve',
+  'towerAbility',
 ] as const satisfies readonly Command['type'][];
 
 // core 新增了 id 而这里没跟上时，下面几行会编译失败（提醒同步 + 升 CONTENT_REVISION）
@@ -252,8 +278,7 @@ export function endlessBoardKey(d: DifficultyId, abyssLevel: number | undefined,
 export const dailyBoardKey = (day: string): string => `daily:${day}`;
 
 export type ParsedBoard =
-  | { kind: 'endless'; difficulty: DifficultyId; abyssLevel?: number; pure: boolean; auto: boolean }
-  | { kind: 'daily'; day: string };
+  { kind: 'endless'; difficulty: DifficultyId; abyssLevel?: number; pure: boolean; auto: boolean } | { kind: 'daily'; day: string };
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -303,7 +328,8 @@ export function sanitizeAgentMeta(raw: unknown): Checked<AgentMeta> {
   if (a.role !== undefined && a.role !== 'player') return bad('只有「AI 玩家」的对局可以进入 AI 榜');
   if (a.mode !== 'pause' && a.mode !== 'realtime') return bad('AI 标记无效（决策模式）');
   if (typeof a.botShare !== 'number' || !(a.botShare >= 0 && a.botShare <= 1)) return bad('AI 标记无效（兜底占比）');
-  if (!Number.isSafeInteger(a.decisions) || (a.decisions as number) < 0 || (a.decisions as number) > 200_000) return bad('AI 标记无效（决策数）');
+  if (!Number.isSafeInteger(a.decisions) || (a.decisions as number) < 0 || (a.decisions as number) > 200_000)
+    return bad('AI 标记无效（决策数）');
   if (a.tokens !== undefined && !(Number.isSafeInteger(a.tokens) && (a.tokens as number) >= 0)) return bad('AI 标记无效（token）');
   if (a.costUsd !== undefined && !(typeof a.costUsd === 'number' && a.costUsd >= 0 && a.costUsd <= 1e6)) return bad('AI 标记无效（费用）');
   // 内置策略本身就是机器人：占比恒为 1
@@ -461,6 +487,8 @@ export function dailyRunOptions(info: DailyInfo, skills: SkillId[]): RunOptions 
 // ───────────────────────── 昵称 ─────────────────────────
 
 /** 简单屏蔽词（小写、去空白/标点后做子串匹配）。只是第一道筛子，运营可在服务端追加。 */
+// 保持两行：tests/i18n-data.test.ts 按行匹配 '管理员' / '傻逼' 白名单
+// prettier-ignore
 export const NICK_BLOCKLIST: readonly string[] = [
   'admin', 'administrator', '管理员', '官方', 'gm', 'fuck', 'shit', 'bitch', 'nigger', 'nigga',
   '傻逼', '煞笔', '沙比', 'sb', '操你', '草泥马', '你妈', '妈的', '去死', '共产党', '法轮', '习近平', '毛泽东',
@@ -591,7 +619,19 @@ export function checkSubmission(body: unknown, ctx: SubmitContext): Checked<Chec
       if (!TALENTS.includes(k as TalentId) || !intIn(v, 0, 10)) return bad('天赋无效');
     }
   }
-  const known = new Set(['mode', 'map', 'difficulty', 'abyssLevel', 'seed', 'skills', 'skillLevels', 'talents', 'pure', 'autoWave', 'fixedLayout']);
+  const known = new Set([
+    'mode',
+    'map',
+    'difficulty',
+    'abyssLevel',
+    'seed',
+    'skills',
+    'skillLevels',
+    'talents',
+    'pure',
+    'autoWave',
+    'fixedLayout',
+  ]);
   if (Object.keys(o).some((k) => !known.has(k))) return bad('开局参数包含未知字段');
 
   // ── 种子 ──
@@ -614,7 +654,12 @@ export function checkSubmission(body: unknown, ctx: SubmitContext): Checked<Chec
     if (o.skillLevels && Object.values(o.skillLevels).some((v) => v !== 1)) return bad('每日挑战的技能等级固定为 1 级');
   } else {
     if (/^d\d{8}[0-9a-z]{7}$/.test(seed)) return bad('每日挑战的种子不能用于普通排行');
-    const expect = endlessBoardKey(difficulty, o.abyssLevel as number | undefined, pure, effectiveAutoWave({ autoWave: o.autoWave as boolean | undefined, difficulty }));
+    const expect = endlessBoardKey(
+      difficulty,
+      o.abyssLevel as number | undefined,
+      pure,
+      effectiveAutoWave({ autoWave: o.autoWave as boolean | undefined, difficulty }),
+    );
     if ((aiBoard ? AI_BOARD_PREFIX : '') + expect !== body.board) return bad('排行榜与开局参数不一致');
   }
 
@@ -633,7 +678,13 @@ export function checkSubmission(body: unknown, ctx: SubmitContext): Checked<Chec
   if (r.cleared !== undefined && !isInt(r.cleared)) return bad('结算数据无效');
   if (r.bonus !== undefined && !isNum(r.bonus)) return bad('结算数据无效');
   const result: ClaimedResult = {
-    wave: r.wave, score: r.score, kills: r.kills, lives: r.lives, gold: r.gold, won: false, ticks: r.ticks,
+    wave: r.wave,
+    score: r.score,
+    kills: r.kills,
+    lives: r.lives,
+    gold: r.gold,
+    won: false,
+    ticks: r.ticks,
     ...(r.cleared !== undefined ? { cleared: r.cleared as number } : {}),
     ...(r.bonus !== undefined ? { bonus: r.bonus as number } : {}),
   };
@@ -680,7 +731,10 @@ export function checkLog(log: unknown, result: ClaimedResult, opts: RunOptions):
   const bad = (message: string): Checked<LogEntry[]> => ({ ok: false, message });
   if (!Array.isArray(log)) return bad('操作记录格式错误');
   if (log.length > LOG_MAX_ENTRIES) return bad('操作记录过长');
-  const maxCmds = Math.min(50 + (result.wave + 1) * MAX_CMDS_PER_WAVE, 50 + Math.floor((result.ticks / TICKS_PER_SECOND) * MAX_CMDS_PER_SEC));
+  const maxCmds = Math.min(
+    50 + (result.wave + 1) * MAX_CMDS_PER_WAVE,
+    50 + Math.floor((result.ticks / TICKS_PER_SECOND) * MAX_CMDS_PER_SEC),
+  );
   if (log.length > maxCmds) return bad('操作次数与对局时长不符');
   let prev = 0;
   let starts = 0;

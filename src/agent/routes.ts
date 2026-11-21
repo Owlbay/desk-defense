@@ -15,7 +15,10 @@ import { CellKind, type IWorld, type TowerId, type TowerState } from '../core/ty
 import { computeDist, isPassableKind } from '../core/flowfield';
 import { TOWERS } from '../config/towers';
 
-export interface P { x: number; y: number }
+export interface P {
+  x: number;
+  y: number;
+}
 
 export interface Route {
   id: string;
@@ -114,7 +117,10 @@ function exitStep(cols: number, rows: number, cells: Uint8Array, d: Float32Array
     if (!isPassableKind(cells[ni]) || !(d[ni] < Infinity)) continue;
     if (k >= 4 && (!isPassableKind(cells[y * cols + nx]) || !isPassableKind(cells[ny * cols + x]))) continue;
     const v = d[ni] + (k >= 4 ? 1.414 : 1);
-    if (v < bv - 1e-4) { bv = v; best = ni; }
+    if (v < bv - 1e-4) {
+      bv = v;
+      best = ni;
+    }
   }
   return best;
 }
@@ -136,7 +142,10 @@ function nextDown(cols: number, rows: number, cells: Uint8Array, d: Float32Array
     const dn = d[ni];
     if (!(dn < here)) continue;
     const v = dn + (k >= 4 ? 1.414 : 1);
-    if (v < bv - 1e-4) { best = ni; bv = v; }
+    if (v < bv - 1e-4) {
+      best = ni;
+      bv = v;
+    }
   }
   return best;
 }
@@ -171,7 +180,9 @@ export function groundRoutes(w: IWorld, cells?: Uint8Array, d?: Float32Array): R
     const bc = baseCells(w);
     const warn = groundRoutesOn(w, bc, distFor(w, bc), 'warn');
     // 保持出生点顺序
-    return w.state.spawners.map((sp) => real.find((r) => r.id === sp.id) ?? warn.find((r) => r.id === sp.id)).filter((r): r is Route => !!r);
+    return w.state.spawners
+      .map((sp) => real.find((r) => r.id === sp.id) ?? warn.find((r) => r.id === sp.id))
+      .filter((r): r is Route => !!r);
   }
   return groundRoutesOn(w, cells, d ?? distFor(w, cells), 'all');
 }
@@ -193,7 +204,14 @@ function groundRoutesOn(w: IWorld, cells: Uint8Array, d: Float32Array, which: 'o
     } else path = trace(g.cols, g.rows, cells, d, i);
     const last = path[path.length - 1];
     const blocked = !(d[last.y * g.cols + last.x] === 0);
-    const r: Route = { id: sp.id, kind: sp.kind, status: warn ? 'warn' : 'open', cells: path, len: path.length, wp: compressWaypoints(path) };
+    const r: Route = {
+      id: sp.id,
+      kind: sp.kind,
+      status: warn ? 'warn' : 'open',
+      cells: path,
+      len: path.length,
+      wp: compressWaypoints(path),
+    };
     if (warn) r.eta = Math.round(Math.max(0, (sp.warnUntil ?? 0) - s.time) * 10) / 10;
     if (blocked) r.blocked = true;
     out.push(r);
@@ -203,7 +221,17 @@ function groundRoutesOn(w: IWorld, cells: Uint8Array, d: Float32Array, which: 'o
 
 // ───────────────────────── 射程 / 覆盖 ─────────────────────────
 
-export interface Shooter { key: string; uid?: number; id: TowerId; x: number; y: number; range: number; inner: number; air: boolean; ground: boolean }
+export interface Shooter {
+  key: string;
+  uid?: number;
+  id: TowerId;
+  x: number;
+  y: number;
+  range: number;
+  inner: number;
+  air: boolean;
+  ground: boolean;
+}
 
 /** 现有的攻击塔（当前射程；瘫痪的塔照算） */
 export function shooters(w: IWorld): Shooter[] {
@@ -220,9 +248,15 @@ function shooterOf(w: IWorld, t: TowerState): Shooter {
   const def = TOWERS[t.id];
   const info = w.getTowerInfo(t.uid);
   return {
-    key: `#${t.uid}`, uid: t.uid, id: t.id, x: t.cx, y: t.cy,
-    range: info?.range || w.baseRange(t.id).range, inner: info?.innerRange ?? 0,
-    air: def.hitsAir, ground: def.hitsGround,
+    key: `#${t.uid}`,
+    uid: t.uid,
+    id: t.id,
+    x: t.cx,
+    y: t.cy,
+    range: info?.range || w.baseRange(t.id).range,
+    inner: info?.innerRange ?? 0,
+    air: def.hitsAir,
+    ground: def.hitsGround,
   };
 }
 
@@ -252,19 +286,34 @@ export function flightLines(w: IWorld, sh: Shooter[] = shooters(w)): FlightLine[
     let bd = Infinity;
     for (const ex of exits) {
       const dd = Math.abs(ex.x + 0.5 - x0);
-      if (dd < bd) { bd = dd; best = ex; }
+      if (dd < bd) {
+        bd = dd;
+        best = ex;
+      }
     }
     if (!best) continue;
     const x1 = best.x + 0.5;
     const y1 = best.y + 0.5;
     const len = Math.hypot(x1 - x0, y1 - y0);
-    const { frac, by } = lineCoverage(sh.filter((q) => q.air), x0, y0, x1, y1);
+    const { frac, by } = lineCoverage(
+      sh.filter((q) => q.air),
+      x0,
+      y0,
+      x1,
+      y1,
+    );
     out.push({ id: sp.id, from: { x: x0, y: y0 }, to: { x: x1, y: y1 }, len: Math.round(len * 10) / 10, aa: frac, by });
   }
   return out;
 }
 
-function lineCoverage(aa: Shooter[], x0: number, y0: number, x1: number, y1: number): { frac: number; by: number[]; perShooter: Map<string, number> } {
+function lineCoverage(
+  aa: Shooter[],
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+): { frac: number; by: number[]; perShooter: Map<string, number> } {
   const len = Math.hypot(x1 - x0, y1 - y0);
   const n = Math.max(1, Math.ceil(len / 0.25));
   let covered = 0;
@@ -286,7 +335,13 @@ function lineCoverage(aa: Shooter[], x0: number, y0: number, x1: number, y1: num
   return { frac: Math.round((covered / (n + 1)) * 100) / 100, by: [...by].sort((a, b) => a - b), perShooter: per };
 }
 
-export interface TowerCoverage { key: string; uid?: number; id: TowerId; ground: number; air: number }
+export interface TowerCoverage {
+  key: string;
+  uid?: number;
+  id: TowerId;
+  ground: number;
+  air: number;
+}
 
 /** 每座攻击塔：射程内的地面路线格数（所有路线去重）、飞行线在射程内的长度 */
 export function coverage(w: IWorld, routes: Route[] = groundRoutes(w), sh: Shooter[] = shooters(w), lines?: FlightLine[]): TowerCoverage[] {
@@ -304,10 +359,14 @@ export function coverage(w: IWorld, routes: Route[] = groundRoutes(w), sh: Shoot
 function uniqueCells(routes: Route[]): P[] {
   const seen = new Set<number>();
   const out: P[] = [];
-  for (const r of routes) for (const c of r.cells) {
-    const k = c.y * 100 + c.x;
-    if (!seen.has(k)) { seen.add(k); out.push(c); }
-  }
+  for (const r of routes)
+    for (const c of r.cells) {
+      const k = c.y * 100 + c.x;
+      if (!seen.has(k)) {
+        seen.add(k);
+        out.push(c);
+      }
+    }
   return out;
 }
 
@@ -320,7 +379,13 @@ const buildable = (w: IWorld, cells: Uint8Array, onRoute: Set<number>, x: number
 };
 
 /** 一条路线最长的几段直线（格数）及段旁可建空格数 */
-export function longestSegments(w: IWorld, r: Route, cells: Uint8Array, onRoute: Set<number>, k = 2): { a: P; b: P; len: number; spots: number }[] {
+export function longestSegments(
+  w: IWorld,
+  r: Route,
+  cells: Uint8Array,
+  onRoute: Set<number>,
+  k = 2,
+): { a: P; b: P; len: number; spots: number }[] {
   const segs: { a: P; b: P; len: number; spots: number }[] = [];
   for (let i = 1; i < r.wp.length; i++) {
     const a = r.wp[i - 1];
@@ -329,9 +394,10 @@ export function longestSegments(w: IWorld, r: Route, cells: Uint8Array, onRoute:
     if (len < 3) continue;
     const near = new Set<number>();
     for (const c of expandWaypoints([a, b])) {
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-        if (buildable(w, cells, onRoute, c.x + dx, c.y + dy)) near.add((c.y + dy) * 100 + c.x + dx);
-      }
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) {
+          if (buildable(w, cells, onRoute, c.x + dx, c.y + dy)) near.add((c.y + dy) * 100 + c.x + dx);
+        }
     }
     segs.push({ a, b, len, spots: near.size });
   }
@@ -339,17 +405,24 @@ export function longestSegments(w: IWorld, r: Route, cells: Uint8Array, onRoute:
 }
 
 /** 射程 r 内覆盖路线格最多的可建空格（前 k 个） */
-export function bestSpots(w: IWorld, routes: Route[], cells: Uint8Array = baseCells(w), k = 3, r = 2.5): { x: number; y: number; n: number }[] {
+export function bestSpots(
+  w: IWorld,
+  routes: Route[],
+  cells: Uint8Array = baseCells(w),
+  k = 3,
+  r = 2.5,
+): { x: number; y: number; n: number }[] {
   const g = w.state.grid;
   const rc = uniqueCells(routes.filter((x) => x.status === 'open'));
   const onRoute = new Set(rc.map((c) => c.y * 100 + c.x));
   const out: { x: number; y: number; n: number }[] = [];
-  for (let y = 0; y < g.rows; y++) for (let x = 0; x < g.cols; x++) {
-    if (!buildable(w, cells, onRoute, x, y)) continue;
-    let n = 0;
-    for (const c of rc) if (Math.hypot(c.x - x, c.y - y) <= r) n++;
-    if (n > 0) out.push({ x, y, n });
-  }
+  for (let y = 0; y < g.rows; y++)
+    for (let x = 0; x < g.cols; x++) {
+      if (!buildable(w, cells, onRoute, x, y)) continue;
+      let n = 0;
+      for (const c of rc) if (Math.hypot(c.x - x, c.y - y) <= r) n++;
+      if (n > 0) out.push({ x, y, n });
+    }
   return out.sort((a, b) => b.n - a.n || a.y - b.y || a.x - b.x).slice(0, k);
 }
 
@@ -374,11 +447,18 @@ export function routeSummary(w: IWorld): RouteSummary {
   const onRoute = new Set(uniqueCells(routes).map((c) => c.y * 100 + c.x));
   const sh = shooters(w);
   const lines = flightLines(w, sh);
-  const ground = routes.map((r) => `${r.id}:${fmtWp(r.wp)} L${r.len}${r.status === 'warn' ? ` warn ${r.eta}s` : ''}${r.blocked ? ' BLOCKED' : ''}`);
+  const ground = routes.map(
+    (r) => `${r.id}:${fmtWp(r.wp)} L${r.len}${r.status === 'warn' ? ` warn ${r.eta}s` : ''}${r.blocked ? ' BLOCKED' : ''}`,
+  );
   const segs: string[] = [];
-  for (const r of routes) for (const sg of longestSegments(w, r, cells, onRoute, routes.length > 2 ? 1 : 2)) segs.push(`${r.id} ${sg.a.x},${sg.a.y}>${sg.b.x},${sg.b.y} L${sg.len} b${sg.spots}`);
+  for (const r of routes)
+    for (const sg of longestSegments(w, r, cells, onRoute, routes.length > 2 ? 1 : 2))
+      segs.push(`${r.id} ${sg.a.x},${sg.a.y}>${sg.b.x},${sg.b.y} L${sg.len} b${sg.spots}`);
   const spots = bestSpots(w, routes, cells).map((p) => `${p.x},${p.y}:${p.n}`);
-  const air = lines.map((l) => `${l.id} ${l.from.x},${l.from.y}>${l.to.x},${l.to.y} L${l.len} aa${Math.round(l.aa * 100)}%${l.by.length ? ` ${l.by.map((u) => `#${u}`).join(',')}` : ''}`);
+  const air = lines.map(
+    (l) =>
+      `${l.id} ${l.from.x},${l.from.y}>${l.to.x},${l.to.y} L${l.len} aa${Math.round(l.aa * 100)}%${l.by.length ? ` ${l.by.map((u) => `#${u}`).join(',')}` : ''}`,
+  );
   const byS = new Map<string, string[]>();
   for (const g of w.state.nextWave.groups) {
     const k = g.spawner || '*';
@@ -433,7 +513,11 @@ export function previewChanges(w: IWorld, inp: PreviewInput): PreviewResult {
   const removed = new Set<number>();
   for (const uid of inp.remove ?? []) {
     const t = s.towers.get(uid);
-    if (!t) { steps.push(`remove #${uid}: no such tower`); ok = false; continue; }
+    if (!t) {
+      steps.push(`remove #${uid}: no such tower`);
+      ok = false;
+      continue;
+    }
     const info = w.getTowerInfo(uid);
     cells[t.cy * g.cols + t.cx] = CellKind.Empty;
     removed.add(uid);
@@ -445,14 +529,25 @@ export function previewChanges(w: IWorld, inp: PreviewInput): PreviewResult {
   (inp.place ?? []).forEach((p, idx) => {
     const tag = `place ${p.tower}@${p.x},${p.y}`;
     const b = opts.find((o) => o.id === p.tower);
-    if (!b || !b.unlocked) { steps.push(`${tag}: not unlocked`); ok = false; return; }
+    if (!b || !b.unlocked) {
+      steps.push(`${tag}: not unlocked`);
+      ok = false;
+      return;
+    }
     let reason: string | null = null;
     if (idx === 0 && !removed.size) {
       const chk = w.canPlace(p.tower, p.x, p.y);
       if (!chk.ok && chk.code !== 'noGold') reason = chk.reason ?? 'invalid';
     } else reason = geomCheck(w, cells, p.x, p.y);
-    if (reason) { steps.push(`${tag}: ${reason}`); ok = false; return; }
-    if (gold < b.cost) { steps.push(`${tag}: 金币不足 (cost ${b.cost}, gold ${Math.floor(gold)})`); ok = false; }
+    if (reason) {
+      steps.push(`${tag}: ${reason}`);
+      ok = false;
+      return;
+    }
+    if (gold < b.cost) {
+      steps.push(`${tag}: 金币不足 (cost ${b.cost}, gold ${Math.floor(gold)})`);
+      ok = false;
+    }
     gold -= b.cost;
     cost += b.cost;
     cells[p.y * g.cols + p.x] = CellKind.Tower;
@@ -475,7 +570,8 @@ export function previewChanges(w: IWorld, inp: PreviewInput): PreviewResult {
     if (dg > 0 || da > 0) gains.push(txt);
     else if (dg < 0 || da < 0) losses.push(txt);
   }
-  for (const c of covBefore) if (c.uid !== undefined && removed.has(c.uid)) losses.push(`${c.key} removed g-${c.ground}${c.air ? ` a-${c.air}` : ''}`);
+  for (const c of covBefore)
+    if (c.uid !== undefined && removed.has(c.uid)) losses.push(`${c.key} removed g-${c.ground}${c.air ? ` a-${c.air}` : ''}`);
   const routes = after.map((r) => {
     const b0 = before.find((x) => x.id === r.id);
     return { id: r.id, before: b0?.len ?? 0, after: r.len, wp: fmtWp(r.wp) + (r.blocked ? ' BLOCKED' : '') };
@@ -519,10 +615,12 @@ function geomCheck(w: IWorld, cells: Uint8Array, x: number, y: number): string |
 /** preview 结果 → 给模型的紧凑文本 */
 export function previewText(r: PreviewResult): string {
   const lines = [`${r.ok ? 'VALID' : 'INVALID'} cost ${r.cost}g → gold ${r.goldAfter}`, ...r.steps];
-  for (const x of r.routes) lines.push(`route ${x.id} L${x.before}→${x.after} (${x.after - x.before >= 0 ? '+' : ''}${x.after - x.before}) ${x.wp}`);
+  for (const x of r.routes)
+    lines.push(`route ${x.id} L${x.before}→${x.after} (${x.after - x.before >= 0 ? '+' : ''}${x.after - x.before}) ${x.wp}`);
   if (r.gains.length) lines.push(`cover+ ${r.gains.join('; ')}`);
   if (r.losses.length) lines.push(`cover- ${r.losses.join('; ')}`);
   const airCh = r.air.filter((a) => a.after !== a.before);
-  if (airCh.length) lines.push(`air ${airCh.map((a) => `${a.id} aa${Math.round(a.before * 100)}→${Math.round(a.after * 100)}%`).join(' ')}`);
+  if (airCh.length)
+    lines.push(`air ${airCh.map((a) => `${a.id} aa${Math.round(a.before * 100)}→${Math.round(a.after * 100)}%`).join(' ')}`);
   return lines.join('\n');
 }

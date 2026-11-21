@@ -10,14 +10,27 @@ import { ENEMY_META } from '../core/meta';
 import { TOWERS } from '../config/towers';
 
 export const TOWER_CHAR: Record<TowerId, string> = {
-  wall: 'W', pencil: 'P', stapler: 'T', glue: 'G', lamp: 'L', compass: 'C',
-  eraser: 'E', ruler: 'R', pen: 'N', calculator: 'K', piggy: '$', swatter: 'F',
+  wall: 'W',
+  pencil: 'P',
+  stapler: 'T',
+  glue: 'G',
+  lamp: 'L',
+  compass: 'C',
+  eraser: 'E',
+  ruler: 'R',
+  pen: 'N',
+  calculator: 'K',
+  piggy: '$',
+  swatter: 'F',
 };
 
 export const MAP_LEGEND =
   '地图图例 legend: 行=y(0..13，上→下)，列=x(0..9,a=10,b=11)。' +
   ' . 空地可建 empty | : 当前敌人路线(空地) path | # 障碍 obstacle | S 入口/开放出生点 spawn | d 空降预警(不可建) drop-warning | D 空降出生点 drop | X 出口 exit | * 有敌人的空格 enemies |' +
-  ' 塔 towers: ' + Object.entries(TOWER_CHAR).map(([k, v]) => `${v}=${k}`).join(' ');
+  ' 塔 towers: ' +
+  Object.entries(TOWER_CHAR)
+    .map(([k, v]) => `${v}=${k}`)
+    .join(' ');
 
 const HEX = '0123456789ab';
 
@@ -94,7 +107,8 @@ function towerLine(w: IWorld, t: TowerState, full: boolean): string {
     if (info) {
       if (info.upgradeCost !== null) parts.push(`up=${info.upgradeCost}${info.needsBranch ? '(needs branch)' : ''}`);
       if (info.evolveCost !== null) parts.push(`evo=${info.evolveCost}`);
-      if (info.ability) parts.push(`ability=${info.ability.id}:${info.ability.ready ? 'READY' : `cd${r1(info.ability.cd)}`}/${info.ability.target}`);
+      if (info.ability)
+        parts.push(`ability=${info.ability.id}:${info.ability.ready ? 'READY' : `cd${r1(info.ability.cd)}`}/${info.ability.target}`);
       if (full) parts.push(`sell=${info.sellValue}`, `kills=${t.kills}`);
     }
   }
@@ -157,8 +171,10 @@ function summarizeRecent(evs: GameEvent[]): string | undefined {
   const notes: string[] = [];
   for (const e of evs) {
     if (e.type === 'death') kills++;
-    else if (e.type === 'leak') { leaks++; leakBy.set(e.enemy, (leakBy.get(e.enemy) ?? 0) + 1); }
-    else if (e.type === 'gold' && e.amount > 0) gold += e.amount;
+    else if (e.type === 'leak') {
+      leaks++;
+      leakBy.set(e.enemy, (leakBy.get(e.enemy) ?? 0) + 1);
+    } else if (e.type === 'gold' && e.amount > 0) gold += e.amount;
     else if (e.type === 'waveEnd') notes.push(`wave${e.wave} cleared(+${e.bonus}g, interest ${e.interest})`);
     else if (e.type === 'waveStart') notes.push(`wave${e.wave} started`);
     else if (e.type === 'levelUp' && e.byXp && e.tierChanged) notes.push(`#${e.uid}→L${e.level}`);
@@ -211,9 +227,15 @@ export function observe(w: IWorld, o: ObservationOptions = {}): Observation {
   if (walls.length) towerLines.push(`walls L1 ×${walls.length}: ${walls.map((t) => `#${t.uid}@${t.cx},${t.cy}`).join(' ')}`);
 
   const au = s.autoWave;
-  const autoTxt = !au.enabled ? 'manual (you must start_wave)'
-    : !au.started ? 'auto after first start_wave'
-      : au.nextAt !== null ? `next wave in ${r1(Math.max(0, au.nextAt - s.time))}s` : au.blocked ? 'blocked (too many waves)' : 'running';
+  const autoTxt = !au.enabled
+    ? 'manual (you must start_wave)'
+    : !au.started
+      ? 'auto after first start_wave'
+      : au.nextAt !== null
+        ? `next wave in ${r1(Math.max(0, au.nextAt - s.time))}s`
+        : au.blocked
+          ? 'blocked (too many waves)'
+          : 'running';
 
   const obs: Observation = {
     t: r1(s.time),
@@ -231,27 +253,39 @@ export function observe(w: IWorld, o: ObservationOptions = {}): Observation {
     next: {
       wave: s.nextWave.wave,
       tags: s.nextWave.tags.slice(),
-      groups: s.nextWave.groups.map((g) => `${g.enemy}×${g.count}${g.elite ? ` (elite ${g.elite})` : ''}${g.affixes.length ? ` [${g.affixes.join(',')}]` : ''} from ${g.spawner}`),
+      groups: s.nextWave.groups.map(
+        (g) =>
+          `${g.enemy}×${g.count}${g.elite ? ` (elite ${g.elite})` : ''}${g.affixes.length ? ` [${g.affixes.join(',')}]` : ''} from ${g.spawner}`,
+      ),
       earlyBonus: s.nextWave.earlyBonus,
     },
-    skills: s.skills.map((k) => `${k.id}:${k.ready ? 'READY' : `cd${r1(k.cd)}`}${k.charges !== undefined ? ` charges${k.charges}` : ''} target=${k.target}`),
-    events: s.events.filter((e) => e.phase !== 'done').map((e) => {
-      const when = e.phase === 'warn' ? `in ${r1(Math.max(0, e.startsAt - s.time))}s` : `ends in ${r1(Math.max(0, e.endsAt - s.time))}s`;
-      return `${e.id}(${e.tone}) ${e.phase} ${when}${e.area ? ` area x${e.area.x} y${e.area.y} ${e.area.w}×${e.area.h}` : ''}`;
-    }),
-    spawners: s.spawners.filter((sp) => sp.active || sp.kind === 'drop').map((sp) => {
-      const c = sp.cells[0];
-      let t = `${sp.id}(${sp.kind})@${c.x},${c.y} ${sp.active ? 'open' : 'closed'}`;
-      if (sp.kind === 'drop') {
-        if (sp.warnUntil !== undefined && sp.warnUntil > s.time) t += ` lands in ${r1(sp.warnUntil - s.time)}s`;
-        if (sp.demolishCost) t += ` demolish=${sp.demolishCost}g`;
-        if (sp.expiresAfterWave) t += ` closes after wave ${sp.expiresAfterWave}`;
-      }
-      return t;
-    }),
+    skills: s.skills.map(
+      (k) => `${k.id}:${k.ready ? 'READY' : `cd${r1(k.cd)}`}${k.charges !== undefined ? ` charges${k.charges}` : ''} target=${k.target}`,
+    ),
+    events: s.events
+      .filter((e) => e.phase !== 'done')
+      .map((e) => {
+        const when = e.phase === 'warn' ? `in ${r1(Math.max(0, e.startsAt - s.time))}s` : `ends in ${r1(Math.max(0, e.endsAt - s.time))}s`;
+        return `${e.id}(${e.tone}) ${e.phase} ${when}${e.area ? ` area x${e.area.x} y${e.area.y} ${e.area.w}×${e.area.h}` : ''}`;
+      }),
+    spawners: s.spawners
+      .filter((sp) => sp.active || sp.kind === 'drop')
+      .map((sp) => {
+        const c = sp.cells[0];
+        let t = `${sp.id}(${sp.kind})@${c.x},${c.y} ${sp.active ? 'open' : 'closed'}`;
+        if (sp.kind === 'drop') {
+          if (sp.warnUntil !== undefined && sp.warnUntil > s.time) t += ` lands in ${r1(sp.warnUntil - s.time)}s`;
+          if (sp.demolishCost) t += ` demolish=${sp.demolishCost}g`;
+          if (sp.expiresAfterWave) t += ` closes after wave ${sp.expiresAfterWave}`;
+        }
+        return t;
+      }),
     pickups: s.pickups.map((p) => `#${p.uid} ${p.kind}${p.kind === 'coin' ? ` ${p.value}g` : ''} ttl${r1(p.until - s.time)}s`),
     owned: s.perks.slice(),
-    build: w.getBuildOptions().filter((b) => b.unlocked).map((b) => `${b.id}=${b.cost}${b.affordable && !b.limitReached ? '' : '✗'}`),
+    build: w
+      .getBuildOptions()
+      .filter((b) => b.unlocked)
+      .map((b) => `${b.id}=${b.cost}${b.affordable && !b.limitReached ? '' : '✗'}`),
   };
   if (front) obs.enemies.front = (front as { txt: string }).txt;
   if (bosses.length) obs.enemies.bosses = bosses;
@@ -268,7 +302,10 @@ export function observe(w: IWorld, o: ObservationOptions = {}): Observation {
   if (o.pendingErrors?.length) obs.pendingErrors = o.pendingErrors.slice(0, 8);
   if (full) {
     obs.paths = w.currentPaths().map((p) => p.map((c) => [c.x, c.y]));
-    obs.enemyList = list.sort((a, b) => a.d - b.d).slice(0, 12).map((x) => x.txt);
+    obs.enemyList = list
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 12)
+      .map((x) => x.txt);
   }
   return obs;
 }

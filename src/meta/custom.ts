@@ -62,7 +62,14 @@ export const CUSTOM_FIELDS: CustomField[] = [
   field({ key: 'maxActiveSpawners', group: 'dyn', min: 1, max: 4, step: 1, fmt: int }),
   field({ key: 'maxDrops', group: 'dyn', min: 0, max: 3, step: 1, fmt: (v) => (v <= 0 ? t('core.custom.fmt.none') : int(v)) }),
   field({ key: 'dropWarn', group: 'dyn', min: 2, max: 8, step: 0.5, fmt: (v) => t('core.custom.fmt.seconds', { n: v.toFixed(1) }) }),
-  field({ key: 'eventRate', group: 'dyn', min: 0, max: 3, step: 0.1, fmt: (v) => (v <= 0 ? t('core.custom.fmt.off') : `×${v.toFixed(1)}`) }),
+  field({
+    key: 'eventRate',
+    group: 'dyn',
+    min: 0,
+    max: 3,
+    step: 0.1,
+    fmt: (v) => (v <= 0 ? t('core.custom.fmt.off') : `×${v.toFixed(1)}`),
+  }),
   field({ key: 'eventHostile', group: 'dyn', min: 0, max: 1, step: 0.05, fmt: pct(0) }),
   field({ key: 'waveGap', group: 'dyn', min: 3, max: 30, step: 1, fmt: (v) => t('core.custom.fmt.seconds', { n: Math.round(v) }) }),
   field({ key: 'waveMax', group: 'dyn', min: 20, max: 120, step: 5, fmt: (v) => t('core.custom.fmt.seconds', { n: Math.round(v) }) }),
@@ -113,7 +120,8 @@ export function sanitizeEvents(raw: unknown): Partial<Record<RandomEventId, bool
   if (Array.isArray(raw)) {
     for (const id of raw) if ((RANDOM_EVENT_IDS as unknown[]).includes(id)) out[id as RandomEventId] = false;
   } else if (raw && typeof raw === 'object') {
-    for (const [k, v] of Object.entries(raw)) if ((RANDOM_EVENT_IDS as string[]).includes(k) && v === false) out[k as RandomEventId] = false;
+    for (const [k, v] of Object.entries(raw))
+      if ((RANDOM_EVENT_IDS as string[]).includes(k) && v === false) out[k as RandomEventId] = false;
   }
   return out;
 }

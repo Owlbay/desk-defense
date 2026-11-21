@@ -26,7 +26,7 @@ export interface Tower extends TowerState {
   attacked: boolean;
   // 派生数值（dirty 时重算）
   dmg: number;
-  dmgFactor: number;       // dmg / 基础伤害
+  dmgFactor: number; // dmg / 基础伤害
   interval: number;
   range: number;
   inner: number;
@@ -94,13 +94,21 @@ export interface Enemy extends EnemyState {
   livesCost: number;
   baseSpeed: number;
   // 地面寻路
-  ccx: number; ccy: number;
-  tcx: number; tcy: number;
-  pcx: number; pcy: number;
+  ccx: number;
+  ccy: number;
+  tcx: number;
+  tcy: number;
+  pcx: number;
+  pcy: number;
   remaining: number;
   // 飞行
-  fx0: number; fy0: number; fx1: number; fy1: number;
-  flyLen: number; flyT: number; flyPhase: number;
+  fx0: number;
+  fy0: number;
+  fx1: number;
+  fy1: number;
+  flyLen: number;
+  flyT: number;
+  flyPhase: number;
   // 计时
   jumpTimer: number;
   jumpEnd: number;
@@ -110,9 +118,14 @@ export interface Enemy extends EnemyState {
   redUntil: number;
   shred: number;
   stapleReady: number;
-  burnDps: number; burnOwner: number;
-  inkDps: number; inkUntil: number; inkOwner: number;
-  bleedDps: number; bleedUntil: number; bleedOwner: number;
+  burnDps: number;
+  burnOwner: number;
+  inkDps: number;
+  inkUntil: number;
+  inkOwner: number;
+  bleedDps: number;
+  bleedUntil: number;
+  bleedOwner: number;
   debuffers: number[];
   dotT: number;
   unstoppable: boolean;
@@ -129,7 +142,9 @@ export interface Enemy extends EnemyState {
   /** 同波橡皮屑生命（纸团分裂用） */
   crumbHp: number;
   // 文档 11
-  poisonDps: number; poisonUntil: number; poisonOwner: number;
+  poisonDps: number;
+  poisonUntil: number;
+  poisonOwner: number;
   purpleUntil: number;
   measuredUntil: number;
   /** 红笔标记 / 护眼灯照射的易伤值（★1 提高） */
@@ -147,11 +162,13 @@ export interface Enemy extends EnemyState {
 export interface Proj extends ProjectileState {
   tower: Tower | null;
   targetUid: number;
-  tx: number; ty: number;
+  tx: number;
+  ty: number;
   speed: number;
   dmg: number;
   crit: boolean;
-  vx: number; vy: number;
+  vx: number;
+  vy: number;
   travelled: number;
   maxDist: number;
   hits: number[];
@@ -174,5 +191,7 @@ export interface Zone extends ZoneState {
   cos: number;
   sin: number;
   /** 包围圆（查询用） */
-  cx: number; cy: number; br: number;
+  cx: number;
+  cy: number;
+  br: number;
 }
