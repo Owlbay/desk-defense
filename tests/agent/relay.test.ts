@@ -381,3 +381,19 @@ describe('relay 经 pi 端到端（mock fetch，不用 Claude 官方适配器）
     expect(new Set(m.seen.map((s) => new URL(s.url).host))).toEqual(new Set(['r.test']));
   });
 });
+
+describe('旧页面加载不到新分包', () => {
+  it('识别为 stale，而不是跨域', async () => {
+    const { classifyRelayError, relayFailureText } = await import('../../src/agent/relay');
+    for (const msg of [
+      'Failed to fetch dynamically imported module: https://jjjj.games/assets/ai/pi-BIrs1FJS.js',
+      'Importing a module script failed.',
+      'error loading dynamically imported module',
+    ]) {
+      expect(classifyRelayError(msg, false, 0)).toBe('stale');
+    }
+    expect(relayFailureText('stale')).toContain('刷新');
+    expect(classifyRelayError('TypeError: Failed to fetch', false, 0)).toBe('cors');
+  });
+});
+

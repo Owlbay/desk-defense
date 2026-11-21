@@ -49,6 +49,18 @@ function boot(): void {
   const store = new ProfileStore();
   audio.install();
   applySettings(store.get().settings);
+  // 部署了新版本后，旧页面去加载已被替换的分包会失败：自动刷新一次拿到新版本（60 秒内只刷新一次，避免循环）
+  window.addEventListener('vite:preloadError', (e) => {
+    try {
+      const last = Number(sessionStorage.getItem('dd.reloadAt') ?? 0);
+      if (Date.now() - last < 60_000) return;
+      sessionStorage.setItem('dd.reloadAt', String(Date.now()));
+    } catch {
+      return;
+    }
+    e.preventDefault();
+    location.reload();
+  });
   // PWA：打开游戏时检查更新，发现新版本立即激活并刷新页面（否则玩家要手动刷新两次才能看到新版本）。
   // 只在启动时检查，不做定时检查，避免对局中途被刷新。
   if (!import.meta.env.DEV) registerSW({ immediate: true });

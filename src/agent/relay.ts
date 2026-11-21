@@ -168,7 +168,10 @@ export async function listRelayModels(url: string, apiKey: string | undefined, f
 
 // ───────────────────────── 接口探测 ─────────────────────────
 
-export type RelayFailure = 'cors' | 'auth' | 'not_found' | 'model' | 'rate' | 'no_tools' | 'other';
+export type RelayFailure = 'stale' | 'cors' | 'auth' | 'not_found' | 'model' | 'rate' | 'no_tools' | 'other';
+
+/** 页面是旧版本、去加载已被新部署替换掉的 AI 分包（不是中转站的问题） */
+export const STALE_CHUNK_RE = /dynamically imported module|importing a module script failed|error loading dynamically imported|failed to load module script|chunkloaderror|loading chunk \S+ failed/i;
 
 export interface RelayAttempt {
   api: RelayApi;
@@ -206,6 +209,7 @@ const MODEL_RE = /model[_ ]?not[_ ]?found|no such model|unknown model|invalid mo
 export function classifyRelayError(error: string | undefined, reachable: boolean, tokens = 0): RelayFailure {
   const e = error ?? '';
   if (!e) return reachable ? 'no_tools' : 'other';
+  if (STALE_CHUNK_RE.test(e)) return 'stale';
   if (MODEL_RE.test(e)) return 'model';
   const status = /(?:^|\D)(401|403|404|405|429)(?:\D|$)/.exec(e)?.[1];
   if (status === '401' || status === '403' || /unauthori[sz]ed|invalid.*(api[ _-]?key|token)|api[ _-]?key.*invalid|令牌|无效的?\s*key/i.test(e)) return 'auth';
@@ -216,6 +220,7 @@ export function classifyRelayError(error: string | undefined, reachable: boolean
 }
 
 const FAILURE_TEXT: Record<RelayFailure, string> = {
+  stale: '游戏刚刚更新过，当前页面还是旧版本，加载不到新的 AI 模块：请刷新页面（电脑按 Cmd/Ctrl+Shift+R，手机下拉刷新）后再试。这不是中转站的问题。',
   cors: RELAY_CORS_HINT,
   auth: 'Key 被拒绝（401 / 403）：检查 API Key 是否正确、是否过期、是否还有额度或是否开通了这个模型。',
   not_found: '接口不存在（404）：这个中转站可能不支持这几种接口，或者地址里多了 / 少了路径前缀。请对照中转站文档检查“服务地址”。',
@@ -229,7 +234,7 @@ export const relayFailureText = (f: RelayFailure): string => FAILURE_TEXT[f];
 /** 多个失败里挑最能说明问题的那个 */
 function mainFailure(attempts: RelayAttempt[]): RelayFailure {
   const fs = attempts.map((a) => a.failure ?? 'other');
-  for (const f of ['no_tools', 'model', 'auth', 'rate'] as RelayFailure[]) if (fs.includes(f)) return f;
+  for (const f of ['stale', 'no_tools', 'model', 'auth', 'rate'] as RelayFailure[]) if (fs.includes(f)) return f;
   if (fs.every((f) => f === 'cors')) return 'cors';
   if (fs.includes('not_found')) return 'not_found';
   if (fs.includes('cors')) return 'cors';
