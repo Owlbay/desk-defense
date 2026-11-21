@@ -440,6 +440,49 @@ export interface WavePreview {
   tags: ('boss' | 'air' | 'rush')[];
   groups: WavePreviewGroup[];
   earlyBonus: number; // 现在提前开波可得金币（build 阶段为 0 以外的值仅在 wave 阶段有效）
+  /** 这一波被 AI 进攻方改写过（文档 10 §2.3，overrideWave）：花费 / 预算（墨水点）；没有改写时不存在 */
+  override?: { cost: number; budget: number };
+}
+
+// ───────────────────────── AI 进攻方（文档 10 §2.3） ─────────────────────────
+
+/** 进攻方编排的一组敌人 */
+export interface AttackGroup {
+  enemy: EnemyId;
+  /** 数量 1..ATTACK.maxCount */
+  count: number;
+  /** 词缀（有词缀 = 精英；每个词缀加价） */
+  affixes?: AffixId[];
+  /** 指定出生点（空降点额外收费）；缺省按本局出怪策略分配 */
+  spawner?: string;
+  /** 本组相对开波的秒数（缺省按组序 0, 1.2, 2.4…） */
+  delay?: number;
+}
+
+export interface AttackPlan {
+  groups: AttackGroup[];
+}
+
+/** 进攻方看到的下一波信息（IWorld.attackContext） */
+export interface AttackContextInfo {
+  wave: number;
+  /** 现在能否改写（建造阶段、这一波还没开始） */
+  open: boolean;
+  budget: number;
+  /** 本波可用的敌人（出怪池，不含 Boss） */
+  pool: EnemyId[];
+  /** 可指定的出生点（drop = 空降点，额外收费） */
+  spawners: { id: string; drop: boolean }[];
+  /** 默认波的生命当量（非 Boss）与上限 */
+  baseHp: number;
+  hpCap: number;
+  /** Boss 波：这些 Boss 保持不变 */
+  bosses: EnemyId[];
+  /** 默认（生成器）的本波组成 */
+  base: WavePreviewGroup[];
+  tags: WavePreview['tags'];
+  /** 已改写时的花费 */
+  current?: { cost: number };
 }
 
 export interface RunStats {
@@ -524,7 +567,9 @@ export type Command =
   | { type: 'demolishSpawner'; id: string }
   // 文档 11
   | { type: 'evolve'; uid: number }
-  | { type: 'towerAbility'; uid: number; x?: number; y?: number; angle?: number; axis?: 'row' | 'col'; index?: number; targetUid?: number };
+  | { type: 'towerAbility'; uid: number; x?: number; y?: number; angle?: number; axis?: 'row' | 'col'; index?: number; targetUid?: number }
+  // 文档 10 §2.3：AI 进攻方改写下一波（只在建造阶段、该波开始前；校验见 src/config/attack.ts）
+  | { type: 'overrideWave'; wave: number; plan: AttackPlan };
 
 export interface CommandResult {
   ok: boolean;
@@ -728,4 +773,6 @@ export interface IWorld {
   enemyName(id: EnemyId): string;
   /** 指令序列（回放/中途存档） */
   readonly log: { tick: number; cmd: Command }[];
+  /** AI 进攻方：下一波的预算 / 出怪池 / 默认组成（文档 10 §2.3）；已结束或没有下一波时 null */
+  attackContext?(): AttackContextInfo | null;
 }

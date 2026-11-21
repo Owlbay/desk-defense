@@ -1,7 +1,10 @@
 import type { GameEvent, SkillId, TowerId } from '../core/types';
+import { MusicEngine, type MusicState } from './music';
+
+export type { MusicState } from './music';
 
 /**
- * 合成音效（WebAudio，无音频文件）+ 简单的生成式背景音乐。
+ * 合成音效（WebAudio，无音频文件）+ 生成式原创配乐（见 music.ts）。
  * 手机浏览器要求用户手势后才能出声：首次 pointerdown / keydown 时解锁。
  */
 
@@ -55,7 +58,6 @@ const MIN_GAP: Partial<Record<Sfx, number>> = {
   zap: 0.08,
 };
 
-const PENTA = [0, 2, 4, 7, 9];
 const midi = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
 
 type Ctx = AudioContext;
@@ -71,11 +73,10 @@ class AudioEngine {
   private sfxVol = 0.8;
   private musicVol = 0.5;
   private musicWanted = false;
-  private musicTimer: number | null = null;
-  private nextBeat = 0;
-  private beat = 0;
-  private chord = 0;
-  private intensity = 0;
+  private music: MusicEngine | null = null;
+  private musicState: MusicState = 'menu';
+  /** 结算短乐句播放中：忽略之后到达的波次事件，直到页面切换重新指定状态 */
+  private musicLocked = false;
   unlocked = false;
 
   /** 安装首次手势解锁 */
@@ -129,7 +130,11 @@ class AudioEngine {
       b.connect(this.ctx.destination);
       b.start(0);
       this.unlocked = true;
-      if (this.musicWanted) this.startMusicLoop();
+      if (!this.music && this.musicBus && this.noiseBuf) {
+        this.music = new MusicEngine(this.ctx, this.musicBus, this.noiseBuf);
+        this.music.setState(this.musicState);
+      }
+      this.syncMusic();
     } catch {
       /* 无音频也能玩 */
     }
@@ -139,7 +144,7 @@ class AudioEngine {
     this.sfxVol = sfx;
     this.musicVol = music;
     this.applyVolumes();
-    if (this.musicWanted && music > 0) this.startMusicLoop();
+    this.syncMusic();
   }
 
   private applyVolumes(): void {
@@ -497,9 +502,14 @@ class AudioEngine {
         return this.play(ev.boss ? 'bossDeath' : 'death');
       case 'leak':
         return this.play('leak');
-      case 'waveStart':
-        return this.play(ev.tags.includes('boss') ? 'bossWarn' : 'waveStart');
+      case 'waveStart': {
+        const boss = ev.tags.includes('boss');
+        this.music?.setEnergy(ev.wave);
+        this.musicEvent(boss ? 'boss' : 'wave');
+        return this.play(boss ? 'bossWarn' : 'waveStart');
+      }
       case 'waveEnd':
+        this.musicEvent('build');
         return this.play('waveEnd');
       case 'skill':
         return this.play('skill', ev.skill);
@@ -508,6 +518,7 @@ class AudioEngine {
       case 'perkChosen':
         return this.play('perk');
       case 'gameOver':
+        this.musicEvent(ev.won ? 'victory' : 'defeat');
         return this.play(ev.won ? 'win' : 'lose');
       case 'gold':
         if (ev.reason === 'interest' || ev.reason === 'piggy' || ev.reason === 'early') this.play('coins');
@@ -537,98 +548,29 @@ class AudioEngine {
     }
   }
 
-  // ───────────── 背景音乐（五声音阶的轻柔生成乐） ─────────────
+  // ───────────── 背景音乐（生成式配乐，见 music.ts） ─────────────
 
   setMusic(on: boolean): void {
     this.musicWanted = on;
-    if (on) this.startMusicLoop();
-    else this.stopMusicLoop();
+    this.syncMusic();
   }
 
-  /** 0..1：战斗时稍微热闹一点 */
-  setIntensity(v: number): void {
-    this.intensity = Math.max(0, Math.min(1, v));
+  /** 切换配乐状态（菜单 / 布防 / 波次 / Boss / 胜负短乐句），自动交叉淡化 */
+  setMusicState(s: MusicState): void {
+    this.musicLocked = false;
+    this.musicState = s;
+    this.music?.setState(s);
   }
 
-  private startMusicLoop(): void {
-    if (!this.ctx || !this.unlocked || this.musicTimer !== null || this.musicVol <= 0) return;
-    this.nextBeat = this.ctx.currentTime + 0.1;
-    this.musicTimer = window.setInterval(() => this.scheduleMusic(), 90);
+  private musicEvent(s: MusicState): void {
+    if (this.musicLocked) return;
+    if (s === 'victory' || s === 'defeat') this.musicLocked = true;
+    this.musicState = s;
+    this.music?.setState(s);
   }
 
-  private stopMusicLoop(): void {
-    if (this.musicTimer !== null) {
-      clearInterval(this.musicTimer);
-      this.musicTimer = null;
-    }
-  }
-
-  private scheduleMusic(): void {
-    const ctx = this.ctx;
-    if (!ctx || !this.musicBus) return;
-    if (ctx.state !== 'running' || this.musicVol <= 0) {
-      this.nextBeat = ctx.currentTime + 0.1;
-      return;
-    }
-    const spb = 60 / (84 + this.intensity * 16) / 2; // 八分音符
-    const chords = [0, -3, 5, 2]; // I vi IV ii（相对 C）
-    while (this.nextBeat < ctx.currentTime + 0.3) {
-      const t = this.nextBeat - ctx.currentTime;
-      const step = this.beat % 16;
-      if (step === 0) this.chord = (this.chord + 1) % chords.length;
-      const root = 48 + chords[this.chord];
-      if (step === 0 || step === 8) {
-        this.tone(midi(root), spb * 7, { type: 'sine', gain: 0.22, delay: t, attack: 0.03, bus: this.musicBus });
-        this.tone(midi(root + 7), spb * 7, { type: 'sine', gain: 0.08, delay: t, attack: 0.08, bus: this.musicBus });
-      }
-      const pattern = (this.beat * 7 + this.chord * 3) % 5;
-      const density = 0.42 + this.intensity * 0.25;
-      if (step % 2 === 0 || Math.random() < density * 0.5) {
-        if (Math.random() < density) {
-          const deg = PENTA[(pattern + Math.floor(Math.random() * 3)) % PENTA.length];
-          const oct = Math.random() < 0.3 ? 84 : 72;
-          this.tone(midi(oct + chords[this.chord] + deg), spb * 2.5, {
-            type: 'triangle',
-            gain: 0.09,
-            delay: t,
-            attack: 0.01,
-            bus: this.musicBus,
-          });
-        }
-      }
-      if (this.intensity > 0.3 && step % 4 === 2) {
-        // 轻轻的"铅笔敲桌"
-        this.tickPerc(t);
-      }
-      this.nextBeat += spb;
-      this.beat++;
-    }
-  }
-
-  private tickPerc(delay: number): void {
-    const ctx = this.ctx;
-    if (!ctx || !this.musicBus || !this.noiseBuf) return;
-    const t0 = ctx.currentTime + delay;
-    const src = ctx.createBufferSource();
-    src.buffer = this.noiseBuf;
-    const f = ctx.createBiquadFilter();
-    f.type = 'bandpass';
-    f.frequency.value = 3200;
-    f.Q.value = 6;
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(0.12, t0 + 0.003);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.05);
-    src.connect(f);
-    f.connect(g);
-    g.connect(this.musicBus);
-    src.start(t0);
-    src.stop(t0 + 0.07);
-    src.onended = () => {
-      src.disconnect();
-      f.disconnect();
-      g.disconnect();
-    };
+  private syncMusic(): void {
+    this.music?.setEnabled(this.unlocked && this.musicWanted && this.musicVol > 0);
   }
 }
 

@@ -6,6 +6,7 @@
  * 规则与速查表不含任何随局变化的内容（种子、时间、金币……），所以同一模型、同一角色的所有局共享一份缓存。
  * 完整资料表（≈4.4k token）不再放进前缀，改由 get_catalog 按需取。
  */
+import { ATTACK } from '../config/attack';
 import { AFFIXES, ENEMIES } from '../config/enemies';
 import { CRATE_OPTIONS, RANDOM_EVENTS } from '../config/events';
 import { ABILITIES, EVOLUTION } from '../config/evolution';
@@ -266,8 +267,30 @@ t time s | ph phase | w wave/total | g gold | hp lives | sc score | aw auto-wave
 const ROLE_TEXT: Record<AgentRole, string> = {
   player: `# Role: AI player (defender). Maximize waves survived and score.`,
   advisor: `# Role: AI advisor (军师). A human plays; you cannot act. Read STATE, then call suggest once (Chinese, concise, concrete coordinates/uids, actions like "place pencil 3,5"). suggest ends your turn.`,
-  attacker: `# Role: AI attacker (design stub). The attacker protocol is not implemented; reply with a one-line plan and no tool calls.`,
+  attacker: `# 角色：AI 进攻方（出题人）。防守方是真人（无头评测里是机器人）。你不能建塔，只能在每波开始前用预算改写下一波，目标是让防守方漏怪掉命，但每一波都要合规。`,
 };
+
+/** 进攻方规则（文档 10 §2.3；固定文本，进固定前缀） */
+const ATTACK_RULES = `你在玩《书桌防线》（确定性的迷宫塔防），扮演进攻方，通过工具出题。
+
+# 规则
+- 每波开始前（建造阶段）你有预算 budget = ${ATTACK.baseBudget} + ${ATTACK.perWave}×波数「墨水点」，用 attack_plan 改写下一波；不调用则保留默认波。
+- 价格：单价 = 敌人赏金 × ${ATTACK.priceFactor}（STATE.pool 里的 $）；每个词缀 +单价×${ATTACK.affixSurcharge}（向上取整，至少 1）；从空降点（spawners 里带 (drop)）出来每只再 +单价×${ATTACK.dropSurcharge}+1。
+- 限制：只能用 pool 里的敌人（Boss 不能编排；Boss 波的 Boss 原样保留）；最多 ${ATTACK.maxGroups} 组、每组 ${ATTACK.maxCount} 只、${ATTACK.maxAffixes} 个词缀（不含 golden）；生命当量（基础生命 × 数量，带词缀 = 精英 ×2.5）≤ hpCap（默认波 baseHp 的 ${ATTACK.hpCap} 倍）。delay = 本组开波后第几秒出发（0..${ATTACK.maxDelay}）。
+- 地面敌人沿最短路走到出口，路线越长（R 的 L）塔打得越久；飞行敌人直飞出口，只有能打空的塔（aa = 对空塔数量）能拦。
+
+# 打法
+1. 看防守方的弱点：aa 少 → 飞行敌人；路线短 / 塔少 → 大量便宜地面敌人；单体塔多 → 一大群；减速 / 范围塔多 → 少量高血、护甲或护盾精英。
+2. 集中火力比平均分配有效；快敌（fast）适合短路线，护甲（armor）克制低伤害塔。
+3. hist = 最近几波的结果（leak 漏怪数、-hp 掉命）：有效的组合可以加码，无效的换思路。
+4. 用 note 记下你的思路（下次作为 MEMO 回显）。
+
+# STATE 键
+w 下一波 | open 能否改写 | budget 预算 | hpCap/baseHp 生命当量上限 / 默认值 | tags 默认波标签 | boss 保留的 Boss | pool "id $单价 hp基础生命 特性" | affixes 可用词缀 | spawners 可指定的出生点 | default 默认波组成 | planned 已改写的花费 | def 防守方：hp 生命、g 金币、T 塔（类型×数量 平均等级）、aa 对空塔、R 地面路线长度 | hist 最近几波。
+
+# 每次决策
+调用一次 attack_plan {groups:[{enemy,count,affixes?,spawner?,delay?}],note}；被拒会告诉你原因，改正后再调用。成功即结束回合。
+示例：attack_plan {groups:[{enemy:"plane",count:6},{enemy:"crumb",count:8,delay:3}],note:"对空薄弱，压飞行"}`;
 
 /** 玩家指令的优先级规则（固定文本，进固定前缀；指令内容本身只在 user 消息里） */
 const PLAYER_TEXT: Partial<Record<AgentRole, string>> = {
@@ -280,6 +303,7 @@ const PLAYER_TEXT: Partial<Record<AgentRole, string>> = {
  * assist = false：旧版规则（无意图 / 打法要点），评测基线用。
  */
 export function systemBlocks(role: AgentRole, assist = true): [string, string] {
+  if (role === 'attacker') return [`${ATTACK_RULES}\n\n${ROLE_TEXT.attacker}`, cheatSheet()];
   const pt = assist ? PLAYER_TEXT[role] : undefined;
   return [`${assist && role === 'player' ? RULES : RULES_V1}\n\n${ROLE_TEXT[role]}${pt ? `\n\n${pt}` : ''}`, cheatSheet()];
 }

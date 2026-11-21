@@ -2,7 +2,7 @@ import type { Dict } from '../../index';
 
 // 命名空间 ui · 精简排行榜（排行榜页、结算上传区、我的记录；zh-CN）
 export default {
-  'ui.lb.menuSub': '无尽 · 每日 · 战役',
+  'ui.lb.menuSub': '全服三榜',
   'ui.lb.tab.endless': '无尽',
   'ui.lb.tab.daily': '每日',
   'ui.lb.tab.campaign': '战役',

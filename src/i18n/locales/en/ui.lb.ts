@@ -2,7 +2,7 @@ import type { Dict } from '../../index';
 
 // Namespace ui · simplified leaderboards (en)
 export default {
-  'ui.lb.menuSub': 'Endless · Daily · Campaign',
+  'ui.lb.menuSub': 'Global boards',
   'ui.lb.tab.endless': 'Endless',
   'ui.lb.tab.daily': 'Daily',
   'ui.lb.tab.campaign': 'Campaign',

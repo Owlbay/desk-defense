@@ -752,3 +752,117 @@ html.reduce-motion .ai-dock[data-mode='sheet'] {
 .ai-dock[data-mode='sheet'] .ic-input {
   font-size: 16px;
 }
+
+/* ───────────── 抽屉 · 手机竖屏（≤ 600 宽）/ 矮横屏（≤ 500 高）：data-compact='1'（dock.ts placeSheet） ─────────────
+ * 档位：peek = 可用高度 40%（看得到内容 + 输入行），half = 70%，full = 全部（--dk-peek / --dk-half / --dk-full）。
+ * 头部压成一行窄条：把手更大的触控区、页签与按钮缩小；底部指令区默认收起快捷短语，输入框聚焦时再展开。 */
+.ai-dock[data-mode='sheet'][data-compact='1'][data-snap='peek'] {
+  height: var(--dk-peek, 40dvh);
+}
+
+.ai-dock[data-mode='sheet'][data-compact='1'][data-snap='peek'] .dock-body {
+  display: flex;
+}
+
+.ai-dock[data-mode='sheet'][data-compact='1'] .dock-head {
+  gap: 0;
+  padding: 0 6px 2px;
+}
+
+.ai-dock[data-mode='sheet'][data-compact='1'] .dock-grab {
+  width: 100%;
+  height: 18px;
+}
+
+.ai-dock[data-mode='sheet'][data-compact='1'] .dock-grab-bar {
+  width: 36px;
+}
+
+.ai-dock[data-mode='sheet'][data-compact='1'] .dock-head-row {
+  gap: 4px;
+}
+
+.ai-dock[data-mode='sheet'][data-compact='1'] .dock-tabs {
+  gap: 0;
+}
+
+.ai-dock[data-mode='sheet'][data-compact='1'] .dock-tab .gi {
+  display: none;
+}
+
+/* 页签平分剩余宽度，放不下时省略号（矮横屏抽屉只有棋盘那么宽） */
+.ai-dock[data-mode='sheet'][data-compact='1'] .dock-tab {
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 6px;
+  font-size: 13px;
+}
+
+.ai-dock[data-mode='sheet'][data-compact='1'] .dock-tab-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ai-dock[data-mode='sheet'][data-compact='1'] .dock-head-actions .btn {
+  min-width: 32px;
+  min-height: 32px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+.ai-dock[data-mode='sheet'][data-compact='1'] .dock-pane[data-pane='status'] {
+  padding: 6px 10px;
+}
+
+.ai-dock[data-mode='sheet'][data-compact='1'] .ai-composer {
+  padding: 4px 8px 6px;
+}
+
+/* 快捷短语 / 长期方针：输入框没聚焦时收起（40% / 70% 档都省出两行给内容）；聚焦时展开 */
+.ai-dock[data-mode='sheet'][data-compact='1'] .ai-composer:not(:focus-within) .ic-quick,
+.ai-dock[data-mode='sheet'][data-compact='1'][data-snap='peek'] .ic-standing,
+.ai-dock[data-mode='sheet'][data-compact='1'][data-snap='peek'] .ic-recent {
+  display: none;
+}
+
+/* 输入框：没聚焦时一行（占位文字省略号），聚焦时恢复多行 */
+.ai-dock[data-mode='sheet'][data-compact='1'] .ic-input:not(:focus) {
+  height: 36px;
+  min-height: 36px;
+  padding-block: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ai-dock[data-mode='sheet'][data-compact='1'] .ic-send {
+  min-width: 36px;
+  min-height: 36px;
+}
+
+/* 思路 / 操作页：40% / 70% 档收起隐私脚注与「本局操作汇总」，把高度留给列表；拉到全屏再显示 */
+.ai-dock[data-mode='sheet'][data-compact='1']:not([data-snap='full']) .tr-privacy,
+.ai-dock[data-mode='sheet'][data-compact='1']:not([data-snap='full']) .tr-ops-sum {
+  display: none;
+}
+
+/* 矮横屏：头部再省一点 */
+@media (max-height: 500px) and (orientation: landscape) {
+  .ai-dock[data-mode='sheet'][data-compact='1'] .dock-grab {
+    height: 14px;
+  }
+
+  .ai-dock[data-mode='sheet'][data-compact='1'] .dock-tab {
+    min-height: 28px;
+  }
+
+  .ai-dock[data-mode='sheet'][data-compact='1'] .dock-head-actions .btn {
+    min-width: 28px;
+    min-height: 28px;
+    width: 28px;
+    height: 28px;
+  }
+}

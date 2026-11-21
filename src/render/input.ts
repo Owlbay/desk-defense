@@ -50,6 +50,8 @@ export class BoardInput {
     /** 放下后主路线格数的变化（只在悬停格 / 地形变化时重算） */
     delta: 0,
   };
+  /** 路线高亮用：每个开放出生点 id → 地面路线格序列（地形 / 出生点变化时重算） */
+  private routeCache = { key: '', byId: new Map<string, Path>() };
   /** 放置预览旁的「+M 格」（懒创建） */
   private deltaText: Phaser.GameObjects.Text | null = null;
   private deltaShown = '';
@@ -683,6 +685,9 @@ export class BoardInput {
       for (const f of s.aiFocusCells) og.strokeRoundedRect(f.cx * CELL - 1, f.cy * CELL - 1, CELL + 2, CELL + 2, 9);
     }
 
+    // 文档 10 §18-8：整条进攻路线（AI 操作涉及的路线 / 玩家悬停或选中的出生点）
+    this.drawRoutes(ug, og, focus, rt);
+
     // 放置预览：主路线变长 / 变短几格
     const showDelta = !!s.build && !s.aiming && s.abilityAiming === null && ghostCell !== null && ghostOk && this.cache.delta !== 0;
     this.drawDelta(showDelta ? ghostCell : null, this.cache.delta);
@@ -834,6 +839,147 @@ export class BoardInput {
       g.fillCircle(x, y, r);
       dashCircle(g, x, y, r, C.teal, 2, 0.85 * alpha, rt * 0.4);
     }
+  }
+
+  /** 出生点 id → 当前地面路线（与 world.currentPaths() 同一套流场；按起点格对应到出生点） */
+  private routesById(): Map<string, Path> {
+    const st = this.ctx.session.world.state;
+    const key = `${st.grid.version}|${st.spawners.map((sp) => (sp.active ? sp.id : '')).join(',')}`;
+    if (key === this.routeCache.key) return this.routeCache.byId;
+    const byId = new Map<string, Path>();
+    const paths = this.ctx.session.world.currentPaths();
+    for (const sp of st.spawners) {
+      if (!sp.active) continue;
+      const c = sp.cells[0];
+      const p = paths.find((q) => q.length && q[0].x === c.x && q[0].y === c.y);
+      if (p) byId.set(sp.id, p);
+    }
+    this.routeCache = { key, byId };
+    return byId;
+  }
+
+  /**
+   * 整条路线折线 + 航点（拐点）：
+   *  - AI：ui.routeFocus（操作解读 / 工具调用涉及的路线），品红，与 aiFocus 同色；
+   *  - 玩家：悬停（电脑）/ 选中（点空降纸箱）出生点 → 主题路线色（浅色桌面墨蓝、深色桌面浅蓝）。
+   * 都画得很淡：衬底 + 细线 + 航点小圆，终点画一个空心圈；飞行线（AI 指明 air 时）用虚线。
+   */
+  private drawRoutes(ug: Phaser.GameObjects.Graphics, og: Phaser.GameObjects.Graphics, focus: Cell | null, rt: number): void {
+    const s = ui.state;
+    const st = this.ctx.session.world.state;
+    // 玩家：悬停在出生点格上（不在建造 / 瞄准等模式里）或选中了空降纸箱
+    const mine = new Set<string>();
+    const idle = !s.build && !s.aiming && s.abilityAiming === null;
+    if (s.spawnerSelected) mine.add(s.spawnerSelected);
+    if (idle && focus) {
+      for (const sp of st.spawners) {
+        if (sp.active && sp.cells.some((c) => c.x === focus.cx && c.y === focus.cy)) mine.add(sp.id);
+      }
+    }
+    const rf = s.routeFocus;
+    if (!mine.size && !rf) return;
+    const byId = this.routesById();
+    const pulse = this.ctx.reduced ? 1 : 0.75 + 0.25 * Math.sin(rt * 4);
+    if (rf) {
+      const ids = rf.ids ?? [...byId.keys()];
+      for (const id of ids) {
+        const p = byId.get(id);
+        if (p) this.routeLine(ug, og, p, C.magenta, 0.7 * pulse, rt);
+      }
+      if (rf.air) for (const id of ids) this.flightLine(og, id, C.magenta, 0.75 * pulse, rt);
+    }
+    for (const id of mine) {
+      if (rf && (rf.ids === null || rf.ids.includes(id))) continue;
+      const p = byId.get(id);
+      if (p) this.routeLine(ug, og, p, B.route, 0.6, rt);
+    }
+  }
+
+  /** 一条地面路线：衬底 + 折线 + 拐点航点 + 终点圈 + 缓慢流动的方向点 */
+  private routeLine(
+    ug: Phaser.GameObjects.Graphics,
+    og: Phaser.GameObjects.Graphics,
+    path: Path,
+    color: number,
+    alpha: number,
+    rt: number,
+  ): void {
+    if (path.length < 2) return;
+    const px = (p: { x: number }) => (p.x + 0.5) * CELL;
+    const py = (p: { y: number }) => (p.y + 0.5) * CELL;
+    // 航点 = 起点、拐点、终点（与 agent/routes.ts 的 compressWaypoints 同规则）
+    const wp: Path = [path[0]];
+    for (let i = 1; i < path.length - 1; i++) {
+      const a = path[i - 1],
+        b = path[i],
+        c = path[i + 1];
+      if (Math.sign(b.x - a.x) !== Math.sign(c.x - b.x) || Math.sign(b.y - a.y) !== Math.sign(c.y - b.y)) wp.push(b);
+    }
+    wp.push(path[path.length - 1]);
+    const stroke = (g: Phaser.GameObjects.Graphics, w: number, col: number, al: number): void => {
+      g.lineStyle(w, col, al);
+      g.beginPath();
+      g.moveTo(px(wp[0]), py(wp[0]));
+      for (let i = 1; i < wp.length; i++) g.lineTo(px(wp[i]), py(wp[i]));
+      g.strokePath();
+    };
+    stroke(ug, 7, B.routeHalo, 0.28 * alpha);
+    stroke(ug, 3, color, alpha);
+    // 航点：拐点小实心圆（带衬底），起点稍大，终点空心圈
+    for (let i = 0; i < wp.length; i++) {
+      const p = wp[i];
+      const last = i === wp.length - 1;
+      const r = i === 0 ? 5 : last ? 6 : 3.6;
+      og.fillStyle(B.routeHalo, 0.55 * alpha);
+      og.fillCircle(px(p), py(p), r + 1.6);
+      if (last) {
+        og.lineStyle(2, color, Math.min(1, alpha + 0.2));
+        og.strokeCircle(px(p), py(p), r);
+      } else {
+        og.fillStyle(color, Math.min(1, alpha + 0.2));
+        og.fillCircle(px(p), py(p), r);
+      }
+    }
+    if (this.ctx.reduced) return;
+    // 方向：沿路线缓慢流动的小点（每 3 格一个）
+    const n = path.length;
+    const total = n - 1;
+    for (let k = 0; k < total; k += 3) {
+      const f = (k + ((rt * 2.2) % 3)) % total;
+      const i = Math.floor(f),
+        fr = f - i;
+      const a = path[i],
+        b = path[Math.min(n - 1, i + 1)];
+      ug.fillStyle(color, 0.8 * alpha);
+      ug.fillCircle((a.x + (b.x - a.x) * fr + 0.5) * CELL, (a.y + (b.y - a.y) * fr + 0.5) * CELL, 2);
+    }
+  }
+
+  /** 飞行线：出生格中心 → 横向最近的出口中心（与 agent/routes.ts 的 flightLines 同规则），虚线 */
+  private flightLine(og: Phaser.GameObjects.Graphics, id: string, color: number, alpha: number, rt: number): void {
+    const st = this.ctx.session.world.state;
+    const sp = st.spawners.find((q) => q.id === id);
+    if (!sp?.active || !sp.cells.length) return;
+    const c = sp.cells[0];
+    let best: { x: number; y: number } | null = null;
+    let bd = Infinity;
+    for (const ex of st.grid.exits) {
+      const d = Math.abs(ex.x - c.x);
+      if (d < bd) {
+        bd = d;
+        best = ex;
+      }
+    }
+    if (!best) return;
+    const x0 = (c.x + 0.5) * CELL,
+      y0 = (c.y + 0.5) * CELL,
+      x1 = (best.x + 0.5) * CELL,
+      y1 = (best.y + 0.5) * CELL;
+    const off = this.ctx.reduced ? 0 : (rt * 14) % 12;
+    dashed(og, x0, y0, x1, y1, B.routeHalo, 5, 7, 5, off, 0.3 * alpha);
+    dashed(og, x0, y0, x1, y1, color, 2, 7, 5, off, alpha);
+    og.lineStyle(2, color, alpha);
+    og.strokeCircle(x1, y1, 6);
   }
 
   private drawPath(g: Phaser.GameObjects.Graphics, path: Path, color: number, alpha: number, dash: boolean, rt: number): void {

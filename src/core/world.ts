@@ -1,3 +1,4 @@
+import { attackBudget, attackHpCap, checkAttackPlan } from '../config/attack';
 import { CAMPAIGN_WAVES } from '../config/campaign';
 import { CAPS } from '../config/difficulty';
 import { AFFIXES, ELITE, ENEMIES, GOLDEN } from '../config/enemies';
@@ -36,6 +37,8 @@ import { makeSeed, Rng } from './rng';
 import { armorAt, goldScale, hpScale, rawUpgradeCost, refundRate, resolveParams, speedScale, xpForLevel, xpScale } from './scaling';
 import {
   type AffixId,
+  type AttackContextInfo,
+  type AttackPlan,
   type Branch,
   type BuildOption,
   CellKind,
@@ -65,7 +68,16 @@ import {
   type TraitLine,
   type WorldState,
 } from './types';
-import { assignSpawners, generateWave, type SpawnEntry, type SpawnSlot, type WavePlan } from './wavegen';
+import {
+  assignSpawners,
+  attackPool,
+  generateWave,
+  overridePlan,
+  planHpUnits,
+  type SpawnEntry,
+  type SpawnSlot,
+  type WavePlan,
+} from './wavegen';
 
 const MAX_PROJECTILES = 300;
 const TAU = Math.PI * 2;
@@ -137,6 +149,8 @@ export class World implements IWorld {
   private statsDirty = true;
   private active: ActiveWave[] = [];
   private planCache = new Map<number, WavePlan>();
+  /** AI 进攻方改写过的波（文档 10 §2.3）：开波时取用并删除 */
+  private waveOverrides = new Map<number, { plan: WavePlan; cost: number; budget: number }>();
   private clearedWaves = 0;
   private lastCleared = 0;
   private wavesSinceRecharge = 0;
@@ -456,6 +470,8 @@ export class World implements IWorld {
         return this.cmdEvolve(cmd.uid);
       case 'towerAbility':
         return this.cmdTowerAbility(cmd);
+      case 'overrideWave':
+        return this.cmdOverrideWave(cmd.wave, cmd.plan);
     }
     return fail('unknownCommand');
   }
@@ -544,6 +560,7 @@ export class World implements IWorld {
     this.active.push(aw);
     this.lastStarted = aw;
     this.planCache.delete(next);
+    this.waveOverrides.delete(next);
     if (bonus > 0) this.addGold(bonus, 'early');
     for (const t of this.towerList) t.colorGold = 0;
     for (const sp of s.spawners) if (sp.kind === 'drop') sp.demolishCost = this.demolishCost();
@@ -1377,14 +1394,80 @@ export class World implements IWorld {
   // ───────────────────────── 波次 ─────────────────────────
 
   private getPlan(w: number): WavePlan {
-    let p = this.planCache.get(w);
-    if (!p) {
-      const s = this.state;
-      p = generateWave({ seed: s.seed, mode: s.opts.mode, map: s.opts.map, params: s.params }, w);
-      this.planCache.set(w, p);
-    }
+    const p = this.waveOverrides.get(w)?.plan ?? this.basePlan(w);
     this.ensureAssigned(p);
     return p;
+  }
+
+  /** 生成器给出的第 w 波（不含进攻方改写） */
+  private basePlan(w: number): WavePlan {
+    let p = this.planCache.get(w);
+    if (!p) {
+      p = generateWave(this.waveCtx(), w);
+      this.planCache.set(w, p);
+    }
+    return p;
+  }
+
+  private waveCtx() {
+    const s = this.state;
+    return { seed: s.seed, mode: s.opts.mode, map: s.opts.map, params: s.params };
+  }
+
+  // ───────────────────────── AI 进攻方（文档 10 §2.3） ─────────────────────────
+
+  /** 下一波能否被改写：建造阶段、该波还没开始、没有超过总波数 */
+  private attackOpen(w: number): boolean {
+    const s = this.state;
+    return s.phase === 'build' && w === s.wave + 1 && !(s.totalWaves > 0 && w > s.totalWaves);
+  }
+
+  /** 第 w 波可指定的出生点（与分配出生点用同一套集合） */
+  private attackSpawners(w: number): { id: string; drop: boolean }[] {
+    const { open, drops } = this.spawnSlots(w);
+    return [...open.map((o) => ({ id: o.id, drop: false })), ...drops.map((d) => ({ id: d.id, drop: true }))];
+  }
+
+  attackContext(): AttackContextInfo | null {
+    const s = this.state;
+    if (s.phase === 'won' || s.phase === 'lost') return null;
+    const w = s.wave + 1;
+    if (s.totalWaves > 0 && w > s.totalWaves) return null;
+    const base = this.basePlan(w);
+    this.ensureAssigned(base);
+    const baseHp = planHpUnits(base);
+    const ov = this.waveOverrides.get(w);
+    const info: AttackContextInfo = {
+      wave: w,
+      open: this.attackOpen(w),
+      budget: attackBudget(w),
+      pool: attackPool(this.waveCtx(), w, base),
+      spawners: this.attackSpawners(w),
+      baseHp,
+      hpCap: attackHpCap(baseHp),
+      bosses: base.entries.filter((e) => e.gi < 0).map((e) => e.enemy),
+      base: base.groups.map((g) => ({ ...g, affixes: g.affixes.slice() })),
+      tags: base.tags.slice(),
+    };
+    if (ov) info.current = { cost: ov.cost };
+    return info;
+  }
+
+  private cmdOverrideWave(wave: number, plan: AttackPlan): CommandResult {
+    const s = this.state;
+    if (s.phase !== 'build') return fail('attackPhase');
+    if (typeof wave !== 'number' || wave !== s.wave + 1) return fail('attackWave', { wave: s.wave + 1 });
+    if (s.totalWaves > 0 && wave > s.totalWaves) return fail('lastWave');
+    const base = this.basePlan(wave);
+    const chk = checkAttackPlan(plan, {
+      wave,
+      pool: attackPool(this.waveCtx(), wave, base),
+      spawners: this.attackSpawners(wave),
+      baseHp: planHpUnits(base),
+    });
+    if (!chk.ok) return fail(chk.code, chk.params);
+    this.waveOverrides.set(wave, { plan: overridePlan(base, chk.groups), cost: chk.cost, budget: chk.budget });
+    return { ok: true };
   }
 
   /** 第 w 波可用的出生点：空降点 + 开放的隐藏出生点 + 已开放的边缘入口（受 maxActiveSpawners 限制） */
@@ -1500,6 +1583,8 @@ export class World implements IWorld {
       groups: p.groups.map((g) => ({ ...g, affixes: g.affixes.slice() })),
       earlyBonus: this.earlyAllowed() ? this.earlyBonus(w) : 0,
     };
+    const ov = this.waveOverrides.get(w);
+    if (ov) s.nextWave.override = { cost: ov.cost, budget: ov.budget };
     this.previewVersion = this.spawnerVersion;
   }
 

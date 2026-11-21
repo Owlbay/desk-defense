@@ -1,9 +1,10 @@
+import { hpUnits } from '../config/attack';
 import { CAMPAIGN, CAMPAIGN_WAVES } from '../config/campaign';
 import { CAPS } from '../config/difficulty';
 import { AFFIX_ROLL_IDS, AFFIXES, BOSS_ROTATION, ENDLESS_POOL, ENEMIES } from '../config/enemies';
 import { Rng } from './rng';
 import { countScale, eliteChance } from './scaling';
-import type { AffixId, DifficultyParams, EnemyId, MapId, ModeId, SpawnMode, WavePreview, WavePreviewGroup } from './types';
+import type { AffixId, AttackGroup, DifficultyParams, EnemyId, MapId, ModeId, SpawnMode, WavePreview, WavePreviewGroup } from './types';
 
 export interface SpawnEntry {
   /** 相对开波的秒数 */
@@ -24,6 +25,8 @@ export interface SpawnEntry {
   spawner?: string;
   /** 包夹（split）分配的敌人：预告里显示为 '*' */
   split?: boolean;
+  /** AI 进攻方指定了出生点：不被空降点分走，fixed 可指向空降点（文档 10 §2.3） */
+  pinned?: boolean;
 }
 
 /** 每组的出怪策略（缺省用难度的 spawnMode） */
@@ -291,6 +294,76 @@ export function generateWave(ctx: WaveGenContext, w: number): WavePlan {
   return ctx.mode === 'campaign' ? generateCampaign(ctx, w) : generateEndless(ctx, w);
 }
 
+// ───────────────────────── AI 进攻方（文档 10 §2.3） ─────────────────────────
+
+/** 第 w 波的出怪池（不含 Boss）：无尽 = 已登场的敌人；战役 = 本章到这一波为止出现过的敌人；另含默认波里的敌人 */
+export function attackPool(ctx: WaveGenContext, w: number, base: WavePlan): EnemyId[] {
+  const set = new Set<EnemyId>();
+  if (ctx.mode === 'campaign') {
+    const ch = CAMPAIGN[ctx.map];
+    for (const wd of ch.waves.slice(0, Math.min(CAMPAIGN_WAVES, Math.max(1, w)))) for (const g of wd.groups) set.add(g.enemy);
+  } else for (const id of ENDLESS_POOL) if (ENEMIES[id].first <= w) set.add(id);
+  for (const e of base.entries) set.add(e.enemy);
+  const order = (id: EnemyId) => {
+    const i = ENDLESS_POOL.indexOf(id);
+    return i < 0 ? 99 : i;
+  };
+  return [...set].filter((id) => !ENEMIES[id].boss).sort((a, b) => order(a) - order(b) || (a < b ? -1 : a > b ? 1 : 0));
+}
+
+/** 默认波（非 Boss）的生命当量 */
+export function planHpUnits(plan: WavePlan): number {
+  let hp = 0;
+  for (const e of plan.entries) if (e.gi >= 0 && !ENEMIES[e.enemy].boss) hp += hpUnits(e.enemy, e.group, e.elite, e.hpMul);
+  return Math.round(hp);
+}
+
+/**
+ * 按进攻方的编排生成本波（不用随机数：词缀由进攻方指定）。Boss 条目原样保留；组的出发时间缺省按组序错开。
+ * 出生点仍由 assignSpawners 分配（指定了出生点的组用 fixed 并固定，不被空降点分走）。
+ */
+export function overridePlan(base: WavePlan, groups: readonly AttackGroup[]): WavePlan {
+  const bosses = base.entries.filter((e) => e.gi < 0);
+  const k = legionK(groups.reduce((s, g) => s + g.count, 0) + bosses.length);
+  const entries: SpawnEntry[] = [];
+  groups.forEach((g, gi) => {
+    const def = ENEMIES[g.enemy];
+    const n = Math.max(1, Math.ceil(g.count / k));
+    const start = g.delay ?? gi * 1.2;
+    const ivl = def.interval * Math.min(1, Math.max(0.4, 20 / n));
+    const affixes = g.affixes ?? [];
+    for (let j = 0; j < n; j++) {
+      const at = start + j * ivl;
+      entries.push({
+        at,
+        at0: at,
+        enemy: g.enemy,
+        entrance: 0,
+        elite: affixes.length > 0,
+        affixes: affixes.slice(),
+        group: k,
+        hpMul: 1,
+        gi,
+        pinned: !!g.spawner,
+      });
+    }
+  });
+  for (const b of bosses) entries.push({ ...b, affixes: b.affixes.slice(), spawner: undefined, split: false });
+  entries.sort((a, b) => a.at - b.at || a.gi - b.gi);
+  const has = (f: (id: EnemyId) => boolean) => groups.some((g) => f(g.enemy));
+  const tags = base.tags.filter(
+    (t) => t === 'boss' || (t === 'air' && has((id) => ENEMIES[id].flying)) || (t === 'rush' && has((id) => !!ENEMIES[id].fast)),
+  );
+  return {
+    wave: base.wave,
+    effWave: base.effWave,
+    tags,
+    entries,
+    groups: summarize(entries),
+    groupSpawn: groups.map((g) => (g.spawner ? { mode: 'fixed' as const, from: g.spawner } : {})),
+  };
+}
+
 // ───────────────────────── 出生点分配（文档 09 §1.2） ─────────────────────────
 
 export interface SpawnSlot {
@@ -332,7 +405,9 @@ export function assignSpawners(plan: WavePlan, open: SpawnSlot[], drops: SpawnSl
     if (gm === 'split' && n < 2) gm = 'roundRobin';
     switch (gm) {
       case 'fixed': {
-        const id = slots.find((s) => s.id === gs.from)?.id ?? slots[gi % n].id;
+        const pin = list.some((e) => e.pinned);
+        const id =
+          slots.find((s) => s.id === gs.from)?.id ?? (pin ? drops.find((d) => d.id === gs.from)?.id : undefined) ?? slots[gi % n].id;
         for (const e of list) e.spawner = id;
         break;
       }
@@ -363,7 +438,7 @@ export function assignSpawners(plan: WavePlan, open: SpawnSlot[], drops: SpawnSl
     for (const d of drops) total += d.dropRatio ?? 0.4;
     const scale = total > 0.8 ? 0.8 / total : 1;
     for (const e of plan.entries) {
-      if (e.gi < 0) continue;
+      if (e.gi < 0 || e.pinned) continue;
       let r = rng.next();
       for (const d of drops) {
         r -= (d.dropRatio ?? 0.4) * scale;

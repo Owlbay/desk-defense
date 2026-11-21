@@ -46,6 +46,12 @@ export default {
   'agent.dock.ack.bot': '模型出错，这一回合由内置机器人代打',
   'agent.dock.ack.replaced': '等待的指令太多，被新指令挤掉',
   'agent.dock.ack.withdrawn': '已撤回',
+  // 离线演示（脚本策略）对玩家指令的回应："P<id> ok: …" / "P<id> <cannot>: …"
+  'agent.dock.demoAck.cannot': '无法',
+  'agent.dock.demoAck.unknown': '离线演示只听得懂 防空 / 集火 Boss / 存钱 / 拉长迷宫 / 范围伤害 / 拆墙 / 别动某边 / 开波 / 升级',
+  'agent.dock.demoAck.noBoss': '场上现在没有 Boss',
+  'agent.dock.demoAck.noAoe': '没有就绪的范围技能',
+  'agent.dock.demoAck.hold': '这回合不再建新塔',
   'agent.dock.instrTag': '玩家指令',
   'agent.dock.instrBadge': '指令 {n}',
   'agent.dock.standingTag': '长期方针',

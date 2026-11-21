@@ -11,6 +11,11 @@ export async function createProvider(c: Partial<AgentModelConfig>): Promise<LLMP
   const cfg = resolveConfig(c);
   switch (cfg.provider) {
     case 'scripted': {
+      // 进攻方（文档 10 §2.3）：确定性出题策略
+      if (cfg.role === 'attacker') {
+        const { ScriptedAttackerProvider } = await import('./providers/attacker');
+        return new ScriptedAttackerProvider();
+      }
       const { ScriptedProvider } = await import('./providers/scripted');
       return new ScriptedProvider({
         intents: cfg.model === 'scripted-intents' || cfg.model === 'scripted-tactics',

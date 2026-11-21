@@ -1,11 +1,11 @@
 /**
- * 全服榜表格：名次 / 昵称（我 / AI 辅助 / 待验证标记）/ 详情（难度 + 波数，或战役评星）/ 得分 / 回放。
+ * 全服榜表格：名次 / 昵称（我 / AI 辅助 / 兜底多 / 待验证标记）/ 详情（难度 + 波数，或战役评星）/ 得分 / 回放。
  * 自己的名次不在前 N 名里时追加一行「我的名次」。
  */
 import { fmtNumber, t } from '../../i18n';
 import { fetchLeaderboard, initOnline } from '../../meta/online';
 import { diffLabel } from '../../meta/progress';
-import { type LeaderboardResponse, type LeaderRow, parseBoard } from '../../shared/leaderboard';
+import { AI_BOT_SHARE_FLAG, type LeaderboardResponse, type LeaderRow, parseBoard } from '../../shared/leaderboard';
 import type { App } from '../App';
 import { audio } from '../audio';
 import { MAP_META } from '../coreMeta';
@@ -39,6 +39,16 @@ export function aiBadge(r: Pick<LeaderRow, 'ai' | 'aiModel' | 'agent'>): HTMLEle
     { title: model ? t('ui.lb.aiTip', { model }) : t('ui.lb.aiTipNoModel') },
     t('ui.lb.ai'),
     r.agent ? h('small.lb-ai-model', null, r.agent.model) : null,
+  );
+}
+
+/** 「兜底多」：AI 辅助局里兜底机器人决策占比超过 20%（照常排名，只是标注；docs/10 §18-6） */
+export function botHeavyBadge(r: Pick<LeaderRow, 'botHeavy'>): HTMLElement | null {
+  if (!r.botHeavy) return null;
+  return h(
+    'span.badge.pending.lb-bot-badge',
+    { title: t('ui.lb.botHeavyTip', { limit: Math.round(AI_BOT_SHARE_FLAG * 100) }) },
+    t('ui.lb.botHeavy'),
   );
 }
 
@@ -80,6 +90,7 @@ function rowEl(app: App, r: LeaderRow, i: number, me: boolean, kind: 'endless' |
       h('span', null, r.nickname),
       me ? h('span.badge.me-tag', null, t('ui.online.me')) : null,
       aiBadge(r),
+      botHeavyBadge(r),
       statusBadge(r),
     ),
     detailEl(r, kind),

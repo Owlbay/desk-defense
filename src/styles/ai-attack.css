@@ -1,0 +1,11 @@
+/* 「AI 出题」（文档 10 §2.3）：下一波预告里的进攻方标记 */
+.wave-tag.ai-attack {
+  background: var(--tint-amber-2);
+  border-style: solid;
+}
+
+.wave-tag.ai-attack.pending {
+  background: transparent;
+  border-style: dashed;
+  opacity: 0.8;
+}

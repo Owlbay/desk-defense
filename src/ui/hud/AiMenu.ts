@@ -5,7 +5,7 @@
 import { t } from '../../i18n';
 import { isAiAssisted } from '../../meta/aiAssist';
 import { AI_GLYPH } from '../ai/icon';
-import type { AiLaunch, AiRole, AiSlot } from '../ai/launch';
+import { type AiLaunch, type AiRole, type AiSlot, attackLaunch, requestAiLaunch } from '../ai/launch';
 import { audio } from '../audio';
 import { h, setText } from '../dom';
 import { G } from '../icons';
@@ -19,7 +19,9 @@ export class AiMenu {
   readonly badge: HTMLElement;
   private label: HTMLElement;
   private menu: HTMLElement;
-  private items: { player: Item; advisor: Item; stop: Item; config: Item };
+  private items: { player: Item; advisor: Item; attack: Item; stop: Item; config: Item };
+  /** 「AI 出题」会放弃当前对局：对局已开始时第一次点击只是确认 */
+  private attackArmed = false;
   private note: HTMLElement;
   private isOpen = false;
   private busy = false;
@@ -63,6 +65,7 @@ export class AiMenu {
     this.items = {
       player: item(G.bolt, 'menuitemradio', () => void this.enable('player')),
       advisor: item(G.eye, 'menuitemradio', () => void this.enable('advisor')),
+      attack: item(G.sword, 'menuitem', () => void this.startAttack()),
       stop: item(G.close, 'menuitem', () => this.stop()),
       config: item(G.sliders, 'menuitem', () => void this.openConfig(null)),
     };
@@ -72,6 +75,7 @@ export class AiMenu {
       { attrs: { id: 'ai-menu', role: 'menu' } },
       this.items.player.el,
       this.items.advisor.el,
+      this.items.attack.el,
       h('div.ai-menu-sep', { attrs: { role: 'separator' } }),
       this.items.stop.el,
       this.items.config.el,
@@ -97,6 +101,7 @@ export class AiMenu {
     setText(this.items.player.sub, t('ui.assist.menuPlayerSub'));
     setText(this.items.advisor.title, t('ui.assist.menuAdvisor'));
     setText(this.items.advisor.sub, t('ui.assist.menuAdvisorSub'));
+    setText(this.items.attack.title, t('agent.attack.menu'));
     setText(this.items.stop.title, t('ui.assist.stop'));
     setText(this.items.config.title, t('ui.assist.configure'));
     this.paint();
@@ -117,6 +122,9 @@ export class AiMenu {
       it.el.classList.toggle('on', on);
       it.el.disabled = this.busy || this.ended || s.dedicated;
     }
+    this.items.attack.el.disabled = this.busy || this.ended || s.dedicated;
+    setText(this.items.attack.sub, this.attackArmed ? t('agent.attack.menuConfirm') : t('agent.attack.menuSub'));
+    this.items.attack.el.classList.toggle('armed', this.attackArmed);
     this.items.stop.el.disabled = role === null || this.ended;
     setText(this.items.stop.sub, s.dedicated ? t('ui.assist.stopDedicatedSub') : t('ui.assist.stopSub'));
     setText(this.items.config.sub, role ? t('ui.assist.currentModel', { model: s.label }) : t('ui.assist.configureSub'));
@@ -126,10 +134,10 @@ export class AiMenu {
     this.badge.hidden = !show;
     if (show) {
       const advisorOnly = role === 'advisor' && !assisted;
-      setText(this.badge, advisorOnly ? t('ui.assist.badgeAdvisor') : t('ui.assist.badge'));
+      setText(this.badge, s.attack ? t('agent.attack.badge') : advisorOnly ? t('ui.assist.badgeAdvisor') : t('ui.assist.badge'));
       this.badge.classList.toggle('advisor', advisorOnly);
       this.badge.classList.toggle('idle', role === null);
-      this.badge.title = assisted ? t('ui.assist.badgeTip') : t('ui.assist.badgeAdvisorTip');
+      this.badge.title = s.attack ? t('agent.attack.badgeTip') : assisted ? t('ui.assist.badgeTip') : t('ui.assist.badgeAdvisorTip');
     }
     this.ctx.root.classList.toggle('ai-assisted', assisted);
   }
@@ -148,13 +156,16 @@ export class AiMenu {
     this.btn.setAttribute('aria-expanded', 'true');
     this.place();
     document.addEventListener('pointerdown', this.onOutside, true);
-    const first = [this.items.player, this.items.advisor, this.items.stop, this.items.config].find((i) => !i.el.disabled);
+    const first = [this.items.player, this.items.advisor, this.items.attack, this.items.stop, this.items.config].find(
+      (i) => !i.el.disabled,
+    );
     requestAnimationFrame(() => first?.el.focus({ preventScroll: true }));
   }
 
   close(focusBtn = false): void {
     if (!this.isOpen) return;
     this.isOpen = false;
+    this.attackArmed = false;
     this.menu.hidden = true;
     this.btn.setAttribute('aria-expanded', 'false');
     document.removeEventListener('pointerdown', this.onOutside, true);
@@ -187,7 +198,9 @@ export class AiMenu {
   }
 
   private onMenuKey(e: KeyboardEvent): void {
-    const list = [this.items.player, this.items.advisor, this.items.stop, this.items.config].map((i) => i.el).filter((b) => !b.disabled);
+    const list = [this.items.player, this.items.advisor, this.items.attack, this.items.stop, this.items.config]
+      .map((i) => i.el)
+      .filter((b) => !b.disabled);
     const i = list.indexOf(document.activeElement as HTMLButtonElement);
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
@@ -262,6 +275,57 @@ export class AiMenu {
       release?.();
       this.busy = false;
       this.paint();
+    }
+  }
+
+  /**
+   * 「AI 出题」（文档 10 §2.3）：新开一局（同样的开局参数），AI 当进攻方、每波开始前改写下一波，你来防守。
+   * 这种局不上传全服榜（只记本地记录）。对局已经开始时先确认一次（会放弃当前对局）。
+   */
+  async startAttack(): Promise<void> {
+    if (this.busy || this.ended || this.destroyed) return;
+    if (this.slot.dedicated) return void this.ctx.toast(t('ui.assist.dedicatedNote'), 'info');
+    const st = this.ctx.world.state;
+    if (st.wave > 0 && !this.attackArmed) {
+      audio.play('click');
+      this.attackArmed = true;
+      this.paint();
+      return;
+    }
+    this.close();
+    audio.play('click');
+    this.busy = true;
+    this.paint();
+    let release: (() => void) | null = null;
+    try {
+      const m = await import('../ai/assist');
+      if (this.destroyed || this.ended) return;
+      const r = m.resolveAssistLaunch('advisor');
+      let launch: AiLaunch | null = r.ok ? r.launch : null;
+      if (!r.ok) {
+        release = this.hold();
+        const c = await m.offerDialog(this.host, 'advisor', r.reason);
+        if (this.destroyed || this.ended) return;
+        if (c === 'demo') launch = m.demoLaunch('advisor');
+        else if (c === 'config') {
+          release();
+          release = null;
+          this.busy = false;
+          void this.openConfig(null);
+          return;
+        }
+      }
+      if (!launch) return;
+      const opts = JSON.parse(JSON.stringify(this.ctx.opts)) as typeof this.ctx.opts;
+      requestAiLaunch(attackLaunch(launch));
+      this.ctx.app.go({ name: 'game', opts, userSeed: !!opts.seed });
+    } catch (e) {
+      console.error('[ai] attacker load failed', e);
+      this.ctx.toast(t('agent.setup.loadFailedToast'), 'warn');
+    } finally {
+      release?.();
+      this.busy = false;
+      if (!this.destroyed) this.paint();
     }
   }
 

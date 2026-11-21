@@ -32,6 +32,26 @@ export interface AiLaunch {
   userSeed?: boolean;
   /** 对局中启用的 AI：面板里的「停止 / 接管」改为整个停用（交还控制并移除面板）；AI 参战局不设 */
   onStop?: () => void;
+  /** 「替我玩」：每次决策后报告兜底机器人占比（写进本局 AI 辅助标记） */
+  onBotShare?: (share: number) => void;
+  /**
+   * 「AI 出题」（文档 10 §2.3）：AI 是进攻方（config.role = 'attacker'），每波开始前改写下一波，真人防守。
+   * 面板按「真人在玩」处理（role = 'advisor'）；这种局不上传全服榜，只记本地记录。
+   */
+  attack?: boolean;
+}
+
+/** 普通启动参数 → 「AI 出题」启动参数（暂停模式：AI 出题时游戏停住；只在建造阶段决策） */
+export function attackLaunch(base: AiLaunch): AiLaunch {
+  const { onStop: _drop, ...rest } = base;
+  return {
+    ...rest,
+    role: 'advisor',
+    attack: true,
+    mode: 'pause',
+    label: t('agent.attack.label', { model: base.label }),
+    config: { ...base.config, role: 'attacker', decision: { ...base.config.decision, mode: 'pause', waveIntervalSec: 0 } },
+  };
 }
 
 let pending: AiLaunch | null = null;
@@ -115,6 +135,8 @@ export interface AiSlot {
   readonly loading: boolean;
   /** AI 参战的 AI 玩家局：不结算奖励、不进本地排行榜 */
   readonly noSettle: boolean;
+  /** 「AI 出题」局（AI 进攻、真人防守；不上传全服榜） */
+  readonly attack: boolean;
   /** 挂上 AI（已有的先摘下）；从当前局面开始，记忆为空、第一次决策拿完整观察 */
   attach(launch: AiLaunch, o?: { dedicated?: boolean }): void;
   /** 停用：摘下面板、交还全部操作（AI 参战局改为「接管」） */
@@ -159,7 +181,7 @@ export function createAiSlot(ctx: AiAttachCtx, init: { assist?: AiAssist } = {})
     } catch (e) {
       console.error(e);
     }
-    ctx.game.classList.remove('ai-run', 'ai-player', 'ai-advisor', 'ai-driving');
+    ctx.game.classList.remove('ai-run', 'ai-player', 'ai-advisor', 'ai-attacker', 'ai-driving');
     // 交还全部操作（面板没加载完就停用时也要复位）
     ui.set({ inspectOnly: false, aiFocus: null, aiFocusCells: null });
     // 暂停模式下 AI 思考时游戏是停着的：交还时恢复（玩家自己打开的暂停菜单不动）
@@ -183,17 +205,23 @@ export function createAiSlot(ctx: AiAttachCtx, init: { assist?: AiAssist } = {})
     get noSettle() {
       return dedicatedRole === 'player';
     },
+    get attack() {
+      return !!cur?.launch.attack;
+    },
     attach(launch, o = {}) {
       if (destroyed) return;
       unmount();
       const dedicated = !!o.dedicated;
       if (dedicated) dedicatedRole = launch.role;
-      markAssist(assist, launch.role, launch.label);
+      // 「AI 出题」不帮真人防守：不算 AI 协助
+      if (!launch.attack) markAssist(assist, launch.role, launch.label);
       const g = ++gen;
-      const l: AiLaunch = dedicated ? launch : { ...launch, onStop: () => slot.detach() };
+      const onBotShare = launch.role === 'player' && !launch.attack ? (s: number): void => void (assist.botShare = s) : undefined;
+      const l: AiLaunch = dedicated ? { ...launch, onBotShare } : { ...launch, onStop: () => slot.detach(), onBotShare };
       const c: NonNullable<typeof cur> = { launch: l, dedicated, hud: null, loading: null, gen: g };
       cur = c;
       ctx.game.classList.add('ai-run', `ai-${launch.role}`);
+      if (launch.attack) ctx.game.classList.add('ai-attacker');
       c.loading = import('./hud')
         .then((m) => {
           if (destroyed || cur !== c) return null;

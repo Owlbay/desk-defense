@@ -27,6 +27,17 @@ npm run dev
 | `npm run check` | 提交前检查：类型检查、ESLint、Prettier、单元测试（CI 同款） |
 | `npm run sim -- --scenario calib` | 平衡模拟：用机器人策略跑各难度，报告输出到 `scripts/out/report.html` |
 | `npm run gallery` | 重新生成美术预览页 `art/gallery.html` |
+| `npm run cap:ios` / `npm run cap:android` | 构建并同步到 Capacitor 原生工程，再用 Xcode / Android Studio 打开（见下方「原生应用打包」） |
+| `npm run tauri:dev` / `npm run tauri:build` | Tauri 桌面窗口开发 / 打出当前系统的安装包 |
+
+### 原生应用打包
+
+同一份 `dist/` 套原生壳，详见 [文档 07 §2.3](docs/07-技术与多平台.md)。
+
+- **iOS**：需要 macOS + Xcode。`npm run cap:ios` 后在 Xcode 里选模拟器或真机运行。
+- **Android**：需要 Android Studio（Android SDK）和 JDK 21。`npm run cap:android` 后在 Android Studio 里运行；命令行可用 `npm run cap:sync && (cd android && ./gradlew assembleDebug)`。
+- **桌面（Windows / macOS / Linux）**：需要 Rust 工具链（1.77.2+）及 Tauri 的系统依赖。`npm run tauri:dev` 开发，`npm run tauri:build` 输出安装包到 `src-tauri/target/release/bundle/`。
+- App Store / Google Play / Steam 等开发者账号与签名证书由项目所有者决定，仓库里不含签名配置。
 
 ## 玩家指南
 
@@ -90,7 +101,5 @@ npm run gallery
 ```
 
 ## 后续可做
-- 用 Capacitor 打包 iOS / Android 应用，用 Tauri 打包桌面应用（文档 07 §2）
-- 线上排行榜：需要后端，用"种子 + 指令回放"校验成绩
-- 多语言（目前界面只有中文）
-- 背景音乐目前是合成的简单循环，可以换成正式配乐
+- 原生应用：Capacitor（iOS / Android）与 Tauri（桌面）脚手架已就位（文档 07 §2.3），还差：原生壳里跳过 Service Worker、排行榜 API 指向 `https://jjjj.games` 并对原生壳 origin 放行 CORS；上架商店的账号与签名由项目所有者决定
+- 背景音乐已是 WebAudio 生成的原创配乐（菜单 / 布防 / 波次 / Boss / 胜负短乐句，`src/ui/music.ts`）；可以再加更多曲目变化，或换成录制的正式配乐

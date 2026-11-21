@@ -129,6 +129,7 @@ export function openLocalReplay(
         // 对局时记录的操作解读（旧数据没有就不显示右栏）
         ops: (o.trace as TraceExportWithOps).ops ? OpsRecorder.fromExport((o.trace as TraceExportWithOps).ops) : undefined,
         onHighlightCells: (cells) => ui.set({ aiFocusCells: cells?.length ? cells.map((c) => ({ cx: c.x, cy: c.y })) : null }),
+        onHighlightRoute: (r) => ui.set({ routeFocus: r }),
       });
       present();
       // 顶栏的开关：打开 / 聚焦侧栏

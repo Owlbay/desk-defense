@@ -12,7 +12,11 @@
   Cache-Control: no-cache
   Content-Type: application/manifest+json
 
+# CSP（文档 10 §10.7）：脚本只许本站文件 + 介绍页那段主题脚本的哈希（改了 about.html 里的内联脚本要同步改哈希，
+# tests/csp.test.ts 会校验）；样式允许内联（界面代码用 style 属性 / 内联 SVG）；图片允许 data:/blob:（Phaser 纹理）；
+# connect-src 必须放行玩家自己配置的任意模型端点（https 厂商 / 中转、http://localhost、局域网 http、ws://127.0.0.1:8787 桥接器）。
 /*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-TTDRyTI41GKPBa3vNpatFOA5uzimcoN4xqdz52+acKQ='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'self' https: http: ws: wss:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()

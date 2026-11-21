@@ -16,6 +16,7 @@ import { G } from '../icons';
 import { requestLeaderboardTab } from '../online/nav';
 import { askNickname } from '../online/nickname';
 import { outcomeView, submitText, type SubmitView } from '../online/submit';
+import { botHeavyBadge } from '../online/table';
 import { boardOfRun, dailyDayOfOpts } from '../online/util';
 import { fmtCost, fmtTokens } from './format';
 import { type AiGameOverHandlers, type AiGameOverInfo, type AiLaunch, requestAiLaunch } from './launch';
@@ -278,7 +279,10 @@ function onlinePanel(app: App, s: AiRunSummary): HTMLElement {
             wavesSurvived: s.info.wavesSurvived,
             dailyDay: day,
             ...(plan.kind === 'agent' ? { agent: agentMetaOf(s) } : {}),
-            ...(plan.kind === 'assist' ? { aiAssist: { player: true, advisor: false, model: s.launch.label } } : {}),
+            // 中途接管的局：照样记下 AI 操作期间的兜底占比（> 20% 榜上标「兜底多」，docs/10 §18-6）
+            ...(plan.kind === 'assist'
+              ? { aiAssist: { player: true, advisor: false, model: s.launch.label }, ...(scripted ? {} : { aiBotShare: s.botShare }) }
+              : {}),
           }),
         );
       } catch (e) {
@@ -339,6 +343,7 @@ function onlinePanel(app: App, s: AiRunSummary): HTMLElement {
         boardLabel(board),
         ai ? h('span.badge.lb-ai-badge', null, t('ui.lb.ai')) : null,
         plan.kind === 'agent' ? h('span.badge.ai-model-badge', null, s.agent.model) : null,
+        (plan.kind === 'agent' || plan.kind === 'assist') && flagged ? botHeavyBadge({ botHeavy: true }) : null,
       ),
       status,
     ),

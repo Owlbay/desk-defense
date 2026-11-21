@@ -6,7 +6,8 @@ const AI_MODULE_RE = /\/src\/agent\/|\/src\/ui\/ai\/|\/node_modules\/(?!phaser\/
 
 export default defineConfig({
   base: './',
-  server: { port: 5173 },
+  // 原生壳工程（Tauri 的 Rust 构建产物、Capacitor 复制进去的 dist）不参与热更新监听
+  server: { port: 5173, watch: { ignored: ['**/src-tauri/**', '**/ios/**', '**/android/**'] } },
   build: {
     target: 'es2022',
     chunkSizeWarningLimit: 2500,

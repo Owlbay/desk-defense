@@ -6,6 +6,7 @@
 import { ENEMIES } from '../config/enemies';
 import type { IWorld, RunOptions } from '../core/types';
 import { SOURCE_LOCALE, t, withLocale } from '../i18n';
+import { AttackLedger, attackMessage, attackObservation, planLine, scriptedAttackPlan } from './attack';
 import { BattleLog, eventLine, idleLine, threatLine } from './battle';
 import { comboLine, mazeLine, reclaimLine } from './board';
 import { type AgentModelConfig, CONTEXT_MODES, type ContextModeSpec, contextSpec, type ThinkingLevel } from './config';
@@ -13,8 +14,10 @@ import { ContextBuilder } from './context';
 import { gateDecision } from './gating';
 import { type AckCode, type InstructionQueue, type InstructionRef, instructionSection } from './instructions';
 import { BattleIntel, gapLine, killLine, leakLine, type LeakRecord } from './intel';
+import { estimateTokens } from './observation';
 import type { PlannerState } from './planner';
 import { runHeader, systemBlocks } from './prompts';
+import { ScriptedAttackerProvider } from './providers/attacker';
 import type { LLMProvider } from './providers/types';
 import { AFFIX_PURPOSE, enemyPurposes, type Purpose } from './purpose';
 import { redactError } from './redact';
@@ -160,9 +163,14 @@ export class DecisionEngine {
   /** 建造阶段决策结束时剩下的金币（闲置金币指标；模型 / 机器人 / 跳过都记） */
   readonly buildGoldAfter: number[] = [];
   private lastThreatWave = -1;
+  /** AI 进攻方（文档 10 §2.3）：每波战果（进攻方观测的 hist） */
+  readonly attackLedger = new AttackLedger();
 
   constructor(readonly o: EngineOptions) {
     this.role = o.config.role ?? 'player';
+    // 进攻方 + 离线演示（scripted / 军师演示版）：统一换成确定性出题策略
+    if (this.role === 'attacker' && o.provider?.id === 'scripted' && !(o.provider instanceof ScriptedAttackerProvider))
+      o.provider = new ScriptedAttackerProvider();
     this.assist = o.config.assist !== false;
     this.battle = new BattleLog(o.world);
     this.intel = new BattleIntel(o.world);
@@ -348,10 +356,14 @@ export class DecisionEngine {
     this.goldAtWaveStart = null;
     const buildPhase = point.reasons.includes('build') || point.reasons.includes('game_start');
     const queue = this.o.instructions;
-    if (queue?.hasPending() && !point.reasons.includes('player')) point.reasons.push('player');
+    const attacker = this.role === 'attacker';
+    if (queue?.hasPending() && !point.reasons.includes('player') && !attacker) point.reasons.push('player');
+
+    // 进攻方只在建造阶段、下一波还没被改写时出题；其余决策点本地处理（无头评测里兜底机器人照常防守）
+    if (attacker && !this.attackPending(point)) return this.skipLocal(point, recent, 'attacker: not a build point', t0, compacted);
 
     // 门控：模型可用、但局面里没有值得叫模型的事 → 本地处理
-    if (!this.disabledReason && this.o.provider) {
+    if (!this.disabledReason && this.o.provider && !attacker) {
       const why = gateDecision(w, point.reasons, spec.gating, {
         goldAtLastCall: this.goldAtLastCall,
         seq: point.seq,
@@ -363,9 +375,11 @@ export class DecisionEngine {
     const ins =
       queue && this.role !== 'attacker' ? queue.take(point.seq) : { once: [] as InstructionRef[], standing: [] as InstructionRef[] };
     const insText = instructionSection(ins.once, ins.standing, this.role);
-    const built = withLocale(SOURCE_LOCALE, () =>
-      this.ctx.build(point, recent, this.assist && this.role !== 'attacker' ? this.extras(buildPhase) : undefined, insText || undefined),
-    );
+    const built = attacker
+      ? withLocale(SOURCE_LOCALE, () => this.attackBuilt(point))
+      : withLocale(SOURCE_LOCALE, () =>
+          this.ctx.build(point, recent, this.assist ? this.extras(buildPhase) : undefined, insText || undefined),
+        );
     const message = built.text;
     const rec: DecisionRecord = {
       point,
@@ -525,7 +539,15 @@ export class DecisionEngine {
     };
     if (this.o.signal?.aborted) return end();
 
-    // 兜底：模型失败 / 停用；军师与进攻方（桩）模式下，实际操作也由兜底机器人（模拟玩家 / 防守方）完成
+    // 进攻方失败 / 停用：用确定性出题策略补上这一波（仍经 attack_plan 工具，记录与指令日志一致）
+    if (failed && attacker) {
+      rec.by = 'fallback';
+      rec.fallbackReason = failed;
+      const plan = this.attackPending(point) ? scriptedAttackPlan(w) : null;
+      if (plan) await this.callTool('attack_plan', { groups: plan }, calls, sink, 'fallback_attack');
+      sink?.({ k: 'fallback', reason: failed, acted: !!plan, effect: plan ? planLine(plan) : undefined });
+    }
+    // 兜底：模型失败 / 停用；军师与进攻方模式下，实际操作（防守）由兜底机器人（模拟真人）完成
     const isPlayer = this.role === 'player';
     if ((failed && isPlayer) || (!isPlayer && this.o.fallbackPlaysForHuman)) {
       if (failed) {
@@ -535,7 +557,7 @@ export class DecisionEngine {
       const before = snap(w);
       await this.o.fallback.decide(point.reasons);
       if (failed) sink?.({ k: 'fallback', reason: failed, acted: true, effect: effectSummary(before, snap(w)) || undefined });
-    } else if (failed) {
+    } else if (failed && !attacker) {
       rec.by = 'fallback';
       rec.fallbackReason = `${failed} (advisor: no advice this time)`;
       sink?.({ k: 'fallback', reason: rec.fallbackReason, acted: false });
@@ -626,6 +648,7 @@ export class DecisionEngine {
         rleMap: this.spec.rleMap,
         assist: this.assist,
         planner: this.plannerState,
+        onAttackPlan: (wave, cost) => this.attackLedger.notePlan(wave, cost),
         onObserve: (obs) => this.ctx.onObserve(obs),
         onSuggest: (text, actions) => {
           const s: Suggestion = { tick: this.o.world.state.tick, wave: this.o.world.state.wave, text, actions };
@@ -745,6 +768,21 @@ export class DecisionEngine {
   /** 每个世界事件调用（浏览器控制器 / 无头 runner）：喂给战场情报 */
   onWorldEvent(ev: import('../core/types').GameEvent): void {
     this.intel.onEvent(ev);
+    if (this.role === 'attacker') this.attackLedger.onEvent(ev);
+  }
+
+  /** 进攻方：这个决策点要不要出题（建造阶段、下一波可改写且还没改写） */
+  attackPending(point: DecisionPoint): boolean {
+    if (!point.reasons.includes('build') && !point.reasons.includes('game_start')) return false;
+    const info = this.o.world.attackContext?.();
+    return !!info && info.open && !info.current;
+  }
+
+  /** 进攻方的决策消息（自己的紧凑观测，不走防守方的增量上下文） */
+  private attackBuilt(point: DecisionPoint): { text: string; full: boolean; observationTokens: number } {
+    const obs = attackObservation(this.o.world, this.attackLedger);
+    const body = obs?.text ?? '{}';
+    return { text: attackMessage(this.header, point.seq, body, this.ctx.memo.text()), full: true, observationTokens: estimateTokens(body) };
   }
 
   /** 决策后保证游戏能继续：增益必须选、补给必须选、手动模式必须开波 */

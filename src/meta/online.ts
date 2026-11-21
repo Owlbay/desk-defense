@@ -514,12 +514,25 @@ export function submitWorldRun(
     readonly state: Pick<WorldState, 'score' | 'lives' | 'gold' | 'tick' | 'stats' | 'opts' | 'seed'> &
       Partial<Pick<WorldState, 'phase' | 'maxLives'>>;
   },
-  o: { wavesSurvived: number; dailyDay?: string | null; nickname?: string; agent?: AgentMeta; aiAssist?: AiAssist | null },
+  o: {
+    wavesSurvived: number;
+    dailyDay?: string | null;
+    nickname?: string;
+    agent?: AgentMeta;
+    aiAssist?: AiAssist | null;
+    /** AI 辅助局里兜底机器人的决策占比 0..1（知道时才填；> 20% 榜上标「兜底多」） */
+    aiBotShare?: number;
+  },
 ): Promise<SubmitOutcome> {
   const st = world.state;
   const opts: RunOptions = { ...st.opts, seed: st.opts.seed ?? st.seed };
+  const rawShare = o.aiBotShare ?? o.aiAssist?.botShare;
+  const share =
+    typeof rawShare === 'number' && Number.isFinite(rawShare)
+      ? { botShare: Math.round(Math.max(0, Math.min(1, rawShare)) * 1000) / 1000 }
+      : {};
   const assist: AiAssistMeta | undefined =
-    !o.agent && isAiAssisted(o.aiAssist) ? (o.aiAssist?.model ? { model: o.aiAssist.model } : {}) : undefined;
+    !o.agent && isAiAssisted(o.aiAssist) ? { ...(o.aiAssist?.model ? { model: o.aiAssist.model } : {}), ...share } : undefined;
   return submitRun({
     opts,
     log: world.log.map((e) => ({ tick: e.tick, cmd: e.cmd })),

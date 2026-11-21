@@ -46,6 +46,13 @@ export default {
   'agent.dock.ack.bot': 'The model failed; the built-in bot played this turn',
   'agent.dock.ack.replaced': 'Too many waiting instructions; replaced by a newer one',
   'agent.dock.ack.withdrawn': 'Withdrawn',
+  // 离线演示（脚本策略）对玩家指令的回应："P<id> ok: …" / "P<id> <cannot>: …"
+  'agent.dock.demoAck.cannot': 'cannot',
+  'agent.dock.demoAck.unknown':
+    'the offline demo only understands anti-air / focus the boss / save gold / longer maze / area damage / remove walls / leave left or right alone / start wave / upgrade',
+  'agent.dock.demoAck.noBoss': 'there is no boss on the board right now',
+  'agent.dock.demoAck.noAoe': 'no area skill is ready',
+  'agent.dock.demoAck.hold': 'no new towers this turn',
   'agent.dock.instrTag': 'Player instruction',
   'agent.dock.instrBadge': '{n} instr.',
   'agent.dock.standingTag': 'Standing order',

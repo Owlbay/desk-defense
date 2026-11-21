@@ -46,6 +46,13 @@ export default {
   'agent.dock.ack.bot': 'モデルがエラーのため、このターンは内蔵ボットが代行',
   'agent.dock.ack.replaced': '待ちの指示が多すぎて、新しい指示に押し出されました',
   'agent.dock.ack.withdrawn': '取り消し済み',
+  // 离线演示（脚本策略）对玩家指令的回应："P<id> ok: …" / "P<id> <cannot>: …"
+  'agent.dock.demoAck.cannot': 'できない',
+  'agent.dock.demoAck.unknown':
+    'オフラインデモが理解できるのは 対空 / ボス集中 / 貯金 / 迷路を長く / 範囲攻撃 / 壁の撤去 / 左右どちらかに触らない / ウェーブ開始 / 強化 だけです',
+  'agent.dock.demoAck.noBoss': 'いま盤面にボスはいません',
+  'agent.dock.demoAck.noAoe': '使える範囲スキルがありません',
+  'agent.dock.demoAck.hold': 'このターンは新しい塔を建てません',
   'agent.dock.instrTag': 'プレイヤーの指示',
   'agent.dock.instrBadge': '指示 {n}',
   'agent.dock.standingTag': '長期方針',

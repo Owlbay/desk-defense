@@ -69,6 +69,10 @@ export interface BoardPalette {
   textStroke: number;
   /** 深色敌人身下的浅色光晕（0 = 不画） */
   haloAlpha: number;
+  /** 高亮整条进攻路线（玩家悬停 / 选中出生点）的折线色 */
+  route: number;
+  /** 路线折线 / 航点下面垫的一层衬底（保证在桌面纹理上看得清） */
+  routeHalo: number;
 }
 
 const BOARD_LIGHT: BoardPalette = {
@@ -82,6 +86,8 @@ const BOARD_LIGHT: BoardPalette = {
   line: C.ink,
   textStroke: C.ink,
   haloAlpha: 0,
+  route: C.inkBlue,
+  routeHalo: C.paper,
 };
 
 /** 夜晚的书桌：深胡桃木桌面，网格线比桌面亮一档，墨线换成米白 */
@@ -96,6 +102,8 @@ const BOARD_DARK: BoardPalette = {
   line: 0xf3e9d7,
   textStroke: 0x1a1310,
   haloAlpha: 0.3,
+  route: 0xa9c7f5,
+  routeHalo: 0x1a1310,
 };
 
 export const B: BoardPalette = { ...BOARD_LIGHT };

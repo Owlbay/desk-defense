@@ -30,10 +30,26 @@ export type Params = Record<string, string | number>;
 const NAMESPACES = ['common', 'ui', 'core', 'data', 'agent', 'guide'] as const;
 export type Namespace = (typeof NAMESPACES)[number];
 
+/**
+ * import.meta.glob 由 Vite（含 vite-node / vitest）在构建时改写成字面量；
+ * Pages Functions（wrangler/esbuild 打包，服务端回放校验会引入 core → i18n）里它不存在，调用会抛 TypeError。
+ * 这时退化为空字典（t() 返回 key），不影响确定性模拟。
+ */
+function viteGlob<T>(f: () => T, fallback: T): T {
+  try {
+    return f();
+  } catch {
+    return fallback;
+  }
+}
+
 // 源语言字典：同步打包（import.meta.glob eager 在 Vite 与 vite-node / vitest 下都可用）
-const SOURCE_MODULES = import.meta.glob<{ default: Dict }>('./locales/zh-CN/*.ts', { eager: true });
+const SOURCE_MODULES = viteGlob(() => import.meta.glob<{ default: Dict }>('./locales/zh-CN/*.ts', { eager: true }), {});
 // 其他语言：按需加载
-const LAZY_MODULES = import.meta.glob<{ default: Dict }>(['./locales/*/*.ts', '!./locales/zh-CN/*.ts']);
+const LAZY_MODULES = viteGlob(
+  () => import.meta.glob<{ default: Dict }>(['./locales/*/*.ts', '!./locales/zh-CN/*.ts']),
+  {} as Record<string, () => Promise<{ default: Dict }>>,
+);
 
 const dicts = new Map<Locale, Dict>();
 dicts.set(SOURCE_LOCALE, mergeModules(SOURCE_MODULES));

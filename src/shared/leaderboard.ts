@@ -102,7 +102,8 @@ export type _CheckMaps = Exhaustive<Exclude<MapId, (typeof MAPS)[number]>>;
 export type _CheckDiffs = Exhaustive<Exclude<DifficultyId, (typeof DIFFICULTIES)[number]>>;
 export type _CheckSkills = Exhaustive<Exclude<SkillId, (typeof SKILLS)[number]>>;
 export type _CheckTalents = Exhaustive<Exclude<TalentId, (typeof TALENTS)[number]>>;
-export type _CheckCommands = Exhaustive<Exclude<Command['type'], (typeof COMMAND_TYPES)[number]>>;
+// overrideWave（AI 进攻方改写波次，文档 10 §2.3）故意不在白名单里：AI 出题局不参与排行，带它的记录会被拒绝
+export type _CheckCommands = Exhaustive<Exclude<Command['type'], (typeof COMMAND_TYPES)[number] | 'overrideWave'>>;
 
 // ───────────────────────── 数据结构 ─────────────────────────
 
@@ -160,6 +161,11 @@ export interface SubmitBody {
 /** 「让 AI 替我玩」的标记（只带界面上显示的模型名，不含任何 Key） */
 export interface AiAssistMeta {
   model?: string;
+  /**
+   * 可选：AI 操作期间兜底机器人做的决策占比 0..1（AI 参战中途被你接管的局会带；> AI_BOT_SHARE_FLAG 时榜上标「兜底多」）。
+   * 旧客户端不发，服务端存 NULL。
+   */
+  botShare?: number;
 }
 
 /** AI 对局随成绩上传的元数据（不含任何 Key） */
@@ -225,6 +231,11 @@ export interface LeaderRow {
   aiModel?: string;
   /** 仅「AI 参战」：服务商 / 模型 / 决策模式 / 兜底占比 */
   agent?: AgentBadge;
+  /**
+   * AI 辅助成绩里兜底机器人决策占比超过 AI_BOT_SHARE_FLAG（AI 参战或中途接管的局；内置策略 scripted 除外）：
+   * 照常排名，榜上标「兜底多」。缺省 / false 不标。
+   */
+  botHeavy?: boolean;
 }
 
 export interface LeaderboardResponse {
@@ -397,10 +408,18 @@ export function sanitizeAiAssist(raw: unknown): Checked<AiAssistMeta> {
   const bad = (message: string): Checked<AiAssistMeta> => ({ ok: false, message });
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return bad('AI 辅助标记无效');
   const m = (raw as Record<string, unknown>).model;
-  if (m === undefined || m === null || m === '') return { ok: true, value: {} };
+  const b = (raw as Record<string, unknown>).botShare;
+  if (b !== undefined && b !== null && !(typeof b === 'number' && b >= 0 && b <= 1)) return bad('AI 辅助标记无效（兜底占比）');
+  const share = typeof b === 'number' ? { botShare: Math.round(b * 1000) / 1000 } : {};
+  if (m === undefined || m === null || m === '') return { ok: true, value: { ...share } };
   if (typeof m !== 'string' || m.length > 200) return bad('AI 辅助标记无效（模型）');
   const model = Array.from(m.normalize('NFKC').replace(CONTROL_RE, '').replace(/\s+/g, ' ').trim()).slice(0, AI_MODEL_MAX).join('');
-  return { ok: true, value: model ? { model } : {} };
+  return { ok: true, value: { ...(model ? { model } : {}), ...share } };
+}
+
+/** 兜底占比是否要在榜上标「兜底多」（内置策略 scripted 本身就是机器人，不标） */
+export function isBotHeavy(botShare: number | null | undefined, provider?: string | null): boolean {
+  return provider !== 'scripted' && typeof botShare === 'number' && botShare > AI_BOT_SHARE_FLAG;
 }
 
 export function agentBadge(a: Pick<AgentMeta, 'provider' | 'model' | 'mode' | 'botShare'>): AgentBadge {
@@ -625,6 +644,8 @@ export interface CheckedSubmission {
   ai: boolean;
   /** AI 辅助时显示的模型名 */
   aiModel: string | null;
+  /** 兜底机器人决策占比 0..1：AI 参战取 agent.botShare，接管过的 AI 辅助局取 aiAssist.botShare；未知为 null */
+  botShare: number | null;
   /** 战役评星（失败 0）；无尽 / 每日恒为 0 */
   stars: number;
 }
@@ -681,6 +702,7 @@ export function checkSubmission(body: unknown, ctx: SubmitContext): Checked<Chec
   }
   const ai = !!agent || !!assist;
   const aiModel = agent ? agent.model : (assist?.model ?? null);
+  const botShare = agent ? agent.botShare : (assist?.botShare ?? null);
 
   const board = normalizeBoardKey(body.board);
   const parsedBoard = parseBoard(board);
@@ -818,6 +840,7 @@ export function checkSubmission(body: unknown, ctx: SubmitContext): Checked<Chec
       agent,
       ai,
       aiModel,
+      botShare,
       stars,
     },
   };
@@ -840,7 +863,7 @@ export function checkLog(log: unknown, result: ClaimedResult, opts: RunOptions):
   let starts = 0;
   for (const e of log) {
     if (!isObj(e) || !isInt(e.tick) || !isObj(e.cmd) || typeof e.cmd.type !== 'string') return bad('操作记录格式错误');
-    if (!COMMAND_TYPES.includes(e.cmd.type as Command['type'])) return bad('操作记录包含未知指令');
+    if (!COMMAND_TYPES.includes(e.cmd.type as (typeof COMMAND_TYPES)[number])) return bad('操作记录包含未知指令');
     if (e.tick < prev) return bad('操作记录的时间顺序错误');
     if (e.tick > result.ticks) return bad('游戏结束后不应再有操作');
     prev = e.tick;

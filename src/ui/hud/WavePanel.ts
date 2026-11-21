@@ -1,3 +1,5 @@
+import '../../styles/ai-attack.css';
+
 import type { RandomEventState, WavePreview, WavePreviewGroup, WorldState } from '../../core/types';
 import { emptyBoardBaselines, fmtRatio, routeLength } from '../../game/route-length';
 import type { Speed } from '../../game/Session';
@@ -158,7 +160,9 @@ export class WavePanel {
     const nw = st.nextWave;
     const lastWave = st.totalWaves > 0 && st.wave >= st.totalWaves;
     const spSig = st.spawners.map((s) => `${s.id}${s.kind}`).join(',');
-    const sig = `${nw.wave}|${nw.tags.join(',')}|${nw.groups.map((g) => `${g.spawner}:${g.enemy}${g.count}${g.elite}${g.affixes.join('')}`).join(';')}|${lastWave}|${spSig}`;
+    const ov = nw.override;
+    const attackSig = `${ov ? `${ov.cost}/${ov.budget}` : ''}|${this.attackMode() && st.phase === 'build' ? 1 : 0}`;
+    const sig = `${attackSig}|${nw.wave}|${nw.tags.join(',')}|${nw.groups.map((g) => `${g.spawner}:${g.enemy}${g.count}${g.elite}${g.affixes.join('')}`).join(';')}|${lastWave}|${spSig}`;
     if (sig !== this.sig) {
       this.sig = sig;
       this.renderPreview(st, nw, lastWave);
@@ -290,6 +294,27 @@ export class WavePanel {
     }
     this.previewTitle.textContent = t('ui.wave.nextTitle', { n: nw.wave });
     const items: HTMLElement[] = [];
+    // AI 出题（文档 10 §2.3）：这一波由 AI 进攻方改写过 / AI 正在出题
+    if (nw.override) {
+      const p = { cost: nw.override.cost, budget: nw.override.budget };
+      items.push(
+        h(
+          'span.wave-tag.ai-attack',
+          { title: t('agent.attack.waveTip', p), attrs: { 'aria-label': t('agent.attack.waveTip', p) } },
+          h('span.gi', { html: G.sword }),
+          t('agent.attack.waveTag', p),
+        ),
+      );
+    } else if (this.attackMode() && st.phase === 'build') {
+      items.push(
+        h(
+          'span.wave-tag.ai-attack.pending',
+          { title: t('agent.attack.pendingTip') },
+          h('span.gi', { html: G.sword }),
+          t('agent.attack.pending'),
+        ),
+      );
+    }
     for (const tag of nw.tags) items.push(h(`span.wave-tag.${tag}`, null, h('span.gi', { html: TAG[tag].glyph }), t(TAG[tag].key)));
     // 按出生点分组（文档 09 §1.2）
     const bySpawner = new Map<string, WavePreviewGroup[]>();
@@ -316,6 +341,11 @@ export class WavePanel {
       it.style.setProperty('--i', String(Math.min(k, 8)));
     });
     this.preview.replaceChildren(...items);
+  }
+
+  /** 「AI 出题」局（launch.ts 给对局根元素加 ai-attacker） */
+  private attackMode(): boolean {
+    return this.ctx.root.classList.contains('ai-attacker');
   }
 
   private groupChip(g: WavePreviewGroup): HTMLElement {

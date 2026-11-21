@@ -215,8 +215,21 @@ export function mountDock(o: DockOptions): DockHandle {
     el.style.setProperty('--dk-x', `${left}px`);
     el.style.setProperty('--dk-w', `${width}px`);
     el.style.setProperty('--dk-bottom', `${bottom}px`);
-    // half：矮棋盘（手机）约八成、高棋盘（平板横放）约一半（至少 300，不超过棋盘顶）；full：从屏幕顶（安全区）一直到棋盘底，左右铺满
-    el.style.setProperty('--dk-half', `${Math.round(Math.min(Math.max(300, boardH * (boardH > 600 ? 0.55 : 0.8)), top + boardH - 8))}px`);
+    // 手机竖屏（≤ 600 宽）/ 矮横屏（≤ 500 高）：紧凑档位——peek = 可用高度的 40%（能看到内容 + 输入行），
+    // half = 70%，full = 全部；可用高度 = 屏幕顶（安全区）到抽屉底边
+    const phone = vw <= 600 || vh <= 500;
+    el.dataset.compact = phone ? '1' : '0';
+    if (phone) {
+      const sat = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sat')) || 0;
+      const avail = Math.max(200, vh - bottom - sat);
+      el.style.setProperty('--dk-peek', `${Math.round(Math.max(150, avail * 0.4))}px`);
+      el.style.setProperty('--dk-half', `${Math.round(Math.max(220, avail * 0.7))}px`);
+    } else {
+      el.style.removeProperty('--dk-peek');
+      // half：矮棋盘约八成、高棋盘（平板横放）约一半（至少 300，不超过棋盘顶）
+      el.style.setProperty('--dk-half', `${Math.round(Math.min(Math.max(300, boardH * (boardH > 600 ? 0.55 : 0.8)), top + boardH - 8))}px`);
+    }
+    // full：从屏幕顶（安全区）一直到棋盘底，左右铺满
     el.style.setProperty('--dk-full', `${Math.round(Math.max(240, vh - bottom))}px`);
   }
   function layout(): void {
@@ -321,7 +334,7 @@ export function mountDock(o: DockOptions): DockHandle {
       const cs = getComputedStyle(el);
       const half = parseFloat(cs.getPropertyValue('--dk-half')) || 300;
       const full = parseFloat(cs.getPropertyValue('--dk-full')) || 600;
-      const peek = Math.min(h0, 140);
+      const peek = parseFloat(cs.getPropertyValue('--dk-peek')) || Math.min(h0, 140);
       if (hNow < peek * 0.6) dispatch({ type: 'close' });
       else {
         const c: [SheetSnap, number][] = [

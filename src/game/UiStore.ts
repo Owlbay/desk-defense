@@ -38,6 +38,12 @@ export interface UiState {
   aiFocus: { cx: number; cy: number } | null;
   /** 文档 10：操作解读里悬停的操作涉及的多个格子（一组意图 / 一行横扫等；null = 无） */
   aiFocusCells?: { cx: number; cy: number }[] | null;
+  /**
+   * 文档 10 §18-8：AI 操作 / 工具调用涉及的进攻路线（棋盘上画出整条路线折线 + 航点）。
+   * ids = 出生点 id 列表（null = 全部开放路线）；air = 同时画飞行线（出生格中心 → 横向最近出口）。
+   * 只存 id，折线由棋盘按当前世界状态现算（render 不依赖 agent）。玩家悬停 / 选中出生点时棋盘自己画，不经过这里。
+   */
+  routeFocus?: { ids: string[] | null; air: boolean } | null;
   /** AI 玩家操作中：棋盘只允许点选查看（塔 / 空降纸箱），不允许建造、施法、收集等会下指令的操作 */
   inspectOnly: boolean;
   /** 设置「显示推荐迷宫」：迷宫规划建议的墙格（格子索引 y*cols+x，只含当前空地；棋盘上淡淡画出；null = 不显示） */
@@ -98,6 +104,7 @@ class Store {
       spawnerSelected: null,
       aiFocus: null,
       aiFocusCells: null,
+      routeFocus: null,
     });
   }
 

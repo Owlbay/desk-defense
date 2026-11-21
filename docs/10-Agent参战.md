@@ -3,8 +3,7 @@
 > 让大模型（Claude、OpenAI、Gemini、本机的 Ollama / LM Studio……）像玩家一样玩这个游戏：
 > 读状态、用工具下指令、在决策点思考。同一套代码跑在 CLI 评测、MCP 服务、本机桥接器和（之后的）网页 AI 模式里。
 >
-> 状态：核心（`src/agent/`）、CLI、MCP 服务、桥接器、测试已实现；网页 UI 由后续 UI 工作接入（§12 给出接口）。
-> 没有改动 `src/core`、`src/config`、`src/ui`、`src/styles`、`src/main.ts`。
+> 状态：已全部实现——核心（`src/agent/`）、CLI、MCP 服务、桥接器、网页 AI 模式（全局 AI 侧栏、思路与请求、操作解读、玩家指令）和测试。
 
 ---
 
@@ -20,7 +19,7 @@
 **非目标**
 - 不训练模型、不做强化学习；不改游戏规则去迁就模型。
 - 不由运营方付费提供模型（§10.5 只记录设计与风险）。
-- AI 进攻方本期只有协议桩（§2.3）。
+- AI 进攻方已实现「出题人」模式（AI 进攻 vs 真人，§2.3）；双模型对抗与 `ai-attack:` 榜未做。
 
 ---
 
@@ -30,7 +29,7 @@
 |---|---|---|---|
 | **AI 玩家** `player` | 建塔、升级、技能、选增益、开波…… | 读取 + 全部动作 + `end_turn` | ✅ |
 | **AI 军师** `advisor` | 只读 + `suggest(text, actions[])` | 读取 + `suggest` + `end_turn` | ✅（无头模式下由兜底机器人代替"真人"执行，用于测试建议质量） |
-| **AI 进攻方** `attacker` | 用预算编排下一波敌人 | 读取 + `end_turn`（`attack_plan` 待 core 钩子） | 🧩 协议桩 |
+| **AI 进攻方** `attacker` | 用预算编排下一波敌人 | `attack_plan` + 读取 + `end_turn` | ✅（出题人模式：真人防守；无头模式下由兜底机器人防守） |
 
 ### 2.1 AI 玩家
 默认角色。每个决策点拿到观测，调用若干动作工具，以 `end_turn(note)` 收尾。`note`（≤200 字）会在下一次决策时回显给模型，充当跨决策记忆（每次决策都是新对话，见 §7）。
@@ -38,13 +37,17 @@
 ### 2.2 AI 军师
 真人在玩时，控制器在决策点（同 §4；建议配置 `role: 'advisor'`、`waveIntervalSec: 20`、`mode: 'realtime'` 以免打断玩家）调用模型；模型只能 `suggest`。UI 把建议显示成卡片，`actions` 是形如 `place_tower pencil 3,5` 的字符串，UI 可解析成同名工具调用做"一键执行"（执行时仍走玩家的 `session.command`）。
 
-### 2.3 AI 进攻方（设计 + 协议桩）
-- 每波开始前（`build` 决策点）给进攻方一个预算 `budget = 50 + 10×波数`（"墨水点"）。
-- 工具（设计）：`attack_plan({ groups: [{ enemy, count, affixes[], spawner, delay }] })`，价格表 = 敌人赏金 × 系数，词缀加价，空降点额外收费；Boss 波禁止修改 Boss。
-- 校验：总价 ≤ 预算；敌人必须在当前波数的出怪池内；每波上限 = 默认波的 1.5 倍血量当量。
-- **需要的 core 钩子（未做，待批准）**：`World.command({ type: 'overrideWave', wave, plan })`——在 `generateWave` 结果之上替换本波条目，写入指令日志（回放仍确定）。这是纯增量指令，不改变现有行为。
-- 对抗形态：AI 进攻 vs AI 防守（双模型）、AI 进攻 vs 真人（"出题人"模式）。成绩另立 `ai-attack:` 榜。
-- 本期：`role: 'attacker'` 只开放读取 + `end_turn`，实际防守由兜底机器人完成，用于打通流程。
+### 2.3 AI 进攻方（出题人模式）
+- **core 钩子**：`World.command({ type: 'overrideWave', wave, plan: { groups } })`。只在 `build` 阶段、且 `wave = 当前波 + 1`（该波尚未开始）时接受；替换生成器给出的本波条目（`wavegen.overridePlan`，不用随机数），照常写入指令日志 → 同种子 + 指令日志回放完全一致；没有 `overrideWave` 的对局行为与 `stateHash` 不变。开波时取用并清除。`World.attackContext()`（`IWorld` 可选方法）给出下一波的预算 / 出怪池 / 可指定出生点 / 默认组成 / 生命当量上限。`state.nextWave.override = { cost, budget }` 标记被改写的波。
+- **价格表与校验**（`src/config/attack.ts`，`checkAttackPlan`，拒绝原因走 `core.reason.attack*`）：
+  - 预算 `budget = 50 + 10×波数`（"墨水点"）；单价 = 赏金 × 1.5（向上取整，至少 1）；每个词缀 + 单价 × 0.6；从空降点出来每只 + 单价 × 0.5 + 1。
+  - 敌人必须在本波出怪池内（无尽：已登场的敌人；战役：本章到这一波出现过的敌人；均不含 Boss）；最多 6 组、每组 1～60 只、2 个词缀（不含 `golden`，遵守互斥 / notOn）；`delay` 0～30 秒；出生点必须是该波可用的出生点。
+  - 生命当量（基础生命 × 数量，精英 ×2.5）≤ 默认波（非 Boss 部分）的 1.5 倍；Boss 波的 Boss 原样保留、不能编排。
+  - 指定了出生点的组用 `fixed` 并"钉住"（`SpawnEntry.pinned`），不被空降点分流。
+- **Agent 侧**（`src/agent/attack.ts`）：工具 `attack_plan({ groups: [{ enemy, count, affixes?, spawner?, delay? }], note? })`（成功即结束回合，被拒返回原因可改正）+ 读取工具 + `end_turn`（保留默认波）；自己的紧凑观测（预算、出怪池与单价、默认波、可用出生点、防守方的塔 / 对空塔数 / 地面路线长度、最近 5 波的漏怪与掉命 `hist`）与中文系统提示（`systemBlocks('attacker')`）。引擎只在建造阶段、下一波还没改写时叫模型；其余决策点本地处理。模型失败时用确定性出题策略补上。
+- **离线策略**：`scriptedAttackPlan` / `ScriptedAttackerProvider`（`provider: 'scripted'` + `role: 'attacker'` 时由工厂返回；离线演示在进攻方角色下也自动换成它）：对空塔 < 2 时主攻飞行，否则选"每点墨水生命最高"的敌人 + 最新登场的敌人，轮流加量到预算 / 生命上限；第 6 波起留 25% 预算给一组精英；有空降点且余钱够时让主力从空降点出。只读世界状态，确定性。
+- **UI**：对局里的 AI 菜单（I）→「AI 出题」：用同样的开局参数新开一局（对局已开始时需再点一次确认），AI 当进攻方（暂停模式，只在建造阶段出题），真人防守。下一波预告里显示「AI 出题 花费/预算」标签（出题前显示「AI 出题中…」）。这种局不上传全服榜（结算的 AI 报告里提示「不参与排行」，只记本地记录；服务端白名单里也没有 `overrideWave`）。
+- **未做**：AI 进攻 vs AI 防守（双模型）、独立的 `ai-attack:` 榜、价格平衡（当前数值是初值）。
 
 ---
 
@@ -379,7 +382,22 @@ Pages Functions 代理调用模型、由我们付费：需要登录 + 每人配�
 - 本地推理慢：暂停模式下延迟只影响等待时间，不影响结果；实时模式不建议用于本地小模型。
 
 ### 10.7 CSP / connect-src
-当前站点没有 CSP。以后若加 CSP，`connect-src` 必须允许玩家配置的端点：`https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com https://openrouter.ai https://api.deepseek.com http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*`，以及"自定义" / "中转服务"预设——因为这些地址无法预知，建议 AI 模式放在单独的页面 / 路由下使用宽松的 `connect-src https: http://localhost:* ws://localhost:*`，主游戏页面保持严格。
+站点通过 `public/_headers`（Cloudflare Pages 响应头，作用于 `/*`：游戏页、介绍页、404 与 `sw.js`）下发 CSP，不用 `<meta>`（meta 不支持 `frame-ancestors` / 报告，且本地 dev 的 Vite HMR 需要内联样式与 ws，放在响应头里只影响线上）：
+
+```
+default-src 'self'; script-src 'self' 'sha256-…(about.html 主题脚本)'; style-src 'self' 'unsafe-inline';
+img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' data: blob:;
+connect-src 'self' https: http: ws: wss:; worker-src 'self' blob:; manifest-src 'self';
+object-src 'none'; base-uri 'self'; form-action 'self'
+```
+
+- **脚本**最严：只许本站文件；介绍页唯一一段内联脚本（套主题，避免闪烁）用哈希放行，JSON-LD 不是可执行脚本不受限。改了 `about.html` 的内联脚本要同步改哈希——`tests/csp.test.ts` 会逐页计算内联脚本的 sha256 并校验。无 `unsafe-eval`（构建产物与 Phaser 都不需要）。
+- **样式**允许内联：界面代码用 `style` 属性 / 内联 SVG（`h(..., { style })`、图标 `innerHTML`），404 页有 `<style>`。不用外部字体（系统字体栈），所以没有放行 Google Fonts。
+- **图片** `data:` / `blob:`：Phaser 的默认纹理是 data URI，图片加载走 blob URL。
+- **connect-src 放宽到 `https: http: ws: wss:`**：玩家可以填任意厂商 / 中转服务（https）、本机模型（`http://localhost:*`）、局域网电脑（`http://192.168.x.x:*`）、本机桥接器（`ws://127.0.0.1:8787`），这些地址无法预知，只列白名单会让"自定义"预设失效；本站 `/api` 由 `'self'` 覆盖。真正的防线是脚本只能来自本站（注入的脚本跑不起来，也就无从外发）。
+- **worker** `'self'`：PWA 的 `sw.js` + `workbox-*.js`（同源 importScripts）；`blob:` 留给以后的 Worker。
+- 没有设 `frame-ancestors`：保留被游戏门户嵌入的可能；需要时再加。
+- 本地核验方式：`vite build` 后用 `vite preview` 配 `preview.headers` 注入同一条 CSP（读 `_headers`），开局、菜单、介绍页、AI 面板均无违规；实测局域网 http / localhost / 未知 https / `ws://127.0.0.1:8787` 只报网络错误、无 `connect-src` 违规，动态插入的内联脚本被拦（CSP 生效）。注意 Cloudflare 的 Rocket Loader / 邮件混淆等会注入内联脚本，需保持关闭。
 
 ### 10.8 中转服务（API relay / 代理商，纯前端）
 很多玩家手里的是中转站（OpenAI / Anthropic 兼容的 API 代理商）的地址和 Key。设置页的模型服务列表里，"离线演示"之后就是 **中转服务（OpenAI / Anthropic 兼容）**（`preset: 'relay'`，代码在 `src/agent/relay.ts`）。
@@ -669,14 +687,14 @@ npm run agent:play -- --mode endless --map ch1 --difficulty normal --model claud
 
 ## 18. 开放问题
 
-1. **AI 榜服务端**：表结构、是否需要服务端回放校验（Agent 回放更长、指令更多），按 model 还是 provider 分榜。
-2. **进攻方钩子** `overrideWave` 需要批准后再改 core；价格表需要平衡。
+1. ~~**AI 榜服务端**~~：已定（docs/12 §3 / §4.1 / §5.2）。不单独分榜：AI 辅助成绩进同一张榜（无尽 / 每日 / 战役），带「AI 辅助」+ 模型标记，可一键隐藏；表结构见迁移 0002 / 0003。服务端回放校验已实现（`src/shared/replay-verify.ts`，指令一律经 `World.command()` 重放，`overrideWave` 等新指令自动支持；Agent 局与真人局同一套），默认关闭：线上 `POST /api/admin/verify` 需要 Workers 付费计划 + `REPLAY_VERIFY=1` + `ADMIN_TOKEN`，免费计划可用离线脚本 `scripts/verify-runs.ts`。
+2. **进攻方**：`overrideWave` 钩子、`attack_plan`、出题人模式已实现（§2.3）；价格表（单价系数 1.5、词缀 0.6、空降 0.5+1、生命上限 1.5×）是初值，需要实测平衡；双模型对抗与 `ai-attack:` 榜待定。
 3. **跨决策记忆**：已改为结构化备忘（§17.6）；是否还需要"最近 N 个决策的精简结果"待真实模型评测后决定（预算分级压缩时已会带上）。
 4. **实时模式的公平性**：固定延迟 vs 实测延迟；AI 榜是否只收暂停模式（建议：AI 榜按模式分榜）。
-5. **硬币自动拾取**是否应算作"辅助"并在榜上标注。
-6. **兜底机器人的贡献**：兜底比例高的局是否计入 AI 榜（建议：兜底决策 > 20% 不上榜或标注）。
+5. ~~**硬币自动拾取**是否应算作"辅助"~~：**不算**。它是便利设置，不替玩家做任何决策（只省去点击），所以不上报、不标注、不影响排名（docs/12 §4.1）。
+6. ~~**兜底机器人的贡献**~~：**照常上榜，只标注**。兜底决策占比随成绩上传（AI 参战：`agent.botShare`；中途接管：`aiAssist.botShare`），服务端存 `agent_bot_share`；> 20%（`AI_BOT_SHARE_FLAG`）时 `LeaderRow.botHeavy`，榜上与 AI 结算卡片显示「兜底多」；内置策略 scripted 不标（docs/12 §4.1）。对局中途开关的「让 AI 替我玩」暂不上报占比。
 7. **pi 的浏览器打包体积**与 Node 专用依赖处理（UI 工作验证）。
-8. ~~观测里是否加入飞行路线~~：已加入（§17.5 `Ra`）。棋盘高亮目前只高亮单个格子，路线航点的高亮留给 UI 以后做。
+8. ~~观测里是否加入飞行路线~~：已加入（§17.5 `Ra`）。~~路线航点高亮~~：已做——操作解读里悬停 / 聚焦涉及路线的意图（`maze` / `rebuild_maze` 全部路线或 `route`、`anti_air` 飞行线、`target`/`near` 的 `route:<id>` / `air` / `airline:<id>`）或施法 / 拆除某出生点的操作，写 `UiStore.routeFocus`（出生点 id + 是否画飞行线），棋盘按当前流场画整条折线 + 起点 / 拐点 / 终点航点（品红，与单格高亮同色）；玩家悬停出生点格或选中空降纸箱时也画该路线（主题色：浅色桌面墨蓝、深色桌面浅蓝）。render 只读 UiStore 与世界状态，不依赖 agent。
 9. 本地小模型的默认 `toolMode`：先 native 再按 `testConnection` 结果自动降级到 json？
 
 ---

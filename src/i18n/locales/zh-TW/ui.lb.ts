@@ -2,7 +2,7 @@ import type { Dict } from '../../index';
 
 // 命名空間 ui · 精簡排行榜（zh-TW）
 export default {
-  'ui.lb.menuSub': '無盡 · 每日 · 戰役',
+  'ui.lb.menuSub': '全服三榜',
   'ui.lb.tab.endless': '無盡',
   'ui.lb.tab.daily': '每日',
   'ui.lb.tab.campaign': '戰役',

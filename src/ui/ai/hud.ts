@@ -176,7 +176,7 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
     speedBtn.setAttribute('aria-label', t('agent.hud.speed'));
     setText(feedTitle, t('agent.hud.feed'));
     panel.setAttribute('aria-label', t('agent.hud.panel'));
-    setText(panelTitle, isPlayer ? t('agent.hud.player') : t('agent.hud.advisor'));
+    setText(panelTitle, launch.attack ? t('agent.attack.panel') : isPlayer ? t('agent.hud.player') : t('agent.hud.advisor'));
     suggestBox.setAttribute('aria-label', t('agent.hud.suggestions'));
   };
   paintStatic();
@@ -228,6 +228,7 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       onHighlight: (c) => ui.set({ aiFocus: c ? { cx: c.x, cy: c.y } : null }),
       ops: opsRec,
       onHighlightCells: (cells) => ui.set({ aiFocusCells: cells?.length ? cells.map((c) => ({ cx: c.x, cy: c.y })) : null }),
+      onHighlightRoute: (r) => ui.set({ routeFocus: r }),
     });
   } catch (e) {
     console.error('[ai] trace panel failed to load', e);
@@ -260,7 +261,8 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       if (item.kind === 'once' && ctl?.status === 'running') ctl.poll();
     },
   });
-  dock.footer.appendChild(composer.el);
+  // AI 出题：进攻方不听玩家指令，不显示输入框
+  if (!launch.attack) dock.footer.appendChild(composer.el);
 
   chip.onclick = () => {
     audio.play('click');
@@ -605,6 +607,7 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       case 'decision':
         lastBy = ev.record.by;
         addFeed(ev.record);
+        if (launch.onBotShare && ctl) launch.onBotShare(botShareOf(ctl.report().decisions));
         break;
       case 'usage':
         usage = ev.usage;
@@ -896,7 +899,7 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       dock.destroy();
       offOpsTrace();
       offOpsEvents();
-      ui.set({ aiFocus: null, aiFocusCells: null, inspectOnly: false });
+      ui.set({ aiFocus: null, aiFocusCells: null, routeFocus: null, inspectOnly: false });
       root.remove();
     },
   };

@@ -1,6 +1,7 @@
 /**
  * API 处理函数（与 Pages Functions 的路由文件解耦，便于在 vitest 里用假 D1 直接调用）。
- * 免费计划每次请求约 10 ms CPU：这里只做轻量校验，不做回放（第二阶段再做，见 docs/12）。
+ * 免费计划每次请求约 10 ms CPU：这里只做轻量校验，不做回放。
+ * 第二阶段的服务端回放校验在 ./admin.ts（REPLAY_VERIFY=1 + ADMIN_TOKEN，需要付费计划，见 docs/12 §5.2）。
  */
 import { decodeLogPayload, gzipJsonBase64 } from '../../src/shared/codec';
 import {
@@ -46,6 +47,10 @@ export interface Deps {
   fetch?: typeof fetch;
   cache?: CacheLike | null;
   newId?: () => string;
+  /** 第二阶段：env.REPLAY_VERIFY === '1' 时启用 POST /api/admin/verify（缺省关闭，见 functions/_lib/admin.ts） */
+  replayVerify?: boolean;
+  /** env.ADMIN_TOKEN（secret）：管理接口的口令；未设置时管理接口不可用 */
+  adminToken?: string;
 }
 
 export const LEADERBOARD_TTL = 30;
@@ -82,6 +87,14 @@ const clientIp = (req: Request): string =>
 
 function notConfigured(): Response {
   return apiError('not_configured', '在线功能暂未开放（服务器未配置数据库）');
+}
+
+/** 清掉某榜所有档位的边缘缓存（有人刷新纪录 / 有成绩被判作弊时） */
+export async function purgeBoardCache(deps: Deps, origin: string, board: string): Promise<void> {
+  if (!deps.cache) return;
+  await Promise.all(
+    LIMIT_PRESETS.flatMap((l) => [false, true].map((h) => deps.cache!.delete(leaderboardCacheKey(origin, board, l, h)).catch(() => false))),
+  );
 }
 
 export function leaderboardCacheKey(origin: string, board: string, limit: number, hideAi = false): string {
@@ -184,7 +197,8 @@ export async function handleSubmit(req: Request, deps: Deps): Promise<Response> 
     agent_provider: sub.agent?.provider ?? null,
     agent_model: sub.agent?.model ?? null,
     agent_mode: sub.agent?.mode ?? null,
-    agent_bot_share: sub.agent ? sub.agent.botShare : null,
+    // AI 参战取 agent.botShare；中途接管的 AI 辅助局取 aiAssist.botShare（docs/10 §18-6）；其他为 NULL
+    agent_bot_share: sub.botShare,
     agent_json: sub.agent ? JSON.stringify(sub.agent) : null,
     ai: sub.ai ? 1 : 0,
     ai_model: sub.aiModel,
@@ -197,14 +211,7 @@ export async function handleSubmit(req: Request, deps: Deps): Promise<Response> 
   // 名次按「包含 AI 辅助」的完整榜算（隐藏 AI 时界面会重新查询）
   const { rank, total } = await store.rankOf(sub.board, best, true);
 
-  if (improved && deps.cache) {
-    const origin = new URL(req.url).origin;
-    await Promise.all(
-      LIMIT_PRESETS.flatMap((l) =>
-        [false, true].map((h) => deps.cache!.delete(leaderboardCacheKey(origin, sub.board, l, h)).catch(() => false)),
-      ),
-    );
-  }
+  if (improved) await purgeBoardCache(deps, new URL(req.url).origin, sub.board);
   const res: SubmitResponse = { id: best.id, rank, total, improved, status: best.status };
   return json(res, { status: improved ? 201 : 200 });
 }

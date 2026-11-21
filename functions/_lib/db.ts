@@ -7,7 +7,7 @@
  * 排序：评星（仅战役，其他榜为 0）↓ → 得分 ↓ → 波数 ↓ → 提交时间 ↑ → id ↑。
  */
 import type { DifficultyId, MapId } from '../../src/core/types';
-import { agentBadge, type LeaderRow, type RunStatus } from '../../src/shared/leaderboard';
+import { agentBadge, isBotHeavy, type LeaderRow, type RunStatus } from '../../src/shared/leaderboard';
 
 export interface D1StmtLike {
   bind(...values: unknown[]): D1StmtLike;
@@ -49,7 +49,7 @@ export interface RunRow {
   agent_provider?: string | null;
   agent_model?: string | null;
   agent_mode?: string | null;
-  /** 兜底机器人决策占比 0..1 */
+  /** 兜底机器人决策占比 0..1（AI 参战；以及中途接管的 AI 辅助局，此时 agent_provider 为 NULL） */
   agent_bot_share?: number | null;
   /** 完整的 AgentMeta JSON（决策数 / token / 费用） */
   agent_json?: string | null;
@@ -218,7 +218,44 @@ export class RunStore {
   getRun(id: string): Promise<RunRow | null> {
     return this.db.prepare(`SELECT * FROM runs WHERE id = ?`).bind(id).first<RunRow>();
   }
+
+  // ── 第二阶段：回放校验队列（idx_runs_status） ──
+
+  /** 最早提交的若干条 pending 成绩（只取当前版本：回放用的是服务器上的当前代码） */
+  async pendingRuns(gameVersion: string, limit: number): Promise<PendingRun[]> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT id, board, seed, opts_json, result_json, log_gz, game_version FROM runs ` +
+          `WHERE status = 'pending' AND game_version = ?1 ORDER BY created_at ASC, id ASC LIMIT ?2`,
+      )
+      .bind(gameVersion, limit)
+      .all<PendingRun>();
+    return results;
+  }
+
+  async pendingCount(gameVersion: string): Promise<number> {
+    const r = await this.db
+      .prepare(`SELECT COUNT(*) AS n FROM runs WHERE status = 'pending' AND game_version = ?`)
+      .bind(gameVersion)
+      .first<{ n: number }>();
+    return Number(r?.n ?? 0);
+  }
+
+  /**
+   * 写入校验结论。只改仍是 pending 的同一条（id 不变）：校验期间同一设备刷新了纪录，
+   * UPSERT 会换成新 id，这里就不会误伤新成绩。返回是否真的写入。
+   */
+  async setVerdict(id: string, status: 'verified' | 'rejected', reason: string | null, now: number): Promise<boolean> {
+    const r = await this.db
+      .prepare(`UPDATE runs SET status = ?1, reject_reason = ?2, verified_at = ?3 WHERE id = ?4 AND status = 'pending' RETURNING id`)
+      .bind(status, reason, now, id)
+      .first<{ id: string }>();
+    return !!r;
+  }
 }
+
+/** 校验队列取出的一行 */
+export type PendingRun = Pick<RunRow, 'id' | 'board' | 'seed' | 'opts_json' | 'result_json' | 'log_gz' | 'game_version'>;
 
 const num = (x: unknown): number => Number(x ?? 0);
 
@@ -257,5 +294,6 @@ export function toLeaderRow(r: BestRow, rank: number): LeaderRow {
     ai,
     ...(ai && aiModel ? { aiModel } : {}),
     ...(agent ? { agent } : {}),
+    ...(ai && isBotHeavy(r.agent_bot_share, r.agent_provider) ? { botHeavy: true } : {}),
   };
 }

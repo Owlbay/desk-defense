@@ -18,7 +18,7 @@ import { append, type Child, clear, copyText, h, setText } from '../dom';
 import { G } from '../icons';
 import { reasonName } from './actions';
 import { fmtCost, fmtTokens, providerLabel } from './format';
-import { type Cell, type DecisionOps, type OpsSource, opsTotals } from './ops';
+import { type Cell, type DecisionOps, type Op, type OpsSource, opsTotals } from './ops';
 import { groupSummary, groupTitle, opGold, opIcon, opLine, totalsItems } from './ops-format';
 
 type Ev<K extends TraceEvent['k']> = Extract<TraceEvent, { k: K }>;
@@ -51,6 +51,8 @@ export interface TracePanelOptions {
   ops?: OpsSource;
   /** 操作涉及的多个格子（悬停操作 / 意图组时高亮；null = 取消）；缺省时退回 onHighlight 的第一格 */
   onHighlightCells?: (cells: Cell[] | null) => void;
+  /** 操作 / 意图涉及的进攻路线（ids = 出生点 id，null = 全部；air = 飞行线）；null = 取消。文档 10 §18-8 */
+  onHighlightRoute?: (r: { ids: string[] | null; air: boolean } | null) => void;
   /** 抽屉打开 / 关闭（例如关掉同位置的 AI 面板） */
   onOpenChange?: (open: boolean, mode: 'column' | 'drawer') => void;
   /** 初始是否打开（缺省：分栏模式打开、抽屉模式关闭） */
@@ -1045,6 +1047,43 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
           .join(';')
       : null;
 
+  /**
+   * 操作 / 意图组涉及的路线 → data-route（"*" = 全部开放路线；"north,drop-3"；带 "|air" = 同时画飞行线）。
+   * 来源：意图参数 route / target / near（route、route:<id>、air、airline:<id>），maze / rebuild_maze / anti_air 意图，
+   * 施法 / 拆除的出生点。
+   */
+  const routeAttr = (args: Record<string, unknown> | undefined, intent: string | undefined, ops: readonly Op[]): string | null => {
+    const ids = new Set<string>();
+    let all = false;
+    let air = false;
+    const ref = (v: unknown): void => {
+      if (typeof v !== 'string') return;
+      const m = /^(route|airline)(?::(.+))?$/.exec(v);
+      if (m) {
+        if (m[1] === 'airline') air = true;
+        if (m[2]) ids.add(m[2]);
+        else all = true;
+      } else if (v === 'air') {
+        air = true;
+        all = true;
+      }
+    };
+    if (args) {
+      if (typeof args.route === 'string' && args.route) ids.add(args.route);
+      ref(args.target);
+      ref(args.near);
+    }
+    if (intent === 'maze' || intent === 'rebuild_maze') {
+      if (!ids.size) all = true;
+    } else if (intent === 'anti_air') {
+      air = true;
+      if (!ids.size) all = true;
+    }
+    for (const op of ops) if (op.spawner) ids.add(op.spawner);
+    if (!all && !ids.size) return null;
+    return `${all ? '*' : [...ids].join(',')}${air ? '|air' : ''}`;
+  };
+
   /** 玩家指令块：「玩家指令」+ 每条指令与 AI 的回应（思路页在卡片顶部，操作页在操作列表上方） */
   const instrBlock = (c: Card): HTMLElement | null => {
     if (!c.instr?.length) return null;
@@ -1108,9 +1147,16 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
       const items = g.ops.map((op) => {
         const gold = opGold(op);
         const cells = cellsAttr(op.cells);
+        const route = op.spawner ? routeAttr(undefined, undefined, [op]) : null;
         const li = h(
           `li.tr-op.k-${op.k}${op.ok ? '' : '.bad'}`,
-          { attrs: cells ? { tabindex: 0, 'data-cells': cells } : {} },
+          {
+            attrs: {
+              ...(cells || route ? { tabindex: 0 } : {}),
+              ...(cells ? { 'data-cells': cells } : {}),
+              ...(route ? { 'data-route': route } : {}),
+            },
+          },
           h('span.gi', { html: G[opIcon(op) as keyof typeof G] ?? G.list }),
           h('span.tr-op-text', null, opLine(op)),
           gold ? h(`span.tr-op-gold${op.gold! < 0 ? '.spend' : '.gain'}`, null, gold) : null,
@@ -1121,10 +1167,17 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
       const titleText = groupTitle(g);
       const sum = groupSummary(g);
       const allCells = cellsAttr(g.ops.flatMap((op) => (op.ok ? (op.cells ?? []) : [])));
+      const gRoute = routeAttr(g.args, g.intent, g.ops);
       const gh = titleText
         ? h(
             `div.tr-opg-head${g.noop ? '.noop' : ''}`,
-            { attrs: allCells ? { tabindex: 0, 'data-cells': allCells } : {} },
+            {
+              attrs: {
+                ...(allCells || gRoute ? { tabindex: 0 } : {}),
+                ...(allCells ? { 'data-cells': allCells } : {}),
+                ...(gRoute ? { 'data-route': gRoute } : {}),
+              },
+            },
             h('b', null, titleText),
             sum ? h('span.tr-opg-sum', null, ` → ${sum}`) : null,
           )
@@ -1425,10 +1478,22 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
   };
   // 悬停 / 聚焦一条操作（或意图组头）→ 棋盘上标出它涉及的全部格子
   const hlOps = (e: Event, on: boolean): boolean => {
-    const row = (e.target as HTMLElement).closest<HTMLElement>('.tr-ops [data-cells]');
+    const row = (e.target as HTMLElement).closest<HTMLElement>('.tr-ops [data-cells], .tr-ops [data-route]');
     if (!row) return false;
+    if (o.onHighlightRoute) {
+      const r = on ? row.dataset.route : undefined;
+      if (r) {
+        const [ids, air] = r.split('|');
+        o.onHighlightRoute({ ids: ids === '*' ? null : ids.split(','), air: air === 'air' });
+      } else o.onHighlightRoute(null);
+    }
+    if (!row.dataset.cells) {
+      if (o.onHighlightCells) o.onHighlightCells(null);
+      else o.onHighlight?.(null);
+      return true;
+    }
     const cells = on
-      ? row.dataset.cells!.split(';').map((p) => {
+      ? row.dataset.cells.split(';').map((p) => {
           const [x, y] = p.split(',').map(Number);
           return { x, y };
         })
@@ -1643,6 +1708,7 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
       window.removeEventListener('resize', onWinResize);
       o.onHighlight?.(null);
       o.onHighlightCells?.(null);
+      o.onHighlightRoute?.(null);
       const url = exportBox.dataset.url;
       if (url) URL.revokeObjectURL(url);
       el.remove();

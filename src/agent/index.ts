@@ -29,6 +29,7 @@ export {
   AGENT_TOOLS,
   LEGACY_TOOLS,
   SLIM_TOOLS,
+  ATTACK_PLAN_TOOL,
   ACT_TOOL_V1,
   ACT_TO_LEGACY,
   INTENT_KINDS,
@@ -88,6 +89,16 @@ export { listModels, testConnection, type ModelListing, type ConnectionDiagnosti
 export * from './relay';
 export { connectBridge, originAllowed, makePairingCode, BRIDGE_PROTOCOL } from './bridge';
 export { scriptedFallback, ScriptedProvider, scriptedIntentTurn } from './providers/scripted';
+export { ScriptedAttackerProvider } from './providers/attacker';
+export {
+  AttackLedger,
+  attackObservation,
+  attackMessage,
+  defenderSummary,
+  planLine,
+  scriptedAttackPlan,
+  type AttackWaveRecord,
+} from './attack';
 export * from './instructions';
 export type { LLMProvider, DecisionContext, DecisionOutcome } from './providers/types';
 export * from './trace';
@@ -189,6 +200,8 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
   let timer: ReturnType<typeof setInterval> | null = null;
   let unsub: (() => void) | null = null;
   let budgetResolve: ((c: BudgetChoice) => void) | null = null;
+  /** 进攻方：已为哪一波出过题（每波只问一次） */
+  let attackPlanned = -1;
 
   const setStatus = (s: AgentStatus, detail?: string) => {
     status = s;
@@ -197,8 +210,16 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
 
   const poll = () => {
     if (!engine || busy || userPaused || status === 'stopped' || status === 'error') return;
-    const reasons = detector.check(w, !!o.instructions?.hasPending());
+    const attacker = config.role === 'attacker';
+    const reasons = detector.check(w, !attacker && !!o.instructions?.hasPending());
     if (!reasons) return;
+    // 进攻方（文档 10 §2.3）：真人防守，只在建造阶段、下一波还没出题时叫模型；其余决策点直接忽略（不暂停、不记录）
+    if (attacker) {
+      const info = w.attackContext?.();
+      const build = reasons.includes('build') || reasons.includes('game_start');
+      if (!build || !info?.open || info.current || attackPlanned === info.wave) return;
+      attackPlanned = info.wave;
+    }
     const point = detector.point(w, reasons);
     const pauseMode = (config.decision?.mode ?? 'pause') === 'pause';
     const wasPaused = session.paused;

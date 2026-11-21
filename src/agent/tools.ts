@@ -8,9 +8,21 @@
  *
  * 本文件不依赖任何 LLM SDK：Claude 适配器、MCP 服务、脚本策略都复用这里的定义与执行器。
  */
+import { ATTACK } from '../config/attack';
+import { AFFIX_ROLL_IDS, ENEMIES } from '../config/enemies';
 import { SKILL_IDS } from '../config/skills';
-import { type Branch, type Command, type IWorld, type SkillId, type TargetMode, TOWER_IDS, type TowerId } from '../core/types';
+import {
+  type AttackGroup,
+  type Branch,
+  type Command,
+  type IWorld,
+  type SkillId,
+  type TargetMode,
+  TOWER_IDS,
+  type TowerId,
+} from '../core/types';
 import { SOURCE_LOCALE, withLocale } from '../i18n';
+import { planLine } from './attack';
 import { type CompactObs, compactObservation, terrainMap } from './compact';
 import { asciiMap, renderObservation } from './observation';
 import { COMBO_PAIRS, type IntentOutcome, Planner, type PlannerState } from './planner';
@@ -430,6 +442,37 @@ export const SLIM_TOOLS: AgentToolDef[] = [
   },
 ];
 
+/** AI 进攻方（文档 10 §2.3）：改写下一波 */
+export const ATTACK_PLAN_TOOL: AgentToolDef = {
+  name: 'attack_plan',
+  kind: 'action',
+  roles: ['attacker'],
+  description: `Attacker: replace the NEXT wave with your groups (build phase only). Cost = count × (price + affixes × surcharge + drop-spawner surcharge) ≤ budget; HP-equivalent ≤ hpCap; enemies from pool only; bosses are kept. Max ${ATTACK.maxGroups} groups, ${ATTACK.maxCount} per group, ${ATTACK.maxAffixes} affixes. Success ends your turn; on rejection fix and retry.`,
+  input_schema: obj(
+    {
+      groups: {
+        type: 'array',
+        items: obj(
+          {
+            enemy: str(
+              'enemy id from pool',
+              Object.keys(ENEMIES).filter((id) => !ENEMIES[id as keyof typeof ENEMIES].boss),
+            ),
+            count: int('how many'),
+            affixes: { type: 'array', items: str('affix', AFFIX_ROLL_IDS), description: 'optional elite affixes' },
+            spawner: str('optional spawner id (drop spawners cost extra)'),
+            delay: num('optional start second of this group (0..30)'),
+          },
+          ['enemy', 'count'],
+        ),
+        description: 'enemy groups of the next wave',
+      },
+      note: str('memo for next time (your plan)'),
+    },
+    ['groups'],
+  ),
+};
+
 /** 旧版 act（无意图；assist 关闭 = 评测基线） */
 export const ACT_TOOL_V1: AgentToolDef = {
   name: 'act',
@@ -446,15 +489,20 @@ export const ACT_TOOL_V1: AgentToolDef = {
   ),
 };
 
-export const TOOL_BY_NAME: Record<string, AgentToolDef> = Object.fromEntries([...LEGACY_TOOLS, ...SLIM_TOOLS].map((t) => [t.name, t]));
+export const TOOL_BY_NAME: Record<string, AgentToolDef> = Object.fromEntries(
+  [...LEGACY_TOOLS, ...SLIM_TOOLS, ATTACK_PLAN_TOOL].map((t) => [t.name, t]),
+);
 
 /** 发给模型的工具（精简集）。assist = false：旧版 act（无意图），评测基线用 */
 export function toolsForRole(role: AgentRole, assist = true): AgentToolDef[] {
+  // 进攻方：attack_plan + 读取 + end_turn（保留默认波）
+  if (role === 'attacker') return [ATTACK_PLAN_TOOL, ...SLIM_TOOLS.filter((t) => t.roles.includes(role)), TOOL_BY_NAME.end_turn];
   return SLIM_TOOLS.filter((t) => t.roles.includes(role)).map((t) => (t.name === 'act' && !assist ? ACT_TOOL_V1 : t));
 }
 
 /** 旧的细粒度工具（MCP / 旧客户端） */
 export function legacyToolsForRole(role: AgentRole): AgentToolDef[] {
+  if (role === 'attacker') return [ATTACK_PLAN_TOOL, ...LEGACY_TOOLS.filter((t) => t.roles.includes(role))];
   return LEGACY_TOOLS.filter((t) => t.roles.includes(role));
 }
 
@@ -643,6 +691,8 @@ export interface ToolContext {
   assist?: boolean;
   /** 规划器的跨决策状态（save 意图） */
   planner?: PlannerState;
+  /** 进攻方：attack_plan 成功（波号、花费） */
+  onAttackPlan?: (wave: number, cost: number) => void;
 }
 
 const fmtCmd = (c: Command): string => JSON.stringify(c);
@@ -767,6 +817,8 @@ function executeToolInner(ctx: ToolContext, name: string, rawInput: unknown): To
       const note = typeof input.note === 'string' ? input.note.slice(0, 200) : undefined;
       return { ok: true, text: 'OK turn ended', endTurn: true, note };
     }
+    case 'attack_plan':
+      return executeAttackPlan(ctx, input);
     case 'suggest': {
       const text = String(input.text).slice(0, 240);
       const actions = Array.isArray(input.actions) ? (input.actions as string[]).slice(0, 4).map((a) => String(a).slice(0, 80)) : [];
@@ -809,6 +861,38 @@ function executeToolInner(ctx: ToolContext, name: string, rawInput: unknown): To
   if (cmd.type === 'collect' && st.crateChoice)
     text += ` crate opened: ${st.crateChoice.options.map((o) => `${o.id}: ${o.desc}`).join(' | ')} → call choose_crate`;
   return { ok: true, text, cmd };
+}
+
+/** 进攻方：attack_plan → overrideWave（下一波）。成功即结束回合 */
+function executeAttackPlan(ctx: ToolContext, input: In): ToolResult {
+  const w = ctx.world;
+  const info = w.attackContext?.();
+  if (!info) return { ok: false, text: 'ERROR no next wave to plan (game over or last wave)' };
+  if (!info.open)
+    return { ok: false, text: `ERROR wave ${info.wave} can only be planned in the build phase before it starts`, endTurn: true };
+  const groups = (input.groups as Record<string, unknown>[]).map((g) => {
+    const o: Record<string, unknown> = { enemy: g.enemy, count: g.count };
+    if (Array.isArray(g.affixes) && g.affixes.length) o.affixes = g.affixes;
+    if (typeof g.spawner === 'string' && g.spawner) o.spawner = g.spawner.replace(/\(drop\)$/, '');
+    if (typeof g.delay === 'number') o.delay = g.delay;
+    return o;
+  });
+  const cmd: Command = { type: 'overrideWave', wave: info.wave, plan: { groups: groups as unknown as AttackGroup[] } };
+  const r = send(ctx, cmd);
+  const note = typeof input.note === 'string' ? input.note.slice(0, 300) : undefined;
+  if (!r.ok) return { ok: false, text: `REJECTED attack_plan: ${r.reason ?? 'invalid'} (budget ${info.budget}, hpCap ${info.hpCap})`, cmd };
+  if (r.queuedFor !== undefined)
+    return { ok: true, text: `QUEUED attack_plan for tick ${r.queuedFor}`, cmd, queuedFor: r.queuedFor, endTurn: true };
+  const cost = w.state.nextWave.override?.cost ?? 0;
+  ctx.onAttackPlan?.(info.wave, cost);
+  const plan = cmd.plan.groups;
+  return {
+    ok: true,
+    text: `OK wave ${info.wave} planned: ${planLine(plan)} (cost ${cost}/${info.budget}); turn ended`,
+    cmd,
+    endTurn: true,
+    ...(note ? { note, memo: { note } } : {}),
+  };
 }
 
 function send(ctx: ToolContext, cmd: Command): ReturnType<CommandSink> {

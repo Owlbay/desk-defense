@@ -269,10 +269,8 @@ export function gameScreen(app: App, route: Route): Screen {
         break;
       case 'waveStart':
         overlay.banner(ev.wave, ev.tags, world.state.totalWaves);
-        audio.setIntensity(ev.tags.includes('boss') ? 1 : 0.7);
         break;
       case 'waveEnd': {
-        audio.setIntensity(0.35);
         const parts = [t('ui.game.waveDone', { wave: ev.wave })];
         const gain = ev.bonus + ev.interest + ev.piggy;
         if (gain > 0) parts.push(t('ui.game.goldGain', { n: Math.round(gain) }));
@@ -419,7 +417,6 @@ export function gameScreen(app: App, route: Route): Screen {
         });
       });
     ui.clear();
-    audio.setIntensity(0);
     overlay.bigText(
       won ? t('ui.game.victory') : t('ui.game.defeat'),
       won ? t('ui.game.victorySub') : t('ui.game.defeatSub'),
@@ -624,7 +621,8 @@ export function gameScreen(app: App, route: Route): Screen {
     applyLayout();
     raf = requestAnimationFrame(loop);
     tutorial.start();
-    audio.setIntensity(0.35);
+    // 配乐：开局 / 续玩从布防曲开始；之后由 audio.onGameEvent 按波次 / Boss / 结算切换
+    audio.setMusicState('build');
     if (route.resume) overlay.toast(t('ui.game.resumed', { wave: world.state.wave }), 'good');
   };
 

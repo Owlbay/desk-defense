@@ -9,6 +9,7 @@
 import { ENEMIES } from '../../config/enemies';
 import type { IWorld, TowerId } from '../../core/types';
 import { CellKind } from '../../core/types';
+import { t } from '../../i18n';
 import { comboState } from '../board';
 import { HOLD_INTENTS, instructionIntents, type InstructionRef } from '../instructions';
 import { enemyPurposes, type Purpose, PURPOSE_CORE } from '../purpose';
@@ -354,24 +355,26 @@ export async function scriptedInstructionTurn(
     const k = keys.get(x.id) ?? [];
     const idx = owned.get(x.id) ?? [];
     if (!k.length) {
-      acks.push(`P${x.id} 无法: 离线演示只听得懂 防空 / 集火 Boss / 存钱 / 拉长迷宫 / 范围伤害 / 拆墙 / 别动某边 / 开波 / 升级`);
+      acks.push(`P${x.id} ${t('agent.dock.demoAck.cannot')}: ${t('agent.dock.demoAck.unknown')}`);
       continue;
     }
     if (!idx.length) {
       // 限制类（存钱 / 别动）或没有 Boss 可集火
+      // 回应给玩家看：按界面语言（"ok" 不翻译，findAck / 面板据此判断成败）
+      const cannot = t('agent.dock.demoAck.cannot');
       const why =
         k.includes('boss') && !bossCells.length
-          ? '无法: 场上现在没有 Boss'
+          ? `${cannot}: ${t('agent.dock.demoAck.noBoss')}`
           : k.includes('boss') && !skill
-            ? '无法: 没有就绪的范围技能'
-            : 'ok: 这回合不再建新塔';
+            ? `${cannot}: ${t('agent.dock.demoAck.noAoe')}`
+            : `ok: ${t('agent.dock.demoAck.hold')}`;
       acks.push(`P${x.id} ${why}`);
       continue;
     }
     const res = idx.map((j) => lines.find((l) => l.startsWith(`${j + 1} `)) ?? '');
     const good = res.filter((l) => /^\d+ OK/.test(l));
     const first = (good[0] ?? res[0] ?? '').replace(/^\d+ \w+\s*/, '').slice(0, 80);
-    acks.push(`P${x.id} ${good.length ? 'ok' : '无法'}: ${k.join('+')}${first ? ` — ${first}` : ''}`);
+    acks.push(`P${x.id} ${good.length ? 'ok' : t('agent.dock.demoAck.cannot')}: ${k.join('+')}${first ? ` — ${first}` : ''}`);
   }
   return { hold, ack: acks.join(' | ') };
 }

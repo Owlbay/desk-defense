@@ -47,11 +47,13 @@ export function agentMetaOf(s: AgentMetaInput): AgentMeta {
  *  - agent：AI 玩家全程操作 → 带「AI 辅助」+ 模型标记；
  *  - assist：中途由你接管过 → 只带「AI 辅助」标记；
  *  - human：军师模式（你自己在玩）→ 普通成绩；
- *  - skip：开局参数不参与排行 / AI 还没做过决策（reason 给玩家看）。
+ *  - skip：开局参数不参与排行 / AI 还没做过决策 / AI 出题局（reason 给玩家看）。
  */
 export type AiUploadPlan = { kind: 'agent' | 'assist' | 'human' } | { kind: 'skip'; reason: string };
 
 export function aiUploadPlan(s: { agent: { role: string }; opts: RunOptions; takenOver: boolean; decisions: number }): AiUploadPlan {
+  // 「AI 出题」（AI 进攻、真人防守，文档 10 §2.3）：波次被改写过，不参与排行，只记本地记录
+  if (s.agent.role === 'attacker') return { kind: 'skip', reason: t('agent.attack.unranked') };
   if (!isEligibleRun(s.opts)) return { kind: 'skip', reason: t('agent.setup.block.params') };
   if (s.agent.role !== 'player') return { kind: 'human' };
   if (s.decisions <= 0) return { kind: 'skip', reason: t('agent.setup.block.noDecisions') };

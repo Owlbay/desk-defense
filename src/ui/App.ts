@@ -148,7 +148,7 @@ export class App {
     this.enterTimer = window.setTimeout(() => this.settleTransition(), toGame ? 1300 : 900);
 
     audio.setMusic(this.store.get().settings.music > 0);
-    audio.setIntensity(route.name === 'game' ? 0.4 : 0);
+    audio.setMusicState(route.name === 'game' ? 'build' : 'menu');
   }
 
   /** 语言切换后刷新当前页面：对局页就地更新文字，其他页面无动画地重新渲染 */

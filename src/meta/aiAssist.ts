@@ -14,6 +14,8 @@ export interface AiAssist {
   advisor: boolean;
   /** 最近一次启用的模型（界面显示用，例如「离线演示」「Claude · claude-sonnet-5-5」） */
   model?: string;
+  /** 「替我玩」期间兜底机器人做的决策占比 0..1（知道时才有；> 20% 榜上标「兜底多」） */
+  botShare?: number;
 }
 
 export type AiAssistRole = 'player' | 'advisor';
@@ -41,6 +43,7 @@ export function sanitizeAssist(x: unknown): AiAssist | undefined {
   const o = x as Record<string, unknown>;
   const a: AiAssist = { player: o.player === true, advisor: o.advisor === true };
   if (typeof o.model === 'string' && o.model) a.model = o.model.slice(0, 120);
+  if (typeof o.botShare === 'number' && o.botShare >= 0 && o.botShare <= 1) a.botShare = o.botShare;
   return usedAi(a) ? a : undefined;
 }
 

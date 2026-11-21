@@ -6,6 +6,11 @@ scripts/out/
 coverage/
 package-lock.json
 
+# 原生壳工程（Capacitor / Tauri 生成，含复制进去的 dist）
+ios/
+android/
+src-tauri/
+
 # 生成文件
 art/gallery.html
 docs/guide/数据/

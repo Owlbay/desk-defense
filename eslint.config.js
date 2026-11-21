@@ -13,7 +13,19 @@ const TS_TYPED = [...TS_APP, ...TS_FUNCTIONS];
 export default defineConfig(
   {
     // 对应 .prettierignore：构建产物、依赖、生成文件
-    ignores: ['dist/', 'node_modules/', '.wrangler/', 'scripts/out/', 'coverage/', 'art/gallery.html', 'docs/guide/数据/', 'public/'],
+    ignores: [
+      'dist/',
+      'node_modules/',
+      '.wrangler/',
+      'scripts/out/',
+      'coverage/',
+      'art/gallery.html',
+      'docs/guide/数据/',
+      'public/',
+      'ios/',
+      'android/',
+      'src-tauri/',
+    ],
   },
 
   js.configs.recommended,
