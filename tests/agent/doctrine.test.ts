@@ -67,6 +67,12 @@ describe('doctrine changes', () => {
     expect(r.ok).toBe(true);
     expect(st.chosen && st.doc.preset === 'aoe' && st.by === 'model').toBe(true);
     expect(applyDoctrine(st, { why: 'keep it' }, 'model', { wave: 2 }).text).toMatch(/unchanged \(aoe\)/);
+    // 原样重写一遍（实测 deepseek 常这么做）：不算修改，也不变成 custom
+    expect(applyDoctrine(st, { core: ['stapler', 'compass', 'glue'], why: 'keep' }, 'model', { wave: 9 }).text).toMatch(
+      /unchanged \(aoe\)/,
+    );
+    expect(applyDoctrine(st, { preset: 'aoe', maze: 'long', why: 'keep' }, 'model', { wave: 9 }).ok).toBe(false);
+    expect(st.doc.preset).toBe('aoe');
     expect(applyDoctrine(st, { preset: 'lamp', why: 'armor' }, 'model', { wave: 3 }).text).toMatch(/cooldown/);
     expect(applyDoctrine(st, { preset: 'lamp', why: 'armor' }, 'model', { wave: 3, hurt: true }).ok).toBe(true);
     expect(applyDoctrine(st, { preset: 'pencil', why: 'x' }, 'model', { wave: 3 + DOCTRINE_COOLDOWN }).ok).toBe(true);

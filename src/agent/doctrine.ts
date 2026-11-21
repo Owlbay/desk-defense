@@ -386,8 +386,9 @@ export function applyDoctrine(
   if (Array.isArray(input.core)) {
     const core = [...new Set(input.core.filter((x): x is TowerId => typeof x === 'string' && TOWER_SET.has(x as TowerId)))].slice(0, 3);
     if (core.length) {
+      // 核心塔和现在一样（模型常把当前策略原样再写一遍）：不算换成自定义
+      if (!preset && core.join() !== next.core.join()) next.preset = 'custom';
       next.core = core;
-      if (!preset) next.preset = 'custom';
     }
   }
   if (input.maze === 'long' || input.maze === 'standard' || input.maze === 'lean') next.maze = input.maze;
@@ -397,6 +398,8 @@ export function applyDoctrine(
     if (n) next.notes = n;
     else delete next.notes;
   } else if (st.doc.notes) next.notes = st.doc.notes;
+  // 结果与当前策略相同（原样重写一遍）：不算修改，不记录、不重置冷却
+  if (st.chosen && JSON.stringify(next) === JSON.stringify(st.doc)) return { ok: false, text: `doctrine: unchanged (${st.doc.preset})` };
   st.doc = next;
   st.chosen = true;
   st.by = by;
