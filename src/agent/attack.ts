@@ -6,7 +6,7 @@
  * - 防守方是真人（「出题人」模式）；无头评测里由兜底机器人防守。
  * 纯 TS，无 DOM。
  */
-import { affixPrice, ATTACK, dropPrice, enemyPrice, groupCost, hpUnits } from '../config/attack';
+import { affixPrice, ATTACK, checkAttackPlan, dropPrice, enemyPrice, hpUnits } from '../config/attack';
 import { AFFIXES, ENEMIES } from '../config/enemies';
 import { TOWERS } from '../config/towers';
 import type { AffixId, AttackContextInfo, AttackGroup, EnemyId, GameEvent, IWorld } from '../core/types';
@@ -144,12 +144,32 @@ export function planLine(groups: readonly AttackGroup[]): string {
 
 // ───────────────────────── 离线出题策略（确定性） ─────────────────────────
 
+/** 精英主力的词缀组合（按优先级；模拟里坚硬 + 再生对防守方压力最大，其次护盾 + 再生） */
+const ELITE_AFFIXES: AffixId[][] = [
+  ['hard', 'regen'],
+  ['shield', 'regen'],
+  ['swift', 'shield'],
+  ['hard', 'shield'],
+];
+
+function eliteAffixes(id: EnemyId): AffixId[] | null {
+  if ((ENEMIES[id].flying && !ATTACK.airAffixes) || ATTACK.maxAffixes < 1) return null;
+  for (const pair of ELITE_AFFIXES) {
+    const p = pair.slice(0, ATTACK.maxAffixes);
+    const ok = p.every((a, i) => !AFFIXES[a].notOn?.includes(id) && !AFFIXES[a].excludes?.some((x) => p.slice(0, i).includes(x)));
+    if (ok) return p;
+  }
+  return null;
+}
+
 /**
- * 简单的确定性出题策略（离线演示 / 兜底 / 测试）：
- *  1. 防守方对空塔 < 2 且出怪池有飞行敌人 → 主攻空中；
- *  2. 否则选"每点墨水的生命当量"最高的敌人当主力，另配本波池里最新登场的敌人；
- *  3. 轮流加数量直到预算或生命上限用完；有余钱时给一小组配一个词缀；
- *  4. 有空降点、余钱够时让主力从空降点出（绕开迷宫前段）。
+ * 确定性的离线出题策略（离线演示 / 兜底 / 测试；数值依据 scripts/sim-attack.ts，文档 10 §2.3）：
+ *  1. 主力 = 地面敌人里"每点墨水生命"最高的，带两个词缀（精英）——多出来的敌人会变成防守方的赏金，
+ *     精英用更少的数量给更大的压力；
+ *  2. 防守方对空塔 < 2 且池里有飞行敌人 → 另配一组（不带词缀的）飞行敌人，与主力轮流加量；
+ *  3. 一只精英都放不下时才用最便宜的地面敌人（不用便宜敌人填满：多出来的敌人就是防守方的赏金）；
+ *  4. 有空降点、余钱够时让主力从空降点出（绕开迷宫前段）；
+ *  5. 所有组开波即出发；最后用 core 同一个 checkAttackPlan 核一遍，保证不会被拒。
  * 只用世界状态，不用随机数：同一局面永远给出同一份编排。
  */
 export function scriptedAttackPlan(w: IWorld): AttackGroup[] | null {
@@ -158,60 +178,60 @@ export function scriptedAttackPlan(w: IWorld): AttackGroup[] | null {
   const def = defenderSummary(w);
   const pool = info.pool;
   const value = (id: EnemyId) => ENEMIES[id].hp / enemyPrice(id);
-  const byValue = pool.slice().sort((a, b) => value(b) - value(a) || (a < b ? -1 : 1));
-  const flyers = pool.filter((id) => ENEMIES[id].flying);
-  const picks: EnemyId[] = [];
-  if (flyers.length && def.air < 2) picks.push(flyers[flyers.length - 1]);
-  for (const id of [byValue[0], pool[pool.length - 1]]) if (id && !picks.includes(id) && picks.length < 2) picks.push(id);
-  if (!picks.length) return null;
+  const byValue = (a: EnemyId, b: EnemyId) => value(b) - value(a) || (a < b ? -1 : 1);
+  const ground = pool.filter((id) => !ENEMIES[id].flying).sort(byValue);
+  const flyers = pool.filter((id) => ENEMIES[id].flying).sort(byValue);
+  const specs: { enemy: EnemyId; affixes: AffixId[] }[] = [];
+  const main = ground.find((id) => eliteAffixes(id)) ?? ground[0];
+  if (main) specs.push({ enemy: main, affixes: eliteAffixes(main) ?? [] });
+  if (flyers.length && def.air < 2) specs.push({ enemy: flyers[0], affixes: [] });
+  if (!specs.length) specs.push({ enemy: pool.slice().sort(byValue)[0], affixes: [] });
   const budget = info.budget;
   const cap = info.hpCap;
-  const counts = picks.map(() => 0);
   let cost = 0;
   let hp = 0;
-  // 留一点预算给精英小组
-  const reserve = info.wave >= 6 ? Math.floor(budget * 0.25) : 0;
-  for (let guard = 0; guard < 1000; guard++) {
+  const counts = specs.map(() => 0);
+  const unitCost = (sp: (typeof specs)[number]) => enemyPrice(sp.enemy) + sp.affixes.length * affixPrice(sp.enemy);
+  const perSpec = Math.max(1, Math.floor((ATTACK.maxGroups - 1) / specs.length)) * ATTACK.maxCount;
+  for (let guard = 0; guard < 2000; guard++) {
     let added = false;
-    for (let i = 0; i < picks.length; i++) {
-      const id = picks[i];
-      const p = enemyPrice(id);
-      const u = hpUnits(id, 1, false);
-      if (counts[i] >= ATTACK.maxCount || cost + p > budget - reserve || hp + u > cap) continue;
+    specs.forEach((sp, i) => {
+      const c = unitCost(sp);
+      const u = hpUnits(sp.enemy, 1, sp.affixes.length > 0);
+      if (counts[i] >= perSpec || cost + c > budget || hp + u > cap) return;
       counts[i]++;
-      cost += p;
+      cost += c;
       hp += u;
       added = true;
-    }
+    });
     if (!added) break;
   }
-  const groups: AttackGroup[] = [];
-  picks.forEach((id, i) => {
-    if (counts[i] > 0) groups.push({ enemy: id, count: counts[i] });
-  });
-  // 精英小组：主力敌人配一个可用词缀
-  const main = picks[0];
-  const affix = (['shield', 'hard', 'regen', 'swift'] as AffixId[]).find((a) => !AFFIXES[a].notOn?.includes(main));
-  if (affix && groups.length < ATTACK.maxGroups) {
-    const unit = enemyPrice(main) + affixPrice(main);
-    const uhp = hpUnits(main, 1, true);
-    let n = 0;
-    while (n < ATTACK.maxCount && cost + unit <= budget && hp + uhp <= cap) {
-      n++;
-      cost += unit;
-      hp += uhp;
-    }
-    if (n > 0) groups.push({ enemy: main, count: n, affixes: [affix], delay: 4 });
+  // 兜底：一只精英都放不下时用最便宜的地面敌人（模拟里精英 + 填充比纯精英弱：多出来的敌人就是防守方的赏金）
+  const filler = (ground.length ? ground : pool).slice().sort((a, b) => enemyPrice(a) - enemyPrice(b) || byValue(a, b))[0];
+  const empty = counts.every((c) => c === 0);
+  let fill = 0;
+  while (empty && fill < ATTACK.maxCount && cost + enemyPrice(filler) <= budget && hp + hpUnits(filler, 1, false) <= cap) {
+    fill++;
+    cost += enemyPrice(filler);
+    hp += hpUnits(filler, 1, false);
   }
+  const groups: AttackGroup[] = [];
+  specs.forEach((sp, i) => {
+    for (let left = counts[i]; left > 0; left -= ATTACK.maxCount) {
+      const g: AttackGroup = { enemy: sp.enemy, count: Math.min(ATTACK.maxCount, left), delay: 0 };
+      if (sp.affixes.length) g.affixes = sp.affixes.slice();
+      groups.push(g);
+    }
+  });
+  if (fill > 0) groups.push({ enemy: filler, count: fill, delay: 0 });
+  if (!groups.length || groups.length > ATTACK.maxGroups) return null;
   // 空降点：余钱够就让第一组从空降点出来
   const drop = info.spawners.find((s) => s.drop);
-  if (drop && groups.length) {
+  if (drop) {
     const g = groups[0];
-    const extra = g.count * dropPrice(g.enemy);
-    if (cost + extra <= budget) g.spawner = drop.id;
+    if (cost + g.count * dropPrice(g.enemy) <= budget) g.spawner = drop.id;
   }
-  if (!groups.length) return null;
-  // 最后核一遍价格（与 core 校验同一张表）
-  const total = groups.reduce((s, g) => s + groupCost(g, !!info.spawners.find((x) => x.id === g.spawner)?.drop), 0);
-  return total <= budget ? groups : null;
+  // 最后核一遍（与 core 校验同一个函数）
+  const chk = checkAttackPlan({ groups }, { wave: info.wave, pool: info.pool, spawners: info.spawners, baseHp: info.baseHp });
+  return chk.ok ? groups : null;
 }

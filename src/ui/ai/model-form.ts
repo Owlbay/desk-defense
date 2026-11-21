@@ -190,6 +190,10 @@ export interface AiModelConfigFormOptions {
   perRole?: boolean;
   /** 任何会影响摘要的改动（来源、模型、决策方式、桥接状态…） */
   onChange?: () => void;
+  /** 保存方式（缺省 saveSetup：共用的 AI 设置）；AI 对战的进攻方模型存在另一份里 */
+  save?: (st: AiSetupSaved) => void;
+  /** 「模型」卡片的标题（缺省「模型」） */
+  heading?: string;
 }
 
 /** 可复用的模型设置表单：两张卡片（模型 / 决策与预算）+ 错误列表 */
@@ -240,7 +244,7 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
   };
   if (st.tab === 'direct' && !SOURCE_ORDER.includes(st.source)) st.source = 'demo';
 
-  const persist = (): void => saveSetup(st);
+  const persist = (): void => (o.save ?? saveSetup)(st);
 
   // ───────────── 模型：直连 ─────────────
   const tabBox = h('div.lb-mode-tabs.ai-tabs', { attrs: { role: 'tablist', 'aria-label': t('agent.setup.tabsAria') } });
@@ -1211,7 +1215,7 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
   const modelCard = h(
     'section.card.section.ai-card',
     null,
-    h('h3', null, t('agent.setup.model')),
+    h('h3', null, o.heading ?? t('agent.setup.model')),
     tabBox,
     directBox,
     bridgeBox,

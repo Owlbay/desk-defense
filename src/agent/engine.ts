@@ -69,6 +69,11 @@ export interface EngineOptions {
    * 长期方针每次决策都带上；结束后按模型回应标记完成。
    */
   instructions?: InstructionQueue;
+  /**
+   * AI 对战（文档 10 §2.3）：返回 true 时本引擎发出的开波指令一律拒绝（推进保证也不自动开波）——
+   * 进攻方还没为下一波出题（例如增益三选一刚选完、回到建造阶段）。对战调度让进攻方出完题后，下一个决策点再开波。
+   */
+  holdWaveStart?: () => boolean;
 }
 
 /** 预算分级：0 正常 · 1 ≥70% 省流 · 2 ≥90% 省流 + 无思考 + 只在建造 / 事件时决策 · 3 ≥100%（soft：最省模式继续） */
@@ -686,6 +691,9 @@ export class DecisionEngine {
   /** 指令出口（工具 / 推进保证共用）：记下建造阶段开波前的金币，再交给 sink / world.command */
   private readonly send: CommandSink = (c) => {
     const w = this.o.world;
+    // AI 对战：进攻方还没为下一波出题时不开波（防守方模型 / 兜底 / 推进保证都一样）
+    if (c.type === 'startWave' && this.o.holdWaveStart?.())
+      return { ok: false, reason: '进攻方还在为下一波出题，稍后再开波', code: 'attackPending' };
     if (c.type === 'startWave' && w.state.phase === 'build' && this.goldAtWaveStart === null)
       this.goldAtWaveStart = Math.floor(w.state.gold);
     return this.o.sink ? this.o.sink(c) : w.command(c);
@@ -797,7 +805,7 @@ export class DecisionEngine {
     }
     if (s.crateChoice) send({ type: 'chooseCrate', option: s.crateChoice.options[0].id });
     const manualWait = s.phase === 'build' && !(s.autoWave.enabled && s.autoWave.started);
-    if (manualWait) {
+    if (manualWait && !this.o.holdWaveStart?.()) {
       send({ type: 'startWave' });
       rec.fallbackReason = (rec.fallbackReason ? `${rec.fallbackReason}; ` : '') + 'auto start_wave';
     }

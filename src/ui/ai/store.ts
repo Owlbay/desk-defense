@@ -9,6 +9,8 @@ import { safeStorage } from '../../meta/storage';
 import type { AiRole } from './launch';
 
 export const AI_SETUP_KEY = 'desk-defense.ai.setup.v1';
+/** AI 对战（文档 10 §2.3）：进攻方模型的设置（与上面同形，只用模型相关字段） */
+export const AI_DUEL_ATTACKER_KEY = 'desk-defense.ai.duel-attacker.v1';
 const KEY_PREFIX = 'desk-defense.ai.key.';
 
 /** 模型来源：离线演示 / Claude 官方 SDK / pi 的各个预设 */
@@ -25,10 +27,17 @@ export interface PerSource {
   detected?: { api: RelayApi; for: string };
 }
 
+export type AiSetupKind = 'defend' | 'attack' | 'duel';
+
 export interface AiSetupSaved {
   v: 1;
   tab: 'direct' | 'bridge';
   role: AiRole;
+  /**
+   * 「AI 参战」页选的玩法：defend = AI 防守（role：AI 玩家 / 军师）；attack = AI 出题（AI 进攻、你防守）；
+   * duel = AI 对战（进攻方模型 vs 防守方模型）。旧设置没有这个字段，按 defend。
+   */
+  kind?: AiSetupKind;
   source: AiSource;
   run: { mode: 'endless' | 'campaign'; map: MapId; difficulty: DifficultyId; abyss: number; pure: boolean; autoWave: boolean };
   /** 每个来源各自记住的模型 / 地址 */
@@ -93,6 +102,30 @@ export function loadSetup(): AiSetupSaved {
     return out;
   } catch {
     return d;
+  }
+}
+
+/** AI 对战：进攻方模型的设置（没保存过时默认离线演示） */
+export function loadAttackerSetup(): AiSetupSaved {
+  const d: AiSetupSaved = { ...defaultSetup(), role: 'advisor', source: 'demo', decisionMode: 'pause' };
+  try {
+    const raw = safeStorage().get(AI_DUEL_ATTACKER_KEY);
+    if (!raw) return d;
+    const v = JSON.parse(raw) as Partial<AiSetupSaved> | null;
+    if (!v || typeof v !== 'object' || v.v !== 1) return d;
+    return { ...d, ...v, run: d.run, per: { ...(v.per ?? {}) }, decisionMode: 'pause' };
+  } catch {
+    return d;
+  }
+}
+
+export function saveAttackerSetup(s: AiSetupSaved): void {
+  try {
+    const clean = JSON.parse(JSON.stringify(s)) as AiSetupSaved;
+    delete clean.lastConfig;
+    safeStorage().set(AI_DUEL_ATTACKER_KEY, JSON.stringify(clean));
+  } catch {
+    /* ignore */
   }
 }
 

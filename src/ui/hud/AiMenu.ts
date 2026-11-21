@@ -134,10 +134,25 @@ export class AiMenu {
     this.badge.hidden = !show;
     if (show) {
       const advisorOnly = role === 'advisor' && !assisted;
-      setText(this.badge, s.attack ? t('agent.attack.badge') : advisorOnly ? t('ui.assist.badgeAdvisor') : t('ui.assist.badge'));
+      setText(
+        this.badge,
+        s.duel
+          ? t('agent.duel.badge')
+          : s.attack
+            ? t('agent.attack.badge')
+            : advisorOnly
+              ? t('ui.assist.badgeAdvisor')
+              : t('ui.assist.badge'),
+      );
       this.badge.classList.toggle('advisor', advisorOnly);
       this.badge.classList.toggle('idle', role === null);
-      this.badge.title = s.attack ? t('agent.attack.badgeTip') : assisted ? t('ui.assist.badgeTip') : t('ui.assist.badgeAdvisorTip');
+      this.badge.title = s.duel
+        ? t('agent.duel.badgeTip')
+        : s.attack
+          ? t('agent.attack.badgeTip')
+          : assisted
+            ? t('ui.assist.badgeTip')
+            : t('ui.assist.badgeAdvisorTip');
     }
     this.ctx.root.classList.toggle('ai-assisted', assisted);
   }

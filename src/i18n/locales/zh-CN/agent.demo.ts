@@ -1,0 +1,33 @@
+import type { Dict } from '../../index';
+
+// 命名空间 agent · 离线演示（内置脚本策略 / 离线出题）的"思路"与合成请求说明；只给玩家看，不发给模型（zh-CN）
+export default {
+  'agent.demo.scriptNote': '内置规则策略：不调用任何模型，下面的"思路"是规则判断过程',
+  'agent.demo.seeObs': '(见「观察」)',
+  'agent.demo.reason': '决策原因：{reasons}；阶段 {phase}，第 {wave} 波，金币 {gold}，生命 {lives}/{max}。',
+  'agent.demo.perk': '增益三选一：按固定优先级排序 → {list}。',
+  'agent.demo.crate': '补给箱：偏好顺序 {pref}，选 {pick}。',
+  'agent.demo.demolish': '空降点 {id}：拆除费 {cost}，金币超过 3 倍 → 拆掉。',
+  'agent.demo.force': '兵力：攻击塔 {atk} / 目标 {target}，墙 {walls} / 目标 {wallTarget}。',
+  'agent.demo.wall': '迷宫：在路线 ({x},{y}) 放墙能让路线变长 {gain} 格 → 放墙。',
+  'agent.demo.build': '建塔：轮到 {tower}，覆盖路格最多的空位是 ({x},{y})。',
+  'agent.demo.upgrade': '升级：塔数已够或金币充足（{gold}），升级最低级的 #{uid}（Lv{level}，{cost} 金币）。',
+  'agent.demo.skill': '技能：离出口 ≤4 格的敌人 {near} 个。',
+  'agent.demo.skillBoss': '技能：离出口 ≤4 格的敌人 {near} 个，场上有 Boss。',
+  'agent.demo.startWave': '手动开波模式、正在建造阶段 → 开下一波。',
+  'agent.demo.idle': '没有值得做的动作，保持现状。',
+  'agent.demo.intent': '决策原因：{reasons}；金币 {gold} → {actions}',
+  'agent.demo.instruction': '玩家指令 P{id}{mark}「{text}」→ {intents}',
+  'agent.demo.unknown': '听不懂',
+  'agent.demo.holdTag': '玩家指令',
+  'agent.demo.holdThink': '玩家要求先别花钱 / 别动某一边：这回合不再按规则建塔。',
+  'agent.demo.turn': '本回合：{note}',
+  'agent.demo.attackNote': '内置出题策略：不调用任何模型',
+  'agent.demo.attackNoNetwork': '离线出题：没有发出任何网络请求',
+  'agent.demo.attackThink': '按防守方的弱点出题：{plan}',
+  'agent.demo.attackMemo': '上一波出题：{plan}',
+  'agent.demo.attackDone': '出题：{plan}',
+  'agent.demo.attackRejected': '出题被拒：{why}',
+  'agent.demo.keepDefault': '保留默认波',
+  'agent.demo.redactedThinking': '[这段思考被安全过滤器加密，内容不可见]',
+} satisfies Dict;

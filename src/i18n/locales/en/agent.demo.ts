@@ -1,0 +1,33 @@
+import type { Dict } from '../../index';
+
+// Namespace agent · offline demo (built-in scripted strategy / offline attacker): "reasoning" lines and the synthetic request; shown to the player only, never sent to a model (en)
+export default {
+  'agent.demo.scriptNote': 'Built-in rule strategy: no model is called; the "reasoning" below is the rules at work',
+  'agent.demo.seeObs': '(see "Observation")',
+  'agent.demo.reason': 'Triggered by: {reasons}; phase {phase}, wave {wave}, {gold} gold, lives {lives}/{max}.',
+  'agent.demo.perk': 'Perk pick: sorted by fixed priority → {list}.',
+  'agent.demo.crate': 'Supply crate: preference {pref}, taking {pick}.',
+  'agent.demo.demolish': 'Drop point {id}: demolition costs {cost}, gold is over 3× that → demolish.',
+  'agent.demo.force': 'Forces: {atk} attack towers / target {target}, {walls} walls / target {wallTarget}.',
+  'agent.demo.wall': 'Maze: a wall at ({x},{y}) on the route lengthens it by {gain} cells → place wall.',
+  'agent.demo.build': 'Build: {tower} is next; the free cell covering the most route is ({x},{y}).',
+  'agent.demo.upgrade': 'Upgrade: enough towers or plenty of gold ({gold}); upgrading the lowest-level #{uid} (Lv{level}, {cost} gold).',
+  'agent.demo.skill': 'Skills: {near} enemies within 4 cells of the exit.',
+  'agent.demo.skillBoss': 'Skills: {near} enemies within 4 cells of the exit; a boss is on the board.',
+  'agent.demo.startWave': 'Manual wave mode and in the build phase → start the next wave.',
+  'agent.demo.idle': 'Nothing worth doing; holding.',
+  'agent.demo.intent': 'Triggered by: {reasons}; {gold} gold → {actions}',
+  'agent.demo.instruction': 'Player order P{id}{mark} “{text}” → {intents}',
+  'agent.demo.unknown': 'not understood',
+  'agent.demo.holdTag': 'player order',
+  'agent.demo.holdThink': 'The player asked to save gold / leave one side alone: no rule-based building this turn.',
+  'agent.demo.turn': 'This turn: {note}',
+  'agent.demo.attackNote': 'Built-in wave-setting strategy: no model is called',
+  'agent.demo.attackNoNetwork': 'Offline attacker: no network requests were made',
+  'agent.demo.attackThink': 'Targeting the defender’s weak spots: {plan}',
+  'agent.demo.attackMemo': 'Last wave set: {plan}',
+  'agent.demo.attackDone': 'Wave set: {plan}',
+  'agent.demo.attackRejected': 'Wave plan rejected: {why}',
+  'agent.demo.keepDefault': 'Keep the default wave',
+  'agent.demo.redactedThinking': '[This thinking was encrypted by the safety filter and is not visible]',
+} satisfies Dict;

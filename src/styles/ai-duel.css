@@ -1,0 +1,57 @@
+/* 「AI 对战」（文档 10 §2.3）：进攻方 / 防守方两行状态、决策流里的攻 / 守标签、设置页的进攻方模型卡片 */
+.badge.ai-side {
+  flex: none;
+  font-weight: 700;
+}
+
+.badge.ai-side.attack {
+  background: var(--tint-red);
+}
+
+.badge.ai-side.defend {
+  background: var(--tint-blue);
+}
+
+.ai-duel-status {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.ai-duel-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+  font-size: 0.92em;
+  line-height: 1.4;
+}
+
+.ai-duel-line > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ai-duel-line[data-state='waiting'],
+.ai-duel-line[data-state='stopped'] {
+  color: var(--ink-muted);
+}
+
+.ai-duel-line[data-state='thinking'] > span:last-child {
+  font-weight: 600;
+}
+
+.ai-feed-item.side-attack {
+  border-left: 3px solid var(--tint-red-2);
+  padding-left: 6px;
+}
+
+.ai-feed-item.side-defend {
+  border-left: 3px solid var(--tint-blue-2);
+  padding-left: 6px;
+}
+
+.ai-card > h3 .badge.ai-side {
+  margin-inline-end: 6px;
+}

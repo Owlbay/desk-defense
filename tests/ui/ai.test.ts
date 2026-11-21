@@ -235,6 +235,9 @@ describe('设置保存与上传标记', () => {
     expect(aiUploadPlan(base)).toEqual({ kind: 'agent' });
     expect(aiUploadPlan({ ...base, agent: { ...base.agent, role: 'advisor' } })).toEqual({ kind: 'human' });
     expect(aiUploadPlan({ ...base, takenOver: true })).toEqual({ kind: 'assist' });
+    // AI 出题 / AI 对战：不参与排行
+    expect(aiUploadPlan({ ...base, agent: { ...base.agent, role: 'attacker' } }).kind).toBe('skip');
+    expect(aiUploadPlan({ ...base, agent: { ...base.agent, role: 'duel' } }).kind).toBe('skip');
     expect(aiUploadPlan({ ...base, opts: { ...OPTS, mode: 'campaign', map: 'ch2' } })).toEqual({ kind: 'agent' });
     expect(aiUploadPlan({ ...base, opts: { ...OPTS, fixedLayout: true } }).kind).toBe('skip');
     expect(aiUploadPlan({ ...base, decisions: 0 }).kind).toBe('skip');

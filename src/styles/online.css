@@ -586,6 +586,14 @@
   white-space: nowrap;
 }
 
+/* 地图名（英文 "Programmer’s Desk" / 日文「プログラマーのデスク」）在窄屏三等分里放不下：换行而不是截断 */
+.lb-sub-seg.lb-maps .seg {
+  white-space: normal;
+  text-align: center;
+  overflow-wrap: anywhere;
+  padding-block: 4px;
+}
+
 .lb-note {
   margin: 0;
 }

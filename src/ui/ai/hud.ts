@@ -6,6 +6,8 @@
  * 控制器（src/agent createAgentController）只负责「什么时候问模型、把指令下到 session」，
  * 这里负责：轮询节奏（军师模式避免在建造 / 增益阶段反复提问）、自动拾取、AI 操作时屏蔽玩家输入。
  */
+import '../../styles/ai-duel.css';
+
 import {
   actToLegacy,
   type AgentController,
@@ -17,13 +19,14 @@ import {
   type BudgetState,
   budgetTokens,
   createAgentController,
+  createDuelController,
   type DecisionRecord,
+  type DuelSide,
   InstructionQueue,
   type SessionLike,
   type Suggestion,
   type TokenUsage,
   type TraceExport,
-  usageLine,
   usageTotal,
 } from '../../agent';
 import type { Command, CommandResult } from '../../core/types';
@@ -61,6 +64,8 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
   const world = session.world;
   const role = launch.role;
   const isPlayer = role === 'player';
+  /** AI 对战：进攻方模型 vs 防守方模型（防守方按 AI 玩家处理） */
+  const duel = launch.duel ?? null;
   const pauseMode = launch.mode === 'pause';
   let destroyed = false;
   let over = false;
@@ -153,6 +158,18 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
   feed.open = true;
 
   const panelTitle = h('b');
+  // AI 对战：两行状态（进攻方 / 防守方）
+  const duelLines: Record<DuelSide, { el: HTMLElement; text: HTMLElement; status: AgentStatus | 'idle'; detail: string }> = {
+    attack: { el: h('p.ai-duel-line'), text: h('span'), status: 'idle', detail: '' },
+    defend: { el: h('p.ai-duel-line'), text: h('span'), status: 'idle', detail: '' },
+  };
+  for (const side of ['attack', 'defend'] as const) {
+    const d = duelLines[side];
+    d.el.dataset.side = side;
+    d.el.append(h(`span.badge.ai-side.${side}`, null, t(`agent.duel.side.${side}`)), d.text);
+  }
+  const duelBox = h('div.ai-duel-status', null, duelLines.attack.el, duelLines.defend.el);
+  duelBox.hidden = !duel;
   const suggestBox = h('div.ai-suggest', { attrs: { 'aria-live': 'polite' } });
   // 「AI 状态」页：状态、出错 / 预算询问、军师建议、用量、控制、决策流
   const panel = h(
@@ -160,6 +177,7 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
     { attrs: { id: 'ai-panel', role: 'region' } },
     h('div.ai-panel-head', null, h('div.ai-panel-title', null, panelTitle, h('small.muted', null, launch.label))),
     statusLine,
+    duelBox,
     errorBox,
     budgetAsk,
     suggestBox,
@@ -176,7 +194,14 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
     speedBtn.setAttribute('aria-label', t('agent.hud.speed'));
     setText(feedTitle, t('agent.hud.feed'));
     panel.setAttribute('aria-label', t('agent.hud.panel'));
-    setText(panelTitle, launch.attack ? t('agent.attack.panel') : isPlayer ? t('agent.hud.player') : t('agent.hud.advisor'));
+    setText(
+      panelTitle,
+      duel ? t('agent.duel.panel') : launch.attack ? t('agent.attack.panel') : isPlayer ? t('agent.hud.player') : t('agent.hud.advisor'),
+    );
+    for (const side of ['attack', 'defend'] as const) {
+      const b = duelLines[side].el.querySelector('.ai-side');
+      if (b) setText(b as HTMLElement, t(`agent.duel.side.${side}`));
+    }
     suggestBox.setAttribute('aria-label', t('agent.hud.suggestions'));
   };
   paintStatic();
@@ -261,8 +286,8 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       if (item.kind === 'once' && ctl?.status === 'running') ctl.poll();
     },
   });
-  // AI 出题：进攻方不听玩家指令，不显示输入框
-  if (!launch.attack) dock.footer.appendChild(composer.el);
+  // AI 出题 / AI 对战：不接玩家指令，不显示输入框
+  if (!launch.attack && !duel) dock.footer.appendChild(composer.el);
 
   chip.onclick = () => {
     audio.play('click');
@@ -337,6 +362,7 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
         line = isPlayer ? t('agent.hud.line.waitPlayer') : t('agent.hud.line.waitAdvisor');
     }
     setText(statusLine, line);
+    if (duel) paintDuel();
     pauseBtn.replaceChildren(
       h('span.gi', { html: status === 'paused' ? G.play : G.pause }),
       status === 'paused' ? t('agent.hud.resume') : t('agent.hud.pause'),
@@ -347,6 +373,30 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
     stopBtn.disabled = dead;
   };
 
+  /** AI 对战：每一方一行（模型名 + 正在想 / 等待） */
+  function paintDuel(): void {
+    for (const side of ['attack', 'defend'] as const) {
+      const d = duelLines[side];
+      const model = (side === 'attack' ? duel?.label : duel?.defenderLabel) ?? '';
+      const why =
+        d.detail
+          .split(',')
+          .filter(Boolean)
+          .map((r) => reasonName(r) ?? r)
+          .join(t('agent.hud.listSep')) || '…';
+      const st = over || status === 'stopped' ? 'stopped' : d.status === 'thinking' && status === 'thinking' ? 'thinking' : 'waiting';
+      d.el.dataset.state = st;
+      setText(
+        d.text,
+        st === 'thinking'
+          ? t('agent.duel.lineThinking', { model, reasons: why })
+          : st === 'stopped'
+            ? t('agent.duel.lineStopped', { model })
+            : t(side === 'attack' ? 'agent.duel.lineWaitAttack' : 'agent.duel.lineWaitDefend', { model }),
+      );
+    }
+  }
+
   const paintUsage = (): void => {
     // 预算按"折算"计（新输入 + 输出 + 缓存写×1.25 + 缓存读×0.1）；原始总数单独显示，避免把便宜的缓存读当成预算
     const weighted = budgetTokens(usage);
@@ -354,7 +404,20 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
     setText(chipUsage, weighted > 0 ? `${fmtTokens(weighted)}${costUsd > 0 ? ` · ${fmtCost(costUsd)}` : ''}` : '');
     chipUsage.title = weighted > 0 ? t('agent.hud.usageTip', { weighted: fmtNum(weighted), raw: fmtNum(raw) }) : '';
     usageNums.replaceChildren(
-      h('span', { title: usageLine(usage, fmtNum) }, h('b', null, fmtTokens(weighted)), ` ${t('agent.hud.weighted')}`),
+      h(
+        'span',
+        {
+          title: [
+            `${t('agent.trace.newInput')} ${fmtNum(usage.inputTokens)}`,
+            `${t('agent.trace.cacheRead')} ${fmtNum(usage.cacheReadTokens)}`,
+            `${t('agent.trace.cacheWrite')} ${fmtNum(usage.cacheWriteTokens)}`,
+            `${t('agent.trace.output')} ${fmtNum(usage.outputTokens)}`,
+            `${t('agent.trace.budget')} ${fmtNum(weighted)}`,
+          ].join(' · '),
+        },
+        h('b', null, fmtTokens(weighted)),
+        ` ${t('agent.hud.weighted')}`,
+      ),
       h('span.muted', { title: t('agent.hud.rawTip') }, t('agent.hud.raw', { n: fmtTokens(raw) })),
       h('span', { title: t('agent.hud.costTip') }, h('b', null, fmtCost(costUsd)), ` ${t('agent.hud.estimated')}`),
       h('span', null, h('b', null, String(usage.requests)), ` ${t('agent.hud.requestsUnit', { n: usage.requests })}`),
@@ -484,11 +547,12 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       .filter(Boolean)
       .join(' · ');
     const item = h(
-      `li.ai-feed-item${rec.by === 'fallback' ? '.by-bot' : ''}`,
+      `li.ai-feed-item${rec.by === 'fallback' ? '.by-bot' : ''}${rec.side ? `.side-${rec.side}` : ''}`,
       null,
       h(
         'div.ai-feed-head',
         null,
+        rec.side ? h(`span.badge.ai-side.${rec.side}`, null, t(`agent.duel.side.${rec.side}`)) : null,
         h('b', null, t('agent.hud.wave', { n: Math.max(1, rec.point.wave) })),
         h('span.muted', null, reasons),
         rec.by === 'fallback' ? h('span.badge.ai-bot-badge', null, t('agent.hud.bot')) : null,
@@ -513,7 +577,7 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       rec.note ? h('p.ai-feed-note', null, rec.note) : null,
       acts.length
         ? h('ul.ai-feed-acts', null, acts)
-        : rec.by === 'agent' && isPlayer
+        : rec.by === 'agent' && isPlayer && rec.side !== 'attack'
           ? h('p.muted.small', null, t('agent.hud.noActions'))
           : null,
       rec.fallbackReason ? h('p.ai-feed-why', null, fallbackText(rec.fallbackReason)) : null,
@@ -597,6 +661,12 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       case 'status':
         status = ev.status;
         statusDetail = ev.detail ?? '';
+        if (ev.side) {
+          // 同一时间只有一方在想：另一方回到等待
+          for (const k of ['attack', 'defend'] as const) duelLines[k].status = 'idle';
+          duelLines[ev.side].status = ev.status;
+          duelLines[ev.side].detail = ev.detail ?? '';
+        }
         if (ev.status === 'error') {
           // AI 玩家没能启动：先停住游戏，等玩家决定（改用内置策略 / 自己接管）
           if (isPlayer) session.togglePause(true);
@@ -639,8 +709,19 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
     return `${s.phase}:${s.wave}:${s.perkChoices?.map((c) => c.id).join(',') ?? ''}:${s.crateChoice?.uid ?? ''}`;
   };
 
+  /** AI 对战：换成内置策略时进攻方也换成离线出题 */
+  let duelAttacker = duel ? { config: duel.config, provider: duel.provider } : null;
   const makeController = (cfg: Partial<AgentModelConfig>, provider = launch.provider): AgentController =>
-    createAgentController({ config: cfg, session: proxy, mode: launch.mode, provider, onEvent, pollMs: 0, trace, instructions: queue });
+    duelAttacker
+      ? createDuelController({
+          session: proxy,
+          attacker: duelAttacker,
+          defender: { config: cfg, provider },
+          onEvent,
+          pollMs: 0,
+          trace,
+        })
+      : createAgentController({ config: cfg, session: proxy, mode: launch.mode, provider, onEvent, pollMs: 0, trace, instructions: queue });
 
   const startController = (cfg: Partial<AgentModelConfig>, provider = launch.provider): void => {
     config = cfg;
@@ -678,6 +759,11 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
               shownChip = null;
               ctl?.stop();
               if (session.paused && !pauseMenuOpen()) session.togglePause(false);
+              if (duelAttacker)
+                duelAttacker = {
+                  config: { ...duelAttacker.config, provider: 'scripted', model: 'scripted-v1', apiKey: undefined, bridge: undefined },
+                  provider: undefined,
+                };
               startController(
                 { ...launch.config, provider: 'scripted', model: 'scripted-v1', apiKey: undefined, bridge: undefined },
                 isPlayer ? undefined : demoAdvisor(world),

@@ -16,7 +16,7 @@ import {
   systemBlocks,
   toolsForRole,
 } from '../../src/agent';
-import { checkAttackPlan } from '../../src/config/attack';
+import { attackBudget, checkAttackPlan } from '../../src/config/attack';
 import { createWorld, type RunOptions, stateHash } from '../../src/core';
 import { replaySync } from '../../src/meta/midrun';
 
@@ -58,7 +58,7 @@ describe('attacker tools & prompt', () => {
     expect(ok.ok).toBe(true);
     expect(ok.endTurn).toBe(true);
     expect(ok.note).toBe('先试探');
-    expect(w.state.nextWave.override?.budget).toBe(60);
+    expect(w.state.nextWave.override?.budget).toBe(attackBudget(1));
     expect(w.log.at(-1)?.cmd).toEqual({ type: 'overrideWave', wave: 1, plan: { groups: [{ enemy: 'crumb', count: 5 }] } });
     // 进攻方不能下防守指令
     expect(executeTool(ctx, 'act', { actions: [{ do: 'start_wave' }] }).text).toMatch(/not available/);
@@ -70,7 +70,7 @@ describe('attacker tools & prompt', () => {
     const o = attackObservation(w)!;
     const j = JSON.parse(o.text) as Record<string, unknown>;
     expect(j.w).toBe(1);
-    expect(j.budget).toBe(60);
+    expect(j.budget).toBe(attackBudget(1));
     expect((j.pool as string[])[0]).toMatch(/^crumb \$5 hp20/);
     expect((j.def as { T: string }).T).toMatch(/pencil×1/);
     expect(o.text.length).toBeLessThan(1500);

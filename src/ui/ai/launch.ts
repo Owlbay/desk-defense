@@ -39,6 +39,31 @@ export interface AiLaunch {
    * 面板按「真人在玩」处理（role = 'advisor'）；这种局不上传全服榜，只记本地记录。
    */
   attack?: boolean;
+  /**
+   * 「AI 对战」（文档 10 §2.3）：再加一个进攻方模型，与防守方（上面的 config，按 AI 玩家）同局对抗。
+   * 每个建造阶段先由进攻方改写下一波，再由防守方决策；两边都是暂停模式。不参与任何排行，只记本地记录。
+   */
+  duel?: { config: Partial<AgentModelConfig>; provider?: LLMProvider; label: string; defenderLabel: string };
+}
+
+/** 防守方启动参数 + 进攻方 → 「AI 对战」启动参数（防守方按 AI 玩家、暂停模式） */
+export function duelLaunch(
+  defender: AiLaunch,
+  attacker: { config: Partial<AgentModelConfig>; provider?: LLMProvider; label: string },
+): AiLaunch {
+  const { onStop: _drop, attack: _a, ...rest } = defender;
+  return {
+    ...rest,
+    role: 'player',
+    mode: 'pause',
+    label: t('agent.duel.label', { attacker: attacker.label, defender: defender.label }),
+    config: { ...defender.config, role: 'player', decision: { ...defender.config.decision, mode: 'pause' } },
+    duel: {
+      ...attacker,
+      defenderLabel: defender.label,
+      config: { ...attacker.config, role: 'attacker', decision: { ...attacker.config.decision, mode: 'pause', waveIntervalSec: 0 } },
+    },
+  };
 }
 
 /** 普通启动参数 → 「AI 出题」启动参数（暂停模式：AI 出题时游戏停住；只在建造阶段决策） */
@@ -137,6 +162,8 @@ export interface AiSlot {
   readonly noSettle: boolean;
   /** 「AI 出题」局（AI 进攻、真人防守；不上传全服榜） */
   readonly attack: boolean;
+  /** 「AI 对战」局（进攻方模型 vs 防守方模型；不参与排行） */
+  readonly duel: boolean;
   /** 挂上 AI（已有的先摘下）；从当前局面开始，记忆为空、第一次决策拿完整观察 */
   attach(launch: AiLaunch, o?: { dedicated?: boolean }): void;
   /** 停用：摘下面板、交还全部操作（AI 参战局改为「接管」） */
@@ -181,7 +208,7 @@ export function createAiSlot(ctx: AiAttachCtx, init: { assist?: AiAssist } = {})
     } catch (e) {
       console.error(e);
     }
-    ctx.game.classList.remove('ai-run', 'ai-player', 'ai-advisor', 'ai-attacker', 'ai-driving');
+    ctx.game.classList.remove('ai-run', 'ai-player', 'ai-advisor', 'ai-attacker', 'ai-duel', 'ai-driving');
     // 交还全部操作（面板没加载完就停用时也要复位）
     ui.set({ inspectOnly: false, aiFocus: null, aiFocusCells: null });
     // 暂停模式下 AI 思考时游戏是停着的：交还时恢复（玩家自己打开的暂停菜单不动）
@@ -208,6 +235,9 @@ export function createAiSlot(ctx: AiAttachCtx, init: { assist?: AiAssist } = {})
     get attack() {
       return !!cur?.launch.attack;
     },
+    get duel() {
+      return !!cur?.launch.duel;
+    },
     attach(launch, o = {}) {
       if (destroyed) return;
       unmount();
@@ -221,7 +251,9 @@ export function createAiSlot(ctx: AiAttachCtx, init: { assist?: AiAssist } = {})
       const c: NonNullable<typeof cur> = { launch: l, dedicated, hud: null, loading: null, gen: g };
       cur = c;
       ctx.game.classList.add('ai-run', `ai-${launch.role}`);
-      if (launch.attack) ctx.game.classList.add('ai-attacker');
+      if (launch.duel) ctx.game.classList.add('ai-duel');
+      // 下一波预告里的「AI 出题」标记：AI 出题局与 AI 对战局都有进攻方
+      if (launch.attack || launch.duel) ctx.game.classList.add('ai-attacker');
       c.loading = import('./hud')
         .then((m) => {
           if (destroyed || cur !== c) return null;

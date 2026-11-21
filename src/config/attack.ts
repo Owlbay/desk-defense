@@ -1,29 +1,33 @@
 /**
  * AI 进攻方（文档 10 §2.3）：价格表与改写校验（纯函数、确定性；core 的 overrideWave 指令与 Agent 工具共用）。
  *
- * - 预算：每波 50 + 10×波数「墨水点」；
+ * - 预算：每波 40 + 3×波数「墨水点」（默认波的生命当量不随波数增长，预算也只缓慢增长，≈ 默认波按价买下来的 0.6～1.6 倍）；
  * - 单价 = 敌人赏金 × priceFactor（向上取整，至少 1）；每个词缀加价 单价 × affixSurcharge；从空降点出来再加 单价 × dropSurcharge + 1；
  * - 敌人必须在本波的出怪池内（无尽：已登场的敌人；战役：本章到这一波为止出现过的敌人），Boss 不能编排；
+ * - 飞行敌人不能带词缀（精英飞行敌人在模拟里是一招制胜的退化打法）；
  * - 生命当量（基础生命 × 数量 × 精英倍率）≤ 默认波（非 Boss 部分）的 hpCap 倍；
  * - Boss 波的 Boss 原样保留。
+ * 数值由 scripts/sim-attack.ts 的模拟定出（结果表见文档 10 §2.3）。
  */
 import type { AffixId, AttackGroup, EnemyId } from '../core/types';
 import { AFFIX_ROLL_IDS, AFFIXES, ELITE, ENEMIES } from './enemies';
 
 export const ATTACK = {
-  baseBudget: 50,
-  perWave: 10,
+  baseBudget: 40,
+  perWave: 3,
   /** 单价 = 赏金 × 系数 */
   priceFactor: 1.5,
   /** 每个词缀：单价 × 系数（向上取整，至少 1） */
   affixSurcharge: 0.6,
   /** 空降点出怪：单价 × 系数 + 1 */
   dropSurcharge: 0.5,
-  /** 生命当量上限 = 默认波 × 1.5 */
-  hpCap: 1.5,
+  /** 生命当量上限 = 默认波 × 1.2 */
+  hpCap: 1.2,
   maxGroups: 6,
   maxCount: 60,
   maxAffixes: 2,
+  /** 飞行敌人能否带词缀（false：任何词缀的飞行敌人都会让防守方几波内崩盘） */
+  airAffixes: false,
   /** 组的出发时间上限（秒） */
   maxDelay: 30,
 } as const;
@@ -106,6 +110,7 @@ export function checkAttackPlan(plan: unknown, ctx: AttackCheckContext): AttackC
         if (
           !ad ||
           !AFFIX_ROLL_IDS.includes(id) ||
+          (def.flying && !ATTACK.airAffixes) ||
           ad.notOn?.includes(enemy) ||
           affixes.includes(id) ||
           ad.excludes?.some((x) => affixes.includes(x))

@@ -557,6 +557,32 @@ body {
   text-overflow: ellipsis;
 }
 
+/*
+ * 标题「下一波 · 第 N 波」/「Next · Wave N」优先完整显示，路线标签让位：
+ * 812×375 时这一行只有 ~190px，英文标题 + "24 cells ×1.6" 放不下——去掉标签里的装饰图标（文字已经写了"格"），
+ * 再不够时截断标签而不是标题。窄侧栏（≤330px 容器查询）的规则写在后面，会覆盖这里的 flex。
+ */
+.game[data-layout='landscape'][data-compact] .preview-title {
+  flex: 0 0 auto;
+}
+
+.game[data-layout='landscape'][data-compact] .route-chip {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  padding-left: 7px;
+}
+
+.game[data-layout='landscape'][data-compact] .route-chip .gi {
+  display: none;
+}
+
+.game[data-layout='landscape'][data-compact] .route-chip .rc-short {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .game[data-layout='landscape'][data-compact] .preview-list,
 .game[data-layout='landscape'][data-compact] .upcoming {
   flex-wrap: nowrap;
@@ -716,10 +742,19 @@ body {
   .game[data-layout='landscape'][data-compact] .build-btn .b-text {
     max-width: 100%;
   }
+  /* 英文 / 日文塔名（"Fountain Pen"、「デスクライト」）一行放不下：最多折两行，不截断 */
   .game[data-layout='landscape'][data-compact] .build-btn .b-name {
-    display: block;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     max-width: 100%;
-    font-size: 11px;
+    font-size: 10.5px;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    white-space: normal;
+    text-wrap: balance;
+    text-align: center;
   }
 }
 

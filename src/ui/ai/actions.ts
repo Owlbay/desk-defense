@@ -4,9 +4,20 @@
  * 执行仍走玩家的 session.command —— 与手动点击完全同一套规则。
  */
 import { ACT_TO_LEGACY, AGENT_TOOLS, toCommand, type ToolCallRecord, validateToolInput } from '../../agent';
-import type { Command, CommandResult, IWorld } from '../../core/types';
+import type { AttackGroup, Command, CommandResult, IWorld } from '../../core/types';
 import { t } from '../../i18n';
-import { SKILL_META, TOWER_META } from '../coreMeta';
+import { AFFIX_META, ENEMY_META, SKILL_META, TOWER_META } from '../coreMeta';
+
+/** 进攻方编排的短描述（当前语言）：「纸团×8、飞机×4[护盾]」 */
+function planText(groups: readonly AttackGroup[]): string {
+  return groups
+    .filter((g) => g && typeof g.enemy === 'string')
+    .map((g) => {
+      const affixes = Array.isArray(g.affixes) && g.affixes.length ? `[${g.affixes.map((a) => AFFIX_META[a]?.name ?? a).join('+')}]` : '';
+      return `${ENEMY_META[g.enemy]?.name ?? g.enemy}×${g.count}${affixes}`;
+    })
+    .join(t('agent.hud.listSep'));
+}
 
 export interface ParsedAction {
   name: string;
@@ -172,6 +183,9 @@ export function describeCall(world: IWorld | null, name: string, input: unknown)
       return t('agent.actions.demolish', { id: String(i.id) });
     case 'start_wave':
       return t('agent.actions.startWave');
+    case 'attack_plan':
+      // AI 进攻方（文档 10 §2.3）：改写下一波
+      return Array.isArray(i.groups) ? t('agent.duel.planAct', { plan: planText(i.groups as AttackGroup[]) }) : null;
     default:
       return null;
   }

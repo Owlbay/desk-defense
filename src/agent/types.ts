@@ -139,7 +139,12 @@ export interface DecisionRecord {
   observationTokens: number;
   /** 这次决策带上的玩家指令（「给 AI 下指令」）与 AI 的回应 */
   instructions?: { id: number; text: string; kind: 'once' | 'standing'; ack?: string; ackCode?: string }[];
+  /** AI 对战（双模型，文档 10 §2.3）：这条记录属于进攻方还是防守方；单模型对局不设 */
+  side?: DuelSide;
 }
+
+/** AI 对战里的一方：attack = 进攻方（改写下一波），defend = 防守方（AI 玩家） */
+export type DuelSide = 'attack' | 'defend';
 
 /** 内置机器人兜底（CLI 里接 scripts/bots 的 StrategyBot；浏览器里可接简单策略） */
 export interface FallbackPolicy {
@@ -162,6 +167,8 @@ export interface AgentReplay {
   wave: number;
   savedAt: number;
   agent: { provider: string; model: string; role: AgentRole };
+  /** AI 对战：进攻方模型（防守方在 agent 里）；回放只看指令日志，与它无关 */
+  attacker?: { provider: string; model: string };
 }
 
 export type CommandSink = (cmd: Command) => CommandResult & { queuedFor?: number };

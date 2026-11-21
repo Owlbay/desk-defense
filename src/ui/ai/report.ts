@@ -158,7 +158,7 @@ export function reportCard(app: App, s: AiRunSummary, hd: AiGameOverHandlers): H
         h(
           'p.muted',
           null,
-          `${isPlayer ? t('agent.report.rolePlayer') : t('agent.report.roleAdvisor')} · ${sub} · ${t('agent.report.time', { time: fmtDuration(s.seconds) })}`,
+          `${s.agent.role === 'duel' ? t('agent.duel.role') : isPlayer ? t('agent.report.rolePlayer') : t('agent.report.roleAdvisor')} · ${sub} · ${t('agent.report.time', { time: fmtDuration(s.seconds) })}`,
         ),
       ),
       badges,

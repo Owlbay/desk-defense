@@ -1,0 +1,33 @@
+import type { Dict } from '../../index';
+
+// 名前空間 agent · オフラインデモ（内蔵スクリプト戦略 / オフライン出題）の「思考」と合成リクエストの説明；プレイヤー向け表示のみ、モデルには送らない（ja）
+export default {
+  'agent.demo.scriptNote': '内蔵ルール戦略：モデルは呼び出しません。以下の「思考」はルールの判断過程です',
+  'agent.demo.seeObs': '（「観察」を参照）',
+  'agent.demo.reason': '判断理由：{reasons}／フェーズ {phase}、ウェーブ {wave}、ゴールド {gold}、ライフ {lives}/{max}。',
+  'agent.demo.perk': '強化の三択：固定の優先順で並べる → {list}。',
+  'agent.demo.crate': '補給箱：優先順 {pref}、{pick} を選択。',
+  'agent.demo.demolish': '降下地点 {id}：撤去費 {cost}、ゴールドがその 3 倍以上 → 撤去。',
+  'agent.demo.force': '戦力：攻撃タワー {atk} / 目標 {target}、壁 {walls} / 目標 {wallTarget}。',
+  'agent.demo.wall': '迷路：ルート上の ({x},{y}) に壁を置くとルートが {gain} マス伸びる → 壁を設置。',
+  'agent.demo.build': '建設：次は {tower}、ルートを最も多くカバーする空きマスは ({x},{y})。',
+  'agent.demo.upgrade': '強化：タワー数が十分かゴールドに余裕あり（{gold}）、最低レベルの #{uid}（Lv{level}、{cost} ゴールド）を強化。',
+  'agent.demo.skill': 'スキル：出口から 4 マス以内の敵 {near} 体。',
+  'agent.demo.skillBoss': 'スキル：出口から 4 マス以内の敵 {near} 体、ボスが出現中。',
+  'agent.demo.startWave': '手動ウェーブ開始モードで建設フェーズ → 次のウェーブを開始。',
+  'agent.demo.idle': 'やるべき行動なし、現状維持。',
+  'agent.demo.intent': '判断理由：{reasons}／ゴールド {gold} → {actions}',
+  'agent.demo.instruction': 'プレイヤー指示 P{id}{mark}「{text}」→ {intents}',
+  'agent.demo.unknown': '理解できず',
+  'agent.demo.holdTag': 'プレイヤー指示',
+  'agent.demo.holdThink': 'プレイヤーが節約 / 片側に手を出さないよう求めたため、このターンはルールによる建設をしません。',
+  'agent.demo.turn': 'このターン：{note}',
+  'agent.demo.attackNote': '内蔵出題戦略：モデルは呼び出しません',
+  'agent.demo.attackNoNetwork': 'オフライン出題：ネットワークリクエストは一切送信していません',
+  'agent.demo.attackThink': '防御側の弱点を突く出題：{plan}',
+  'agent.demo.attackMemo': '前回の出題：{plan}',
+  'agent.demo.attackDone': '出題：{plan}',
+  'agent.demo.attackRejected': '出題が却下されました：{why}',
+  'agent.demo.keepDefault': 'デフォルトのウェーブを維持',
+  'agent.demo.redactedThinking': '[この思考は安全フィルターにより暗号化され、表示できません]',
+} satisfies Dict;

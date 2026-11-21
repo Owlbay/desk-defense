@@ -6,8 +6,8 @@ import type { Dict } from '../../index';
 export default {
   // ───────────── Common ─────────────
   'guide.title': 'Codex & How to Play',
-  'guide.menu.label': 'Codex / How to Play',
-  'guide.menu.sub': 'Look up towers, enemies and tips anytime',
+  'guide.menu.label': 'Codex / Guide',
+  'guide.menu.sub': 'Towers, enemies, tips',
   'guide.loading': 'Loading the Codex…',
   'guide.loadFail': "Couldn't load the Codex",
   'guide.loadFail.hint': 'Check your connection and try again.',

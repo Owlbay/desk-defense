@@ -17,6 +17,10 @@
  *   --max-tool-calls N  --timeout-ms 90000
  *   --decision pause|realtime  --wave-interval 10  --latency 3|measured
  *   --role player|advisor|attacker
+ *   --attacker scripted|claude|pi|baseline   AI 对战（文档 10 §2.3）：再加一个进攻方模型，与防守方（上面的模型，按 player）同局对抗；
+ *                                            baseline = 不调模型、用确定性出题策略。进攻方参数：
+ *     --attacker-model M  --attacker-preset P  --attacker-api A  --attacker-base-url URL  --attacker-api-key-env NAME
+ *     --attacker-thinking LEVEL  --attacker-budget-tokens N
  *   --assist on|off                          打法辅助（意图 / 战报 / 威胁估算，文档 10 §19；缺省 on）
  *   --fallback medium|expert|newbie|scripted  兜底机器人（默认 medium）
  *   --compare medium,expert                  评测场对照：同种子再跑这些内置机器人
@@ -103,6 +107,36 @@ const config: Partial<AgentModelConfig> = {
 if (config.provider === 'claude-native' && !config.model) config.model = 'claude-opus-5-5';
 for (const k of Object.keys(config) as (keyof AgentModelConfig)[]) if (config[k] === undefined) delete config[k];
 
+// AI 对战：进攻方模型（文档 10 §2.3）
+const attackerArg = arg('attacker');
+const attackerConfig: Partial<AgentModelConfig> | null = attackerArg
+  ? {
+      provider:
+        attackerArg === 'claude' || attackerArg === 'true'
+          ? 'claude-native'
+          : attackerArg === 'baseline'
+            ? 'scripted'
+            : (attackerArg as AgentModelConfig['provider']),
+      role: 'attacker',
+      model: arg('attacker-model') ?? (attackerArg === 'claude' || attackerArg === 'true' ? 'claude-opus-5-5' : undefined),
+      thinking: parseThinking(arg('attacker-thinking')),
+      preset: arg('attacker-preset') as Preset | undefined,
+      api: arg('attacker-api') as PiApi | undefined,
+      baseUrl: arg('attacker-base-url'),
+      apiKey: arg('attacker-api-key-env') ? process.env[arg('attacker-api-key-env')!] : undefined,
+      decisionTimeoutMs: num('timeout-ms'),
+      decision: { mode: 'pause', waveIntervalSec: 0 },
+      budget: { tokens: num('attacker-budget-tokens', 1_000_000), mode: 'soft' },
+    }
+  : null;
+if (attackerConfig) {
+  for (const k of Object.keys(attackerConfig) as (keyof AgentModelConfig)[]) if (attackerConfig[k] === undefined) delete attackerConfig[k];
+  if ((config.role ?? 'player') !== 'player') {
+    console.error('--attacker 需要防守方是 player（去掉 --role）');
+    process.exit(2);
+  }
+}
+
 function botFallback(name: string, m: ModeId, mp: MapId): (w: IWorld) => FallbackPolicy {
   if (name === 'scripted' || !BOTS[name]) return scriptedFallback;
   return (w) => {
@@ -137,9 +171,14 @@ async function one(seed: string, baseline: string | null): Promise<AgentRunRepor
   const ctl = new AbortController();
   const onSig = () => ctl.abort();
   process.once('SIGINT', onSig);
+  // AI 对战：对照组的内置机器人也面对同一个进攻方（同种子可比）
+  const attacker = attackerConfig
+    ? { config: attackerConfig, provider: attackerArg === 'baseline' ? null : await createProvider(attackerConfig) }
+    : undefined;
   const rep = await runAgentGame(opts, {
     config: isBaseline ? { ...config, provider: 'scripted' } : config,
     provider,
+    attacker,
     fallback: botFallback(isBaseline ? baseline! : fallbackName, mode, map),
     maxWaves,
     signal: ctl.signal,
@@ -193,6 +232,22 @@ function summary(r: AgentRunReport) {
     errors: r.errors,
     disabledReason: r.disabledReason,
     wallMs: r.wallMs,
+    ...(r.attacker
+      ? {
+          attacker: {
+            agent: r.attacker.agent,
+            planned: r.attacker.planned,
+            tokens: r.attacker.totalTokens,
+            weightedTokens: budgetTokens(r.attacker.usage),
+            requests: r.attacker.usage.requests,
+            costUsd: r.attacker.costUsd,
+            decisions: r.attacker.decisions.length,
+            fallbacks: r.attacker.decisions.filter((d) => d.by === 'fallback').length,
+            errors: r.attacker.errors,
+            disabledReason: r.attacker.disabledReason,
+          },
+        }
+      : {}),
   };
 }
 
@@ -227,7 +282,7 @@ table{border-collapse:collapse;width:100%}td,th{padding:4px 8px;border-bottom:1p
 }
 
 async function main(): Promise<void> {
-  const errs = validateConfig(resolveConfig(config));
+  const errs = [...validateConfig(resolveConfig(config)), ...(attackerConfig ? validateConfig(resolveConfig(attackerConfig)) : [])];
   if (errs.length) {
     console.error(`配置有误：${errs.join('；')}`);
     process.exit(2);
@@ -240,12 +295,23 @@ async function main(): Promise<void> {
     const r = await one(seed, null);
     runs.push(r);
     writeFileSync(join(OUT, `replay-${seed}.json`), JSON.stringify(r.replay));
-    writeFileSync(join(OUT, `decisions-${seed}.jsonl`), r.decisions.map((d) => JSON.stringify(d)).join('\n'));
+    writeFileSync(
+      join(OUT, `decisions-${seed}.jsonl`),
+      [...(r.attacker?.decisions ?? []), ...r.decisions]
+        .sort((a, b) => a.point.seq - b.point.seq || (a.side === 'attack' ? -1 : 1))
+        .map((d) => JSON.stringify(d))
+        .join('\n'),
+    );
     const sm = summary(r);
     console.log(
       `== ${r.agent.provider}/${r.agent.model} seed ${seed}: ${r.result.outcome} wave ${r.result.wave} score ${r.result.score} lives ${r.result.lives}/${r.result.maxLives} cost≈${fmt$(r.costUsd)}`,
     );
     console.log(`   tokens 原始 ${r.totalTokens} · ${usageLine(r.usage)}`);
+    if (r.attacker)
+      console.log(
+        `   进攻方 ${r.attacker.agent.provider}/${r.attacker.agent.model}：改写 ${r.attacker.planned} 波 · tokens ${r.attacker.totalTokens} · ${fmt$(r.attacker.costUsd)}` +
+          `${r.attacker.disabledReason ? ` [model disabled: ${r.attacker.disabledReason}]` : ''}`,
+      );
     console.log(
       `   每波：原始 ${sm.tokensPerWave ?? '-'} / 折算 ${sm.weightedPerWave ?? '-'} · 请求 ${sm.requests}（${sm.requestsPerDecision ?? '-'} 次/决策）· 决策点 ${sm.decisions}（叫模型 ${sm.modelDecisions}，跳过 ${sm.skipped}，兜底 ${sm.fallbacks}）` +
         `${r.budget ? ` · 预算分级 ${r.budget.stage}（${r.budget.modeLabel}，压缩 ${r.budget.compactions} 次）` : ''}${r.disabledReason ? ` [model disabled: ${r.disabledReason}]` : ''}`,

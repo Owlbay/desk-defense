@@ -54,6 +54,8 @@ export type AiUploadPlan = { kind: 'agent' | 'assist' | 'human' } | { kind: 'ski
 export function aiUploadPlan(s: { agent: { role: string }; opts: RunOptions; takenOver: boolean; decisions: number }): AiUploadPlan {
   // 「AI 出题」（AI 进攻、真人防守，文档 10 §2.3）：波次被改写过，不参与排行，只记本地记录
   if (s.agent.role === 'attacker') return { kind: 'skip', reason: t('agent.attack.unranked') };
+  // 「AI 对战」（进攻方模型 vs 防守方模型）：同上，不参与任何排行
+  if (s.agent.role === 'duel') return { kind: 'skip', reason: t('agent.duel.unranked') };
   if (!isEligibleRun(s.opts)) return { kind: 'skip', reason: t('agent.setup.block.params') };
   if (s.agent.role !== 'player') return { kind: 'human' };
   if (s.decisions <= 0) return { kind: 'skip', reason: t('agent.setup.block.noDecisions') };

@@ -47,6 +47,24 @@ export interface AgentRunConfig {
   onBudget?: (b: import('./engine').BudgetState) => void;
   /** budget.mode = 'ask' 时的回答（缺省 continue） */
   onBudgetExceeded?: (b: import('./engine').BudgetState) => Promise<import('./engine').BudgetChoice>;
+  /**
+   * AI 对战（文档 10 §2.3）：再给一个进攻方模型，与防守方（上面的 config / provider，按 AI 玩家处理）在同一个世界里对局。
+   * 每个建造决策点先让进攻方改写下一波（overrideWave），再让防守方决策；provider = null 时用确定性出题策略。
+   */
+  attacker?: { config: Partial<AgentModelConfig>; provider: LLMProvider | null };
+}
+
+/** AI 对战：进攻方的汇总（防守方在报告的顶层字段里） */
+export interface AttackerRunReport {
+  agent: { provider: string; model: string; role: 'attacker' };
+  usage: TokenUsage;
+  totalTokens: number;
+  costUsd: number;
+  decisions: DecisionRecord[];
+  errors: string[];
+  disabledReason: string | null;
+  /** 改写过的波数 */
+  planned: number;
 }
 
 export interface AgentRunReport {
@@ -71,6 +89,8 @@ export interface AgentRunReport {
   /** 打法指标（评测用，scripts/agent-eval.ts） */
   play: PlayStats;
   wallMs: number;
+  /** AI 对战：进攻方（没有进攻方时不设） */
+  attacker?: AttackerRunReport;
 }
 
 export interface PlayStats {
@@ -97,6 +117,7 @@ function pathAvg(w: IWorld): number {
 export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Promise<AgentRunReport> {
   const t0 = Date.now();
   const config = resolveConfig(agent.config);
+  if (agent.attacker && (config.role ?? 'player') !== 'player') throw new Error('AI 对战：防守方必须是 player 角色');
   const world = createWorld(opts);
   const s = world.state;
   const pathLen0 = pathAvg(world);
@@ -107,6 +128,12 @@ export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Pro
     maxGameSeconds: agent.maxGameSeconds,
   });
   const fallback = (agent.fallback ?? scriptedFallback)(world);
+  /** AI 对战：已经问过进攻方的波（每波只问一次；进攻方选择保留默认波时不再等它） */
+  let askedWave = -1;
+  const attackDue = (): boolean => {
+    const i = world.attackContext?.();
+    return !!i && i.open && !i.current && askedWave !== i.wave;
+  };
   agent.trace?.addSecret(config.apiKey);
   const engine = new DecisionEngine({
     world,
@@ -122,13 +149,31 @@ export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Pro
     trace: agent.trace,
     onBudget: agent.onBudget,
     onBudgetExceeded: agent.onBudgetExceeded,
+    ...(agent.attacker ? { holdWaveStart: attackDue } : {}),
   });
+  // AI 对战：进攻方引擎（同一个世界、同一个调度器；不替真人防守，防守由上面的引擎负责）
+  const atk = agent.attacker;
+  const atkConfig = atk ? resolveConfig({ ...atk.config, role: 'attacker', decision: { ...atk.config.decision, mode: 'pause' } }) : null;
+  if (atkConfig) agent.trace?.addSecret(atkConfig.apiKey);
+  const attacker =
+    atk && atkConfig
+      ? new DecisionEngine({
+          world,
+          opts,
+          config: atkConfig,
+          provider: atk.provider,
+          fallback,
+          signal: agent.signal,
+          trace: agent.trace,
+        })
+      : null;
 
   const waves: AgentWaveRow[] = [];
   let leaks = 0;
   let cleared = 0;
   sched.onEvent = (ev) => {
     engine.onWorldEvent(ev);
+    attacker?.onWorldEvent(ev);
     if (ev.type === 'waveStart') fallback.onWaveStart?.(ev.wave);
     else if (ev.type === 'leak') {
       leaks++;
@@ -165,9 +210,21 @@ export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Pro
     }
     const point = sched.advance();
     if (!point) break;
-    const rec = await engine.decide(point, sched.takeRecent());
-    sched.markDecided();
+    // AI 对战：进攻方先出题（必须在防守方开波之前），再轮到防守方
+    const planFor = async (p: typeof point): Promise<void> => {
+      if (!attacker || !attackDue() || !attacker.attackPending(p)) return;
+      askedWave = world.attackContext!()!.wave;
+      const ar = await attacker.decide({ ...p, reasons: p.reasons.slice() }, []);
+      ar.side = 'attack';
+      agent.onDecision?.(ar, world);
+    };
+    await planFor(point);
+    const rec = await engine.decide(attacker ? { ...point, reasons: point.reasons.slice() } : point, sched.takeRecent());
+    if (attacker) rec.side = 'defend';
     agent.onDecision?.(rec, world);
+    // 防守方刚选完增益、回到建造阶段：下一波还没出题（开波被 holdWaveStart 挡住）→ 进攻方现在出题
+    if (attacker && attackDue()) await planFor(sched.detector.point(world, ['build']));
+    sched.markDecided();
   }
   sched.drain();
 
@@ -187,10 +244,16 @@ export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Pro
     seconds: Math.round(s.time),
   };
   const mid = makeMidRun(world);
-  const replay: AgentReplay = { ...mid, agent: { ...tag, role: config.role ?? 'player' } };
+  const log = world.log.map((e) => ({ tick: e.tick, cmd: e.cmd }));
+  const atkTag = atk && atkConfig ? (atk.provider ? agentTag(atkConfig) : { provider: 'scripted', model: 'scripted-attacker' }) : null;
+  const replay: AgentReplay = {
+    ...mid,
+    agent: { ...tag, role: config.role ?? 'player' },
+    ...(atkTag ? { attacker: atkTag } : {}),
+  };
   return {
     result,
-    log: world.log.map((e) => ({ tick: e.tick, cmd: e.cmd })),
+    log,
     replay,
     usage: engine.usage,
     totalTokens: usageTotal(engine.usage),
@@ -219,5 +282,19 @@ export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Pro
       pathLen0,
     },
     wallMs: Date.now() - t0,
+    ...(attacker && atkTag
+      ? {
+          attacker: {
+            agent: { ...atkTag, role: 'attacker' as const },
+            usage: attacker.usage,
+            totalTokens: usageTotal(attacker.usage),
+            costUsd: attacker.costUsd,
+            decisions: attacker.decisions,
+            errors: attacker.errors,
+            disabledReason: atk?.provider ? attacker.disabledReason : null,
+            planned: log.filter((e) => e.cmd.type === 'overrideWave').length,
+          },
+        }
+      : {}),
   };
 }

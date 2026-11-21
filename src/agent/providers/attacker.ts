@@ -2,6 +2,7 @@
  * 离线（确定性）进攻方：不调用任何模型，用 scriptedAttackPlan 出题，经 ctx.callTool('attack_plan') 下达——
  * 与真模型走同一条工具 / 记录 / 指令日志路径（文档 10 §2.3）。
  */
+import { t } from '../../i18n';
 import { planLine, scriptedAttackPlan } from '../attack';
 import { emptyUsage } from '../types';
 import type { DecisionContext, DecisionOutcome, LLMProvider } from './types';
@@ -22,29 +23,33 @@ export class ScriptedAttackerProvider implements LLMProvider {
       provider: this.id,
       api: 'local',
       model: this.model,
-      host: '本机（离线，无网络请求）',
-      params: { 说明: '内置出题策略：不调用任何模型' },
+      host: t('agent.setup.demo.host'),
+      params: { note: t('agent.demo.attackNote') },
       messages: 1,
-      raw: { provider: 'scripted', model: this.model, note: '离线出题：没有发出任何网络请求' },
+      raw: { provider: 'scripted', model: this.model, note: t('agent.demo.attackNoNetwork') },
     });
     const plan = scriptedAttackPlan(w);
     let text: string;
     if (plan) {
-      tr?.({ k: 'thinking', n: 1, text: `按防守方的弱点出题：${planLine(plan)}\n` });
+      tr?.({ k: 'thinking', n: 1, text: `${t('agent.demo.attackThink', { plan: planLine(plan) })}\n` });
       out.toolCalls++;
-      const r = await ctx.callTool('attack_plan', { groups: plan, note: `上一波出题：${planLine(plan)}` }, { id: 'scripted_attack_1' });
+      const r = await ctx.callTool(
+        'attack_plan',
+        { groups: plan, note: t('agent.demo.attackMemo', { plan: planLine(plan) }) },
+        { id: 'scripted_attack_1' },
+      );
       out.ended = !!r.endTurn;
-      text = r.ok ? `出题：${planLine(plan)}` : `出题被拒：${r.text}`;
+      text = r.ok ? t('agent.demo.attackDone', { plan: planLine(plan) }) : t('agent.demo.attackRejected', { why: r.text });
       if (!r.ok) {
         out.toolCalls++;
-        await ctx.callTool('end_turn', { note: '保留默认波' }, { id: 'scripted_attack_2' });
+        await ctx.callTool('end_turn', { note: t('agent.demo.keepDefault') }, { id: 'scripted_attack_2' });
         out.ended = true;
       }
     } else {
       out.toolCalls++;
-      await ctx.callTool('end_turn', { note: '保留默认波' }, { id: 'scripted_attack_1' });
+      await ctx.callTool('end_turn', { note: t('agent.demo.keepDefault') }, { id: 'scripted_attack_1' });
       out.ended = true;
-      text = '保留默认波';
+      text = t('agent.demo.keepDefault');
     }
     tr?.({ k: 'text', n: 1, text });
     tr?.({

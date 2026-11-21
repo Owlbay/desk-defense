@@ -1,7 +1,7 @@
 /**
  * 「AI 参战」设置页（动态分包：进入页面时才加载，连同 src/agent 的纯逻辑）。
  *
- * 角色（AI 玩家 / AI 军师）→ 对局（模式 / 地图 / 难度 / 种子）→ 模型设置表单（与设置里的「AI 助手」共用，
+ * 角色（AI 玩家 / AI 军师 / AI 出题 / AI 对战）→ 对局（模式 / 地图 / 难度 / 种子）→ 模型设置表单（与设置里的「AI 助手」共用，
  * 见 model-form.ts）→ 开始。AI 参战的对局由 AI 从第 1 波开始全程操作，可以进 AI 榜。
  */
 import { resolveConfig, saveableConfig } from '../../agent';
@@ -23,9 +23,9 @@ import { MAP_META } from '../coreMeta';
 import { clear, h, setText } from '../dom';
 import { G } from '../icons';
 import { buildRunOptions, layoutPicker, randomSeed, switchRow } from '../screens/common';
-import { type AiRole, requestAiLaunch } from './launch';
+import { type AiLaunch, type AiRole, attackLaunch, duelLaunch, requestAiLaunch } from './launch';
 import { field, mountAiModelConfigForm } from './model-form';
-import { type AiSetupSaved, loadSetup } from './store';
+import { type AiSetupKind, type AiSetupSaved, loadAttackerSetup, loadSetup, saveAttackerSetup } from './store';
 
 export { normalizeDiag } from './model-form';
 
@@ -54,10 +54,35 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
   };
   fixRun();
 
+  /** 玩法：AI 防守（AI 玩家 / 军师）/ AI 出题（AI 进攻、你防守）/ AI 对战（两个模型） */
+  const kind = (): AiSetupKind => st.kind ?? 'defend';
+  /** 主表单写进配置的角色：AI 对战里它是防守方（玩家）；AI 出题里是进攻方（attackLaunch 再改成 attacker） */
+  const formRole = (): AiRole => (kind() === 'defend' ? st.role : kind() === 'duel' ? 'player' : 'advisor');
+
   // 模型设置（与「AI 助手」共用同一个表单与同一份保存的设置）
   const summary = h('p.ai-summary.muted');
-  const form = mountAiModelConfigForm(app, { st, role: () => st.role, onChange: () => paintSummary() });
+  const form = mountAiModelConfigForm(app, { st, role: formRole, onChange: () => paintSummary() });
   const persist = (): void => form.persist();
+  // AI 对战：进攻方模型（同一个表单组件，另存一份设置；决策固定为暂停模式，不显示决策卡片）
+  const aform = mountAiModelConfigForm(app, {
+    st: loadAttackerSetup(),
+    role: () => 'advisor',
+    save: saveAttackerSetup,
+    heading: t('agent.duel.attackerModel'),
+    onChange: () => paintSummary(),
+  });
+  const kindNote = h('p.muted.small.ai-kind-note');
+  const paintKind = (): void => {
+    const k = kind();
+    aform.modelCard.hidden = k !== 'duel';
+    aform.errBox.hidden = k !== 'duel';
+    const head = form.modelCard.querySelector('h3');
+    if (head)
+      setText(head, k === 'duel' ? t('agent.duel.defenderModel') : k === 'attack' ? t('agent.duel.attackerModel') : t('agent.setup.model'));
+    // 两边都固定为暂停模式：决策卡片里的「暂停 / 实时」只对 AI 防守有意义
+    kindNote.hidden = k === 'defend';
+    setText(kindNote, k === 'duel' ? t('agent.duel.setupNote') : k === 'attack' ? t('agent.duel.attackNote') : '');
+  };
 
   // ───────────── 角色 ─────────────
   const roleBox = h('div.ai-roles', { attrs: { role: 'radiogroup', 'aria-label': t('agent.setup.role.aria') } });
@@ -65,15 +90,36 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
     clear(roleBox);
     const card = (role: AiRole, title: string, text: string, glyph: string) =>
       h(
-        `button.ai-role${st.role === role ? '.on' : ''}`,
+        `button.ai-role${st.role === role && kind() === 'defend' ? '.on' : ''}`,
         {
-          attrs: { type: 'button', role: 'radio', 'aria-checked': st.role === role ? 'true' : 'false' },
+          attrs: { type: 'button', role: 'radio', 'aria-checked': st.role === role && kind() === 'defend' ? 'true' : 'false' },
           onclick: () => {
-            if (st.role === role) return;
+            if (st.role === role && kind() === 'defend') return;
             audio.play('click');
             st.role = role;
+            st.kind = 'defend';
             form.roleChanged(role);
             paintRoles();
+            paintKind();
+            paintSummary();
+          },
+        },
+        h('span.gi', { html: glyph }),
+        h('span.ai-role-text', null, h('b', null, title), h('small', null, text)),
+      );
+    const kindCard = (k: Exclude<AiSetupKind, 'defend'>, title: string, text: string, glyph: string) =>
+      h(
+        `button.ai-role${kind() === k ? '.on' : ''}`,
+        {
+          attrs: { type: 'button', role: 'radio', 'aria-checked': kind() === k ? 'true' : 'false' },
+          onclick: () => {
+            if (kind() === k) return;
+            audio.play('click');
+            st.kind = k;
+            // 进攻方 / AI 对战都按暂停模式（进攻方要在开波前出题）
+            form.roleChanged('player');
+            paintRoles();
+            paintKind();
             paintSummary();
           },
         },
@@ -83,6 +129,8 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
     roleBox.append(
       card('player', t('agent.setup.role.player'), t('agent.setup.role.playerDesc'), G.bolt),
       card('advisor', t('agent.setup.role.advisor'), t('agent.setup.role.advisorDesc'), G.eye),
+      kindCard('attack', t('agent.duel.roleAttack'), t('agent.duel.roleAttackDesc'), G.sword),
+      kindCard('duel', t('agent.duel.roleDuel'), t('agent.duel.roleDuelDesc'), G.target),
     );
   };
 
@@ -214,6 +262,18 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
 
   // ───────────── 开始 ─────────────
   function paintSummary(): void {
+    const k = kind();
+    if (k === 'duel') {
+      setText(
+        summary,
+        `${t('agent.duel.roleDuel')} · ${t('agent.duel.label', { attacker: aform.sourceLabel(), defender: form.sourceLabel() })} · ${t('agent.setup.decision.pause')}`,
+      );
+      return;
+    }
+    if (k === 'attack') {
+      setText(summary, `${t('agent.duel.roleAttack')} · ${form.sourceLabel()} · ${t('agent.setup.decision.pause')}`);
+      return;
+    }
     const role = st.role === 'player' ? t('agent.setup.role.player') : t('agent.setup.role.advisor');
     setText(
       summary,
@@ -226,33 +286,44 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
     {
       attrs: { type: 'button' },
       onclick: async () => {
-        if (form.busy()) return;
-        const errs = form.errors(true);
-        if (errs.length) {
-          audio.play('error');
-          app.toast(errs[0], 'warn');
-          form.errBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-          return;
+        const k = kind();
+        const duel = k === 'duel';
+        if (form.busy() || (duel && aform.busy())) return;
+        for (const f of duel ? [aform, form] : [form]) {
+          const errs = f.errors(true);
+          if (errs.length) {
+            audio.play('error');
+            app.toast(errs[0], 'warn');
+            f.errBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            return;
+          }
         }
         audio.play('click');
         if (!(await form.prepare()) || disposed) return;
+        if (duel && (!(await aform.prepare()) || disposed)) return;
         audio.play('select');
         const cfg = form.buildConfig();
         const resolved = resolveConfig(cfg);
         st.lastConfig = saveableConfig(resolved);
         persist();
+        if (duel) aform.persist();
         const typed = seedInput.value.trim();
         const endless = st.run.mode === 'endless';
         const userSeed = endless && (!!typed || run.rerolled);
         const provider = form.provider();
-        requestAiLaunch({
+        const base: AiLaunch = {
           config: cfg,
-          role: st.role,
+          role: k === 'defend' ? st.role : 'player',
           mode: st.decisionMode,
           label: form.sourceLabel(),
           userSeed,
           ...(provider ? { provider } : {}),
-        });
+        };
+        if (duel) {
+          const ap = aform.provider();
+          requestAiLaunch(duelLaunch(base, { config: aform.buildConfig(), label: aform.sourceLabel(), ...(ap ? { provider: ap } : {}) }));
+        } else if (k === 'attack') requestAiLaunch(attackLaunch({ ...base, role: 'advisor' }));
+        else requestAiLaunch(base);
         app.go({
           name: 'game',
           userSeed,
@@ -272,7 +343,7 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
   );
 
   body.replaceChildren(
-    h('section.card.section.ai-card', null, h('h3', null, t('agent.setup.sec.role')), roleBox),
+    h('section.card.section.ai-card', null, h('h3', null, t('agent.setup.sec.role')), roleBox, kindNote),
     h(
       'section.card.section.ai-card',
       null,
@@ -287,20 +358,24 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
       autoSw.el,
       runNote,
     ),
+    aform.modelCard,
     form.modelCard,
     form.decisionCard,
     summary,
+    aform.errBox,
     form.errBox,
     h('div.start-bar', null, startBtn),
   );
 
   paintRoles();
+  paintKind();
   paintRun();
   paintSummary();
 
   return () => {
     disposed = true;
     form.destroy();
+    aform.destroy();
     clearTimeout(seedTimer);
   };
 }

@@ -2,7 +2,7 @@ import type { Dict } from '../../index';
 
 // 名前空間 ui · シンプルなランキング（ja）
 export default {
-  'ui.lb.menuSub': '全国3ランキング',
+  'ui.lb.menuSub': '世界ランキング',
   'ui.lb.tab.endless': 'エンドレス',
   'ui.lb.tab.daily': 'デイリー',
   'ui.lb.tab.campaign': 'キャンペーン',

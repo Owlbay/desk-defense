@@ -19,6 +19,7 @@
  */
 import Anthropic from '@anthropic-ai/sdk';
 
+import { t } from '../../i18n';
 import type { Effort, ThinkingLevel } from '../config';
 import { claudeThinkingPlan } from '../thinking';
 import { blobRef, hashText, hostOf } from '../trace';
@@ -177,7 +178,7 @@ export class ClaudeProvider implements LLMProvider {
           for (const b of res.message.content) {
             if (b.type === 'thinking' && !res.streamedThinking && b.thinking) tr({ k: 'thinking', n, text: b.thinking });
             else if (b.type === 'redacted_thinking' && !res.streamedThinking)
-              tr({ k: 'thinking', n, text: '[这段思考被安全过滤器加密，内容不可见]' });
+              tr({ k: 'thinking', n, text: t('agent.demo.redactedThinking') });
             else if (b.type === 'text' && !res.streamedText && b.text) tr({ k: 'text', n, text: b.text });
           }
           const u1 = emptyUsage();
@@ -266,7 +267,7 @@ export class ClaudeProvider implements LLMProvider {
         }
       } else if (ev.type === 'content_block_start' && ev.content_block.type === 'redacted_thinking') {
         streamedThinking = true;
-        tr({ k: 'thinking', n, text: '[这段思考被安全过滤器加密，内容不可见]' });
+        tr({ k: 'thinking', n, text: t('agent.demo.redactedThinking') });
       }
     }
     const message = await stream.finalMessage();

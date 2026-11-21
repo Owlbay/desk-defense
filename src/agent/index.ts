@@ -83,7 +83,8 @@ export { systemBlocks, catalogText, catalogEntry, cheatSheet, decisionMessage } 
 export { BUDGET_STAGE_AT, BUDGET_EXTEND, type BudgetStage, type BudgetState, type BudgetChoice } from './engine';
 export { AgentScheduler, DecisionDetector, type SchedulerOptions } from './scheduler';
 export { DecisionEngine } from './engine';
-export { runAgentGame, type AgentRunConfig, type AgentRunReport, type PlayStats } from './runner';
+export { runAgentGame, type AgentRunConfig, type AgentRunReport, type AttackerRunReport, type PlayStats } from './runner';
+export { createDuelController, type DuelControllerOptions, type DuelSideOptions } from './duel';
 export { createProvider } from './factory';
 export { listModels, testConnection, type ModelListing, type ConnectionDiagnostics } from './models';
 export * from './relay';
@@ -116,7 +117,8 @@ export interface SessionLike {
 export type AgentStatus = 'idle' | 'loading' | 'running' | 'thinking' | 'paused' | 'stopped' | 'error';
 
 export type AgentControllerEvent =
-  | { type: 'status'; status: AgentStatus; detail?: string }
+  /** side：AI 对战（createDuelController）里是哪一方的状态；单模型控制器不设 */
+  | { type: 'status'; status: AgentStatus; detail?: string; side?: import('./types').DuelSide }
   | { type: 'decision'; record: DecisionRecord }
   | { type: 'usage'; usage: TokenUsage; costUsd: number }
   | { type: 'suggestion'; suggestion: Suggestion }
@@ -178,6 +180,8 @@ export interface AgentBrowserReport {
   config: AgentModelConfig;
   /** 思路与请求记录（已脱敏、封顶约 1.5M 字符；原始请求 / 响应可能被去掉） */
   trace: TraceExport;
+  /** AI 对战：进攻方模型（agent 是防守方，role = 'duel'） */
+  attacker?: { provider: string; model: string };
 }
 
 export function createAgentController(o: AgentControllerOptions): AgentController {

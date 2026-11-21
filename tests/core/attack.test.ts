@@ -3,9 +3,12 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { attackBudget, checkAttackPlan, enemyPrice, groupCost } from '../../src/config/attack';
+import { scriptedAttackPlan } from '../../src/agent/attack';
+import { affixPrice, ATTACK, attackBudget, checkAttackPlan, enemyPrice, groupCost } from '../../src/config/attack';
 import { ENEMIES } from '../../src/config/enemies';
 import { type Command, createWorld, type IWorld, type RunOptions, stateHash } from '../../src/core';
+import { resolveParams } from '../../src/core/scaling';
+import { generateWave, planHpUnits } from '../../src/core/wavegen';
 
 const base = (o: Partial<RunOptions> = {}): RunOptions => ({
   mode: 'endless',
@@ -37,8 +40,8 @@ function playTo(w: IWorld, target: number, onBuild?: (w: IWorld) => void): void 
 
 describe('attack price table', () => {
   it('budget grows with the wave, prices follow bounty', () => {
-    expect(attackBudget(1)).toBe(60);
-    expect(attackBudget(10)).toBe(150);
+    expect(attackBudget(1)).toBe(43);
+    expect(attackBudget(10)).toBe(70);
     expect(enemyPrice('crumb')).toBe(Math.ceil(ENEMIES.crumb.bounty * 1.5));
     expect(groupCost({ enemy: 'crumb', count: 4, affixes: ['hard'] }, true)).toBeGreaterThan(
       groupCost({ enemy: 'crumb', count: 4 }, false),
@@ -46,7 +49,7 @@ describe('attack price table', () => {
   });
 
   it('validates pool, counts, affixes, budget and HP cap', () => {
-    const ctx = { wave: 3, pool: ['crumb', 'inkdot'] as const, spawners: [{ id: 'north', drop: false }], baseHp: 300 };
+    const ctx = { wave: 3, pool: ['crumb', 'inkdot', 'plane'] as const, spawners: [{ id: 'north', drop: false }], baseHp: 100 };
     const c = (plan: unknown) => checkAttackPlan(plan, { ...ctx, pool: [...ctx.pool] });
     expect(c({ groups: [{ enemy: 'crumb', count: 5 }] }).ok).toBe(true);
     expect(c({ groups: [] })).toMatchObject({ ok: false, code: 'attackBadPlan' });
@@ -62,10 +65,13 @@ describe('attack price table', () => {
     });
     expect(c({ groups: [{ enemy: 'crumb', count: 2, spawner: 'nowhere' }] })).toMatchObject({ ok: false, code: 'attackSpawner' });
     expect(c({ groups: [{ enemy: 'crumb', count: 2, delay: -1 }] })).toMatchObject({ ok: false, code: 'attackDelay' });
-    // 预算 80：30 个面包屑 = 30 × 5 = 150
+    // 飞行敌人不能带词缀
+    expect(c({ groups: [{ enemy: 'plane', count: 1, affixes: ['hard'] }] })).toMatchObject({ ok: false, code: 'attackAffix' });
+    expect(c({ groups: [{ enemy: 'plane', count: 2 }] }).ok).toBe(true);
+    // 预算 49：30 个面包屑 = 30 × 5 = 150
     expect(c({ groups: [{ enemy: 'crumb', count: 30 }] })).toMatchObject({ ok: false, code: 'attackBudget' });
-    // 生命上限 450：10 只精英面包屑 = 20×10×2.5 = 500
-    expect(c({ groups: [{ enemy: 'crumb', count: 10, affixes: ['hard'] }] })).toMatchObject({ ok: false, code: 'attackHp' });
+    // 生命上限 120：3 只精英面包屑 = 20×3×2.5 = 150（花费 24，预算够）
+    expect(c({ groups: [{ enemy: 'crumb', count: 3, affixes: ['hard'] }] })).toMatchObject({ ok: false, code: 'attackHp' });
     // 规整：未知字段丢弃
     const ok = c({ groups: [{ enemy: 'inkdot', count: 3, extra: 1, delay: 2.04 }] });
     expect(ok.ok && ok.groups).toEqual([{ enemy: 'inkdot', count: 3, delay: 2 }]);
@@ -76,7 +82,7 @@ describe('overrideWave command', () => {
   it('replaces the next wave in the build phase only', () => {
     const w = createWorld(base());
     const info = w.attackContext!()!;
-    expect(info).toMatchObject({ wave: 1, open: true, budget: 60 });
+    expect(info).toMatchObject({ wave: 1, open: true, budget: attackBudget(1) });
     expect(info.pool).toContain('crumb');
     expect(info.pool.some((id) => ENEMIES[id].boss)).toBe(false);
     const before = JSON.stringify(w.state.nextWave.groups);
@@ -89,7 +95,7 @@ describe('overrideWave command', () => {
     expect(w.state.nextWave.override).toBeUndefined();
     const r = w.command({ type: 'overrideWave', wave: 1, plan: { groups: [{ enemy: 'crumb', count: 4, affixes: ['hard'] }] } });
     expect(r.ok).toBe(true);
-    expect(w.state.nextWave.override).toEqual({ cost: 4 * (enemyPrice('crumb') + 3), budget: 60 });
+    expect(w.state.nextWave.override).toEqual({ cost: 4 * (enemyPrice('crumb') + affixPrice('crumb')), budget: attackBudget(1) });
     expect(w.state.nextWave.groups.map((g) => [g.enemy, g.count, g.elite])).toEqual([['crumb', 4, 4]]);
     expect(w.attackContext!()!.current).toBeDefined();
     w.drainEvents();
@@ -166,5 +172,89 @@ describe('overrideWave command', () => {
       return stateHash(w);
     };
     expect(plain(true)).toBe(plain(false));
+  });
+});
+
+/**
+ * 价格平衡（scripts/sim-attack.ts 的结论，文档 10 §2.3）：钉住几条关键不变量。
+ */
+describe('attack balance invariants', () => {
+  /** 默认波按价格表"买下来"要多少墨水（非 Boss） */
+  const defaultCost = (mode: 'endless' | 'campaign', map: 'ch1' | 'ch2' | 'ch3', seed: string, w: number): number => {
+    const params = resolveParams({ mode, map, difficulty: 'normal', seed } as RunOptions);
+    let cost = 0;
+    for (const e of generateWave({ seed, mode, map, params }, w).entries) {
+      if (e.gi < 0 || ENEMIES[e.enemy].boss) continue;
+      cost += e.group * (enemyPrice(e.enemy) + e.affixes.length * affixPrice(e.enemy));
+    }
+    return cost;
+  };
+
+  it('budget tracks the default wave instead of outgrowing it', () => {
+    // 默认波的生命当量不随波数增长（成长在生成时另乘），预算也只能缓慢增长：
+    // 平均而言预算 ≈ 默认波的 0.6～1.6 倍（预算远大于默认波 → 生命上限永远先顶住，词缀 / 空降几乎免费）
+    for (const mode of ['endless', 'campaign'] as const) {
+      const waves = mode === 'endless' ? [1, 5, 12, 18, 25, 35, 45, 60] : [1, 3, 5, 8, 12, 15, 18, 20];
+      let ratio = 0;
+      let n = 0;
+      for (const map of ['ch1', 'ch2', 'ch3'] as const)
+        for (const w of waves)
+          for (let i = 0; i < 3; i++) {
+            ratio += attackBudget(w) / Math.max(1, defaultCost(mode, map, `bal${i}`, w));
+            n++;
+          }
+      expect(ratio / n).toBeGreaterThan(0.6);
+      expect(ratio / n).toBeLessThan(1.6);
+    }
+  });
+
+  it('caps a full-budget tank plan by HP on typical waves', () => {
+    // "每点墨水生命最高"的敌人（tape）把预算花光：生命当量应超过上限（上限对堆血计划生效）
+    for (const w of [25, 35, 45]) {
+      const params = resolveParams({ mode: 'endless', map: 'ch1', difficulty: 'normal', seed: 'cap' } as RunOptions);
+      const base = generateWave({ seed: 'cap', mode: 'endless', map: 'ch1', params }, w);
+      const count = Math.floor(attackBudget(w) / enemyPrice('tape'));
+      const r = checkAttackPlan(
+        { groups: [{ enemy: 'tape', count }] },
+        { wave: w, pool: ['crumb', 'tape'], spawners: [], baseHp: planHpUnits(base) },
+      );
+      expect(r).toMatchObject({ ok: false, code: 'attackHp' });
+    }
+    expect(ATTACK.hpCap).toBeLessThanOrEqual(1.5);
+  });
+
+  it('scriptedAttackPlan never produces a rejected plan', () => {
+    let planned = 0;
+    for (const map of ['ch1', 'ch2', 'ch3'] as const)
+      for (const seed of ['s1', 's2']) {
+        const w = createWorld(base({ mode: 'custom', map, seed, custom: { lives: 100000, eventRate: 0 } }));
+        // 有时没有对空塔（主攻飞行，验证飞行敌人不带词缀），有时有
+        if (seed === 's2')
+          for (const [cx, cy] of [
+            [4, 2],
+            [7, 2],
+            [10, 2],
+          ])
+            w.command({ type: 'place', tower: 'pencil', cx, cy });
+        for (let guard = 0; w.state.wave < 25 && guard < 60 * 60 * 60; guard++) {
+          const s = w.state;
+          if (s.phase === 'perk' && s.perkChoices) {
+            const c = s.perkChoices.find((x) => !x.needsTower) ?? s.perkChoices[0];
+            w.command({ type: 'choosePerk', id: c.id });
+          } else if (s.phase === 'build') {
+            const plan = scriptedAttackPlan(w);
+            if (plan) {
+              const info = w.attackContext!()!;
+              const r = w.command({ type: 'overrideWave', wave: info.wave, plan: { groups: plan } });
+              expect(r.ok, `${map}/${seed} wave ${info.wave}: ${r.code}`).toBe(true);
+              planned++;
+            }
+            w.command({ type: 'startWave' });
+          }
+          w.step();
+        }
+        expect(w.state.wave).toBe(25);
+      }
+    expect(planned).toBeGreaterThan(120);
   });
 });

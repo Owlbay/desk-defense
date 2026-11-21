@@ -127,8 +127,20 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+/* 难度 / 地图：英文 / 日文名带锁图标较长（"Nightmare"、"Programmer’s Desk"），列宽按内容留够，窄屏自动换行成两排 */
 .ai-diffs {
-  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 92px), 1fr));
+}
+
+.seg-grid.maps {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+}
+
+.seg-grid.maps .seg,
+.ai-diffs .seg {
+  min-width: 0;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .ai-key-modes {
@@ -148,6 +160,8 @@
 .ai-bridge,
 .ai-key {
   display: grid;
+  /* 单列且允许收缩：否则长命令（.ai-code pre）把整列撑宽，窄屏横向溢出 */
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   min-width: 0;
 }

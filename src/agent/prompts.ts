@@ -276,7 +276,7 @@ const ATTACK_RULES = `你在玩《书桌防线》（确定性的迷宫塔防）�
 # 规则
 - 每波开始前（建造阶段）你有预算 budget = ${ATTACK.baseBudget} + ${ATTACK.perWave}×波数「墨水点」，用 attack_plan 改写下一波；不调用则保留默认波。
 - 价格：单价 = 敌人赏金 × ${ATTACK.priceFactor}（STATE.pool 里的 $）；每个词缀 +单价×${ATTACK.affixSurcharge}（向上取整，至少 1）；从空降点（spawners 里带 (drop)）出来每只再 +单价×${ATTACK.dropSurcharge}+1。
-- 限制：只能用 pool 里的敌人（Boss 不能编排；Boss 波的 Boss 原样保留）；最多 ${ATTACK.maxGroups} 组、每组 ${ATTACK.maxCount} 只、${ATTACK.maxAffixes} 个词缀（不含 golden）；生命当量（基础生命 × 数量，带词缀 = 精英 ×2.5）≤ hpCap（默认波 baseHp 的 ${ATTACK.hpCap} 倍）。delay = 本组开波后第几秒出发（0..${ATTACK.maxDelay}）。
+- 限制：只能用 pool 里的敌人（Boss 不能编排；Boss 波的 Boss 原样保留）；最多 ${ATTACK.maxGroups} 组、每组 ${ATTACK.maxCount} 只、${ATTACK.maxAffixes} 个词缀（不含 golden；飞行敌人不能带词缀）；生命当量（基础生命 × 数量，带词缀 = 精英 ×2.5）≤ hpCap（默认波 baseHp 的 ${ATTACK.hpCap} 倍）。delay = 本组开波后第几秒出发（0..${ATTACK.maxDelay}）。
 - 地面敌人沿最短路走到出口，路线越长（R 的 L）塔打得越久；飞行敌人直飞出口，只有能打空的塔（aa = 对空塔数量）能拦。
 
 # 打法
