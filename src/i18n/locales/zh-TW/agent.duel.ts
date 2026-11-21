@@ -11,7 +11,7 @@ export default {
   'agent.duel.side.attack': '攻',
   'agent.duel.side.defend': '守',
   'agent.duel.lineThinking': '{model} 思考中：{reasons}',
-  'agent.duel.lineWaitAttack': '{model}：等下一個建造階段出題',
+  'agent.duel.lineWaitAttack': '{model}：等下一波開始後給再下一波出題',
   'agent.duel.lineWaitDefend': '{model}：等下一個決策點',
   'agent.duel.lineStopped': '{model}：已停止',
   'agent.duel.planAct': '出題：{plan}',
@@ -22,5 +22,6 @@ export default {
   'agent.duel.roleDuel': 'AI 對戰',
   'agent.duel.roleDuelDesc': '兩個模型同局對抗：一個出題進攻，一個建塔防守（只記本機紀錄）',
   'agent.duel.setupNote': '每個建造階段先由進攻方改寫下一波，再由防守方決策；兩邊都用暫停模式，不參與排行。',
-  'agent.duel.attackNote': 'AI 只在建造階段出題（暫停模式），你來防守；這種局不上傳全服榜，只記本機紀錄。',
+  'agent.duel.attackNote':
+    '每波一開始，AI 就在背景給下一波出題（不暫停遊戲，題沒出完時開波會稍等），你來防守；這種局不上傳全服榜，只記本機紀錄。',
 } satisfies Dict;

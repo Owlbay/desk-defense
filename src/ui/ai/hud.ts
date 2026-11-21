@@ -23,6 +23,8 @@ import {
   type DecisionRecord,
   type DuelSide,
   InstructionQueue,
+  isLocalConfig,
+  priceOf,
   type SessionLike,
   type Suggestion,
   type TokenUsage,
@@ -401,7 +403,14 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
     // 预算按"折算"计（新输入 + 输出 + 缓存写×1.25 + 缓存读×0.1）；原始总数单独显示，避免把便宜的缓存读当成预算
     const weighted = budgetTokens(usage);
     const raw = usageTotal(usage);
-    setText(chipUsage, weighted > 0 ? `${fmtTokens(weighted)}${costUsd > 0 ? ` · ${fmtCost(costUsd)}` : ''}` : '');
+    // 费用按模型目录（modelinfo.dev）/ 手填价格估算；目录里没有、也没手填的云端模型标"价格未知"（而不是 $0）
+    const priceUnknown =
+      costUsd <= 0 &&
+      (config.provider === 'pi' || config.provider === 'bridge') &&
+      !isLocalConfig(config) &&
+      !priceOf(config.model ?? '', config.price);
+    const costText = costUsd > 0 ? fmtCost(costUsd) : priceUnknown ? t('agent.mi.hudUnknown') : '';
+    setText(chipUsage, weighted > 0 ? `${fmtTokens(weighted)}${costText ? ` · ${costText}` : ''}` : '');
     chipUsage.title = weighted > 0 ? t('agent.hud.usageTip', { weighted: fmtNum(weighted), raw: fmtNum(raw) }) : '';
     usageNums.replaceChildren(
       h(
@@ -419,7 +428,9 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
         ` ${t('agent.hud.weighted')}`,
       ),
       h('span.muted', { title: t('agent.hud.rawTip') }, t('agent.hud.raw', { n: fmtTokens(raw) })),
-      h('span', { title: t('agent.hud.costTip') }, h('b', null, fmtCost(costUsd)), ` ${t('agent.hud.estimated')}`),
+      priceUnknown
+        ? h('span.muted', { title: t('agent.mi.priceUnknown') }, t('agent.mi.hudUnknown'))
+        : h('span', { title: t('agent.hud.costTip') }, h('b', null, fmtCost(costUsd)), ` ${t('agent.hud.estimated')}`),
       h('span', null, h('b', null, String(usage.requests)), ` ${t('agent.hud.requestsUnit', { n: usage.requests })}`),
     );
     const bt = config.budget?.tokens;

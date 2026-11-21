@@ -9,9 +9,10 @@
  *
  * 只读世界状态；不发指令。浏览器（index.ts）与无头（runner.ts）都在每个世界事件上调用 onEvent。
  */
-import { AFFIXES, ENEMIES } from '../config/enemies';
+import { ENEMIES } from '../config/enemies';
 import { TOWERS } from '../config/towers';
 import type { AffixId, EnemyId, GameEvent, IWorld, TowerId } from '../core/types';
+import { ENEMY_CODE } from './compact';
 import { type Shooter, shooters } from './routes';
 
 /** 采样间隔（游戏秒） */
@@ -394,64 +395,71 @@ export function segTarget(cells: readonly number[], cols: number): string {
   return `seg:${Math.min(...xs)},${Math.min(...ys)}-${Math.max(...xs)},${Math.max(...ys)}`;
 }
 
+/** 漏怪标签（敌人代号，与 E / nx 同一套）："cr" / "e.pc[hard]"（精英 + 词缀）/ "pl^"（飞行）/ "pl^net"（被网到地面） */
 const enemyLabel = (l: LeakRecord): string => {
-  const name = ENEMIES[l.enemy]?.name ?? l.enemy;
-  const aff = l.affixes.length ? `[${l.affixes.map((a) => AFFIXES[a]?.name ?? a).join(',')}]` : '';
-  return `${l.elite ? '精英' : ''}${name}${aff}${l.flying ? (l.netted ? '(空,被网)' : '(空)') : ''}`;
+  const c = ENEMY_CODE[l.enemy as EnemyId] ?? ENEMIES[l.enemy]?.id ?? l.enemy;
+  const aff = l.affixes.length ? `[${l.affixes.join(',')}]` : '';
+  return `${l.elite ? 'e.' : ''}${c}${aff}${l.flying ? (l.netted ? '^net' : '^') : ''}`;
 };
 
 /**
- * 漏怪明细（一行，最多 cap 组；同种 / 同精英 / 同出生点合并）：
- * "LK w7 漏4: 橡皮屑×3(均剩40%血 射程内35% north x5 y9..12 无覆盖 主伤#4pencil 70%) 纸飞机(空)×1(…)"
+ * 漏怪明细（一行，按进攻路线分段，与 AR 同名：地面 "north"、飞行 "air:north"；段内同种 / 同精英合并，最多 cap 组；图例在规则术语表里）：
+ * "LK w7 n4 | north: cr×3(hp40 in35 x5 y9..12 gap0 top#4pencil70) e.pc[hard]×1(…) | air:west: pl^×1(hp80 in10 top-)"
+ * hp = 漏出时平均剩余血量 %；in = 走过射程内的时间占比 %；x5 y9..12 gap0 = 无塔覆盖的一段 / gap1 = 只有 1 座塔的一段；top = 打它最多的塔与占比 %
  */
 export function leakLine(w: IWorld, leaks: readonly LeakRecord[], cap = 4): string | undefined {
   if (!leaks.length) return undefined;
   const cols = w.state.grid.cols;
+  const routeOf = (l: LeakRecord): string => (l.flying && !l.netted ? `air:${l.sp}` : l.sp);
   const groups = new Map<string, LeakRecord[]>();
   for (const l of leaks) {
-    const k = `${enemyLabel(l)}@${l.sp}`;
+    const k = `${routeOf(l)}\u0000${enemyLabel(l)}`;
     if (!groups.has(k)) groups.set(k, []);
     groups.get(k)!.push(l);
   }
   const waves = [...new Set(leaks.map((l) => l.wave))].sort((a, b) => a - b);
-  const parts = [...groups]
-    .sort((a, b) => b[1].length - a[1].length)
-    .slice(0, cap)
-    .map(([k, ls]) => {
-      const n = ls.length;
-      const hp = pct(ls.reduce((a, l) => a + l.hp, 0) / n);
-      const inR = pct(ls.reduce((a, l) => a + l.inRange, 0) / n);
-      const gaps = ls.map((l) => l.gap).filter((g): g is Gap => !!g);
-      const g = gaps.sort((a, b) => b.cells.length - a.cells.length)[0];
-      const top = new Map<number, { id: TowerId; s: number }>();
-      for (const l of ls)
-        for (const t of l.towers) {
-          const v = top.get(t.uid) ?? { id: t.id, s: 0 };
-          v.s += t.share / n;
-          top.set(t.uid, v);
-        }
-      const best = [...top].sort((a, b) => b[1].s - a[1].s)[0];
-      const bits = [`${n > 1 ? '均' : ''}剩${hp}%血`, `射程内${inR}%`];
-      bits.push(g ? `${g.sp} ${segText(g.cells, cols)} ${g.level ? '仅1塔' : '无覆盖'}` : `${ls[0].sp}`);
-      bits.push(best ? `主伤#${best[0]}${best[1].id} ${pct(best[1].s)}%` : '无塔打到');
-      return `${k.split('@')[0]}×${n}(${bits.join(' ')})`;
-    });
-  const more = groups.size > cap ? ` +${groups.size - cap}种` : '';
-  return `LK w${waves.join(',')} 漏${leaks.length}: ${parts.join(' ')}${more}`;
+  const kept = [...groups].sort((a, b) => b[1].length - a[1].length).slice(0, cap);
+  const byRoute = new Map<string, string[]>();
+  for (const [k, ls] of kept) {
+    const [route, label] = k.split('\u0000');
+    const n = ls.length;
+    const hp = pct(ls.reduce((a, l) => a + l.hp, 0) / n);
+    const inR = pct(ls.reduce((a, l) => a + l.inRange, 0) / n);
+    const gaps = ls.map((l) => l.gap).filter((g): g is Gap => !!g);
+    const g = gaps.sort((a, b) => b.cells.length - a.cells.length)[0];
+    const top = new Map<number, { id: TowerId; s: number }>();
+    for (const l of ls)
+      for (const t of l.towers) {
+        const v = top.get(t.uid) ?? { id: t.id, s: 0 };
+        v.s += t.share / n;
+        top.set(t.uid, v);
+      }
+    const best = [...top].sort((a, b) => b[1].s - a[1].s)[0];
+    const bits = [`hp${hp}`, `in${inR}`];
+    if (g) bits.push(`${segText(g.cells, cols)} gap${g.level ? 1 : 0}`);
+    bits.push(best ? `top#${best[0]}${best[1].id}${pct(best[1].s)}` : 'top-');
+    if (!byRoute.has(route)) byRoute.set(route, []);
+    byRoute.get(route)!.push(`${label}×${n}(${bits.join(' ')})`);
+  }
+  const more = groups.size > cap ? ` | +${groups.size - cap}` : '';
+  return `LK w${waves.join(',')} n${leaks.length} | ${[...byRoute].map(([r, ps]) => `${r}: ${ps.join(' ')}`).join(' | ')}${more}`;
 }
 
-/** 缺口热点 + 建议意图 */
+/**
+ * 反复漏怪的缺口（近 waves 波里出现 ≥2 次的路段，×次数）+ 建议意图；只出现过一次的已在 LK 里，不重复：
+ * "GAP5 north x5 y9..12 gap1 ×3, … → {…}"
+ */
 export function gapLine(w: IWorld, intel: BattleIntel, waves = 5): string | undefined {
-  const hs = intel.hotspots(waves, 3);
+  const hs = intel.hotspots(waves, 3).filter((h) => h.n >= 2);
   if (!hs.length) return undefined;
   const cols = w.state.grid.cols;
   const fix: string[] = [];
   const parts = hs.map(({ gap, n }) => {
-    if (gap.sp.startsWith('air:')) fix.push(`{do:"anti_air",route:"${gap.sp.slice(4)}"}`);
+    if (gap.sp.startsWith('air:')) fix.push(`{do:"build_near",purpose:"air",route:"${gap.sp.slice(4)}"}`);
     else fix.push(`{do:"build_near",purpose:"dps",target:"${segTarget(gap.cells, cols)}"}`);
-    return `${gap.sp} ${segText(gap.cells, cols)}${gap.level ? '(仅1塔)' : ''} ×${n}`;
+    return `${gap.sp} ${segText(gap.cells, cols)} gap${gap.level ? 1 : 0} ×${n}`;
   });
-  return `GAP 近${waves}波缺口热点: ${parts.join(', ')} → ${[...new Set(fix)].slice(0, 3).join(' ')}`;
+  return `GAP${waves} ${parts.join(', ')} → ${[...new Set(fix)].slice(0, 3).join(' ')}`;
 }
 
 /** 击杀位置分布：按到出口的路程分前 / 中 / 后段（相对出生点），外加最热的 3×3 区块 */
@@ -479,6 +487,6 @@ export function killLine(w: IWorld, kills: ReadonlyMap<number, number>): string 
     blocks.set(k, (blocks.get(k) ?? 0) + n);
   }
   const hot = [...blocks].sort((a, b) => b[1] - a[1])[0];
-  const late = band[2] / tot > 0.45 ? '（多死在后段：前中段火力不足）' : '';
-  return `KH 击杀 ${tot}: 前/中/后段 ${band.map((b) => pct(b / tot)).join('/')}%，最热 ${hot[0]} ${pct(hot[1] / tot)}%${late}`;
+  const late = band[2] / tot > 0.45 ? ' LATE' : '';
+  return `KH ${tot} f/m/l ${band.map((b) => pct(b / tot)).join('/')} hot ${hot[0]} ${pct(hot[1] / tot)}${late}`;
 }

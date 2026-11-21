@@ -17,9 +17,32 @@
  *   - anthropic-messages：pi 只认得 4.6 / 4.7 的自适应思考，对 Claude 5.x 会发 budget_tokens（400）→ 5.x 一律不发 thinking 参数
  *     （服务端默认自适应）；Haiku 5.5 的 off 例外：pi 发 {type:'disabled'} 是合法的
  *   - google-generative-ai：off = pi 发 thinkingBudget 0（Gemini 2.x）/ 最低 thinkingLevel（Gemini 3）
+ *
+ * 按模型落档（./modelinfo.ts，数据来自 modelinfo.dev）：目录里查得到的模型，等级先落到它公布的档位上
+ * （例如 DeepSeek 只有 low / high / max：中 → 低；很高 → 最高），落档时附提示；不支持思考的模型不发推理参数。
+ * OpenAI 兼容接口（completions / responses）按模型档位原样发送（max 也能发出去，pi 本身只认到 xhigh）。
+ * 目录里没有的模型保持原来的通用映射。
  */
 import { t } from '../i18n';
 import type { PiApi, ThinkingLevel } from './config';
+import { clampThinking, lookupModel, thinkingSupport } from './modelinfo';
+
+/** 按模型落档：返回实际等级与（落档时的）提示。off 不在这里处理（各厂商关思考的方式不同） */
+export function modelLevel(
+  model: string,
+  level: ThinkingLevel,
+): { level: ThinkingLevel; note?: string; known: boolean; reasoning: boolean } {
+  const info = lookupModel(model);
+  const sup = thinkingSupport(model, info);
+  if (!sup.known || level === 'off' || !sup.reasoning) return { level, known: sup.known, reasoning: sup.reasoning };
+  const lv = clampThinking(
+    level,
+    sup.levels.filter((l) => l !== 'off'),
+  );
+  return lv === level
+    ? { level, known: true, reasoning: true }
+    : { level: lv, known: true, reasoning: true, note: t('agent.think.clamped', { model: info?.name ?? model, from: level, to: lv }) };
+}
 
 export type PiThinkingLevel = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 
@@ -46,7 +69,14 @@ const CLAUDE_NAME = (m: string): string =>
 
 export function claudeThinkingPlan(model: string, level: ThinkingLevel = 'medium'): ClaudeThinkingPlan {
   if (level !== 'off') {
-    return { thinking: { type: 'adaptive', display: 'summarized' }, effort: level, effective: `adaptive · effort ${level}` };
+    const m = modelLevel(model, level);
+    const effort = m.level === 'off' ? 'low' : m.level;
+    return {
+      thinking: { type: 'adaptive', display: 'summarized' },
+      effort,
+      effective: `adaptive · effort ${effort}`,
+      ...(m.note ? { note: m.note } : {}),
+    };
   }
   if (model.includes('sonnet-5-5'))
     return { thinking: { type: 'between_tools' }, effort: 'low', effective: t('agent.think.offEffort', { mode: 'between_tools' }) };
@@ -63,6 +93,8 @@ export function claudeThinkingPlan(model: string, level: ThinkingLevel = 'medium
 export interface PiThinkingPlan {
   /** 传给 pi 的 reasoning（undefined = 关 / 不发） */
   reasoning?: PiThinkingLevel;
+  /** 线上实际发送的档位（模型目录里的原始写法，例如 max）；pi 经 model.thinkingLevelMap[reasoning] 发出 */
+  wire?: string;
   /** 覆盖 model.reasoning（undefined = 不改） */
   modelReasoning?: boolean;
   effective: string;
@@ -86,26 +118,40 @@ export function piThinkingPlan(
   level: ThinkingLevel,
   o: { thinkingFormat?: string; reasoningModel?: boolean } = {},
 ): PiThinkingPlan {
-  const on = level !== 'off';
-  const lv = on ? PI_LEVEL[level] : undefined;
+  const ml = modelLevel(modelId, level);
+  const note = ml.note ? { note: ml.note } : {};
+  // 目录说这个模型不支持思考：什么推理参数都不发（中转服务把所有 completions 模型都当推理模型，发了可能 400）
+  if (ml.known && !ml.reasoning && api !== 'anthropic-messages' && api !== 'google-generative-ai')
+    return { modelReasoning: false, effective: t('agent.think.nonReasoning') };
+  const lvl = ml.level;
+  const on = lvl !== 'off';
+  const lv = lvl !== 'off' ? PI_LEVEL[lvl] : undefined;
+  // 目录里查得到档位：OpenAI 兼容接口按原样发送（pi 用 thinkingLevelMap 改写线上取值）
+  const wire = on && ml.known ? { wire: lvl as string } : {};
+  const shown = on && ml.known ? lvl : lv;
   const id = modelId.toLowerCase();
   switch (api) {
     case 'openai-completions': {
       const fmt = o.thinkingFormat;
       if (fmt === 'deepseek')
-        return on ? { reasoning: lv, effective: `thinking enabled · reasoning_effort ${lv}` } : { effective: 'thinking {type:"disabled"}' };
+        return on
+          ? { reasoning: lv, ...wire, effective: `thinking enabled · reasoning_effort ${shown}`, ...note }
+          : { effective: 'thinking {type:"disabled"}' };
       if (fmt === 'qwen')
-        return on ? { reasoning: lv, effective: `enable_thinking true（${lv}）` } : { effective: 'enable_thinking false' };
+        return on ? { reasoning: lv, effective: `enable_thinking true（${lv}）`, ...note } : { effective: 'enable_thinking false' };
       if (o.reasoningModel === false) return { effective: t('agent.think.noParam') };
       return on
-        ? { reasoning: lv, effective: `reasoning_effort ${lv}` }
+        ? { reasoning: lv, ...wire, effective: `reasoning_effort ${shown}`, ...note }
         : { effective: t('agent.think.notSent', { param: 'reasoning_effort' }) };
     }
     case 'openai-responses':
       if (o.reasoningModel === false) return { modelReasoning: false, effective: t('agent.think.nonReasoning') };
       return on
-        ? { reasoning: lv, modelReasoning: true, effective: `reasoning.effort ${lv}` }
-        : { modelReasoning: false, effective: t('agent.think.notSent', { param: 'reasoning' }) };
+        ? { reasoning: lv, ...wire, modelReasoning: true, effective: `reasoning.effort ${shown}`, ...note }
+        : ml.known && lookupModel(modelId)?.off
+          ? // 目录说可关（档位里有 none）：显式发 effort none，比"不发"（服务端默认档）更省
+            { modelReasoning: true, effective: 'reasoning.effort none' }
+          : { modelReasoning: false, effective: t('agent.think.notSent', { param: 'reasoning' }) };
     case 'anthropic-messages':
       if (isClaude5(id)) {
         if (!on && id.includes('haiku')) return { modelReasoning: true, effective: 'thinking {type:"disabled"}' };

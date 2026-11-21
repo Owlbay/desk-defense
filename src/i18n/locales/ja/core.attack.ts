@@ -2,7 +2,7 @@ import type { Dict } from '../../index';
 
 // 名前空間 core · AI 出題者によるウェーブ書き換えの拒否理由（ドキュメント 10 §2.3；ja）
 export default {
-  'core.reason.attackPhase': '次のウェーブを書き換えられるのは建設フェーズ中、開始前だけです',
+  'core.reason.attackPhase': '次のウェーブは開始前にしか書き換えられません',
   'core.reason.attackWave': '書き換えられるのは次のウェーブ（第 {wave} ウェーブ）だけです',
   'core.reason.attackBadPlan': '出題の形式が正しくありません：敵のグループが 1 つ以上必要です',
   'core.reason.attackGroups': '敵のグループは最大 {max} 個です',
@@ -14,4 +14,5 @@ export default {
   'core.reason.attackDelay': '出発時間は 0～{max} 秒にしてください',
   'core.reason.attackBudget': 'インクポイントが足りません：必要 {cost}、予算 {budget}',
   'core.reason.attackHp': '強すぎます：HP 換算 {hp} が上限 {cap} を超えています',
+  'core.reason.attackPending': 'AI が次のウェーブを出題中です。少し待ってから開始してください',
 } satisfies Dict;

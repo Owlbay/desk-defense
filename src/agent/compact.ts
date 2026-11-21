@@ -10,7 +10,7 @@
 import { TOWERS } from '../config/towers';
 import { CellKind, type EnemyId, type GameEvent, type IWorld, type TowerState } from '../core/types';
 import { TOWER_CHAR } from './observation';
-import { routeSummary } from './routes';
+import { attackRoutes, routeSummary } from './routes';
 
 /** 敌人两字母代号（Boss 大写开头）。图例在速查表里 */
 export const ENEMY_CODE: Record<EnemyId, string> = {
@@ -37,7 +37,11 @@ export const ENEMY_CODE: Record<EnemyId, string> = {
 const code = (id: string): string => ENEMY_CODE[id as EnemyId] ?? id;
 
 const r1 = (n: number): number => Math.round(n * 10) / 10 || 0; // || 0：不出现 -0（增量比较按 JSON，-0 与 0 相同）
-const ceil5 = (n: number): number => Math.ceil(n / 5) * 5;
+/** 价格向上取整：<100 到 5、<500 到 10、其余到 25（显示价 ≥ 实价；后期每秒变化的经验折扣不再让 T+ 整表重发） */
+const ceilP = (n: number): number => {
+  const step = n < 100 ? 5 : n < 500 ? 10 : 25;
+  return Math.ceil(n / step) * step;
+};
 const HEX = '0123456789ab';
 
 export type CompactObs = Record<string, unknown> & { T?: string[] };
@@ -46,14 +50,18 @@ function towerLine(w: IWorld, t: TowerState): string {
   const parts = [`#${t.uid} ${t.id} ${t.cx},${t.cy} L${t.level}`];
   if (t.branch) parts.push(t.branch);
   if (t.stars) parts.push(`★${t.stars}`);
-  if (t.xpNext > 0 && t.level >= 4) parts.push(`x${Math.round((t.xp / t.xpNext) * 100)}`);
+  // 经验进度按 25% 分档（x25 / x50 / x75），同理减少增量抖动
+  if (t.xpNext > 0 && t.level >= 4) {
+    const q = Math.floor((t.xp / t.xpNext) * 4) * 25;
+    if (q > 0) parts.push(`x${Math.min(75, q)}`);
+  }
   if (TOWERS[t.id].attacks && t.targetMode !== 'first') parts.push(`t=${t.targetMode}`);
   if (t.disabledUntil > w.state.time) parts.push('OFF');
   const info = w.getTowerInfo(t.uid);
   if (info) {
-    // 价格向上取整到 5（经验折扣让价格每秒都在变，取整后增量里少很多"变化"；显示价 ≥ 实价，钱够就一定买得起）
-    if (info.upgradeCost !== null) parts.push(info.needsBranch ? `br${ceil5(info.upgradeCost)}` : `up${ceil5(info.upgradeCost)}`);
-    if (info.evolveCost !== null) parts.push(`ev${ceil5(info.evolveCost)}`);
+    // 价格向上取整（ceilP；经验折扣让价格每秒都在变，取整后增量里少很多"变化"；显示价 ≥ 实价，钱够就一定买得起）
+    if (info.upgradeCost !== null) parts.push(info.needsBranch ? `br${ceilP(info.upgradeCost)}` : `up${ceilP(info.upgradeCost)}`);
+    if (info.evolveCost !== null) parts.push(`ev${ceilP(info.evolveCost)}`);
     if (info.ability) parts.push(`ab${info.ability.ready ? 'R' : Math.ceil(info.ability.cd)}`);
   }
   return parts.join(' ');
@@ -165,11 +173,11 @@ export function compactObservation(w: IWorld, o: CompactOptions = {}): CompactOb
   }
   const nw = s.nextWave;
   const rs = routeSummary(w);
-  obs.nx = `w${nw.wave}${nw.tags.length ? ` [${nw.tags.join(',')}]` : ''}${nw.earlyBonus ? ` early+${nw.earlyBonus}g` : ''} | ${rs.next.join(' | ')}`;
-  obs.R = rs.ground;
+  obs.nx = `w${nw.wave}${nw.tags.length ? ` [${nw.tags.join(',')}]` : ''}${nw.earlyBonus ? ` early+${nw.earlyBonus}g` : ''}`;
+  // 进攻路线（§19.12）：每条地面路线 / 飞行线 + 下一波走它的组 + 航点 + 无覆盖路段；取代原来的 R / Ra 与 nx 里按出生点的列表
+  obs.AR = attackRoutes(w, code);
   if (rs.segs.length) obs.Rs = rs.segs;
   if (rs.spots.length) obs.Rp = rs.spots.join(' ');
-  if (rs.air.length) obs.Ra = rs.air;
   obs.sk = s.skills.map((k) => `${k.id}:${k.ready ? 'R' : Math.ceil(k.cd)}${k.charges !== undefined ? `c${k.charges}` : ''}`).join(' ');
   const evs = s.events.filter((e) => e.phase !== 'done');
   if (evs.length) {

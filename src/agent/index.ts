@@ -21,7 +21,7 @@ import { scriptedFallback } from './providers/scripted';
 import type { LLMProvider } from './providers/types';
 import { DecisionDetector } from './scheduler';
 import { AgentTrace, type TraceExport } from './trace';
-import type { AgentReplay, DecisionRecord, FallbackPolicy, Suggestion, TokenUsage } from './types';
+import type { AgentReplay, DecisionReason, DecisionRecord, FallbackPolicy, Suggestion, TokenUsage } from './types';
 
 export * from './types';
 export * from './config';
@@ -78,7 +78,8 @@ export {
 } from './battle';
 export { planMaze, type MazePlan } from './maze';
 export { gateDecision, cheapestUsefulAction, inDanger, eventNeedsDecision, EVENT_DECIDE, type GatingLevel } from './gating';
-export { claudeThinkingPlan, piThinkingPlan, keepThinkingInHistory, mayCompactHistory } from './thinking';
+export { claudeThinkingPlan, piThinkingPlan, keepThinkingInHistory, mayCompactHistory, modelLevel } from './thinking';
+export * from './modelinfo';
 export { systemBlocks, catalogText, catalogEntry, cheatSheet, decisionMessage } from './prompts';
 export { BUDGET_STAGE_AT, BUDGET_EXTEND, type BudgetStage, type BudgetState, type BudgetChoice } from './engine';
 export { AgentScheduler, DecisionDetector, type SchedulerOptions } from './scheduler';
@@ -112,6 +113,8 @@ export interface SessionLike {
   command(cmd: Command): { ok: boolean; reason?: string };
   togglePause(force?: boolean): void;
   on(fn: (ev: GameEvent) => void): () => void;
+  /** 开波闸门（AI 出题：进攻方出题期间挡住手动开波）；可选 */
+  holdStart?: (() => boolean) | null;
 }
 
 export type AgentStatus = 'idle' | 'loading' | 'running' | 'thinking' | 'paused' | 'stopped' | 'error';
@@ -206,6 +209,21 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
   let budgetResolve: ((c: BudgetChoice) => void) | null = null;
   /** 进攻方：已为哪一波出过题（每波只问一次） */
   let attackPlanned = -1;
+  /** 进攻方正在出题 */
+  let planning = false;
+  /** 自动开波快到了、题还没出完 → 临时暂停了游戏 */
+  let autoHeld = false;
+  /** 出题期间：挡住手动开波；自动开波倒计时快到时暂停游戏 */
+  const guardAuto = (): void => {
+    if (!planning || autoHeld || session.paused) return;
+    const s = w.state;
+    const au = s.autoWave;
+    const due = au.enabled ? (s.phase === 'build' ? au.nextAt : au.deadline) : null;
+    if (typeof due === 'number' && due - s.time < 1) {
+      autoHeld = true;
+      session.togglePause(true);
+    }
+  };
 
   const setStatus = (s: AgentStatus, detail?: string) => {
     status = s;
@@ -213,19 +231,25 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
   };
 
   const poll = () => {
+    guardAuto();
     if (!engine || busy || userPaused || status === 'stopped' || status === 'error') return;
     const attacker = config.role === 'attacker';
-    const reasons = detector.check(w, !attacker && !!o.instructions?.hasPending());
-    if (!reasons) return;
-    // 进攻方（文档 10 §2.3）：真人防守，只在建造阶段、下一波还没出题时叫模型；其余决策点直接忽略（不暂停、不记录）
+    let reasons: DecisionReason[] | null;
     if (attacker) {
+      // 进攻方（文档 10 §2.3）：真人防守。下一波一开始就为再下一波出题（战斗 / 建造 / 选增益阶段都行），
+      // 不等建造阶段，所以自动开波、选完增益马上开波都来得及；其余决策点直接忽略（不暂停、不记录）
       const info = w.attackContext?.();
-      const build = reasons.includes('build') || reasons.includes('game_start');
-      if (!build || !info?.open || info.current || attackPlanned === info.wave) return;
+      if (!info?.open || info.current || attackPlanned === info.wave) return;
       attackPlanned = info.wave;
+      planning = true;
+      reasons = ['build'];
+    } else {
+      reasons = detector.check(w, !!o.instructions?.hasPending());
+      if (!reasons) return;
     }
     const point = detector.point(w, reasons);
-    const pauseMode = (config.decision?.mode ?? 'pause') === 'pause';
+    // 进攻方出题时不暂停：真人照常操作，只是开波要等题出完（session.holdStart + 自动开波前暂停）
+    const pauseMode = !attacker && (config.decision?.mode ?? 'pause') === 'pause';
     const wasPaused = session.paused;
     busy = true;
     if (pauseMode) session.togglePause(true);
@@ -243,6 +267,11 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
       })
       .finally(() => {
         busy = false;
+        planning = false;
+        if (autoHeld) {
+          autoHeld = false;
+          if (!userPaused && status !== 'stopped') session.togglePause(false);
+        }
         if (status === 'stopped') return;
         if (pauseMode && !wasPaused && !userPaused) session.togglePause(false);
         setStatus(userPaused ? 'paused' : 'running');
@@ -303,6 +332,8 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
         if (recent.length > 4000) recent.splice(0, 2000);
         detector.feed(ev, w);
       });
+      // 进攻方出题期间挡住手动开波（真人点「开始」或快捷键都走 session.command）
+      if (config.role === 'attacker') session.holdStart = () => planning;
       const ms = o.pollMs ?? 100;
       if (ms > 0) timer = setInterval(poll, ms);
       setStatus('running');
@@ -321,6 +352,11 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
       budgetResolve?.('bot');
       ac.abort();
       if (timer) clearInterval(timer);
+      if (config.role === 'attacker') session.holdStart = null;
+      if (autoHeld) {
+        autoHeld = false;
+        session.togglePause(false);
+      }
       unsub?.();
       provider?.dispose?.();
       setStatus('stopped');

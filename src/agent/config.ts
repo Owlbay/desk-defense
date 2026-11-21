@@ -114,6 +114,11 @@ export interface AgentModelConfig {
   thinking?: ThinkingLevel;
   /** 上下文模式（缺省：本机模型 省流，其他 均衡） */
   contextMode?: ContextMode;
+  /**
+   * 手填价格（美元 / 百万 token：in 输入、out 输出、cr 缓存读、cw 缓存写），优先于模型目录（./modelinfo.ts，数据来自 modelinfo.dev）；
+   * 目录里没有的模型用它估算费用。缺省：目录价格 → Claude 内置价格表 / pi 模型表 → 0
+   */
+  price?: { in: number; out: number; cr?: number; cw?: number };
   /** 部分 OpenAI 兼容模型可用；Claude 新模型不接受非默认采样参数，claude-native 会忽略 */
   temperature?: number;
   /** 旧字段：full → contextMode 完整，compact → 省流（contextMode 优先） */

@@ -31,6 +31,7 @@ export async function createProvider(c: Partial<AgentModelConfig>): Promise<LLMP
         browser: cfg.browser,
         maxOutputTokens: cfg.maxOutputTokens,
         refusalFallback: cfg.refusalFallback,
+        price: cfg.price,
       });
     }
     case 'pi': {

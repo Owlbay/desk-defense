@@ -6,12 +6,15 @@
  */
 import {
   type AgentModelConfig,
+  clampThinking,
   normalizeRelayBase,
   parseRelayUrl,
   type PiApi,
   type Preset,
   PRESETS,
   type RelayApi,
+  type ThinkingLevel,
+  thinkingSupport,
   validateConfigIssues,
 } from '../../agent';
 import { t, tOr } from '../../i18n';
@@ -47,6 +50,21 @@ export const baseUrlOf = (st: AiSetupSaved, s: AiSource = st.source): string =>
   isPreset(s) ? (st.per[s]?.baseUrl ?? PRESETS[s].baseUrl) : '';
 export const apiOf = (st: AiSetupSaved, s: AiSource = st.source): PiApi | undefined =>
   isPreset(s) ? (st.per[s]?.api ?? PRESETS[s].api) : undefined;
+
+/** 按模型记住设置用的键：小写、去空白 */
+export const modelKey = (m: string): string => m.trim().toLowerCase();
+/** 当前来源 + 模型的思考等级：这个模型记过就用记住的，否则用全局设置（缺省"自动"） */
+export const thinkingOf = (st: AiSetupSaved, s: AiSource = st.source): ThinkingLevel | 'auto' =>
+  st.thinkingByModel?.[modelKey(modelOf(st, s))] ?? st.thinking;
+/** 记住某个模型的思考等级 */
+export function setThinkingFor(st: AiSetupSaved, v: ThinkingLevel | 'auto', s: AiSource = st.source): void {
+  const k = modelKey(modelOf(st, s));
+  if (!k) st.thinking = v;
+  else (st.thinkingByModel ??= {})[k] = v;
+}
+/** 手填价格（当前来源的模型） */
+export const priceOverrideOf = (st: AiSetupSaved, s: AiSource = st.source): AgentModelConfig['price'] | undefined =>
+  st.priceByModel?.[modelKey(modelOf(st, s))];
 
 // ── 中转服务 ──
 export const relayMode = (st: AiSetupSaved): 'auto' | RelayApi => st.per.relay?.relayApi ?? 'auto';
@@ -90,11 +108,16 @@ export interface BuildOpts {
 /** 表单 / 保存的设置 → 模型配置（含按存放方式读取的 Key） */
 export function buildModelConfig(st: AiSetupSaved, o: BuildOpts): Partial<AgentModelConfig> {
   const dec = decisionFor(st, o.role, o.perRole);
+  const direct = st.tab === 'direct' && st.source !== 'demo';
+  const th = direct ? thinkingOf(st) : st.thinking;
+  const price = direct ? priceOverrideOf(st) : undefined;
   const common: Partial<AgentModelConfig> = {
     role: o.role,
     toolMode: st.toolMode,
     ...(st.contextMode !== 'auto' ? { contextMode: st.contextMode } : {}),
-    ...(st.thinking !== 'auto' ? { thinking: st.thinking } : {}),
+    // 按模型落档（模型目录里查得到时）：例如 DeepSeek 没有"中"→"低"
+    ...(th !== 'auto' ? { thinking: direct ? clampThinking(th, thinkingSupport(modelOf(st)).levels) : th } : {}),
+    ...(price ? { price } : {}),
     decision: { mode: dec.mode, ...(dec.waveIntervalSec !== null ? { waveIntervalSec: dec.waveIntervalSec } : {}) },
     budget: {
       ...(st.budgetTokens ? { tokens: st.budgetTokens } : {}),

@@ -8,6 +8,7 @@
 import {
   type AgentModelConfig,
   BYO_KEY_WARNING,
+  clampThinking,
   classifyRelayError,
   CLAUDE_MODELS,
   claudeThinkingPlan,
@@ -17,15 +18,20 @@ import {
   CONTEXT_MODES,
   type ContextMode,
   detectRelayApi,
+  estimateWaveCost,
   FAMILY_LABEL,
   groupModels,
   listModels,
   type LLMProvider,
+  lookupModel,
+  MODELINFO_SOURCE,
+  type ModelPrice,
   normalizeRelayBase,
   parseRelayUrl,
   type PiApi,
   type Preset,
   PRESETS,
+  priceOf,
   RELAY_API_LABEL,
   type RelayApi,
   type RelayDetection,
@@ -35,6 +41,7 @@ import {
   testConnection,
   THINKING_LABEL,
   type ThinkingLevel,
+  thinkingSupport,
 } from '../../agent';
 import type { WsLike } from '../../agent/bridge';
 import { fmtNumber, t, tOr } from '../../i18n';
@@ -43,6 +50,7 @@ import { audio } from '../audio';
 import { clear, copyText, fmtNum, h, setText } from '../dom';
 import { G } from '../icons';
 import { type BridgeConn, bridgeProvider, getBridge, setBridge } from './bridge-state';
+import { fmtCost } from './format';
 import type { AiRole } from './launch';
 import {
   apiOf,
@@ -51,16 +59,20 @@ import {
   isLocal,
   isPreset,
   modelConfigErrors,
+  modelKey,
   modelOf,
   perOf,
   presetLabel,
+  priceOverrideOf,
   relayApiNow,
   relayDetected,
   relayFor,
   relayMode,
   relayNeedsDetect,
+  setThinkingFor,
   SOURCE_ORDER,
   sourceLabelOf,
+  thinkingOf,
 } from './model-config';
 import { bridgeCommands, detectOs, localGuides, networkNotes, OS_NAME, type OsId, type SetupStep } from './snippets';
 import { type AiSetupSaved, type AiSource, forgetKey, type KeyMode, keyModeOf, loadSetup, readKey, saveSetup, writeKey } from './store';
@@ -89,9 +101,8 @@ const thinkingLabel = (l: ThinkingLevel): string => tOr(`agent.setup.thinking.${
 const ctxLabel = (m: ContextMode): string => tOr(`agent.setup.ctx.${m}`, CONTEXT_MODE_LABEL[m]);
 const ctxDesc = (m: ContextMode): string => tOr(`agent.setup.ctxDesc.${m}`, CONTEXT_MODES[m].desc);
 const familyLabel = (f: keyof typeof FAMILY_LABEL): string => tOr(`agent.setup.family.${f}`, FAMILY_LABEL[f]);
-/** 思考等级的选项：很高 / 最高只对 Claude 开放 */
-const thinkingOptions = (claude: boolean): ThinkingLevel[] =>
-  claude ? ['off', 'low', 'medium', 'high', 'xhigh', 'max'] : ['off', 'low', 'medium', 'high'];
+/** 每百万 token 的单价：$0.3 / $1.25 / $15 */
+const fmtUsd = (n: number): string => `$${n >= 100 ? Math.round(n) : Number(n.toPrecision(3))}`;
 
 const NET_ERR_RE = /connection error|failed to fetch|networkerror|load failed|fetch failed|econnrefused|enotfound|timed? ?out|abort/i;
 
@@ -240,6 +251,7 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
   let ready = false;
   const changed = (): void => {
     modelOpts.hidden = st.tab === 'bridge' || st.source === 'demo';
+    modelAdv.hidden = modelOpts.hidden;
     if (ready) o.onChange?.();
   };
   if (st.tab === 'direct' && !SOURCE_ORDER.includes(st.source)) st.source = 'demo';
@@ -430,7 +442,7 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
       ['full', ctxLabel('full'), ctxDesc('full')],
     ] as const,
     () => st.contextMode,
-    (v) => ((st.contextMode = v), persist(), paintCtxHint()),
+    (v) => ((st.contextMode = v), persist(), paintCtxHint(), paintPrice()),
     t('agent.setup.ctx.label'),
   );
   paintCtxHint();
@@ -444,11 +456,15 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
     t('agent.setup.decision.label'),
     '.two',
   );
-  // 思考等级：自动 / 无思考 / 低 / 中 / 高（Claude 另有 很高 / 最高）；提示按服务商与模型给出
+  // 思考等级：只列当前模型支持的档位（模型目录，数据来自 modelinfo.dev；查不到 = 通用档位），按模型分别记住
   const thinkingSel = h<HTMLSelectElement>('select.input', { attrs: { 'aria-label': t('agent.setup.thinking.label') } });
   const thinkingHint = h('small.muted');
+  const curModel = (): string => (st.source === 'demo' ? '' : modelOf(st).trim());
   const autoThinking = (): ThinkingLevel =>
-    st.source === 'relay' ? 'low' : isLocal(st.source) ? 'off' : st.source === 'demo' ? 'off' : 'medium';
+    clampThinking(
+      st.source === 'relay' ? 'low' : isLocal(st.source) ? 'off' : st.source === 'demo' ? 'off' : 'medium',
+      thinkingSupport(curModel()).levels,
+    );
   const thinkingNote = (lv: ThinkingLevel): string => {
     const s = st.source;
     if (s === 'demo') return t('agent.setup.thinking.demo');
@@ -460,28 +476,108 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
     if (isLocal(s)) return t('agent.setup.thinking.local');
     return lv === 'off' ? t('agent.setup.thinking.otherOff') : t('agent.setup.thinking.otherOn');
   };
+  /** 模型目录对这个模型的说明：支持哪些档位 / 不支持思考 / 没收录 */
+  const supportNote = (): string => {
+    const m = curModel();
+    if (!m || isLocal(st.source)) return '';
+    const info = lookupModel(m);
+    if (!info) return t('agent.mi.think.unknown');
+    const sup = thinkingSupport(m, info);
+    if (!sup.reasoning) return t('agent.mi.think.noReasoning', { model: info.name });
+    return t('agent.mi.think.levels', { model: info.name, levels: sup.levels.map(thinkingLabel).join(' / ') });
+  };
   const paintThinking = (): void => {
-    const claude = st.source === 'claude';
-    const opts = thinkingOptions(claude);
-    if (st.thinking !== 'auto' && !opts.includes(st.thinking)) st.thinking = 'high';
+    const opts = thinkingSupport(curModel()).levels;
+    const cur = thinkingOf(st);
+    const sel: ThinkingLevel | 'auto' = cur === 'auto' ? 'auto' : clampThinking(cur, opts);
     clear(thinkingSel);
     const auto = autoThinking();
     thinkingSel.appendChild(
-      h(
-        'option',
-        { attrs: { value: 'auto', selected: st.thinking === 'auto' } },
-        t('agent.setup.thinking.auto', { v: thinkingLabel(auto) }),
-      ),
+      h('option', { attrs: { value: 'auto', selected: sel === 'auto' } }, t('agent.setup.thinking.auto', { v: thinkingLabel(auto) })),
     );
-    for (const e of opts) thinkingSel.appendChild(h('option', { attrs: { value: e, selected: e === st.thinking } }, thinkingLabel(e)));
-    setText(thinkingHint, thinkingNote(st.thinking === 'auto' ? auto : st.thinking));
+    for (const e of opts) thinkingSel.appendChild(h('option', { attrs: { value: e, selected: e === sel } }, thinkingLabel(e)));
+    const lv = sel === 'auto' ? auto : sel;
+    setText(thinkingHint, [supportNote(), thinkingNote(lv), t('agent.mi.think.perModel')].filter(Boolean).join(' '));
   };
   thinkingSel.onchange = () => {
-    st.thinking = thinkingSel.value as ThinkingLevel | 'auto';
+    setThinkingFor(st, thinkingSel.value as ThinkingLevel | 'auto');
     persist();
     paintThinking();
   };
   paintThinking();
+
+  // 价格：手填 > 模型目录；「约 $x / 每波」按上下文模式的离线估算（思考"低"）
+  const priceLine = h('small.muted.ai-price');
+  const paintPrice = (): void => {
+    const m = curModel();
+    priceField.hidden = !m || st.tab !== 'direct';
+    if (priceField.hidden) return;
+    if (isLocal(st.source) && !priceOverrideOf(st)) return setText(priceLine, t('agent.mi.priceLocal'));
+    const manual = priceOverrideOf(st);
+    const p = priceOf(m, manual) ?? (st.source === 'claude' ? priceOf('claude-opus-5-5') : null);
+    if (!p) return setText(priceLine, t('agent.mi.priceUnknown'));
+    const ctx = st.contextMode === 'auto' ? autoCtx() : st.contextMode;
+    const parts = [
+      t(manual ? 'agent.mi.priceManual' : 'agent.mi.priceKnown', { in: fmtUsd(p.in), out: fmtUsd(p.out) }),
+      p.cr !== null && p.cr !== undefined ? t('agent.mi.cache', { cr: fmtUsd(p.cr) }) : '',
+      t('agent.mi.perWave', { cost: fmtCost(estimateWaveCost(CONTEXT_MODES[ctx].estTokensPerWave, p)) }),
+      manual ? '' : t('agent.mi.source', { date: MODELINFO_SOURCE.date }),
+    ].filter(Boolean);
+    setText(priceLine, parts.join(' · '));
+  };
+
+  // 手填价格（高级设置）：只对当前模型生效，留空 = 用目录价格
+  const priceBox = h('div.ai-price-inputs');
+  const priceHint = h('small.muted');
+  const paintPriceInputs = (): void => {
+    clear(priceBox);
+    const m = curModel();
+    const cur = priceOverrideOf(st);
+    const catalog = lookupModel(m)?.price ?? null;
+    const keys = ['in', 'out', 'cr', 'cw'] as const;
+    for (const k of keys) {
+      const el = h<HTMLInputElement>('input.input', {
+        attrs: {
+          type: 'number',
+          inputmode: 'decimal',
+          min: 0,
+          step: 0.01,
+          autocomplete: 'off',
+          placeholder: catalog && catalog[k] !== null && catalog[k] !== undefined ? String(catalog[k]) : '',
+          'aria-label': t(`agent.mi.price.${k}`),
+        },
+      });
+      if (cur && cur[k] !== undefined) el.value = String(cur[k]);
+      el.addEventListener('change', () => {
+        const key = modelKey(m);
+        if (!key) return;
+        const n = Number(el.value);
+        const next: Partial<ModelPrice> = { ...(st.priceByModel?.[key] ?? {}) };
+        if (el.value.trim() === '' || !Number.isFinite(n) || n < 0) delete next[k];
+        else next[k] = n;
+        const map = (st.priceByModel ??= {});
+        if (next.in === undefined && next.out === undefined && next.cr == null && next.cw == null) delete map[key];
+        else
+          map[key] = {
+            in: next.in ?? catalog?.in ?? 0,
+            out: next.out ?? catalog?.out ?? 0,
+            ...(typeof next.cr === 'number' ? { cr: next.cr } : {}),
+            ...(typeof next.cw === 'number' ? { cw: next.cw } : {}),
+          };
+        persist();
+        paintPrice();
+      });
+      priceBox.appendChild(h('label.ai-price-field', null, h('span.muted.small', null, t(`agent.mi.price.${k}`)), el));
+    }
+    setText(priceHint, t('agent.mi.price.hint', { model: m || '—' }));
+  };
+  /** 换了来源 / 模型：思考档位、价格、手填价格都按新模型重画 */
+  const modelChanged = (): void => {
+    paintThinking();
+    paintPrice();
+    paintPriceInputs();
+  };
+
   const budgetModeSeg = segs(
     [
       ['soft', t('agent.setup.budget.soft'), t('agent.setup.budget.softHint')],
@@ -532,7 +628,7 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
       if (isLocal(st.source) && st.waveIntervalSec !== null) st.waveIntervalSec = Math.max(20, st.waveIntervalSec);
       intervalInput.value = st.waveIntervalSec === null ? '' : String(st.waveIntervalSec);
       persist();
-      paintThinking();
+      modelChanged();
       paintCtxHint();
       paintDirect();
       paintDiag();
@@ -699,7 +795,7 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
       perOf(st, s).model = modelInput.value.trim();
       persist();
       if (s === 'relay') relayChanged();
-      if (s === 'claude') paintThinking();
+      modelChanged();
       changed();
       paintErrors();
     });
@@ -711,6 +807,7 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
       perOf(st, s).model = m;
       persist();
       relayChanged();
+      modelChanged();
       paintPicker();
     };
     const pickerFilter = h<HTMLInputElement>('input.input', {
@@ -790,6 +887,7 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
                 modelInput.value = r.models[0];
                 perOf(st, s).model = r.models[0];
                 persist();
+                modelChanged();
                 changed();
               }
             }
@@ -1198,19 +1296,31 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
     bridgeBox.hidden = st.tab !== 'bridge';
     // 模型参数由桥接器自己的启动参数决定
     modelOpts.hidden = st.tab === 'bridge' || st.source === 'demo';
+    modelAdv.hidden = modelOpts.hidden;
     if (st.tab === 'direct') paintDirect();
     else paintBridge();
+    paintPrice();
     paintDiag();
     changed();
     paintErrors();
   };
-  const modelOpts = h(
-    'div.ai-grid',
-    null,
+  // 常用：思考等级（按模型）+ 价格；其余放进折叠的「高级设置」（工具模式由测试连接自动判断，上下文模式默认均衡）
+  const priceField = field(t('agent.mi.price.title'), priceLine);
+  const modelOpts = h('div.ai-grid', null, field(t('agent.setup.thinking.label'), thinkingSel, thinkingHint), priceField);
+  const advanced = (...children: (HTMLElement | null)[]): HTMLDetailsElement =>
+    h<HTMLDetailsElement>(
+      'details.ai-guide.ai-adv',
+      null,
+      h('summary', null, h('span.gi', { html: G.list }), t('agent.mi.adv')),
+      h('div.ai-guide-body', null, ...children),
+    );
+  const modelAdv = advanced(
+    h('p.muted.small', null, t('agent.mi.advHint')),
     field(t('agent.setup.tool.label'), toolSeg.el, t('agent.setup.tool.fieldHint')),
     field(t('agent.setup.ctx.label'), ctxSeg.el, ctxHint),
-    field(t('agent.setup.thinking.label'), thinkingSel, thinkingHint),
+    field(t('agent.mi.price.label'), priceBox, priceHint),
   );
+  modelChanged();
 
   const modelCard = h(
     'section.card.section.ai-card',
@@ -1221,6 +1331,7 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
     bridgeBox,
     diagBox,
     modelOpts,
+    modelAdv,
   );
   const decisionCard = h(
     'section.card.section.ai-card',
@@ -1230,11 +1341,11 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
       'div.ai-grid',
       null,
       field(t('agent.setup.decision.label'), decisionSeg.el, o.perRole ? t('ui.assist.decisionHint') : t('agent.setup.decision.fieldHint')),
-      field(t('agent.setup.interval.label'), intervalInput, t('agent.setup.interval.hint')),
       field(t('agent.setup.budget.tokens'), tokenInput, t('agent.setup.budget.tokensHint')),
       field(t('agent.setup.budget.over'), budgetModeSeg.el, t('agent.setup.budget.overHint')),
       field(t('agent.setup.budget.usd'), usdInput, t('agent.setup.budget.usdHint')),
     ),
+    advanced(field(t('agent.setup.interval.label'), intervalInput, t('agent.setup.interval.hint'))),
   );
   paintTabs();
   ready = true;

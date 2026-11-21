@@ -113,14 +113,14 @@ export function createDuelController(o: DuelControllerOptions): AgentController 
   const poll = (): void => {
     if (!att || !def || busy || userPaused || status === 'stopped' || status === 'error') return;
     const reasons = detector.check(w);
-    if (!reasons) return;
-    const point = detector.point(w, reasons);
-    const build = reasons.includes('build') || reasons.includes('game_start');
-    const attackNow = build && attackDue();
+    // 下一波一开始就出题（战斗中也行），自动开波 / 选完增益马上开波都不会漏
+    const attackNow = attackDue();
+    if (!reasons && !attackNow) return;
+    const point = detector.point(w, reasons ?? []);
     const wasPaused = session.paused;
     busy = true;
     session.togglePause(true);
-    const ev = recent.splice(0, recent.length);
+    const ev = reasons ? recent.splice(0, recent.length) : [];
     const a = att;
     const d = def;
     void (async () => {
@@ -128,13 +128,13 @@ export function createDuelController(o: DuelControllerOptions): AgentController 
         // 进攻方先出题：防守方的推进保证会开波，顺序不能反
         if (attackNow) await planNow(a, point);
         if (stopped()) return;
-        await decideSide(d, 'defend', point, ev);
+        if (reasons) await decideSide(d, 'defend', point, ev);
         // 防守方刚选完增益、回到建造阶段：下一波还没出题（开波被 holdWaveStart 挡住）→ 进攻方现在出题
         if (!stopped() && attackDue()) await planNow(a, detector.point(w, ['build']));
       } catch (e) {
         emit({ type: 'error', message: e instanceof Error ? e.message : String(e) });
       } finally {
-        detector.done(w);
+        if (reasons) detector.done(w);
         busy = false;
         if (!stopped()) {
           if (!wasPaused && !userPaused) session.togglePause(false);

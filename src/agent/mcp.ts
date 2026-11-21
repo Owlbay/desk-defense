@@ -14,7 +14,7 @@ import { boardForOpts } from '../shared/leaderboard';
 import { renderObservation } from './observation';
 import { runHeader, systemBlocks } from './prompts';
 import { AgentScheduler } from './scheduler';
-import { executeTool, type JsonSchema, LEGACY_TOOLS, type ObjectSchema, SLIM_TOOLS, validateAgainst } from './tools';
+import { executeTool, type JsonSchema, LEGACY_TOOLS, normalizeAction, type ObjectSchema, SLIM_TOOLS, validateAgainst } from './tools';
 import type { AgentReplay, DecisionPoint } from './types';
 
 export interface McpToolSpec {
@@ -148,6 +148,12 @@ export class McpGameServer {
   callTool(name: string, args: Record<string, unknown> = {}): McpCallResult {
     const spec = this.listTools().find((t) => t.name === name);
     if (!spec) return text(`unknown tool ${name}`, true);
+    // act 的旧意图名（anti_air / combo / support / economy / rebuild_maze）先改写成合并后的写法再校验
+    if (name === 'act' && Array.isArray(args.actions))
+      args = {
+        ...args,
+        actions: (args.actions as Record<string, unknown>[]).map((a) => (a && typeof a === 'object' ? normalizeAction(a) : a)),
+      };
     const errs = validateAgainst(spec.inputSchema, args);
     if (errs.length) return text(`invalid input: ${errs.join('; ')}`, true);
     if (name === 'new_game') return this.newGame(args);

@@ -45,8 +45,12 @@ export interface AiSetupSaved {
   toolMode: 'native' | 'json';
   /** 上下文模式；auto = 本机模型 省流、其他 均衡 */
   contextMode: ContextMode | 'auto';
-  /** 思考等级；auto = 中转 低、本机 无思考、其他 中 */
+  /** 思考等级；auto = 中转 低、本机 无思考、其他 中。按模型记住的等级见 thinkingByModel（没记过的模型用这个） */
   thinking: ThinkingLevel | 'auto';
+  /** 每个模型各自记住的思考等级（键 = 小写模型名，见 model-config.ts modelKey） */
+  thinkingByModel?: Record<string, ThinkingLevel | 'auto'>;
+  /** 手填价格（美元 / 百万 token），按模型记住；优先于模型目录（modelinfo.dev） */
+  priceByModel?: Record<string, { in: number; out: number; cr?: number; cw?: number }>;
   /** 超出预算时：soft 压缩后继续（默认）/ hard 交给机器人 / ask 暂停并询问 */
   budgetMode: 'soft' | 'hard' | 'ask';
   /** 旧版本保存的字段（读取时迁移） */

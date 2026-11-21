@@ -88,14 +88,14 @@ describe('leak intelligence', () => {
     const hit = leaks.find((l) => l.towers.length);
     if (hit) expect(hit.towers[0].id).toBe('pencil');
     const line = withLocale(SOURCE_LOCALE, () => leakLine(w, leaks)!);
-    expect(line).toMatch(/^LK w1 漏\d+: 橡皮屑×\d+\(.*剩\d+%血 射程内\d+% north .*(无覆盖|仅1塔)/);
+    expect(line).toMatch(/^LK w1 n\d+ \| north: cr×\d+\(hp\d+ in\d+ .*gap[01]/);
     expect(estimateTokens(line)).toBeLessThan(120);
     const gap = gapLine(w, intel)!;
-    expect(gap).toMatch(/^GAP .*north .*×\d+ → \{do:"build_near",purpose:"dps",target:"seg:\d+,\d+-\d+,\d+"\}/);
+    expect(gap).toMatch(/^GAP5 .*north .*×\d+ → \{do:"build_near",purpose:"dps",target:"seg:\d+,\d+-\d+,\d+"\}/);
     // 击杀分布
     const kills = intel.takeKills();
     const kh = killLine(w, kills);
-    if ([...kills.values()].reduce((a, b) => a + b, 0) >= 3) expect(kh).toMatch(/^KH 击杀 \d+: 前\/中\/后段/);
+    if ([...kills.values()].reduce((a, b) => a + b, 0) >= 3) expect(kh).toMatch(/^KH \d+ f\/m\/l \d+\/\d+\/\d+ hot x\d+-\d+ y\d+-\d+ \d+/);
   });
 
   it('gap detection: longest uncovered run (≥2), else longest single-tower run (≥3)', () => {
@@ -132,8 +132,10 @@ describe('leak intelligence', () => {
       mk('ant', 1),
     ];
     const line = withLocale(SOURCE_LOCALE, () => leakLine(w, leaks, 4)!);
-    expect(line).toMatch(/^LK w3 漏7: 橡皮屑×3\(均剩40%血/);
-    expect(line).toMatch(/\+1种$/);
+    // 按进攻路线分段：地面 north、飞行 air:north（与 AR 同名）
+    expect(line).toMatch(/^LK w3 n7 \| north: cr×3\(hp40 in40 top-\)/);
+    expect(line).toMatch(/ \| air:north: pl\^×1\(hp80 in40 top-\)/);
+    expect(line).toMatch(/ \| \+1$/);
   });
 });
 
@@ -243,7 +245,7 @@ describe('board check & reclaim', () => {
     for (const id of ['pencil', 'pencil', 'pencil'] as const) p.buildNear(id, 'route', 1);
     const cb = comboLine(w)!;
     expect(cb).toMatch(/^CB /);
-    expect(cb).toMatch(/\{do:"combo",pair:"glue\+stapler"\}/);
+    expect(cb).toMatch(/\{do:"build_near",pair:"glue\+stapler"\}/);
   });
 });
 
@@ -309,11 +311,27 @@ describe('prefix', () => {
     expect(a).toEqual(b);
     const cs = a[1];
     expect(estimateTokens(cs)).toBeLessThan(1250);
-    expect(estimateTokens(a[0])).toBeLessThan(1300);
+    expect(estimateTokens(a[0])).toBeLessThan(1800);
     for (const c of COMBOS) expect(cs).toContain(`${c.a}+${c.b}`);
     for (const pu of ['armor', 'aoe', 'slow', 'air', 'stealth', 'boss', 'antiheal', 'shield']) expect(cs).toContain(`${pu}(`);
     expect(cs).toMatch(/Wall next to attack towers/);
     expect(a[0]).toMatch(/reclaim/);
+    // 术语表覆盖观测里的每个短键 / 附加行；打法手册给出开局、阶段计划、增益与分支
+    for (const k of ['# Glossary', '# Playbook', 'gap0', 'gap1', 'f/m/l', 'LATE', 'x25|50|75', 'GAPn', '安全 ≥2', 'MAP'])
+      expect(a[0]).toContain(k);
+    for (const k of [
+      '{do:"spend",reserve:0}',
+      'tower:"piggy"',
+      'tower:"calculator"',
+      'purpose:"air"',
+      'rebuild:true',
+      'legend',
+      'w60+',
+      '魔境',
+    ])
+      expect(a[0]).toContain(k);
+    for (const k of ['LK', 'GAP', 'KH', 'TH', 'CTR', 'BR', 'RC', 'CB', 'MZ', 'IDLE', 'EVT', 'AR', 'Rp', 'Rs', 'EG'])
+      expect(a[0]).toMatch(new RegExp(`\\b${k}\\b`));
     expect(cheatSheet()).toBe(withLocale(SOURCE_LOCALE, () => cheatSheet()));
   });
 

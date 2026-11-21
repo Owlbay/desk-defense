@@ -12,7 +12,7 @@ export default {
   'agent.duel.side.attack': '攻',
   'agent.duel.side.defend': '守',
   'agent.duel.lineThinking': '{model} 思考中：{reasons}',
-  'agent.duel.lineWaitAttack': '{model}：次の建設フェーズで出題',
+  'agent.duel.lineWaitAttack': '{model}：次のウェーブ開始後にその次を出題',
   'agent.duel.lineWaitDefend': '{model}：次の判断ポイントを待機中',
   'agent.duel.lineStopped': '{model}：停止しました',
   'agent.duel.planAct': '出題：{plan}',
@@ -26,5 +26,5 @@ export default {
   'agent.duel.setupNote':
     '各建設フェーズでは攻撃側が先に次のウェーブを書き換え、その後に防衛側が判断します。両方とも一時停止モードで、ランキング対象外です。',
   'agent.duel.attackNote':
-    'AI は建設フェーズでのみ出題し（一時停止モード）、あなたが防衛します。オンラインには送信せず、ローカルにのみ記録します。',
+    '各ウェーブの開始と同時に AI が次のウェーブを裏で出題します（一時停止なし。出題前に開始すると少し待ちます）。あなたは防衛。ランキングには送信せず、ローカル記録のみ。',
 } satisfies Dict;

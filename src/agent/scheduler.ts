@@ -125,6 +125,11 @@ export class AgentScheduler {
   private maxWaveEnded = false;
   /** 事件监听（runner 用来驱动兜底机器人的 onWaveStart 等钩子、统计每波数据） */
   onEvent?: (ev: GameEvent) => void;
+  /**
+   * 额外的打断条件（AI 对战：下一波还没出题 → 立刻停下让进攻方出题）。
+   * 返回 true 时 advance() 交出一个 reasons 为空的决策点，只给进攻方用。
+   */
+  interrupt?: () => boolean;
 
   constructor(
     readonly world: IWorld,
@@ -195,6 +200,7 @@ export class AgentScheduler {
     for (;;) {
       this.drain();
       if (this.stopped) return null;
+      if (this.interrupt?.()) return this.detector.point(w, []);
       const reasons = this.detector.check(w);
       if (reasons) return this.detector.point(w, reasons);
       if (n >= maxTicks) return null;

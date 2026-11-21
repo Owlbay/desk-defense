@@ -1467,3 +1467,15 @@ html.tab-hidden .ai-hud[data-status] .ai-dot {
   background: var(--warn);
   box-shadow: 0 0 0 1.5px var(--surface);
 }
+
+/* 手填价格（高级设置）：四个小输入框一行排开，窄屏自动换行 */
+.ai-price-inputs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+}
+
+.ai-price-field {
+  display: grid;
+  gap: 4px;
+}

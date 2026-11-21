@@ -1,7 +1,21 @@
 import type { GameEvent, SkillId, TowerId } from '../core/types';
-import { MusicEngine, type MusicState } from './music';
+import { MUSIC_STYLES, MusicEngine, type MusicState, type MusicStylePref } from './music';
 
-export type { MusicState } from './music';
+export type { MusicState, MusicStyle, MusicStylePref } from './music';
+export { MUSIC_STYLES } from './music';
+
+/** 配乐风格偏好（自动轮换 / 固定一套），存在本机 localStorage，与存档无关 */
+const MUSIC_STYLE_KEY = 'desk-defense.musicStyle.v1';
+
+function loadStylePref(): MusicStylePref {
+  try {
+    const v = localStorage.getItem(MUSIC_STYLE_KEY);
+    if (v && (MUSIC_STYLES as readonly string[]).includes(v)) return v as MusicStylePref;
+  } catch {
+    /* 隐私模式等：用默认 */
+  }
+  return 'auto';
+}
 
 /**
  * 合成音效（WebAudio，无音频文件）+ 生成式原创配乐（见 music.ts）。
@@ -75,6 +89,7 @@ class AudioEngine {
   private musicWanted = false;
   private music: MusicEngine | null = null;
   private musicState: MusicState = 'menu';
+  private stylePref: MusicStylePref = loadStylePref();
   /** 结算短乐句播放中：忽略之后到达的波次事件，直到页面切换重新指定状态 */
   private musicLocked = false;
   unlocked = false;
@@ -132,6 +147,7 @@ class AudioEngine {
       this.unlocked = true;
       if (!this.music && this.musicBus && this.noiseBuf) {
         this.music = new MusicEngine(this.ctx, this.musicBus, this.noiseBuf);
+        this.music.setStylePref(this.stylePref);
         this.music.setState(this.musicState);
       }
       this.syncMusic();
@@ -553,6 +569,22 @@ class AudioEngine {
   setMusic(on: boolean): void {
     this.musicWanted = on;
     this.syncMusic();
+  }
+
+  /** 配乐风格：'auto' = 自动轮换（默认），否则固定某一套曲风 */
+  get musicStyle(): MusicStylePref {
+    return this.stylePref;
+  }
+
+  setMusicStyle(p: MusicStylePref): void {
+    this.stylePref = p;
+    try {
+      if (p === 'auto') localStorage.removeItem(MUSIC_STYLE_KEY);
+      else localStorage.setItem(MUSIC_STYLE_KEY, p);
+    } catch {
+      /* 存不了就只对本次生效 */
+    }
+    this.music?.setStylePref(p);
   }
 
   /** 切换配乐状态（菜单 / 布防 / 波次 / Boss / 胜负短乐句），自动交叉淡化 */

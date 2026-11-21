@@ -21,12 +21,14 @@ import Anthropic from '@anthropic-ai/sdk';
 
 import { t } from '../../i18n';
 import type { Effort, ThinkingLevel } from '../config';
+import { type ModelPrice, priceOf, usageCost } from '../modelinfo';
 import { claudeThinkingPlan } from '../thinking';
 import { blobRef, hashText, hostOf } from '../trace';
 import { emptyUsage, type TokenUsage } from '../types';
 import { type DecisionContext, type DecisionOutcome, LIMIT_TEXT, type LLMProvider } from './types';
 
-/** 美元 / 百万 token（估算；以 Anthropic 账单为准）。cacheWrite 按 5 分钟缓存 = 1.25× 输入 */
+/** 美元 / 百万 token（估算；以 Anthropic 账单为准）。cacheWrite 按 5 分钟缓存 = 1.25× 输入。
+ *  只在模型目录（../modelinfo.ts）查不到、也没有手填价格时兜底 */
 export const CLAUDE_PRICES: Record<string, { input: number; output: number; cacheRead: number; cacheWrite: number }> = {
   'claude-opus-5-5': { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
   'claude-sonnet-5-5': { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 },
@@ -34,7 +36,10 @@ export const CLAUDE_PRICES: Record<string, { input: number; output: number; cach
   'claude-fable-5-2': { input: 8, output: 40, cacheRead: 0.2, cacheWrite: 10 },
 };
 
-export function claudeCost(model: string, u: TokenUsage): number {
+/** 费用：手填 > 模型目录 > 内置价格表（未知模型按 Opus 5.5） */
+export function claudeCost(model: string, u: TokenUsage, override?: ModelPrice | null): number {
+  const known = priceOf(model, override);
+  if (known) return usageCost(u, known);
   const p = CLAUDE_PRICES[model] ?? CLAUDE_PRICES['claude-opus-5-5'];
   return (u.inputTokens * p.input + u.outputTokens * p.output + u.cacheReadTokens * p.cacheRead + u.cacheWriteTokens * p.cacheWrite) / 1e6;
 }
@@ -52,6 +57,8 @@ export interface ClaudeProviderOptions {
   browser?: boolean;
   maxOutputTokens?: number;
   refusalFallback?: boolean;
+  /** 手填价格（美元 / 百万 token），优先于模型目录 */
+  price?: ModelPrice;
   /** 测试注入 */
   client?: Anthropic;
 }
@@ -63,12 +70,14 @@ export class ClaudeProvider implements LLMProvider {
   private readonly thinking: ThinkingLevel;
   private readonly maxOut: number;
   private readonly fallback: boolean;
+  private readonly price?: ModelPrice;
 
   constructor(o: ClaudeProviderOptions = {}) {
     this.model = o.model ?? 'claude-opus-5-5';
     this.thinking = o.thinking ?? o.effort ?? 'medium';
     this.maxOut = o.maxOutputTokens ?? 16000;
     this.fallback = (o.refusalFallback ?? true) && FALLBACK_MODELS.has(this.model);
+    this.price = o.price;
     this.client =
       o.client ??
       (o.apiKey
@@ -189,7 +198,7 @@ export class ClaudeProvider implements LLMProvider {
             stop: res.message.stop_reason ?? undefined,
             usage: u1,
             ms,
-            costUsd: claudeCost(this.model, u1),
+            costUsd: claudeCost(this.model, u1, this.price),
             raw: res.message,
           });
         }
@@ -229,7 +238,7 @@ export class ClaudeProvider implements LLMProvider {
     } catch (err) {
       out.error = describeClaudeError(err);
     }
-    out.costUsd = claudeCost(this.model, usage);
+    out.costUsd = claudeCost(this.model, usage, this.price);
     if (texts.length) out.text = texts.join('\n').slice(0, 2000);
     return out;
   }

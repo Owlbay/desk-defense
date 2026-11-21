@@ -14,6 +14,7 @@ src-tauri/
 # 生成文件
 art/gallery.html
 docs/guide/数据/
+src/agent/modelinfo.data.json
 
 # 二进制资源
 public/*.png

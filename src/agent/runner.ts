@@ -202,6 +202,8 @@ export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Pro
     }
   };
 
+  // AI 对战：每波一开始就给再下一波出题（自动开波时下一波可能不经过建造阶段）
+  if (attacker) sched.interrupt = attackDue;
   let cancelled = false;
   for (;;) {
     if (agent.signal?.aborted) {
@@ -210,6 +212,16 @@ export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Pro
     }
     const point = sched.advance();
     if (!point) break;
+    // 打断点（reasons 为空）：上一波刚开始、下一波还没出题 → 只让进攻方出题
+    if (point.reasons.length === 0) {
+      if (attacker && attackDue()) {
+        askedWave = world.attackContext!()!.wave;
+        const ar = await attacker.decide(point, []);
+        ar.side = 'attack';
+        agent.onDecision?.(ar, world);
+      } else askedWave = world.attackContext?.()?.wave ?? askedWave;
+      continue;
+    }
     // AI 对战：进攻方先出题（必须在防守方开波之前），再轮到防守方
     const planFor = async (p: typeof point): Promise<void> => {
       if (!attacker || !attackDue() || !attacker.attackPending(p)) return;

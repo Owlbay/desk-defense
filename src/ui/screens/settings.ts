@@ -2,7 +2,7 @@ import { getLocale, LOCALES, setLocale, t } from '../../i18n';
 import { getAutoUpload, setAutoUpload } from '../../meta/online';
 import { AI_GLYPH } from '../ai/icon';
 import { type App, applySettings, confirmDialog, type Screen, screenHeader } from '../App';
-import { audio } from '../audio';
+import { audio, MUSIC_STYLES, type MusicStylePref } from '../audio';
 import { h } from '../dom';
 import { G } from '../icons';
 import { rememberLocale } from '../locale';
@@ -152,6 +152,33 @@ export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLEle
     return h('label.slider-row', null, h('span.slider-label', null, h('span.gi', { html: glyph }), h('b', null, label)), out, input);
   };
 
+  // 配乐风格：自动轮换（默认，新曲风优先）或固定一套；存在本机，不进存档
+  const styleLabel = t('ui.music.style');
+  const styleSeg = h('div.seg-grid.three', { attrs: { role: 'radiogroup', 'aria-label': styleLabel } });
+  const renderStyle = () => {
+    const cur = audio.musicStyle;
+    const opts: MusicStylePref[] = ['auto', ...MUSIC_STYLES];
+    styleSeg.replaceChildren(
+      ...opts.map((p) =>
+        h(
+          `button.seg${cur === p ? '.on' : ''}`,
+          {
+            attrs: { role: 'radio', 'aria-checked': String(cur === p), 'data-focus-key': `music-style-${p}` },
+            onclick: () => {
+              audio.play('click');
+              if (p === audio.musicStyle) return;
+              audio.setMusicStyle(p);
+              renderStyle();
+              popSelected(styleSeg);
+            },
+          },
+          t(`ui.music.style.${p}`),
+        ),
+      ),
+    );
+  };
+  renderStyle();
+
   // 语言：每种语言用它自己的文字显示；切换后 App 会重新渲染当前页面（对局中就地刷新 HUD）
   const langSeg = h('div.seg-grid.two', { attrs: { role: 'radiogroup', 'aria-label': t('common.language') } });
   const renderLang = () => {
@@ -205,6 +232,8 @@ export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLEle
       h('h3', null, t('ui.settings.sound')),
       volume(t('ui.settings.sfx'), G.sound, 'sfx'),
       volume(t('ui.settings.music'), G.music, 'music'),
+      h('div.field-label', null, h('b', null, styleLabel), h('small.muted', null, t('ui.music.styleHint'))),
+      styleSeg,
     ),
     h(
       'section.card.section',

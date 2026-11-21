@@ -28,6 +28,8 @@ import {
   toolsForRole,
   validateAgainst,
 } from '../../src/agent';
+import { compactObservation } from '../../src/agent';
+import { McpGameServer } from '../../src/agent/mcp';
 import { type Command, createWorld, type IWorld, type MapId, type RunOptions, stateHash } from '../../src/core';
 import { replaySync } from '../../src/meta/midrun';
 
@@ -138,6 +140,14 @@ describe('planner intents', () => {
     const p = new Planner(w, (c) => w.command(c));
     p.buildNear('pencil', 'route', 3);
     w.state.gold = 200;
+    // 3 座塔时买新铅笔更划算：upgrade_best 拒绝并指向 spend（与 spend 同一口径）
+    const no = p.upgradeBest(2);
+    expect(no.done).toBe(0);
+    expect(no.text).toMatch(/stop: a new \w+ is worth more per gold now .*\{do:"spend"\}/);
+    // 攻击塔到上限（第 1 波前 9 座）后就升级
+    w.state.gold = 400;
+    p.buildNear('pencil', 'route', 6);
+    w.state.gold = 200;
     const u = p.upgradeBest(2);
     expect(u.done).toBe(2);
     expect([...w.state.towers.values()].some((t) => t.level >= 2)).toBe(true);
@@ -158,6 +168,57 @@ describe('planner intents', () => {
     expect(o.done).toBe(1);
     expect(flightLines(w)[0].aa).toBeGreaterThan(before);
     expect([...w.state.towers.values()].some((t) => t.id === 'swatter' || t.id === 'pencil')).toBe(true);
+  });
+
+  it('opening maze keeps gold for the first 4 pencils (no tower-less wave 1)', () => {
+    const w = createWorld(opts('pl-open'));
+    const r = act(w, [{ do: 'maze' }, { do: 'spend', reserve: 0 }]);
+    expect(r.text).toMatch(/^1 OK maze serpentine: \+\d+ walls/);
+    expect([...w.state.towers.values()].filter((t) => t.id === 'pencil').length).toBeGreaterThanOrEqual(4);
+    expect(allRoutesOpen(w)).toBe(true);
+  });
+
+  it('anti_air skips a flight line that is already safe (count ≥2 forces a build)', () => {
+    const w = createWorld(opts('pl-aa'));
+    // 放塔会重算下一波预告：每次调用前重新设成"2 架纸飞机"
+    const air = () => {
+      w.state.nextWave = {
+        ...w.state.nextWave,
+        tags: ['air'],
+        groups: [{ enemy: 'plane', count: 2, elite: 0, affixes: [], spawner: 'north' }],
+      };
+    };
+    w.state.gold = 1000;
+    const p = new Planner(w, (c) => w.command(c));
+    air();
+    expect(p.antiAir('north', 1).done).toBe(1);
+    for (let k = 0; k < 6; k++) {
+      air();
+      if (threatEstimate(w)[0].ratio >= 2) break;
+      expect(p.antiAir('north', 2).done).toBeGreaterThan(0);
+    }
+    air();
+    expect(threatEstimate(w)[0].ratio).toBeGreaterThanOrEqual(2);
+    const n = w.state.towers.size;
+    expect(p.antiAir('north', 1).text).toMatch(/already safe ×[\d.]+ — skipped/);
+    expect(w.state.towers.size).toBe(n);
+    air();
+    expect(p.antiAir('north', 2).done).toBeGreaterThan(0);
+  });
+
+  it('spend rotation counts support towers (no endless calculators) and brings piggies / calculators in', () => {
+    const w = createWorld(opts('pl-rot'));
+    w.state.wave = 20; // 攻击塔上限随波数放宽（8 + 1.5×波）
+    const p = new Planner(w, (c) => w.command(c));
+    w.state.gold = 4000;
+    p.maze('serpentine', 400);
+    for (let k = 0; k < 6; k++) p.spend(0, 'towers');
+    const n = (id: string) => [...w.state.towers.values()].filter((t) => t.id === id).length;
+    expect(n('calculator')).toBeGreaterThanOrEqual(1);
+    expect(n('calculator')).toBeLessThanOrEqual(4);
+    expect(n('piggy')).toBeGreaterThanOrEqual(1);
+    expect(n('pencil')).toBeGreaterThan(n('calculator') * 3);
+    expect(allRoutesOpen(w)).toBe(true);
   });
 
   it('never blocks a path: random intent sequences on every map, through waves and terrain events', () => {
@@ -196,6 +257,13 @@ describe('planner intents', () => {
   it('save holds gold and silences the idle nudge until the target', () => {
     const w = createWorld(opts('pl-6'));
     const ps = {};
+    // 空棋盘：下一波"危险"，攒钱被拒
+    expect(act(w, [{ do: 'save', until: 300 }], { planner: ps }).text).toMatch(/save refused: next wave 危险 on north/);
+    const p = new Planner(w, (c) => w.command(c));
+    w.state.gold = 400;
+    p.maze('serpentine', 200);
+    p.buildNear('pencil', 'route', 6);
+    w.state.gold = 150;
     const r = act(w, [{ do: 'save', until: 300 }], { planner: ps });
     expect(r.text).toMatch(/save: holding gold until 300/);
     expect(idleLine(w, ps)).toBeUndefined();
@@ -206,6 +274,55 @@ describe('planner intents', () => {
 });
 
 describe('act with assist', () => {
+  it('six intents in the schema; old intent names still work (act and MCP)', () => {
+    expect([...INTENT_KINDS]).toEqual(['maze', 'build_near', 'upgrade_best', 'spend', 'save', 'reclaim']);
+    const a = toolsForRole('player').find((t) => t.name === 'act')!;
+    for (const old of ['anti_air', 'combo', 'support', 'economy', 'rebuild_maze'])
+      expect(validateAgainst(a.input_schema, { actions: [{ do: old }] })).not.toEqual([]);
+    // 合并后的写法
+    const w = createWorld(opts('as-alias'));
+    w.state.gold = 2000;
+    const r = act(w, [
+      { do: 'maze', budget: 100 },
+      { do: 'build_near', purpose: 'air', route: 'north' },
+      { do: 'build_near', pair: 'glue+stapler' },
+      { do: 'maze', rebuild: true },
+    ]);
+    const lines = r.text.split('\n');
+    expect(lines[1]).toMatch(/^2 OK anti_air north: build_near/);
+    expect(lines[2]).toMatch(/^3 OK combo glue\+stapler/);
+    expect(lines[3]).toMatch(/^4 (OK|NOOP) rebuild_maze: /);
+    // 旧名照收
+    const r2 = act(w, [
+      { do: 'anti_air', route: 'north', count: 2 },
+      { do: 'combo', pair: 'lamp+pen', near: 'route' },
+    ]);
+    expect(r2.text.split('\n')[0]).toMatch(/^1 OK anti_air north/);
+    expect(r2.text.split('\n')[1]).toMatch(/^2 (OK|NOOP) combo lamp\+pen/);
+    // MCP：旧名先改写再校验
+    const srv = new McpGameServer();
+    const sid = /session_id: (g\d+)/.exec(srv.callTool('new_game', { seed: 'alias', auto_wave: true }).content[0].text)![1];
+    const m = srv.callTool('act', { session_id: sid, actions: [{ do: 'anti_air' }, { do: 'combo', pair: 'glue+stapler', near: 'route' }] });
+    expect(m.isError ?? false).toBe(false);
+    expect(m.content[0].text).toMatch(/^1 (OK|NOOP) anti_air/);
+  });
+
+  it('AR lists the next wave per route (incl. a wave rewritten by the attacker)', () => {
+    const w = createWorld(opts('as-ar'));
+    w.state.nextWave = {
+      ...w.state.nextWave,
+      groups: [
+        { enemy: 'paperclip', count: 4, elite: 1, affixes: [], spawner: 'north' },
+        { enemy: 'plane', count: 3, elite: 0, affixes: [], spawner: 'north' },
+        { enemy: 'crumb', count: 5, elite: 0, affixes: [], spawner: '' },
+      ],
+    };
+    const ar = compactObservation(w).AR as string[];
+    expect(ar[0]).toMatch(/^north: pc×4\(e1\) \| 5,0>.* L\d+ \| gap \d+,\d+>\d+,\d+\(\d+\)/);
+    expect(ar).toContainEqual(expect.stringMatching(/^air:north: pl×3 \| \d+,\d+>\d+,\d+ L\d+ aa0%$/));
+    expect(ar).toContainEqual('*: cr×5');
+  });
+
   it('intents run inside act; results are one line each; assist off rejects intents', () => {
     const w = createWorld(opts('as-1'));
     const r = act(w, [
@@ -271,7 +388,7 @@ describe('act with assist', () => {
     expect(rules).toMatch(/\{do:"maze"\}/);
     expect(old).not.toMatch(/do:"maze"/);
     expect(systemBlocks('player')).toEqual(systemBlocks('player'));
-    expect(estimateTokens(rules)).toBeLessThan(1300);
+    expect(estimateTokens(rules)).toBeLessThan(1800);
     expect(estimateTokens(JSON.stringify(a))).toBeLessThan(1250);
     // 军师不发意图规则
     expect(systemBlocks('advisor')[0]).not.toMatch(/do:"maze"/);
@@ -333,7 +450,11 @@ describe('battle report, threat estimate, idle nudge', () => {
     const ta = threatEstimate(air);
     expect(ta.map((t) => t.id)).toEqual(['air:north']);
     expect(ta[0].verdict).toBe('危险');
-    expect(threatLine(air)).toMatch(/anti_air/);
+    // 建议的意图必须能直接通过 act 的 Schema（字段是 route，不是 line；§19.12 起对空写成 build_near purpose air）
+    const hint = /\{do:"build_near",purpose:"air"[^}]*\}/.exec(threatLine(air)!)![0];
+    expect(hint).toBe('{do:"build_near",purpose:"air",route:"north"}');
+    const act0 = toolsForRole('player').find((t) => t.name === 'act')!;
+    expect(validateAgainst(act0.input_schema, { actions: [{ do: 'build_near', purpose: 'air', route: 'north' }] })).toEqual([]);
     expect(threatLine(air)).toMatch(/CTR pl→air/);
   });
 

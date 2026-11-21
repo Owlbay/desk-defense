@@ -307,7 +307,7 @@ export function threatLine(w: IWorld, extra: Purpose[] = []): string | undefined
   const fix: string[] = [];
   for (const t of th) {
     if (t.verdict === '安全') continue;
-    if (t.id.startsWith('air:')) fix.push(`{do:"anti_air",line:"${t.id.slice(4)}"}`);
+    if (t.id.startsWith('air:')) fix.push(`{do:"build_near",purpose:"air",route:"${t.id.slice(4)}"}`);
     else fix.push(`{do:"build_near",purpose:"dps",target:"route${t.id === '*' ? '' : `:${t.id}`}"} / maze / upgrade_best`);
   }
   const ctr = counterLine(w, extra);

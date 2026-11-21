@@ -12,7 +12,7 @@ export default {
   'agent.duel.side.attack': 'ATK',
   'agent.duel.side.defend': 'DEF',
   'agent.duel.lineThinking': '{model} thinking: {reasons}',
-  'agent.duel.lineWaitAttack': '{model}: waiting for the next build phase to plan a wave',
+  'agent.duel.lineWaitAttack': '{model}: will plan the following wave once the next one starts',
   'agent.duel.lineWaitDefend': '{model}: waiting for the next decision point',
   'agent.duel.lineStopped': '{model}: stopped',
   'agent.duel.planAct': 'Wave plan: {plan}',
@@ -25,5 +25,5 @@ export default {
   'agent.duel.setupNote':
     'At each build phase the attacker rewrites the next wave first, then the defender decides. Both use pause mode; not ranked.',
   'agent.duel.attackNote':
-    'The AI only plans during build phases (pause mode) and you defend. These runs aren’t uploaded; they’re recorded locally only.',
+    'As each wave starts, the AI plans the next one in the background (no pause; starting a wave waits briefly if the plan isn’t ready). You defend. Not uploaded; recorded locally only.',
 } satisfies Dict;

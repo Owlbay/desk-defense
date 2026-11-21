@@ -237,7 +237,7 @@ export function comboLine(w: IWorld): string | undefined {
     );
   };
   const best = st.lonely.filter((l) => rank(l) < 99).sort((a, b) => rank(a) - rank(b))[0];
-  const sug = best ? ` → {do:"combo",pair:"${pairName(best.id, best.partner)}"}` : '';
+  const sug = best ? ` → {do:"build_near",pair:"${pairName(best.id, best.partner)}"}` : '';
   return `CB ${parts.join(' | ')}${sug}`;
 }
 

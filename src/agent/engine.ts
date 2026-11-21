@@ -780,8 +780,8 @@ export class DecisionEngine {
   }
 
   /** 进攻方：这个决策点要不要出题（建造阶段、下一波可改写且还没改写） */
-  attackPending(point: DecisionPoint): boolean {
-    if (!point.reasons.includes('build') && !point.reasons.includes('game_start')) return false;
+  attackPending(_point: DecisionPoint): boolean {
+    // 下一波开始之前随时可以出题（建造 / 战斗 / 选增益阶段；自动开波也来得及）
     const info = this.o.world.attackContext?.();
     return !!info && info.open && !info.current;
   }

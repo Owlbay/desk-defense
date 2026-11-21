@@ -26,6 +26,7 @@ import {
 
 import type { AgentModelConfig, PiApi, ThinkingLevel } from '../config';
 import { PRESETS } from '../config';
+import { lookupModel, piCost, priceOf } from '../modelinfo';
 import { normalizeRelayBase } from '../relay';
 import { keepThinkingInHistory, mayCompactHistory, type PiThinkingPlan, piThinkingPlan } from '../thinking';
 import type { AgentToolDef, JsonSchema } from '../tools';
@@ -71,7 +72,15 @@ const KNOWN: Partial<Record<string, KnownProvider>> = {
   deepseek: 'deepseek',
 };
 
-/** 配置 → pi Model：已知厂商优先用 pi 内置的模型表（含价格），否则构造自定义模型（本地服务 / 未收录的模型） */
+const NO_COST = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+
+/** 价格（美元 / 百万 token）：手填 > 模型目录（modelinfo.dev 快照）> pi 内置模型表 > 0（本机模型） */
+export function piModelCost(c: AgentModelConfig, known?: Model<Api>): Model<Api>['cost'] {
+  const p = priceOf(c.model, c.price);
+  return p ? piCost(p) : known ? { ...known.cost } : { ...NO_COST };
+}
+
+/** 配置 → pi Model：已知厂商优先用 pi 内置的模型表，否则构造自定义模型（本地服务 / 未收录的模型）；价格见 piModelCost */
 export function buildPiModel(c: AgentModelConfig): Model<Api> {
   const preset = c.preset ?? 'custom';
   const info = PRESETS[preset];
@@ -81,7 +90,7 @@ export function buildPiModel(c: AgentModelConfig): Model<Api> {
   const kp = KNOWN[preset];
   if (kp) {
     const known = (getModels(kp) as Model<Api>[]).find((m) => m.id === c.model);
-    if (known) return { ...known, baseUrl: c.baseUrl ?? known.baseUrl };
+    if (known) return { ...known, baseUrl: c.baseUrl ?? known.baseUrl, cost: piModelCost(c, known) };
   }
   const m: Model<Api> = {
     id: c.model,
@@ -91,7 +100,7 @@ export function buildPiModel(c: AgentModelConfig): Model<Api> {
     baseUrl,
     reasoning: false,
     input: ['text'],
-    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    cost: info.local && !c.price ? { ...NO_COST } : piModelCost(c),
     contextWindow: 128_000,
     maxTokens: c.maxOutputTokens ?? 8192,
   };
@@ -120,6 +129,7 @@ export function buildRelayModel(c: AgentModelConfig, api: PiApi = c.api ?? 'open
     known = (getModels(kp) as Model<Api>[]).find((m) => m.id === c.model || c.model.endsWith(`/${m.id}`));
     if (known) break;
   }
+  const info = lookupModel(c.model);
   const m: Model<Api> = {
     id: c.model,
     name: c.model,
@@ -128,8 +138,8 @@ export function buildRelayModel(c: AgentModelConfig, api: PiApi = c.api ?? 'open
     baseUrl: normalizeRelayBase(c.baseUrl ?? '', api),
     reasoning: false,
     input: ['text'],
-    cost: known ? { ...known.cost } : { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: known?.contextWindow ?? 128_000,
+    cost: piModelCost(c, known),
+    contextWindow: known?.contextWindow ?? info?.context ?? 128_000,
     maxTokens: c.maxOutputTokens ?? Math.min(known?.maxTokens ?? 8192, 16_000),
   };
   if (api === 'openai-completions') {
@@ -147,8 +157,8 @@ export function buildRelayModel(c: AgentModelConfig, api: PiApi = c.api ?? 'open
       ...(thinkingFormat ? { thinkingFormat } : {}),
     };
   } else if (api === 'openai-responses') {
-    // 只有推理模型（o 系列 / gpt-5 / codex）才发 reasoning.effort；其余模型带这个字段会 400
-    m.reasoning = /(^|\/)(o\d|gpt-5|codex)/i.test(c.model);
+    // 只有推理模型才发 reasoning.effort；其余模型带这个字段会 400。目录里查得到按目录，否则按名字（o 系列 / gpt-5 / codex）
+    m.reasoning = info ? info.efforts !== null : /(^|\/)(o\d|gpt-5|codex)/i.test(c.model);
     (m as Model<'openai-responses'>).compat = { sendSessionIdHeader: false, supportsLongCacheRetention: false };
   } else if (api === 'anthropic-messages') {
     (m as Model<'anthropic-messages'>).compat = { supportsEagerToolInputStreaming: false, supportsLongCacheRetention: false };
@@ -229,9 +239,12 @@ export class PiProvider implements LLMProvider {
 
   /** 按思考设置调整 model.reasoning（例如 responses 的 off 不能让 pi 发 effort:'none'） */
   private modelFor(plan: PiThinkingPlan): Model<Api> {
-    return plan.modelReasoning === undefined || plan.modelReasoning === this.m.reasoning
-      ? this.m
-      : { ...this.m, reasoning: plan.modelReasoning };
+    let m = this.m;
+    if (plan.modelReasoning !== undefined && plan.modelReasoning !== m.reasoning) m = { ...m, reasoning: plan.modelReasoning };
+    // 按模型目录的档位原样发送（例如 DeepSeek 的 max）：pi 用 thinkingLevelMap[reasoning] 改写线上取值，
+    // 同时让 pi 认可 xhigh（没有映射时 pi 会把 xhigh 降成 high）
+    if (plan.reasoning && plan.wire) m = { ...m, thinkingLevelMap: { ...m.thinkingLevelMap, [plan.reasoning]: plan.wire } };
+    return m;
   }
 
   private options(ctx: DecisionContext, plan: PiThinkingPlan) {

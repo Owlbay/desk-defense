@@ -11,6 +11,7 @@
  * 纯 TS、只依赖 core 的流场函数；与 World 内部的路线 / 校验逻辑保持同一规则（预警中的空降格视为障碍、
  * 空降箱从相邻格出发、不能贴墙角斜穿）。
  */
+import { ENEMIES } from '../config/enemies';
 import { TOWERS } from '../config/towers';
 import { computeDist, isPassableKind } from '../core/flowfield';
 import { CellKind, type IWorld, type TowerId, type TowerState } from '../core/types';
@@ -467,6 +468,71 @@ export function routeSummary(w: IWorld): RouteSummary {
   }
   const next = [...byS].map(([k, v]) => `${k}: ${v.join(' ')}`);
   return { ground, segs, spots, air, next };
+}
+
+/**
+ * 下一波的进攻路线（观测 AR，每个建造 / 波中决策都发；格式在规则术语表里定义一次）：
+ *   地面  "north: cr×9 pc×3(e1) | 5,0>5,4>9,4>9,13 L24 | gap 6,2>6,5(4) 9,9>9,12(4)"
+ *         = 出生点: 下一波走这条线的地面组 | 航点（拐点，最后一个是出口）与长度 | 没有任何对地塔够得着的路段（≥2 格，最长 3 段）
+ *   预警  "drop-3 lands 8s: - | …"（空降箱落地后会出现的路线）
+ *   空中  "air:north: pl×6 | 5,0>5,13 L13 aa38% #3,#7"（飞行线：起点>出口格、对空覆盖比例与覆盖它的塔）
+ *   任意  "*: cr×5"（出生点未定的组：可能走任一条线）
+ * 没有组的线写 "-"。下一波已被进攻方改写时同样读 state.nextWave（改写后的计划）。
+ */
+export function attackRoutes(w: IWorld, code: (id: string) => string = (x) => x): string[] {
+  const routes = groundRoutes(w);
+  const sh = shooters(w);
+  const lines = flightLines(w, sh);
+  const ground = new Map<string, string[]>();
+  const air = new Map<string, string[]>();
+  for (const g of w.state.nextWave.groups) {
+    const k = g.spawner || '*';
+    const m = ENEMIES[g.enemy]?.flying && k !== '*' ? air : ground;
+    if (!m.has(k)) m.set(k, []);
+    m.get(k)!.push(`${code(g.enemy)}×${g.count}${g.elite ? `(e${g.elite})` : ''}`);
+  }
+  const gs = (m: Map<string, string[]>, id: string) => m.get(id)?.join(' ') ?? '-';
+  const out: string[] = [];
+  for (const r of routes) {
+    const gaps: { a: P; b: P; n: number }[] = [];
+    let run: P[] = [];
+    const flush = () => {
+      if (run.length >= 2) gaps.push({ a: run[0], b: run[run.length - 1], n: run.length });
+      run = [];
+    };
+    for (const c of r.cells) {
+      if (sh.some((q) => q.ground && inRange(q, c.x + 0.5, c.y + 0.5))) flush();
+      else run.push(c);
+    }
+    flush();
+    const gap = gaps.length
+      ? gaps
+          .sort((p, q) => q.n - p.n)
+          .slice(0, 3)
+          .map((x) => `${x.a.x},${x.a.y}>${x.b.x},${x.b.y}(${x.n})`)
+          .join(' ')
+      : '-';
+    const head = r.status === 'warn' ? `${r.id} lands ${r.eta}s` : r.id;
+    out.push(`${head}: ${gs(ground, r.id)} | ${fmtWp(r.wp)} L${r.len}${r.blocked ? ' BLOCKED' : ''} | gap ${gap}`);
+  }
+  for (const l of lines) {
+    // 覆盖它的塔最多列 4 座（后期一条线有二三十座对空塔，整串 uid 很费 token）
+    const by = l.by.length
+      ? ` ${l.by
+          .slice(0, 4)
+          .map((u) => `#${u}`)
+          .join(',')}${l.by.length > 4 ? `+${l.by.length - 4}` : ''}`
+      : '';
+    out.push(
+      `air:${l.id}: ${gs(air, l.id)} | ${Math.floor(l.from.x)},${Math.floor(l.from.y)}>${Math.floor(l.to.x)},${Math.floor(l.to.y)} L${l.len} aa${Math.round(l.aa * 100)}%${by}`,
+    );
+  }
+  const any = ground.get('*');
+  if (any) out.push(`*: ${any.join(' ')}`);
+  // 下一波的组走的出生点没有开放路线（理论上不会；防御性地列出，免得模型看不到这组敌人）
+  const known = new Set([...routes.map((r) => r.id), ...lines.map((l) => l.id), '*']);
+  for (const [k, v] of [...ground, ...air]) if (!known.has(k)) out.push(`${k}: ${v.join(' ')} | (no open route)`);
+  return out;
 }
 
 /** observe(full) 用：每座攻击塔 "#3 pencil g14 a3.5" */

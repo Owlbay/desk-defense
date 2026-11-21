@@ -52,17 +52,21 @@ describe('AI vs AI (headless)', () => {
     expect(r.attacker).toBeDefined();
     expect(r.attacker!.errors).toEqual([]);
     const plans = r.log.filter((e) => e.cmd.type === 'overrideWave');
-    expect(plans.length).toBe(r.result.wave);
+    expect(plans.length - r.result.wave).toBeGreaterThanOrEqual(0);
+    expect(plans.length - r.result.wave).toBeLessThanOrEqual(1);
     expect(r.attacker!.planned).toBe(plans.length);
     expect(r.attacker!.decisions.every((d) => d.side === 'attack' && d.by === 'agent')).toBe(true);
     expect(r.decisions.every((d) => d.side === 'defend')).toBe(true);
     // 每一波（1..N）都在开始前被改写过（core 只接受「下一波、尚未开始」的 overrideWave）
-    expect(plans.map((p) => (p.cmd as { wave: number }).wave)).toEqual(Array.from({ length: r.result.wave }, (_, i) => i + 1));
-    // 同一决策点：进攻方排在防守方前面
-    for (let i = 0; i < order.length; i++) {
-      if (!order[i].startsWith('attack:')) continue;
-      expect(order[i + 1]).toBe(`defend:${order[i].split(':')[1]}`);
-    }
+    expect(plans.map((p) => (p.cmd as { wave: number }).wave)).toEqual(Array.from({ length: plans.length }, (_, i) => i + 1));
+    // 第 k 波的题总在第 k 次开波之前落地（指令日志顺序）
+    const starts = r.log.map((e, i) => (e.cmd.type === 'startWave' ? i : -1)).filter((i) => i >= 0);
+    r.log.forEach((e, i) => {
+      if (e.cmd.type !== 'overrideWave') return;
+      const k = (e.cmd as { wave: number }).wave;
+      if (starts[k - 1] !== undefined) expect(i).toBeLessThan(starts[k - 1]);
+    });
+    expect(order[0]).toMatch(/^attack:/);
     expect(r.replay.agent.role).toBe('player');
     expect(r.replay.attacker).toEqual({ provider: 'scripted', model: 'scripted-v1' });
   });
@@ -110,7 +114,7 @@ describe('AI vs AI (headless)', () => {
       attacker: { config: { provider: 'scripted' }, provider: null },
       maxWaves: 3,
     });
-    expect(r.log.filter((e) => e.cmd.type === 'overrideWave').length).toBe(r.result.wave);
+    expect(r.log.filter((e) => e.cmd.type === 'overrideWave').length).toBeGreaterThanOrEqual(r.result.wave);
     expect(r.attacker!.agent.model).toBe('scripted-attacker');
   });
 
@@ -161,8 +165,9 @@ describe('AI vs AI (browser controller)', () => {
     // 思考期间再 poll 不会重复发起
     ctl.poll();
     await flush();
-    expect(sides).toEqual(['attack', 'defend']);
-    expect(recs.map((r) => r.side)).toEqual(['attack', 'defend']);
+    // 进攻方出题 → 防守方开波 → 进攻方马上给第 2 波出题（同一次暂停里完成）
+    expect(sides).toEqual(['attack', 'defend', 'attack']);
+    expect(recs.map((r) => r.side)).toEqual(['attack', 'defend', 'attack']);
     expect(recs[0].point.seq).toBe(recs[1].point.seq);
     expect(pauses).toEqual([true, false]);
     expect(paused).toBe(false);
@@ -173,12 +178,12 @@ describe('AI vs AI (browser controller)', () => {
     const rep = ctl.report();
     expect(rep.agent.role).toBe('duel');
     expect(rep.attacker).toEqual({ provider: 'scripted', model: 'scripted-v1' });
-    // 同一波不会再问进攻方
+    // 第 2 波已经出过题：同一波不会再问进攻方
     w.state.time += 20;
     w.state.phase = 'wave';
     ctl.poll();
     await flush();
-    expect(recs.filter((r) => r.side === 'attack').length).toBe(1);
+    expect(recs.filter((r) => r.side === 'attack').length).toBe(2);
     ctl.stop();
     expect(ctl.status).toBe('stopped');
   });

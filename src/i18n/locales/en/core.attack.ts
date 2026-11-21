@@ -2,7 +2,7 @@ import type { Dict } from '../../index';
 
 // Namespace core · why an AI attacker's wave override was rejected (doc 10 §2.3; en)
 export default {
-  'core.reason.attackPhase': 'The next wave can only be rewritten in the build phase, before it starts',
+  'core.reason.attackPhase': 'The next wave can only be rewritten before it starts',
   'core.reason.attackWave': 'Only the next wave (wave {wave}) can be rewritten',
   'core.reason.attackBadPlan': 'Invalid plan: it needs at least one enemy group',
   'core.reason.attackGroups': 'At most {max} enemy groups',
@@ -14,4 +14,5 @@ export default {
   'core.reason.attackDelay': 'Start time must be 0–{max} s',
   'core.reason.attackBudget': 'Not enough ink points: needs {cost}, budget {budget}',
   'core.reason.attackHp': 'Too strong: HP equivalent {hp} exceeds the cap of {cap}',
+  'core.reason.attackPending': 'The AI is still planning the next wave — start it in a moment',
 } satisfies Dict;

@@ -143,7 +143,7 @@ describe('fixed prefix', () => {
     for (const id of ['plane', 'boss_alarm', 'invisink']) expect(cs).toContain(id);
     const [rules, sheet] = systemBlocks('player');
     expect(sheet).toBe(cs);
-    expect(estimateTokens(rules)).toBeLessThan(1300);
+    expect(estimateTokens(rules)).toBeLessThan(1800);
     expect(rules).not.toMatch(/seed|ctx-test|\d{13}/);
   });
 
@@ -960,8 +960,12 @@ describe('attack routes', () => {
     const full = executeTool({ world: w, role: 'player' }, 'observe', { detail: 'full' }).text;
     expect(full).toMatch(/COVERAGE #1 pencil g\d+ a/);
     const obs = compactObservation(w);
-    expect(obs.R).toEqual([expect.stringMatching(/^north:5,0>.* L\d+$/)]);
-    expect(String(obs.nx)).toMatch(/north: crumb×/);
+    // AR（§19.12）：地面路线 = 下一波的组 | 航点（最后是出口）+ 长度 | 无覆盖路段；飞行线带对空覆盖
+    const ar = obs.AR as string[];
+    expect(ar[0]).toMatch(/^north: cr×\d+ \| 5,0>.* L\d+ \| gap (-|\d+,\d+>\d+,\d+\(\d+\))/);
+    expect(ar.find((l) => l.startsWith('air:north: '))).toMatch(/ L\d+ aa\d+% #1$/);
+    expect(String(obs.nx)).toMatch(/^w1/);
+    expect(obs.R).toBeUndefined();
   });
 });
 
@@ -972,7 +976,8 @@ describe('offline token model', () => {
     const saver = await tokenRun('saver', 'low', { waves: 6 });
     expect(before.reqPerDecision).toBe(4);
     expect(balanced.reqPerDecision).toBeLessThan(1.5);
-    expect(balanced.prefixTokens).toBeLessThan(before.prefixTokens / 2);
+    // 前缀 ≈ 旧做法的一半（§19.11 加了术语表 + 打法手册后 ≈4.35k，仍在 55% 以内）
+    expect(balanced.prefixTokens).toBeLessThan(before.prefixTokens * 0.55);
     expect(balanced.perWaveWeighted).toBeLessThan(before.perWaveWeighted / 3);
     expect(saver.perWaveWeighted).toBeLessThanOrEqual(balanced.perWaveWeighted * 1.2);
     expect(balanced.waves).toBe(6);

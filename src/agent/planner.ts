@@ -11,7 +11,7 @@ import { COMBOS, TOWERS } from '../config/towers';
 import { computeDist, tracePath } from '../core/flowfield';
 import { type Branch, CellKind, type Command, type CommandResult, type IWorld, type TowerId, type TowerState } from '../core/types';
 import { threatEstimate } from './battle';
-import { crowdedCells, idleTowers, refreshStats, shortensRoutes, uselessWalls, wallInfo } from './board';
+import { comboState, crowdedCells, idleTowers, outOfReach, refreshStats, shortensRoutes, uselessWalls, wallInfo } from './board';
 import type { BattleIntel } from './intel';
 import { coverage as sampleCov, dropStart, type MazePlan, planMaze, routeLength, type Sample, targetCells } from './maze';
 import { type Purpose, PURPOSE_TARGET, PURPOSE_TOWERS, PURPOSES } from './purpose';
@@ -72,7 +72,11 @@ export const DEFAULT_BRANCH: Partial<Record<TowerId, Branch>> = {
   swatter: 'A',
 };
 
-/** spend 的买塔轮换（无状态：按已有数量决定下一座） */
+/**
+ * spend 的买塔轮换（无状态：按已有数量决定下一座）。开局 4 支铅笔，之后与高手机器人同序：
+ * 破甲 / 台灯 / 胶水穿插，计算器（≥8 座攻击塔才买）与存钱罐（最多 3 个）在 w15～25 前后进场——复利是无尽后期的关键。
+ * 一轮买完后按同一顺序继续（数量翻倍）。
+ */
 const ROTATION: TowerId[] = [
   'pencil',
   'pencil',
@@ -90,17 +94,22 @@ const ROTATION: TowerId[] = [
   'pencil',
   'eraser',
   'pencil',
+  'calculator',
+  'pencil',
   'compass',
   'pencil',
+  'piggy',
   'lamp',
   'pencil',
   'stapler',
   'pencil',
-  'compass',
-  'ruler',
-  'lamp',
-  'pencil',
+  'calculator',
+  'piggy',
 ];
+/** 买新塔 vs 升级：新塔的每金币收益要高过升级 × 这个系数才买（高手机器人 1.5：后期多升级少铺塔） */
+const UPGRADE_BIAS = 1.5;
+/** build_near：最好格的路线覆盖低于这个值就不建（攻击塔、地面目标） */
+const MIN_COVER = 3;
 /** 墙的投入上限：塔投入的这个比例 + 25（高手机器人 0.5） */
 const WALL_SHARE = 0.5;
 
@@ -461,7 +470,11 @@ export class Planner {
     // 预算（模型的意图）：不给 = 建到路线 ≥ 2.5× 直线（或至少下一道挡板）；给了也至少补完正在建的这道挡板（半道挡板不拉长路线）。
     // exact：spend 内部调用，按给的预算
     const want = style === 'serpentine' && !exact ? this.mazeBudget(budget) : budget;
-    const cap = Math.min(want ?? Infinity, this.gold());
+    // 模型直接调用时给开局的塔留钱：攻击塔不足 4 座就先留出铅笔钱（实测：开局 {do:"maze"} 把 150 金币全换成 30 道墙，
+    // 第 1 波 0 座塔漏 9 只，第 5 波失守）
+    const atk = this.attackers().length;
+    const keep = exact || atk >= 4 ? 0 : (4 - atk) * this.cost('pencil');
+    const cap = Math.max(0, Math.min(want ?? Infinity, this.gold() - keep));
     const before = this.pathLens();
     let spent = 0;
     let done = 0;
@@ -494,7 +507,9 @@ export class Planner {
     }
     const after = this.pathLens();
     const pg = this.mazeProgress();
-    const sk = skipped.size ? ` skipped ${[...skipped].map(([k, v]) => `${k}×${v}`).join(',')}` : '';
+    const sk =
+      (skipped.size ? ` skipped ${[...skipped].map(([k, v]) => `${k}×${v}`).join(',')}` : '') +
+      (keep && this.gold() - keep < wallCost * 4 ? ` (kept ${keep}g for the first ${4 - atk} pencils — spend buys them)` : '');
     const tail =
       style === 'serpentine'
         ? ` | plan ${pg.built}/${pg.total} cells, L${Math.round(this.plan.length)} when done, ${pg.left} left ≈${pg.left * wallCost}g`
@@ -591,6 +606,12 @@ export class Planner {
           k = 99;
           break;
         }
+        // 地面目标的最好格只覆盖不到 MIN_COVER 个路线格：棋盘已满，新塔几乎不出伤害（实测模型后期连买 cov1.2 的圆规），改升级
+        if (b.v < MIN_COVER && TOWERS[id].attacks && !/^air/.test(tgt)) {
+          lines.push(`stop: best cell covers only ${Math.round(b.v * 10) / 10} route cells (<${MIN_COVER}) → upgrade_best instead`);
+          k = 99;
+          break;
+        }
         tried.add(b.slot.i);
         const r = this.placeAt(id, b.slot);
         if (r.ok) {
@@ -638,6 +659,15 @@ export class Planner {
     const cap = budget ?? Infinity;
     for (let k = 0; k < Math.min(10, Math.max(1, n)); k++) {
       const c = this.upgradeCandidates(metric).find((x) => x.cost <= this.gold() && spent + x.cost <= cap);
+      // 与 spend 同一口径：新塔每金币收益更高（塔还没到上限）就不升级——脚本评测：每个决策先 upgrade_best×3 再 spend，
+      // 早期塔太少，6 局平均 59.5 → 36.7 波（真实模型正是这么用的）
+      const buy = c && metric === 'dps' ? this.betterBuy(c.eff) : null;
+      if (buy) {
+        lines.push(
+          `stop: a new ${buy.id} is worth more per gold now (${buy.eff.toFixed(2)} vs upgrade ${c!.eff.toFixed(2)}) → {do:"spend"} buys it`,
+        );
+        break;
+      }
       if (!c) {
         const top = this.upgradeCandidates(metric)[0];
         lines.push(top ? `stop: best #${top.t.uid} ${top.t.id} needs ${top.cost}g (gold ${this.gold()})` : 'stop: nothing to upgrade');
@@ -653,6 +683,22 @@ export class Planner {
       lines.push(r.line);
     }
     return { ok: done > 0, text: `upgrade_best ${metric}: ${lines.join('; ')}`, spent, done };
+  }
+
+  /** 攻击塔上限（随波数放宽，与机器人相同） */
+  private maxTowers(): number {
+    return Math.min(8 + Math.floor((this.w.state.wave + 1) * 1.5), 48);
+  }
+
+  /** 下一座轮换塔的每金币收益是否胜过这个升级（spend 的买 / 升口径，含 15 波后的升级偏好） */
+  private betterBuy(upEff: number): { id: TowerId; eff: number } | null {
+    const id = this.nextRotation();
+    if (!id || !(POWER[id] > 0) || this.attackers().length >= this.maxTowers()) return null;
+    const slot = this.bestSlot(id, id === 'eraser' || id === 'glue' ? 'early' : 'route');
+    if (!slot) return null;
+    const eff = (slot.v * POWER[id]) / this.cost(id);
+    const bias = this.w.state.wave + 1 >= 15 ? UPGRADE_BIAS : 1;
+    return eff >= upEff * bias ? { id, eff } : null;
   }
 
   private upgradeOne(t: TowerState, evolve: boolean): { ok: boolean; reason?: string; line: string; spent: number } {
@@ -695,6 +741,10 @@ export class Planner {
     const lines = this.airLines();
     const tgt = line ?? lines[0]?.id;
     if (!tgt) return { ok: false, text: 'anti_air: no flight lines', spent: 0, done: 0 };
+    // 下一波有空军且这条线已"安全"（对空火力 ≥ 2× 来袭血量）：不再加塔（脚本评测：每个空袭波都补一座，后期 13+ 座苍蝇拍挤掉主力）
+    const th = threatEstimate(this.w).find((t) => t.id === `air:${tgt}` || t.id === 'air:*');
+    if (th && th.ratio >= 2 && count <= 1)
+      return { ok: true, text: `anti_air ${tgt}: already safe ×${th.ratio} — skipped (count:2 forces a build)`, spent: 0, done: 0 };
     const id: TowerId = this.unlocked('swatter') && this.gold() >= this.cost('swatter') ? 'swatter' : 'pencil';
     const r = this.buildNear(id, `airline:${tgt}`, count);
     return { ...r, text: `anti_air ${tgt}: ${r.text}` };
@@ -714,7 +764,7 @@ export class Planner {
     let done = 0;
     let saving = '';
     const wave = s.wave + 1;
-    const maxTowers = Math.min(8 + Math.floor(wave * 1.5), 48);
+    const maxTowers = this.maxTowers();
     for (let guard = 0; guard < 40; guard++) {
       const budget = this.gold() - reserve;
       if (budget <= 0) break;
@@ -757,7 +807,8 @@ export class Planner {
       let buy = !!slot;
       if (slot && up && id && focus === 'balanced') {
         const support = !(POWER[id] > 0);
-        buy = support || id === 'glue' || id === 'eraser' || (slot.v * POWER[id]) / this.cost(id) >= up.eff;
+        buy =
+          support || id === 'glue' || id === 'eraser' || (slot.v * POWER[id]) / this.cost(id) >= up.eff * (wave >= 15 ? UPGRADE_BIAS : 1);
       }
       if (focus === 'upgrades' && up) buy = false;
       if (buy && slot && id) {
@@ -787,6 +838,16 @@ export class Planner {
       }
       if (up) {
         if (budget < up.cost) {
+          // 升级买不起：新塔的每金币收益不比升级差（或危急）且买得起，就先买塔，不干攒（困难难度：攒钱期间漏怪）
+          if (slot && id && budget >= this.cost(id) && (this.urgent() || (slot.v * POWER[id]) / this.cost(id) >= up.eff)) {
+            const r = this.placeAt(id, slot.slot);
+            if (r.ok) {
+              spent += r.spent;
+              done++;
+              built.push(r.line.replace(/ -\d+g$/, ''));
+              continue;
+            }
+          }
           saving = `saving for #${up.t.uid} ${up.evolve ? 'evolve' : 'upgrade'} ${up.cost}g`;
           break;
         }
@@ -826,15 +887,20 @@ export class Planner {
   /** 下一座要买的塔：按轮换表与已有数量（无状态） */
   nextRotation(): TowerId | null {
     const have = new Map<TowerId, number>();
-    for (const t of this.attackers()) have.set(t.id, (have.get(t.id) ?? 0) + 1);
+    const atk = this.attackers();
+    // 按全部塔计数（计算器 / 存钱罐不是攻击塔，只数攻击塔会无限买）
+    for (const t of this.towers()) if (t.id !== 'wall') have.set(t.id, (have.get(t.id) ?? 0) + 1);
     const want = new Map<TowerId, number>();
-    for (const id of ROTATION) {
-      want.set(id, (want.get(id) ?? 0) + 1);
-      if (!this.unlocked(id)) continue;
-      if (id === 'calculator' && this.attackers().length < 8) continue;
-      if ((have.get(id) ?? 0) < want.get(id)!) return id;
-    }
-    // 轮换表用完：继续按比例补铅笔 / 台灯 / 圆规
+    for (let lap = 0; lap < 3; lap++)
+      for (const id of ROTATION) {
+        want.set(id, (want.get(id) ?? 0) + 1);
+        if (!this.unlocked(id)) continue;
+        if (id === 'calculator' && atk.length < 8) continue;
+        if ((have.get(id) ?? 0) >= want.get(id)!) continue;
+        // 存钱罐回本 ~12 波：掉过命 / 下一波"危险" / 35 波以后不买（困难难度上过早的存钱罐会漏怪）
+        if (id === 'piggy' && (this.w.state.wave >= 35 || this.urgent())) continue;
+        return id;
+      }
     for (const id of ['pencil', 'lamp', 'compass', 'stapler'] as TowerId[]) if (this.unlocked(id)) return id;
     return null;
   }
@@ -857,7 +923,14 @@ export class Planner {
       }
       const b = this.bestSlot(id, target ?? PURPOSE_TARGET[purpose] ?? 'route');
       if (!b || b.v < 0.5) continue;
-      const score = (b.v * (POWER[id] || 10) * fit) / this.cost(id) / (1 + 0.12 * (have.get(id) ?? 0));
+      // 覆盖 × 威力 × 适配 ÷ 价格，同类已多的打折。泛用 dps 的覆盖取平方根、铅笔不打同类折扣：射程长 ≠ 伤害成比例
+      // （尺子 r4.5 的覆盖是铅笔的 3 倍，秒伤 / 金低得多；脚本评测每个建造阶段 build_near dps：线性 49 波、平方根 57 波）。
+      // 其他用途（护甲 / Boss / 群伤…）保持线性：适配系数挑出台灯 / 尺子 / 橡皮擦，w40 起 Boss 护甲 7+ 时铅笔打不动
+      const sq = purpose === 'dps';
+      const score =
+        ((sq ? Math.sqrt(b.v) : b.v) * (POWER[id] || 10) * fit) /
+        this.cost(id) /
+        (sq && id === 'pencil' ? 1 : 1 + 0.12 * (have.get(id) ?? 0));
       if (!best || score > best.score + 1e-9) best = { id, v: b.v, score, why: `${id} cov${Math.round(b.v * 10) / 10}` };
     }
     if (!best) return null;
@@ -874,6 +947,18 @@ export class Planner {
       if (!pick) {
         lines.push(`stop: no affordable ${purpose} tower with a useful cell (gold ${this.gold()})`);
         break;
+      }
+      // 泛用的 dps：升级更划算时不买新塔（脚本评测：每个建造阶段 build_near dps，59.5 → 49.2 波）；其他用途（护甲 / 对空 / Boss…）照买
+      if (purpose === 'dps') {
+        const up = this.upgradeCandidates('dps')[0];
+        const eff = (pick.v * (POWER[pick.id] || 10)) / this.cost(pick.id);
+        const bias = this.w.state.wave + 1 >= 15 ? UPGRADE_BIAS : 1;
+        if (up && eff < up.eff * bias) {
+          lines.push(
+            `stop: upgrading #${up.t.uid} ${up.t.id} is worth more per gold (${up.eff.toFixed(2)} vs new ${pick.id} ${eff.toFixed(2)}) → upgrade_best / spend`,
+          );
+          break;
+        }
       }
       const o = this.buildNear(pick.id, target || PURPOSE_TARGET[purpose] || 'route', 1);
       spent += o.spent;
@@ -956,7 +1041,13 @@ export class Planner {
     }
     // 2) 新的一对：A 的前几个好格 × 相邻的 B 格
     let fresh: { first: TowerId; s1: Slot; second: TowerId; s2: Slot; v: number } | null = null;
-    if (this.gold() >= this.cost(cb.a) + this.cost(cb.b)) {
+    // 这一对已经激活过：不再新建一整对（组合加成只有 15～30%，脚本评测里每波新建一对胶水 + 订书机会挤掉铅笔，少活 3 波）
+    const ids = (uid: number) => this.w.state.towers.get(uid)?.id;
+    const already = comboState(this.w).active.filter((x) => {
+      const p = [ids(x.a), ids(x.b)];
+      return p.includes(cb.a) && p.includes(cb.b);
+    }).length;
+    if (!already && this.gold() >= this.cost(cb.a) + this.cost(cb.b)) {
       for (const [first, second] of [
         [cb.a, cb.b],
         [cb.b, cb.a],
@@ -1019,7 +1110,7 @@ export class Planner {
       const need = this.cost(cb.a) + this.cost(cb.b);
       return {
         ok: false,
-        text: `combo ${cb.a}+${cb.b}: ${this.gold() < need && !anchor ? `金币不足 (pair ${need}g, gold ${this.gold()})` : 'no adjacent pair of good cells (each ≥70% of its best spot)'}`,
+        text: `combo ${cb.a}+${cb.b}: ${already && !anchor ? `already active ×${already}; no lone ${cb.a}/${cb.b} to pair (a new pair is not worth it)` : this.gold() < need && !anchor ? `金币不足 (pair ${need}g, gold ${this.gold()})` : 'no adjacent pair of good cells (each ≥70% of its best spot)'}`,
         spent: 0,
         done: 0,
       };
@@ -1169,7 +1260,21 @@ export class Planner {
       return { ok: done > 0, text: `reclaim useless_walls: ${lines.join('; ')} → path ${this.pathLens().join('/')}`, spent, done };
     }
     if (target === 'idle_towers') {
-      const list = idleTowers(this.w, this.state.intel).slice(0, cap);
+      // 够不着任何路线的一律回收；只是"最近 2 波 0 伤害"的（敌人在前段就死光 / 苍蝇拍在地面波）只回收 Lv1 的非对空塔：
+      // 卖塔只退 30～70%，升过级的是后排保险（脚本评测：每波都卖会把钱亏掉）
+      // "够不着"再用规划器自己的覆盖口径复核（两套口径不一致时，卖掉后 build_near 又会在原格重建同一座塔）
+      const far = new Set(
+        outOfReach(this.w).filter((u) => {
+          const t = this.w.state.towers.get(u);
+          return !!t && this.slotValue(t.id, { x: t.cx, y: t.cy }, this.samplesFor(t.id, 'route', 'current')) < 0.5;
+        }),
+      );
+      const list = idleTowers(this.w, this.state.intel)
+        .filter((u) => {
+          const t = this.w.state.towers.get(u);
+          return !!t && (far.has(u) || (t.level < 2 && !TOWERS[t.id].hitsAir && this.w.state.time - t.placedAt > 120));
+        })
+        .slice(0, cap);
       if (dry)
         return {
           ok: true,
@@ -1252,6 +1357,15 @@ export class Planner {
   }
 
   save(until: number): IntentOutcome {
+    // 下一波有"危险"的路线时攒钱只会漏怪（实测：模型 hp 6/20 时还在 save until 400）
+    const danger = threatEstimate(this.w).filter((t) => t.verdict === '危险');
+    if (danger.length)
+      return {
+        ok: false,
+        text: `save refused: next wave 危险 on ${danger.map((t) => `${t.id} ×${t.ratio}`).join(', ')} — spend / upgrade_best first`,
+        spent: 0,
+        done: 0,
+      };
     this.state.saveUntil = until;
     this.state.saveWave = this.w.state.wave;
     return { ok: true, text: `save: holding gold until ${until} (gold ${this.gold()})`, spent: 0, done: 0 };

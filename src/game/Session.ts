@@ -1,5 +1,6 @@
 import { createWorld } from '../core';
 import { type Command, type CommandResult, DT, type GameEvent, type IWorld, type RunOptions } from '../core/types';
+import { t as tr } from '../i18n';
 
 export type Speed = 1 | 2 | 3;
 type Listener = (ev: GameEvent) => void;
@@ -59,7 +60,16 @@ export class Session {
     return this.acc / DT;
   }
 
+  /**
+   * 开波闸门（AI 出题 / AI 对战）：返回 true 时手动开波被挡下（进攻方还在给下一波出题）。
+   * 只挡玩家 / AI 发出的 startWave 指令；自动开波由控制器在出题期间暂停游戏来挡。
+   */
+  holdStart: (() => boolean) | null = null;
+
   command(cmd: Command): CommandResult {
+    if (cmd.type === 'startWave' && this.holdStart?.()) {
+      return { ok: false, code: 'attackPending', reason: tr('core.reason.attackPending') };
+    }
     const r = this.world.command(cmd);
     this.flush();
     this.emitChange();

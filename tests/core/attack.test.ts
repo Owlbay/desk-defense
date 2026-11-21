@@ -79,7 +79,7 @@ describe('attack price table', () => {
 });
 
 describe('overrideWave command', () => {
-  it('replaces the next wave in the build phase only', () => {
+  it('replaces the next wave any time before it starts', () => {
     const w = createWorld(base());
     const info = w.attackContext!()!;
     expect(info).toMatchObject({ wave: 1, open: true, budget: attackBudget(1) });
@@ -101,8 +101,10 @@ describe('overrideWave command', () => {
     w.drainEvents();
     w.command({ type: 'startWave' });
     expect(w.state.nextWave.override).toBeUndefined();
-    // 波次进行中不能改写
-    expect(w.command({ type: 'overrideWave', wave: 2, plan: { groups: [{ enemy: 'crumb', count: 3 }] } }).code).toBe('attackPhase');
+    // 波次进行中可以给下一波（第 2 波）出题，但不能改写正在进行的第 1 波
+    expect(w.command({ type: 'overrideWave', wave: 1, plan: { groups: [{ enemy: 'crumb', count: 3 }] } }).code).toBe('attackWave');
+    expect(w.command({ type: 'overrideWave', wave: 2, plan: { groups: [{ enemy: 'crumb', count: 3 }] } }).ok).toBe(true);
+    expect(w.state.nextWave.override).toBeDefined();
     const spawned: string[] = [];
     for (let i = 0; i < 60 * 40 && w.state.wave === 1; i++) {
       w.step();

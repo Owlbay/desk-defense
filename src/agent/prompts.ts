@@ -133,32 +133,33 @@ export function counterOf(e: (typeof ENEMIES)[keyof typeof ENEMIES]): string {
   return ps.join('+') + (e.id === 'tape' ? ' no-slow' : '');
 }
 
-/** 每种塔什么时候用（速查表；静态文本，改了就改了缓存前缀） */
+/** 每种塔什么时候用（速查表塔行的尾巴；静态文本，改了就改了缓存前缀） */
 const TOWER_USE: Record<string, string> = {
-  pencil: 'cheap G+A, opener, any lane',
-  stapler: 'AoE r1.6 at U-turns/merges, swarms',
+  wall: 'maze only',
+  pencil: 'main dps, cheap, opener, any lane',
+  stapler: 'AoE at U-turns/merges, swarms',
   glue: 'slow, early route, feeds stapler/compass',
-  lamp: 'ramping beam, pierces armor, sees stealth r1.5',
+  lamp: 'ramping beam, ignores armor, sees stealth r1.5',
   compass: 'ring 0.8-1.8, cell between two lanes',
   eraser: '-armor, ×3 vs shield, early route',
-  ruler: 'r4.5 pierce, end of long straight lanes',
+  ruler: 'pierce line, end of long straights',
   pen: 'DoT, halves healing',
-  calculator: 'aura r2 +dmg, amid ≥3 strong towers {do:"support"}',
-  piggy: '+8g/wave max3, early when safe {do:"economy"}',
-  swatter: 'air only splash {do:"anti_air"}',
+  calculator: 'aura r2 +10% dmg, amid ≥3 strong towers',
+  piggy: '+8g/wave, max 3, early when safe',
+  swatter: 'air-only splash',
 };
 
 /** 台灯（持续光束 / 递增 / 光棱联动，docs/notes-lamp-for-agent.md）；静态文本 */
 const LAMP_NOTE =
-  'Lamp: beam ignores armor, +60%/s on one target up to 3x, resets on retarget: bosses/armor/long straights, weak vs swarms/fast. ' +
-  "Lamps <=2.5 apart link (group max 4, unlimited with an A laser); the lead beam gets the others' light (4 equal ~3.9x). " +
-  'Before boss waves cluster 3-4 lamps 2 cells apart by the boss lane; vs swarms spread them. A: 5x ramp, overload when a boss enters.';
+  'Lamp: +60%/s on one target up to 3x, resets on retarget: bosses/armor/long straights, weak vs swarms. ' +
+  "Lamps <=2.5 apart link (group max 4, unlimited with an A laser); the lead beam gets the others' light (4 equal ~3.9x): " +
+  'cluster 3-4 by the boss lane before boss waves.';
 
 /** 怪物类随机事件的应对（ev 行；EG = 金色目标）；静态文本 */
 const EVENT_NOTE =
-  'Events (ev; EG = coin targets): goldbag gb fast, regens if unhit 2s: focus fire + eraser_strike/slow, kill = coins (pu), leak steals gold | golden elite (EG) drops coins: target it | ' +
-  'tea_break heal / shield_supply: burst skills, pen halves heal, eraser 3x shield | medic_squad wo: pen/aoe | ' +
-  "frenzy (+30% speed, +50% kill gold) / bounty (2x kill gold): slow + buy DPS now | training 2x XP: keep towers firing, don't sell.";
+  'Events (ev): goldbag gb fast, regens if unhit 2s: focus + eraser_strike/slow, kill = coins, leak steals gold | golden elite (EG) drops coins | ' +
+  'tea_break heal / shield_supply: burst skills, pen, eraser | medic_squad wo: pen/aoe | ' +
+  'frenzy (+30% speed, +50% gold) / bounty (2x gold): slow + buy DPS now | training 2x XP: keep towers firing.';
 
 /**
  * 速查表（固定前缀的第二块，≈600 token）：塔一行一个（价格 / 定位 / 对空 / Lv1 数值 / 传奇分支名）、
@@ -168,8 +169,7 @@ export function cheatSheet(): string {
   const tw = Object.values(TOWERS).map((t) => {
     const hits = t.attacks ? `${t.hitsGround ? 'G' : ''}${t.hitsAir ? 'A' : ''}` : '-';
     const st = t.attacks ? ` ${t.damage}/${t.interval}s r${t.range}` : '';
-    const br = t.id === 'wall' ? '' : ` A:${t.A.name} B:${t.B.name}`;
-    return `${TOWER_CHAR[t.id]} ${t.id} ${t.cost}g ${t.role} ${hits}${st}${br}`;
+    return `${TOWER_CHAR[t.id]} ${t.id} ${t.cost}g ${hits}${st}: ${TOWER_USE[t.id] ?? t.role}`;
   });
   const en = Object.values(ENEMIES).map(
     (e) =>
@@ -180,19 +180,16 @@ export function cheatSheet(): string {
     .join(' ');
   return [
     '# Cheat sheet (static; full data: get_catalog)',
-    'Towers (map char, id, cost, role, hits G/A, Lv1 dmg/interval range, Lv10 branches):',
+    'Towers (map char, id, cost, hits G/A, Lv1 dmg/interval range: use):',
     ...tw,
-    'Enemies (code id hp speed armor → counter):',
+    'Enemies (code id hp speed armor → purpose):',
     ...en,
     `Skills: ${sk}`,
     `Affixes: ${Object.keys(AFFIXES).join(' ')}`,
-    `Use: ${Object.entries(TOWER_USE)
-      .map(([id, u]) => `${id} ${u}`)
-      .join(' | ')}`,
     `Purposes (enemy → purpose; {do:"build_near",purpose} picks): ${PURPOSES.map(purposeText).join(' ')}`,
-    `Combos (orthogonally adjacent, auto; {do:"combo",pair}): ${COMBOS.map((c) => `${c.a}+${c.b} ${c.desc}`).join(' | ')}`,
-    'Wall next to attack towers: upgrade Lv2 (+15g) range+5%, Lv3 (+30g) +5% dmg. Swapping a wall for a tower keeps the maze (towers block too).',
-    'Branches: stapler B shreds armor | glue A roots fast/B burns | lamp A melts bosses/B stealth+amp | ruler B executes | pen B +20% dmg taken | swatter B nets flyers to ground. Evolve top-damage Lv10 first; ★3 ability on bosses.',
+    `Combos (orthogonally adjacent, auto; {do:"build_near",pair}): ${COMBOS.map((c) => `${c.a}+${c.b} ${c.desc}`).join(' | ')}`,
+    'Wall next to attack towers: upgrade Lv2 (+15g) range+5%, Lv3 (+30g) +5% dmg. A tower on a wall cell keeps the maze.',
+    'Branches: pencil A 2× speed | stapler B shreds armor | glue A roots/B burns | lamp A 5× ramp, melts bosses/B stealth+amp | ruler B executes | pen B +20% dmg taken | swatter B nets flyers. ★3 ability on bosses.',
     LAMP_NOTE,
     EVENT_NOTE,
   ].join('\n');
@@ -221,48 +218,51 @@ const RULES_V1 = `You play 书桌防线 / Desk Defense (deterministic maze tower
 - If nothing is worth doing: act {actions:[], end:{}}.
 
 # STATE keys (after the first decision you get Δ = only changed keys; T+ changed/new towers, T- removed uids, _unset removed keys)
-t time s | ph phase | w wave/total | g gold | hp lives | sc score | aw auto-wave | T towers "#uid id x,y Llevel [A|B] [★n] [x xp%] [t=target] [up cost|br cost=needs branch] [ev evolve cost] (costs rounded up to 5) [ab R|cd]" | W walls "uid@x,y" | E enemy groups "code×n hp% far/mid/near [A air] [B boss] [e elite] [h hidden]" | Ef enemy nearest exit | EB bosses | EG coin targets | nx next wave "wN [tags] | spawner: code×n" | R ground routes "spawner:waypoints Llen" (turn points only; warn = air-drop landing soon) | Rs longest straight segments "spawner a>b Llen b=buildable cells beside" | Rp best tower spots "x,y:route cells within r2.5" | Ra flight lines "spawner from>to Llen aa% covering towers" | sk skills id:R|cd | ev events | sp drop boxes | pu pickups | perk offer | crate options | own perks | b build prices ("base" = cheat-sheet prices; else differences, locked, max) | rc since last decision | pe queued errors.
+t time s | ph phase | w wave/total | g gold | hp lives | sc score | aw auto-wave | T towers "#uid id x,y Llevel [A|B] [★n] [x xp%] [t=target] [up cost|br cost=needs branch] [ev evolve cost] (costs rounded up to 5) [ab R|cd]" | W walls "uid@x,y" | E enemy groups "code×n hp% far/mid/near [A air] [B boss] [e elite] [h hidden]" | Ef enemy nearest exit | EB bosses | EG coin targets | nx next wave "wN [tags] early+Ng" | AR attack routes "spawner: next-wave enemies | waypoints (last = exit) Llen | gap uncovered stretches" and "air:spawner: flyers | from>to Llen aa% covering towers" | Rs longest straight segments "spawner a>b Llen b=buildable cells beside" | Rp best tower spots "x,y:route cells within r2.5" | sk skills id:R|cd | ev events | sp drop boxes | pu pickups | perk offer | crate options | own perks | b build prices ("base" = cheat-sheet prices; else differences, locked, max) | rc since last decision | pe queued errors.
 - MAP (sent when terrain changes): rows y, cols x (0..9,a,b). . empty | # obstacle | S spawn | X exit | d drop warning | D drop spawn | route letters a,b,c… (+ overlap, ~ future drop route) | towers: ${Object.entries(
   TOWER_CHAR,
 )
   .map(([k, v]) => `${v}=${k}`)
   .join(' ')}. "(RLE)" rows: "3." = "...".`;
 
-const RULES_HEAD = `You play 书桌防线 / Desk Defense (deterministic maze tower defense) through tools.
+const TOWER_LEGEND = Object.entries(TOWER_CHAR)
+  .map(([k, v]) => `${v}=${k}`)
+  .join(' ');
+
+/**
+ * 玩家规则（assist 版，固定前缀 system[0]）。四段：规则与成长 → 打法手册（开局 / 各阶段 / 增益 / 分支）→ 每次决策 → 术语表。
+ * 数字都来自配置（src/config/difficulty.ts、towers.ts、scaling.ts；docs/guide/数据），改配置时一起核对。
+ */
+const RULES = `You play 书桌防线 / Desk Defense (deterministic maze TD) via tools.
 
 # Rules
-- Board 12×14 (x 0..11, y 0..13). Ground enemies walk the shortest path spawn→exit; every tower (walls too) blocks, so towers shape the maze; path-blocking placements are rejected. Flyers fly straight to the exit; only A towers hit them.
-- Leaks cost lives (bosses more); 0 = loss. Gold: kills, wave bonus, 5% interest (cap ≈20), piggy banks, early waves.
-- Phases build / wave / perk (paused, pick 1 of 3) / won / lost. Auto-wave starts later waves. Events are warned; air-drop boxes become spawns (demolish / seal_tape).
-- Towers gain XP (cheaper upgrades). Lv9→10 branch; Lv10 → evolve ★1..★3 (★3 = tower_ability). Selling refunds part (full within 5 s).
-`;
+- Board 12×14 (x 0..11, y 0..13). Ground enemies walk the shortest path to the exit; every tower (walls too) blocks, so towers ARE the maze; path-blocking placements are rejected. Flyers fly straight to the exit; only A towers hit them.
+- Leak = lives (boss more); 0 = loss. Gold: kills, wave bonus 10+2w, 5% interest on unspent (cap 20; nightmare/魔境 15), piggies, early calls (nx early+Ng).
+- Phases build / wave / perk (paused, 1 of 3 every 10 waves) / won / lost. Auto-wave starts later waves. Events are warned; air-drop boxes become spawns (demolish / seal_tape).
+- Firing towers earn XP: free levels to Lv9 + up to 50% off gold upgrades. Lv9→10 = gold + branch A|B; Lv10 → evolve ★1..★3 (★3 = tower_ability). Sell refund 70% (Lv1)…25% (Lv10), 100% within 5 s.
+- Endless wave n: enemy HP ×(1+.18n)·1.04^n (w20 ×9, w40 ×37, w60 ×118, w80 ×340), count +8%/wave, armor +1 per 12 waves, elites from w30; kill gold only ×(1+.04n) ⇒ late waves are won by levels, ★, calculators and compounding gold, not more Lv1 towers.
+- Boss every 10th wave (2 from w50); air raid on multiples of 7; rush (fast ×2) on 5s; pincer (all spawns) w12/28/36/44/52. hard/nightmare/魔境: less gold, faster growth, more spawns/drops, elites from w20/15/12 ⇒ maze + anti-air sooner, piggies only if TH ≥3 everywhere.
 
-const RULES = `${RULES_HEAD}
-# How to win
-1. Maze early: a straight route is ≈14 cells, a 5g-wall serpentine makes it 40-60 (towers shoot 3-4× longer). {do:"maze"} builds a proven serpentine barrier by barrier (never blocks); build_near/spend put towers inside the barriers.
-2. Keep gold working: interest is tiny; end build phases with ≲20g unless saving on purpose ({do:"save",until:N}).
-3. Waves 1-6 buy towers; later upgrade_best too (Lv4/Lv7 are big jumps; Lv9 branch auto-picked).
-4. Before [air] waves every flight line (Ra) needs an A tower: {do:"anti_air"}.
-5. Mix roles: pencils alone fail vs armor/swarms/air/healers. CTR maps next-wave enemies to purposes → {do:"build_near",purpose:"armor"} (planner picks eraser/lamp…). Pair combos ({do:"combo"}; CB line). Skills on leaks / bosses / Ef d≤3.
-6. TH = next-wave threat (your damage ÷ incoming HP): 危险/吃紧 → add damage there now; 安全 → may call early. BR = last wave; LK = each leaked enemy (hp left, % time in range, uncovered cells); GAP = recurring holes → build_near target "seg:…" / anti_air. KH = where kills happen.
-7. Full board: a wall refunds 3g but a freed good cell holds a tower. RC (useless walls / 0-dmg towers / crowded cells) → {do:"reclaim"}; routes changed → {do:"rebuild_maze"}. MZ = route vs achievable length.
-Openings (150g): [{do:"spend",reserve:0}] (= 4 pencils + first barriers). ch2: two entrances merge → build_near target "chokepoint". ch3: long flight lines → anti_air each line early.
-Each build phase: anti_air if [air], maze, fix LK/GAP/CTR, spend; ≈w6+ upgrade_best; reclaim/combo when RC/CB suggest.
+# Playbook (intents pick the cells)
+- w0 (150g): [{do:"spend",reserve:0}] = 4 pencils in the first serpentine barrier + walls. Don't hand-place walls.
+- Default turn = [build_near purpose:"air" if nx [air] and TH air ≠ 安全, spend]. spend alone buys the rotation (pencils + eraser/lamp/glue, later calculator/compass/piggy), walls ≤50% of tower gold and upgrades, whichever is worth more per gold; put upgrade_best / build_near BEFORE it only for a reason (CTR 缺, LK/GAP hole, boss) — they refuse when the other is better. {do:"maze"} until MZ ≥2.5×.
+- w1-10: pencils (cheapest dps; Lv7 shoots twice); eraser before paperclips (pc, w5+); glue+stapler at a U-turn before rushes; an A tower on each flight line by w6.
+- w10-30: upgrades start to win (Lv4 crit, Lv7 ≈2× dps). 3 piggies by ≈w20 if safe (build_near tower:"piggy": +8g/wave, ~12-wave payback, not after w40). 2-3 calculators amid ≥3 strong towers (build_near tower:"calculator"). Before w30/40 bosses: 3-4 lamps 2 apart by the boss lane.
+- Armor: +1 per 12 waves (pc ar 6, bosses ar 7+ at w40) and each hit loses that much, so pencil-only boards die at the w40 boss. Follow CTR (build_near purpose armor/boss/aoe): by w35 ≥6 lamps (ignore armor), rulers (20/hit, pierce), 2 erasers A.
+- w30-60: elites ⇒ evolve the top-damage Lv10 first; new A towers only if TH air is 吃紧/危险.
+- w60+ or full board (build_near: "covers only"): gold to upgrade_best/evolve; never sell firing towers; never save while TH 危险.
+- Perks: legend (+uid of best Lv7+ pencil/lamp, branch A) > promotion > sale > compound > timemgmt > notes > sharpener > scholaraura (≥2 calculators) > safe. Crates: gold before w30, then xp; lives if hp ≤5.
+- Branches (auto): pencil/lamp/eraser/calculator/piggy/swatter A; stapler/glue/compass/ruler/pen B.
+- Place for the NEXT wave: AR names each route's enemies and uncovered stretches → build_near target "route:sp" / "seg:x1,y1-x2,y2" there. LK/GAP holes likewise; KH LATE ⇒ add damage earlier; RC → reclaim; routes changed → maze rebuild:true; skills on bosses / Ef d≤3.
 
 # Each decision
-1. STATE is in the message; observe only if unclear.
-2. ONE act call with ALL actions + end:{…}. Prefer intents (the planner picks valid cells, reports cells/costs/path).
-3. end:{plan,maze,priorities,note} = your memory (≤300 tokens), shown as MEMO; omitted fields keep old values.
-Example (build, g140, nx [air]): act {actions:[{do:"anti_air"},{do:"maze",budget:40},{do:"spend",reserve:10}],end:{plan:"serpentine+pencils; AA before air",priorities:"upgrade_best from w6"}}
+STATE is below (observe only if unclear). ONE act call with ALL actions + end:{plan,maze,priorities,note} (= your memory ≤300 tokens, shown as MEMO; omitted fields keep old values). Prefer intents (validated cells, reported costs/path).
+Example (build, g140, nx [air], CTR 缺 armor): act {actions:[{do:"build_near",purpose:"air"},{do:"build_near",purpose:"armor"},{do:"spend",reserve:0}],end:{plan:"maze+spend; lamps by w35"}}
 
-# STATE keys (after the first decision you get Δ = only changed keys; T+ changed/new towers, T- removed uids, _unset removed keys)
-t time s | ph phase | w wave/total | g gold | hp lives | sc score | aw auto-wave | T towers "#uid id x,y Llevel [A|B] [★n] [x xp%] [t=target] [up cost|br cost=needs branch] [ev evolve cost] [ab R|cd]" | W walls "uid@x,y" | E enemy groups "code×n hp% far/mid/near [A air] [B boss] [e elite] [h hidden]" | Ef enemy nearest exit | EB bosses | EG coin targets | nx next wave "wN [tags] | spawner: code×n" | R ground routes "sp:turn points Llen" (warn = drop landing soon) | Rs long straights "sp a>b Llen b=free cells beside" | Rp best spots "x,y:route cells in r2.5" | Ra flight lines "sp from>to Llen aa% towers" | sk skills id:R|cd | ev events | sp drop boxes | pu pickups | perk offer | crate options | own perks | b prices ("base" = cheat sheet; else diffs/locked/max) | rc since last decision | pe queued errors.
-- Extra lines: BR TH CTR LK GAP KH RC CB MZ (above), IDLE unspent gold, EVT event tips.
-- MAP (sent when terrain changes): rows y, cols x (0..9,a,b). . empty | # obstacle | S spawn | X exit | d drop warning | D drop spawn | route letters a,b,c… (+ overlap, ~ future drop route) | towers: ${Object.entries(
-  TOWER_CHAR,
-)
-  .map(([k, v]) => `${v}=${k}`)
-  .join(' ')}. "(RLE)" rows: "3." = "...".`;
+# Glossary (STATE Δ = changed keys only: T+ new/changed towers, T- removed uids, _unset gone keys)
+t time | ph phase | w wave | g gold | hp lives | sc score | aw auto-wave | T "#uid id x,y Llv [A|B] [★n] [x25|50|75 xp% to next] [t=target] [up|br|ev cost: upgrade / Lv9→10 needs branch / evolve] [abR|cd]" | W walls "uid@x,y" | E "code×n hp% far/mid/near [A air] [B boss] [eN elite] [hN hidden]" | Ef nearest exit (dN cells left) | EB bosses | EG coin targets | nx "wN [tags] early+Ng" | AR attack routes, one per route: "sp: next-wave groups code×n(eN) or - | turn cells a>b>… (last = exit) Llen | gap uncovered stretches a>b(cells)", "air:sp: flyers | from>exit Llen aa% covered #uids", "sp lands Ns:" = drop route soon, "*:" = any spawner | Rs straights "sp a>b Llen bN free cells beside" | Rp spots "x,y:route cells in r2.5" | sk skill:R|cd | ev events | sp drops | pu pickups | perk/crate offers | own perks | b prices (base = sheet) | rc since last "kN kills +Ng wN clear +bonus iInterest #uid→Llv" | pe queued errors.
+Lines: BR last wave (leaks, kills, dmg/tower, 0dmg, idle gold) | TH next wave per route/air line: ratio = your dmg ÷ incoming HP, 安全 ≥2, 吃紧 ≥1.2, 危险 <1.2 → fix | CTR enemy→purpose, 缺 = no tower for it | LK leaks by AR route "| sp: code×n(hp% left, in% time in range, stretch gap0 uncovered|gap1 one tower, top#uid dmg%)", e. = elite, ^ = flyer | GAPn holes leaking ≥2× in n waves | KH kills f/m/l % by route third, hot 3×3 block %, LATE = >45% in the last third | RC reclaimable | CB combos / lone towers | MZ route vs plan | IDLE unspent gold | EVT event tips.
+MAP (on terrain change): rows y, cols x 0..9,a,b; . empty # obstacle S spawn X exit d/D drop warn/spawn; routes a,b… (+ overlap, ~ future drop); ${TOWER_LEGEND}; RLE "3." = "...".`;
 
 const ROLE_TEXT: Record<AgentRole, string> = {
   player: `# Role: AI player (defender). Maximize waves survived and score.`,

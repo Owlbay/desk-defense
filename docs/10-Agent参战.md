@@ -45,7 +45,7 @@
   - 敌人必须在本波出怪池内（无尽：已登场的敌人；战役：本章到这一波出现过的敌人；均不含 Boss）；最多 6 组、每组 1～60 只、2 个词缀（不含 `golden`，遵守互斥 / notOn）；`delay` 0～30 秒；出生点必须是该波可用的出生点。
   - **飞行敌人不能带词缀**（拒绝原因 `attackAffix`）。
   - 生命当量（基础生命 × 数量，精英 ×2.5）≤ 默认波（非 Boss 部分）的 1.2 倍；Boss 波的 Boss 原样保留、不能编排。
-  - **价格平衡**（`npx vite-node scripts/sim-attack.ts -- --seeds 6`：普通难度，内置 medium 防守机器人，无尽 + 三章战役 × 三张图 × 6 个种子；进攻方和真实对局一样只在建造阶段出题，自动波次重叠时会错过一些波 → "覆盖"列）。初值 `50 + 10×波数` / 上限 1.5 倍的问题：默认波的生命当量不随波数增长（成长在生成时另乘），预算却线性涨，中后期预算是默认波的 5～8 倍，永远是生命上限先顶住、词缀几乎免费；而多出来的敌人 = 多出来的赏金和经验，堆量 / 堆快敌反而让防守方更强（`fast` +97%、`swarm` +40%）。任何带词缀的飞行敌人则是一招制胜（`airaffix` 无尽第 11 波崩盘、战役 0% 通关）。现值：预算压到 `40 + 3×波数`（≈ 默认波按价买下来的 0.6～1.6 倍，预算成为主要约束），上限 1.2 倍，飞行敌人禁词缀。
+  - **价格平衡**（`npx vite-node scripts/sim-attack.ts -- --seeds 6`：普通难度，内置 medium 防守机器人，无尽 + 三章战役 × 三张图 × 6 个种子；模拟时进攻方只在建造阶段出题，自动波次重叠时会错过一些波 → "覆盖"列；正式对局现已改为上一波一开始就出题，不再错过）。初值 `50 + 10×波数` / 上限 1.5 倍的问题：默认波的生命当量不随波数增长（成长在生成时另乘），预算却线性涨，中后期预算是默认波的 5～8 倍，永远是生命上限先顶住、词缀几乎免费；而多出来的敌人 = 多出来的赏金和经验，堆量 / 堆快敌反而让防守方更强（`fast` +97%、`swarm` +40%）。任何带词缀的飞行敌人则是一招制胜（`airaffix` 无尽第 11 波崩盘、战役 0% 通关）。现值：预算压到 `40 + 3×波数`（≈ 默认波按价买下来的 0.6～1.6 倍，预算成为主要约束），上限 1.2 倍，飞行敌人禁词缀。
 
     | 策略（每策略 36 局） | 无尽中位波 初值 → 现值 | 无尽均值 Δ 初值 → 现值 | 战役通关率 初值 → 现值 | 战役掉命 初值 → 现值 | 现值：覆盖 / 顶到上限 / 预算用量 |
     |---|---|---|---|---|---|
@@ -63,14 +63,14 @@
 
     结论：现值下没有退化打法能一招制胜（最强的 `affix` 让无尽少撑 ~17%、战役通关率降到 ~2/3），堆量 / 堆快敌不再"送钱"；会用精英的进攻方（`affix` / `mixed`）落在目标区间（−13%～−17%）。旧的 `scriptedAttackPlan`（无词缀主力 + 25% 预算的精英小组）在现值下约等于默认波（−2%）；按模拟结论重写后（地面主力全部带「坚硬 + 再生」精英、防守方对空塔 < 2 时另配无词缀飞行敌人、不用便宜敌人填量、最后用 `checkAttackPlan` 自检）落在 −23%（战役通关率 56%），36 局 0 次被拒。测试 `tests/core/attack.test.ts`「attack balance invariants」钉住：预算 ≈ 默认波的 0.6～1.6 倍、满预算堆血计划被生命上限拦下、`scriptedAttackPlan` 在多种子 / 多波下从不被拒。
   - 指定了出生点的组用 `fixed` 并"钉住"（`SpawnEntry.pinned`），不被空降点分流。
-- **Agent 侧**（`src/agent/attack.ts`）：工具 `attack_plan({ groups: [{ enemy, count, affixes?, spawner?, delay? }], note? })`（成功即结束回合，被拒返回原因可改正）+ 读取工具 + `end_turn`（保留默认波）；自己的紧凑观测（预算、出怪池与单价、默认波、可用出生点、防守方的塔 / 对空塔数 / 地面路线长度、最近 5 波的漏怪与掉命 `hist`）与中文系统提示（`systemBlocks('attacker')`）。引擎只在建造阶段、下一波还没改写时叫模型；其余决策点本地处理。模型失败时用确定性出题策略补上。
+- **Agent 侧**（`src/agent/attack.ts`）：工具 `attack_plan({ groups: [{ enemy, count, affixes?, spawner?, delay? }], note? })`（成功即结束回合，被拒返回原因可改正）+ 读取工具 + `end_turn`（保留默认波）；自己的紧凑观测（预算、出怪池与单价、默认波、可用出生点、防守方的塔 / 对空塔数 / 地面路线长度、最近 5 波的漏怪与掉命 `hist`）与中文系统提示（`systemBlocks('attacker')`）。引擎在下一波开始之前、还没改写时叫模型（上一波一开始就出题，建造 / 战斗 / 选增益阶段都行）；其余决策点本地处理。模型失败时用确定性出题策略补上。
 - **离线策略**：`scriptedAttackPlan` / `ScriptedAttackerProvider`（`provider: 'scripted'` + `role: 'attacker'` 时由工厂返回；离线演示在进攻方角色下也自动换成它）：主力 = 地面敌人里"每点墨水生命最高"的，带两个词缀（坚硬 + 再生，不合法时依次换护盾 + 再生 / 迅捷 + 护盾 / 坚硬 + 护盾）；对空塔 < 2 时另配一组无词缀飞行敌人，与主力轮流加量到预算 / 生命上限；一只精英都放不下时才用最便宜的地面敌人；最后用 `checkAttackPlan` 自检（不会被拒）；有空降点且余钱够时让主力从空降点出。只读世界状态，确定性。
-- **UI**：对局里的 AI 菜单（I）→「AI 出题」：用同样的开局参数新开一局（对局已开始时需再点一次确认），AI 当进攻方（暂停模式，只在建造阶段出题），真人防守。下一波预告里显示「AI 出题 花费/预算」标签（出题前显示「AI 出题中…」）。这种局不上传全服榜（结算的 AI 报告里提示「不参与排行」，只记本地记录；服务端白名单里也没有 `overrideWave`）。
+- **UI**：对局里的 AI 菜单（I）→「AI 出题」：用同样的开局参数新开一局（对局已开始时需再点一次确认），AI 当进攻方，真人防守。上一波一开始 AI 就在后台给下一波出题，不暂停游戏；题还没出完时手动开波会被挡下（提示「AI 还在给下一波出题」，`Session.holdStart`），自动开波倒计时剩 1 秒时临时暂停，出完再继续。下一波预告里显示「AI 出题 花费/预算」标签（出题前显示「AI 出题中…」）。这种局不上传全服榜（结算的 AI 报告里提示「不参与排行」，只记本地记录；服务端白名单里也没有 `overrideWave`）。
 - **设置页入口**：「AI 参战」页的角色卡片有四个：AI 玩家 / AI 军师（AI 防守）、**AI 出题**（同上，从设置页直接开局）、**AI 对战**。`AiSetupSaved.kind = 'defend' | 'attack' | 'duel'`（旧设置按 defend）。
 - **AI 对战（双模型）**：
   - 设置页显示两张模型卡片（同一个 `mountAiModelConfigForm` 组件）：「进攻方模型」另存一份设置（`desk-defense.ai.duel-attacker.v1`，Key 仍按来源共用），「防守方模型」就是共用的 AI 设置；两边各自可选离线演示或任意已配置的模型。启动参数 `duelLaunch(defender, attacker)` → `AiLaunch.duel`。
-  - **调度**（`src/agent/duel.ts` `createDuelController`，与 `createAgentController` 同形；无头：`runAgentGame(opts, { …, attacker: { config, provider } })`）：两个 `DecisionEngine` 共用一个 `DecisionDetector`、一个世界、一次暂停。每个决策点只暂停一次；建造阶段且下一波可改写、还没问过进攻方时**先让进攻方出题，再让防守方决策**（防守方会开波，顺序不能反）；其余决策点只有防守方。每波只问进攻方一次（选择保留默认波也算问过）。两边都固定为暂停模式。
-  - **增益之后**：波次结束先进入增益三选一（`attackOpen` 只在 build 阶段为真），这时进攻方不能出题。防守方引擎带 `holdWaveStart`：进攻方还没为下一波出题时，防守方（模型 / 兜底 / 推进保证）发出的 `startWave` 一律拒绝（原因「进攻方还在为下一波出题」）；防守方选完增益回到建造阶段后，同一决策点里进攻方补出题，下一个决策点防守方再开波。自动开波时上一波没清完下一波就按计时开始的情况（不经过建造阶段）照旧是默认波。
+  - **调度**（`src/agent/duel.ts` `createDuelController`，与 `createAgentController` 同形；无头：`runAgentGame(opts, { …, attacker: { config, provider } })`）：两个 `DecisionEngine` 共用一个 `DecisionDetector`、一个世界、一次暂停。每个决策点只暂停一次；下一波可改写、还没问过进攻方时**先让进攻方出题，再让防守方决策**（防守方会开波，顺序不能反）。防守方开波后同一次暂停里进攻方马上给再下一波出题；其余决策点只有防守方。无头运行时调度器的 `interrupt` 在下一波还没出题时立刻交出一个空原因的决策点，只给进攻方。每波只问进攻方一次（选择保留默认波也算问过）。两边都固定为暂停模式。
+  - **出题时机**：`overrideWave` 在下一波开始之前任何阶段都接受（建造 / 战斗 / 选增益），所以选完增益马上开波、自动开波时上一波没清完下一波就按计时开始，这两种情况下一波也都已经出好题。防守方引擎仍带 `holdWaveStart`：万一进攻方还没出完，防守方发出的 `startWave` 会被拒绝（原因「进攻方还在为下一波出题」），等下一个决策点再开。
   - **面板**：AI 侧栏标题「AI 对战」，状态页多两行状态（攻 / 守，各自的模型名与正在想的决策原因），决策流里每条记录带「攻 / 守」标签（`DecisionRecord.side`），`attack_plan` 显示为「出题：纸团×8、…」；不显示「给 AI 下指令」。下一波预告照常显示「AI 出题」标记；对局里的 AI 菜单徽标为「AI 对战」。
   - **记录**：`report().agent.role = 'duel'`（防守方的模型标记），`attacker` 是进攻方；回放 `AgentReplay.attacker`。结算报告提示「AI 对战局不参与排行」（`aiUploadPlan` → skip），只记本地记录。
   - **CLI**：`npm run agent:play -- --provider … --attacker scripted|claude|pi|baseline [--attacker-model M --attacker-preset P --attacker-api A --attacker-base-url URL --attacker-api-key-env NAME --attacker-thinking L --attacker-budget-tokens N]`；对照组（`--compare`）的内置机器人也面对同一个进攻方。report.json 每局多一个 `attacker` 汇总（改写波数、token、费用、兜底、错误），decisions-<seed>.jsonl 两边按决策序号合并（带 `side`）。
@@ -328,6 +328,13 @@ interface LLMProvider { id: string; model: string; decide(ctx: DecisionContext):
 - `listModels(config)`：中转服务（`preset: 'relay'`）`GET {根}/v1/models`，先 `Authorization: Bearer`，失败再试 `x-api-key` + `anthropic-version`；OpenAI 兼容（含所有本地服务）`GET {baseUrl}/models`；Anthropic `GET /v1/models`；Google / OpenAI 也可回退到 pi 内置表。失败时返回 CORS / 本地网络权限提示。
 - `testConnection(config)`：发一个只有 `end_turn` 工具的极小请求，返回 `{ reachable, toolCalling, latencyMs, tokens, error, hint, advice }`。模型连得上但不调用工具时建议换模型或改 `toolMode: 'json'`。
 
+### 8.5 按模型的思考档位与价格（模型目录，数据来自 modelinfo.dev）
+- 快照：`src/agent/modelinfo.data.json`（约 60 KB，只进 AI 分包），由 `npx vite-node scripts/sync-modelinfo.ts` 从 `https://modelinfo.dev/site/models?lang=en` 生成（`--from 文件` 可用本地保存的返回值）。只留仍可调用（active / preview / deprecated）、支持工具调用的模型；每个模型：`id / name / vendor / context / maxOut / efforts / off / price{in,out,cr,cw}（美元 / 百万 token）/ aliases`。JSON 里带 `note: 数据来自 modelinfo.dev` 与快照日期 `date`，设置页同样标注。
+- 查找（`src/agent/modelinfo.ts` `lookupModel`）：精确 id → 服务商模型 id / 别名 → 去掉 `vendor/`、`us.anthropic.` 等前缀、`[1m]`、`@…`、`:free`、日期后缀再试；大小写、`.` / `-` 不敏感。查不到 = 未知模型：界面显示通用档位（Claude 6 档、其他 4 档）与"价格未知，可手动填"，适配器行为与以前完全一样。
+- 思考（`thinkingSupport` / `clampThinking`，`thinking.ts` 里统一落档）：设置页只列这个模型支持的档位（能关时带"无思考"；DeepSeek / Qwen / Sonnet 5.5 / Haiku 5.5 由适配器负责关闭），每个模型分别记住（`AiSetupSaved.thinkingByModel`）。配置里的等级不在模型档位里时就近落档（平局取较低档，例如 DeepSeek 没有"中"→"低"），追踪里附提示。OpenAI 兼容接口（completions / responses）按目录档位原样发出（经 pi 的 `thinkingLevelMap`，所以 DeepSeek 的 `max`、GPT 的 `xhigh` 能真正发出去）；目录标明不支持思考的模型不发推理参数；responses 接口的"无思考"在模型可关时显式发 `effort: none`。
+- 价格：手填（`config.price`，设置页「高级设置」按模型保存在 `priceByModel`）> 目录价格 > Claude 内置价格表 / pi 模型表 > 0（本机模型）。缓存读 / 写没公布时按输入价计（保守）。
+
+
 ---
 
 ## 9. 成本、延迟与可靠性
@@ -335,7 +342,7 @@ interface LLMProvider { id: string; model: string; decide(ctx: DecisionContext):
 | 控制 | 默认 | 行为 |
 |---|---|---|
 | 整局 token 预算 `budget.tokens` | CLI 2,000,000 / 网页 1,000,000 | **折算**：新输入 + 输出 + 缓存写×1.25 + 缓存读×0.1（§17.1）；`budget.mode` 默认 soft = 分级收紧后继续，hard = 用尽交给内置机器人（§17.8） |
-| 整局费用预算 `budget.usd` | 无 | 同上（按价格表估算） |
+| 整局费用预算 `budget.usd` | 无 | 同上（按 §8.5 的模型目录价格估算；目录里没有的模型可手填价格，否则面板显示"价格未知"） |
 | 每次决策工具调用上限 | 12 | 超出的调用返回 `ERROR tool-call limit…`，本回合结束 |
 | 单次决策超时 | 90 s | 中止请求，本回合由兜底机器人决定 |
 | 连续失败熔断 | 3 次 | 停用模型（例如没有凭据、模型不存在），余下全部兜底 |
@@ -344,7 +351,7 @@ interface LLMProvider { id: string; model: string; decide(ctx: DecisionContext):
 
 **兜底机器人**：CLI 用 `scripts/bots` 的 StrategyBot（默认 `medium`，`--fallback expert` 可换）；浏览器默认用脚本策略。决策后还有"推进保证"：增益没选 → 选第一张不需要目标的；补给没选 → 选第一项；手动模式没开波 → 自动开波。这些都记在决策记录的 `fallbackReason` 里。
 
-**价格估算**（美元 / 百万 token，以账单为准；cacheWrite = 5 分钟缓存 1.25× 输入）：
+**价格估算**：所有收录在模型目录（§8.5，数据来自 modelinfo.dev）里的模型都按目录价格估算费用；设置页显示"约 $x / 每波"= 上下文模式的 `estTokensPerWave`（折算 token）按离线 token 模型的构成拆分（约 15% 新输入、75% 输出、原始缓存读 ≈ 折算总数）后乘单价。下表是 Claude 原生适配器的内置兜底价（美元 / 百万 token，以账单为准；cacheWrite = 5 分钟缓存 1.25× 输入）：
 
 | 模型 | 输入 | 输出 | 缓存读 | 缓存写 |
 |---|---|---|---|---|
@@ -358,6 +365,8 @@ interface LLMProvider { id: string; model: string; decide(ctx: DecisionContext):
 ---
 
 ## 10. 网页里接入模型（给 UI 工作的设计）
+
+**设置页的简化**：常显的只有 服务 / 模型 / 思考等级（按模型列出档位，附价格与"约 $x / 每波"，标注数据来自 modelinfo.dev 与快照日期）/ 决策方式 / 预算。工具模式（"测试连接"自动判断）、上下文模式（默认自动 = 云端均衡、本机省流）、手填价格放在模型卡片里折叠的「高级设置」；波次中决策间隔放在决策卡片的「高级设置」（留空 = 按上下文模式）。能力没有删减，只是默认收起。
 
 ### 10.1 托管模型 + 玩家自带 Key（BYO key）
 - Key 默认只在内存；勾选"本次会话记住"才放 `sessionStorage`（关标签页即清除），**永不写 localStorage、永不发给我们的服务器**。`createKeyStore()` 已实现。
@@ -647,6 +656,8 @@ npm run agent:play -- --mode endless --map ch1 --difficulty normal --model claud
 - 开局信息（模式 / 地图 / 种子 / 技能）只随完整观测发送（不在前缀里，前缀逐字节稳定）。
 
 ### 17.5 进攻路线（`src/agent/routes.ts`）
+> §19.12 起观测里的 `R` / `Ra` 与 `nx` 的按出生点列表合并成一个 `AR` 键（每条路线 + 下一波走它的组 + 无覆盖路段）；下面的 `R` / `Ra` 格式仍用于 `observe {detail:'full'}` 的 ROUTES 行与 `preview`。
+
 - **地面路线 `R`**：每个开放出生点（边缘 / 打开的暗门 / 落地的空降箱）沿流场到出口，只留拐点：`north:5,0>5,4>9,4>9,13 L24`（相邻航点之间是 8 方向直线，`expandWaypoints` 逐格还原，与 `world.currentPaths()` 一致）；预警中的空降箱给出"落地后会出现的路线"：`drop-3:… L12 warn 8s`。
 - **`Rs` 最长直线段**：`north 5,4>9,4 L5 b7`（b = 段旁可建空格数）；**`Rp` 好位置**：射程 2.5 内覆盖路线格最多的可建空格 `4,5:14`。
 - **`Ra` 飞行线**：出生格中心 → 横向最近的出口中心，沿线每 0.25 格采样统计防空覆盖：`north 5.5,0.5>5.5,13.5 L13 aa38% #3,#7`。
@@ -712,6 +723,14 @@ npm run agent:play -- --mode endless --map ch1 --difficulty normal --model claud
 
 无思考时：优化前 18.2k → 完整 3.2k / 均衡 1.5k / 省流 1.3k 折算 / 波。按均衡估算，1M 折算预算从 ≈18 波延长到 ≈180 波（思考低）。说明：脚本策略从不出错，所以"请求 / 决策"是理想值 1；真实模型偶尔需要第二次 `act` 纠正，预计 1.1～1.5。决策点更少对"每次只看眼前"的脚本策略有影响（30 波时均衡在 21 波、省流在 25 波失守，完整在 28 波），真实模型靠备忘里的计划弥补；这是省钱与稳健的取舍，可选"完整"。
 
+### 17.12 术语表与词语精简（第三轮，配合 §19.11）
+固定前缀重排为四段：**规则与无尽成长 → 打法手册 → 每次决策 → 术语表（Glossary）**。术语表逐个解释观测短键（`T` 的 `x25|50|75`、`up|br|ev`、`E` 的 `eN/hN`、`Ef dN`、`nx early+Ng`、`Rs bN`、`Ra aa%`、`rc` 的 `kN +Ng wN clear iN #uid→Llv`）和附加行（`BR TH CTR LK GAPn KH RC CB MZ IDLE EVT` 的每个字段、`TH` 阈值 安全 ≥2 / 吃紧 ≥1.2 / 危险 <1.2、`KH` 的 `f/m/l` 与 `LATE`、`LK` 的 `gap0/gap1`、`e.` 精英、`^` 飞行）。省出的地方：
+- 速查表：塔行去掉中文定位与传奇分支名（`get_catalog` 可取），换成"什么时候用"的短说明，原来单独的 `Use:` 行并入；台灯 / 事件说明删重复。速查表 1207 → 962 token。
+- 观测：`LK / GAP / KH` 改用敌人代号与短键（`LK w7 n4: cr×3(hp40 in35 north x5 y9..12 gap0 top#4pencil70)`、`GAP5 …`、`KH 22 f/m/l 20/55/25 hot x3-5 y6-8 41 LATE`），不再是整句中文；塔行经验进度按 25% 分档、升级 / 进化价 <100 取整到 5、<500 到 10、其余到 25（显示价 ≥ 实价），后期 `T+` 不再因为经验每秒变化整表重发。脚本对局（种子 e1，≈120 次决策）每次决策消息均值 529 → 452 token（−15%）。
+- 工具描述略缩（1788 → 1779）。
+
+前缀合计（规则 + 速查表 + 玩家工具，`estimateTokens`）：4281 → 4409（+3%；规则 1286 → 1668，多出来的是打法手册与术语表）；§19.12 加了 AR 图例、合并意图后为 **4513**（+5.4%）。观测里 `R` / `Ra` 与 `nx` 的出生点列表由 `AR` 取代（§19.12）。仍逐字节稳定（测试断言不变）；`tokenRun` 测试的"前缀 < 优化前的一半"放宽为 < 55%。
+
 ---
 
 ## 18. 开放问题
@@ -750,6 +769,8 @@ npm run agent:play -- --mode endless --map ch1 --difficulty normal --model claud
 | `IDLE 150g unspent (interest only +7/wave): …` | 建造阶段金币 ≥ 60 且没有 `save` 目标时提醒花钱 | 建造阶段 |
 
 ### 19.3 `act` 里的高层意图（`do` 枚举新增 6 种，旧的低层动作照旧）
+> §19.12 起合并为 6 个：spend / maze(rebuild) / build_near(tower|purpose|pair) / upgrade_best / save / reclaim；anti_air / combo / support / economy / rebuild_maze 作为别名照收。
+
 | 意图 | 字段 | 规划器做什么 |
 |---|---|---|
 | `maze` | `style` serpentine（缺省）/ funnel，`budget` | serpentine：按 `planMaze` 的蛇形挡板逐格放墙（与高手机器人同一规划；被拒的格子跳过并统计原因）；funnel：贪心放"让路线变长最多"的单格墙（用 `previewPath`，与真实放置同规则）。结果：墙数、花费、路线长度变化、规划完成度与剩余墙钱 |
@@ -765,6 +786,8 @@ npm run agent:play -- --mode endless --map ch1 --difficulty normal --model claud
 - 规则 / 速查表 / 工具仍逐字节稳定；`assist` 只换规则块（打法要点 + 开局 + 一个示例 act）和 `act` 的 Schema。前缀 ≈1190 + 593 + 1600 token（旧 ≈950 + 593 + 1340）。
 
 ### 19.4 提示词（`RULES`，仍 < 1200 token）
+> §19.11 起改为「规则与无尽成长 / 打法手册 / 每次决策 / 术语表」四段（≈1.67k token），下面是第一轮的要点。
+
 打法要点：早造迷宫（`maze`；手放的零散墙很少能拉长路线）· 让金币干活（建造阶段结束 ≲30 金币，除非 `save`）· 1～6 波买塔、之后加 `upgrade_best` · 空军波前每条飞行线要有对空（`anti_air`）· 克制 · 技能用在漏怪 / Boss / 逼近出口 · 读 TH / BR · 多入口用 chokepoint。开局：`[{do:"spend",reserve:0}]`；每个建造阶段：有空军则 `anti_air`、`maze`、`spend`，约第 6 波起加 `upgrade_best`。一个示例 act。
 
 ### 19.5 评测场
@@ -825,9 +848,9 @@ npm run agent:eval -- --provider relay --variants "base:assist=off,thinking=low;
 
 | 行 | 例子 | 何时 |
 |---|---|---|
-| `LK` 漏怪明细 | `LK w7 漏4: 橡皮屑×3(均剩40%血 射程内35% north x5 y9..12 无覆盖 主伤#4pencil 70%) 精英回形针[坚硬]×1(…)` | 有新漏怪的下一次模型决策（波中也发）；同种 / 同精英 / 同出生点合并，最多 4 组（`+N种`） |
-| `GAP` 缺口热点 | `GAP 近5波缺口热点: north x5 y9..12 ×6, air:north y2..9 ×2 → {do:"build_near",purpose:"dps",target:"seg:5,9-5,12"} {do:"anti_air",route:"north"}` | 同上；最近 5 波、重叠的缺口合并计数、前 3 |
-| `KH` 击杀分布 | `KH 击杀 22: 前/中/后段 20/55/25%，最热 x3-5 y6-8 41%` | 每波一次（与 BR 同窗口）；后段 >45% 提示"前中段火力不足" |
+| `LK` 漏怪明细 | `LK w7 n4: cr×3(hp40 in35 north x5 y9..12 gap0 top#4pencil70) e.pc[hard]×1(…)`（§19.11 起用敌人代号与短键：hp 剩余血量 %、in 射程内时间 %、gap0 无覆盖 / gap1 仅 1 塔、top 主伤塔与份额 %、`e.` 精英、`^` 飞行） | 有新漏怪的下一次模型决策（波中也发）；同种 / 同精英 / 同出生点合并，最多 4 组（`+N`） |
+| `GAP` 缺口热点 | `GAP5 north x5 y9..12 gap0 ×6, air:north y2..9 gap1 ×2 → {do:"build_near",purpose:"dps",target:"seg:5,9-5,12"} {do:"anti_air",route:"north"}` | 同上；最近 5 波、重叠的缺口合并计数、前 3 |
+| `KH` 击杀分布 | `KH 22 f/m/l 20/55/25 hot x3-5 y6-8 41` | 每波一次（与 BR 同窗口）；后段 >45% 末尾加 `LATE`（前中段火力不足） |
 | `RC` 回收 | `RC 无用墙 6（拆了路线不变，各退≈3g）: #12@3,4 … \| 零伤害塔 #9pencil \| 被挤占格 4,5:14（Lv1 墙占着好格，换塔不改路线） → {do:"reclaim",…}` | 建造阶段，有才发；同样内容隔 3 次建造决策才重发 |
 | `CB` 组合技 | `CB 激活 #3+#7 带橡皮的铅笔 \| 缺搭档 #4glue(配stapler) \| 塔种 3: pencil,glue,stapler → {do:"combo",pair:"glue+stapler"}` | 同上；建议按收益排序（胶水→订书机、台灯↔钢笔、尺子↔圆规；铅笔→橡皮擦只在下一波有护甲时） |
 | `MZ` 迷宫 | `MZ 路线 L16 = 直线 15 的 1.1×（偏短），规划可达 L66（4.4×）\| 迷宫 4/58 格，还差 ≈270g \| 未利用障碍 4,4 2×2 … → {do:"maze"}` | 建造阶段，路线 < 规划可达的 85% 时 |
@@ -880,3 +903,70 @@ npm run agent:eval -- --provider relay --variants "base:assist=off,thinking=low;
 - **economy 的宽松条件**（满血、≥4 塔、下一波没有"危险"）：困难难度早放存钱罐，脚本评测失守 2 局；收紧为 ≥6 塔、每条线威胁 ≥×3。
 - **combo 不设位置门槛**：给落单铅笔配橡皮擦，常放在覆盖很差的格；改为每座至少该塔最好格覆盖的 70%，CB 建议也按收益排序（铅笔→橡皮擦只在下一波有护甲时）。
 - **`maze` 预算向上补完挡板也作用于 `spend`**：spend 内部的墙预算被放大，开局钱全进墙，脚本 ch2 噩梦第 3 波失守；只对模型直接给的 `maze` 生效。
+
+### 19.11 第三轮：系统提示（打法手册 + 术语表）与后期规划器
+反馈："AI 打无尽只能到 40 多波"。先量：中转 deepseek-flash 改前 3 局（种子 rm1～rm3，ch1 普通，无尽）49 / 49 / 50 波，全部死在 w40 闹钟 Boss 之后几波；脚本对照 `scripted-intents` 49.5 波、`scripted-tactics` 47.2、medium 45.7、expert 68.2（6 种子 e1～e6）。
+
+**提示词（`src/agent/prompts.ts`，见 §17.12）**
+- 规则里加无尽成长与日历（数值取自 `scaling.ts` / `difficulty.ts` / 波次生成）：敌人血量 ×(1+.18n)·1.04^n（w20 ×9、w40 ×37、w60 ×118、w80 ×340）、数量 +8%/波、护甲每 12 波 +1、普通 w30 起精英（困难 20 / 噩梦 15 / 魔境 12），击杀金币只 ×(1+.04n) ⇒ 后期靠等级 / ★ / 计算器 / 复利；Boss 每 10 波（50 波起 2 个）、空袭 7 的倍数、冲锋 5 的倍数、包夹 w12/28/36/44/52；利息 5%（上限 20，噩梦 / 魔境 15）、波奖励 10+2w、卖塔 70%…25%。
+- 打法手册：开局 `[{do:"spend",reserve:0}]`；**默认回合 = [需要时 anti_air, spend]**，upgrade_best / build_near 只在有理由时放在 spend 前（它们在另一边更划算时会拒绝）；w1-10 / w10-30 / 护甲（伤害 = max(1, 攻击 − 护甲)：w40 回形针护甲 6、Boss 7+，纯铅笔会在 w40 Boss 崩）/ w30-60 / w60+ 或满盘的分阶段计划；增益优先级 legend（+uid 最好的 Lv7+ 铅笔 / 台灯，分支 A）> promotion > sale > compound > timemgmt > notes > sharpener > scholaraura > safe；补给 w30 前金币、之后经验；缺省分支；困难 / 噩梦 / 魔境更早造迷宫与对空、存钱罐只在每条线 TH ≥3 时。
+- 术语表：全部观测短键与附加行的字段（§17.12）。
+
+**规划器（`src/agent/planner.ts`）**——用脚本"模拟模型的用法"测出来的坑（种子 e1～e6，ch1 普通，150 波封顶）：
+
+| 模拟 | 改前 | 改后 |
+|---|---|---|
+| 只 spend（+ anti_air / 技能，`scripted-intents`） | 49.5 | **60.0** |
+| 每个决策先 `upgrade_best ×3` 再 spend（真实模型最常见的写法） | 36.5 | **55.3** |
+| 每个建造阶段 `build_near purpose:dps` | 46.8 | **56.8** |
+| 两者都有 | 32.3 | **49.5** |
+| `scripted-tactics`（再加 reclaim / CTR 补塔 / combo / economy） | 47.2 | **54.7** |
+| 困难：intents / tactics | 35.8 / 36.7 | 36.2 / 38.5 |
+| 魔境 I：intents / tactics | 23.0 / 27.2 | 23.8 / 27.0 |
+| 对照机器人 expert / medium（普通） | 68.2 / 45.7 | — |
+
+- **轮换表**与高手机器人同序：开局 4 铅笔后穿插橡皮擦 / 台灯 / 胶水，≥8 座攻击塔后计算器、w15～25 前后存钱罐（最多 3，掉过命 / 下一波危险 / 35 波后不买）。顺手修了计数 bug：计算器 / 存钱罐不是攻击塔，按攻击塔计数时永远"还没买"，一局能买 40 座计算器。
+- **买 / 升口径**：15 波起新塔的每金币收益要高过升级 ×1.5 才买（高手机器人的 upgradeBias）；升级买不起时，新塔不更差（或危急）就先买塔而不是干攒。
+- **`upgrade_best` 与 spend 同口径**：塔没到上限且新塔更划算时拒绝（`stop: a new pencil is worth more per gold now … → {do:"spend"}`）。这是本轮最大的一项：模型几乎每个决策都先 upgrade_best，早期塔太少。
+- **`build_near purpose:"dps"`**：升级更划算时拒绝；挑塔时覆盖取平方根、铅笔不打同类折扣（尺子 r4.5 覆盖是铅笔 3 倍但秒伤 / 金低得多）。其他用途（armor / boss / aoe…）仍线性，靠适配系数挑台灯 / 尺子 / 橡皮擦。
+- **`build_near` 最好格覆盖 < 3 个路线格就不建**（后期满盘，模型连买 cov1.2 的圆规）→ 提示改升级。
+- **`anti_air`**：下一波这条飞行线已"安全"（TH ≥2）就跳过（`count ≥2` 强制）；改前每个空袭波都补一座，后期 13～15 座苍蝇拍。
+- **`reclaim idle_towers`**：够不着路线的照卖（再用规划器自己的覆盖口径复核，两套口径不一致时卖了又在原格重建同一座塔）；只是"最近 2 波 0 伤害"的，只卖放了 2 分钟以上的 Lv1 非对空塔（后段的塔是保险，卖塔亏钱）。
+- **`combo`**：这一对已经激活过、又没有落单塔可配时，不再新建一整对（脚本里每波新建胶水 + 订书机，少活 3 波）。
+- **`save`**：下一波有"危险"路线时拒绝（实测模型 hp 6/20 还在 save until 400）。
+- **`maze`（模型直接调用）**：攻击塔不足 4 座时先留出铅笔钱（实测一局开局 `{do:"maze"}` 把 150 金币全换成 30 道墙，第 1 波 0 座塔漏 9 只、第 5 波失守）。
+- TH 行建议的 `{do:"anti_air",line:…}` 字段名写错（Schema 是 `route`，照抄会被拒），已改。
+
+**观测精简（`compact.ts` / `intel.ts`，§17.12）**：真实对局每次决策的观测 ≈370 → ≈280 token（−25%）。
+
+**真实模型（中转 deepseek-flash，思考"低"，均衡上下文，ch1 普通无尽，种子 rm1～rm3，各 1 局）**
+
+| 版本 | rm1 | rm2 | rm3 | 平均 | 每波原始 / 折算 token | 请求 / 决策 |
+|---|---|---|---|---|---|---|
+| 改前（§19.10 的代码） | 49 | 49 | 50 | **49.3** | 16.0k / 6.5k | 1.09 |
+| 中间版 A：新提示词（偏铅笔）+ 轮换 / 对空 / 平方根选塔 | 42 | 41 | 47 | 43.3 | 17.9k / 7.7k | 1.17 |
+| 中间版 B：+ 护甲段落、用途选塔改回线性 | 44 | 55 | 49 | 49.3 | 18.2k / 7.9k | 1.17 |
+| **最终（本节全部 + upgrade_best / build_near dps 与 spend 同口径）** | **56** | **59** | 49 | **54.7** | 19.7k / 8.9k | 1.15 |
+
+- 最终版另有 1 局（rm1 第一次）开局 `{do:"maze"}` 把钱全换成墙、第 5 波失守，修了 `maze` 留铅笔钱后重跑得到上表的 56；rm2 / rm3 是修之前跑的（只影响开局）。
+- 中间版 A 掉到 43 波：替换下来的 3 局里塔是 29～34 支铅笔、5～7 尺子、5～6 台灯，改前是 12～18 铅笔、23～27 尺子、9～19 台灯——w40 闹钟 Boss（护甲 7）一来就崩。于是提示词补了护甲段落、用途选塔只对泛用 dps 取平方根。
+- token：每波折算 6.5k → 8.9k（+37%）。前缀只 +3%、观测 −25%，涨在输出（推理 1.7k → 2.2k / 波，打法手册让模型想得更多）和新输入（第二次请求略多、对局更长后期塔多）。按均衡 1M 折算预算算，≈110 波。
+- 样本小（每版 3 局，单局波动 ±5 波），结论按"方向"看：最终版 3 局里 2 局到 56～59 波，脚本模拟的同类写法从 32～47 提到 50～57。
+
+### 19.12 进攻路线行 AR 与意图合并（第四轮）
+**AR（attack routes，每个决策的观测都有，取代原来的 `R` / `Ra` 和 `nx` 里按出生点的列表；`nx` 只剩 `wN [tags] early+Ng`）**——给模型"下一波从哪来、走哪条路、哪里没火力"，好针对性落塔。下一波被 AI 出题改写时读的是改写后的 `state.nextWave`。格式只在术语表里定义一次：
+
+```
+"AR":["north: cr×10 pc×4(e1) | 5,0>8,0>8,2>1,2>1,7>3,9>3,11>5,13 L24 | gap 1,2>5,13(12)",
+      "west: - | 0,3>0,4>11,4>…>5,13 L37 | gap -",
+      "drop-3 lands 8s: - | 7,6>…>5,13 L12 | gap 7,6>7,9(4)",
+      "air:north: pl×3 | 5,0>5,13 L13 aa28% #1,#2,#3,#15+6",
+      "*: cr×5"]
+```
+地面 = `出生点: 下一波走这条线的地面组（代号×数量(e精英数)，没有写 -）| 拐点航点（最后一个是出口）L长度 | gap 没有任何对地塔够得着的路段 起>止(格数)，最长 3 段`；`lands Ns` = 空降箱落地后的路线；`air:` = 飞行线（起点格 > 出口格、对空覆盖比例、覆盖它的塔最多列 4 座）；`*` = 出生点未定的组。实现 `routes.ts attackRoutes()`，`compact.ts` 写入。
+
+**漏怪按路线归并**：`LK w7 n4 | north: cr×3(hp40 in35 x5 y9..12 gap0 top#4pencil70) | air:west: pl^×1(hp80 in10 top-)`（路线名与 AR 相同）；`GAP` 只报近 5 波**漏过 ≥2 次**的路段，只出现一次的已在 LK 里。
+
+**意图合并：Schema 只列 6 个**——`spend`、`maze`（`rebuild:true` = 原 rebuild_maze）、`build_near`（`tower` | `purpose` | `pair`；`purpose:"air"` = 原 anti_air，按飞行线 `route`、线已"安全"跳过、`count ≥2` 强制；`tower:"calculator"` / `"piggy"` 不给 target = 原 support / economy 的光环 / 安全门槛逻辑；`pair` = 原 combo）、`upgrade_best`、`save`、`reclaim`。旧名 `anti_air / combo / support / economy / rebuild_maze`（以及 combo 的 `near`）照收：`executeTool('act')` 与 MCP 都先经 `normalizeAction()` 改写再校验，脚本策略、玩家指令解析、旧客户端不用改。观测里的建议意图（TH / GAP / CB）都改成新写法。act 描述："Intents: spend | maze (rebuild) | build_near tower|purpose|pair (purpose air = anti-air; tower calculator/piggy = aura/economy spot) | upgrade_best | save | reclaim target"。
+
+前缀（规则 + 速查表 + 玩家工具）4281 → **4513 token**（+5.4%）；脚本对局每次决策消息均值 529 → 440 token（−17%，AR 计入后）。脚本评测数字不变（intents 60.0 / tactics 54.7，旧名走别名）。

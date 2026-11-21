@@ -69,7 +69,7 @@ const str = (description: string, e?: readonly string[]): JsonSchema =>
 
 const X = int('cell column 0..11');
 const Y = int('cell row 0..13');
-const UID = int('tower uid (the number after # in the towers list)');
+const UID = int('tower uid (#n in T)');
 const BRANCH = str('legend branch at Lv9→10', ['A', 'B']);
 
 const P: AgentRole[] = ['player'];
@@ -283,20 +283,36 @@ export const ACT_TO_LEGACY: Record<string, string> = {
   start_wave: 'start_wave',
 };
 export const ACT_KINDS_V1 = [...Object.keys(ACT_TO_LEGACY), 'end_turn'];
-/** 高层意图（由 planner.ts 挑具体格子 / 目标执行） */
-export const INTENT_KINDS = [
-  'maze',
-  'build_near',
-  'upgrade_best',
-  'anti_air',
-  'spend',
-  'save',
-  'combo',
-  'support',
-  'economy',
-  'reclaim',
-  'rebuild_maze',
-] as const;
+/**
+ * 高层意图（由 planner.ts 挑具体格子 / 目标执行）。§19.12 起合并为 6 个，Schema 只列这些：
+ *   maze {rebuild?} | build_near {tower | purpose | pair} | upgrade_best | spend | save | reclaim
+ * 旧名照收（INTENT_ALIASES，不在 Schema 枚举里；MCP 先经 normalizeAction 改写再校验）：
+ *   anti_air = build_near purpose:"air" | support = build_near tower:"calculator" | economy = build_near tower:"piggy"
+ *   combo = build_near pair | rebuild_maze = maze rebuild:true
+ */
+export const INTENT_KINDS = ['maze', 'build_near', 'upgrade_best', 'spend', 'save', 'reclaim'] as const;
+export const INTENT_ALIASES = ['anti_air', 'support', 'economy', 'combo', 'rebuild_maze'] as const;
+
+/** 旧意图名 → 合并后的写法（参数原样保留；executeAct 两种都认，这里给 MCP 校验前改写用） */
+export function normalizeAction(a0: Record<string, unknown>): Record<string, unknown> {
+  // 旧 combo 的 near 字段 = target
+  const { near, ...rest } = a0;
+  const a = near !== undefined && rest.target === undefined ? { ...rest, target: near } : near !== undefined ? rest : a0;
+  switch (a.do) {
+    case 'anti_air':
+      return { ...a, do: 'build_near', purpose: 'air' };
+    case 'support':
+      return { ...a, do: 'build_near', tower: 'calculator' };
+    case 'economy':
+      return { ...a, do: 'build_near', tower: 'piggy' };
+    case 'combo':
+      return { ...a, do: 'build_near' };
+    case 'rebuild_maze':
+      return { ...a, do: 'maze', rebuild: true };
+  }
+  return a;
+}
+
 export const ACT_KINDS = [...INTENT_KINDS, ...ACT_KINDS_V1];
 
 /** 每种动作用到的字段（其余字段忽略） */
@@ -350,19 +366,19 @@ const ACTION: ObjectSchema = obj(
     do: str('action', ACT_KINDS),
     ...ACTION_FIELDS,
     style: str('maze style', ['serpentine', 'funnel']),
+    rebuild: { type: 'boolean', description: 'maze: remove obsolete walls and re-plan (routes changed)' },
     budget: int('maze / upgrade_best: max gold'),
     target: str(
       'build_near: route|route:<spawner>|early|exit|air|airline:<spawner>|chokepoint|seg:x1,y1-x2,y2; reclaim: useless_walls|idle_towers|cells',
     ),
-    count: int('how many (build_near / upgrade_best / anti_air / economy)'),
+    count: int('how many (build_near / upgrade_best; purpose air ≥2 builds even if the line is safe)'),
     purpose: str('build_near instead of tower', PURPOSES),
-    pair: str('combo', COMBO_PAIRS),
-    near: str('combo: like target'),
+    pair: str('build_near: adjacent combo pair', COMBO_PAIRS),
     replaceWith: str('reclaim: tower or purpose for freed cells'),
     max: int('reclaim max'),
     dry: { type: 'boolean', description: 'reclaim: list only' },
     metric: str('upgrade_best metric', ['dps', 'coverage']),
-    route: str('spawner id (maze funnel / anti_air line)'),
+    route: str('spawner id (maze funnel / build_near purpose air: flight line)'),
     reserve: int('spend: keep this much gold'),
     focus: str('spend focus', ['balanced', 'towers', 'upgrades', 'maze']),
     until: int('save: target gold'),
@@ -380,7 +396,7 @@ export const SLIM_TOOLS: AgentToolDef[] = [
     kind: 'action',
     roles: P,
     description:
-      'Run actions in order (each validated, per-action results); ONE call per decision incl. end. Intents (planner picks cells): maze | build_near tower|purpose | upgrade_best | anti_air | spend | save | combo pair | support | economy | reclaim target | rebuild_maze. Low-level: place tower,x,y (auto-moved if blocked) | upgrade/evolve/sell uid | branch uid,branch | target uid,mode | cast_skill skill (+x,y/uid/axis,index/spawner) | tower_ability uid (+args) | collect | choose_perk id | choose_crate option | demolish id | start_wave.',
+      'Run actions in order, one result line each; ONE call per decision incl. end. Intents (planner picks cells): spend | maze (rebuild) | build_near tower|purpose|pair (purpose air = anti-air; tower calculator/piggy = aura/economy spot) | upgrade_best | save | reclaim target. Low-level: place tower,x,y (auto-moved if blocked) | upgrade/evolve/sell uid | branch uid,branch | target uid,mode | cast_skill skill (+x,y/uid/axis,index/spawner) | tower_ability uid | collect | choose_perk id (+uid,branch) | choose_crate option | demolish id | start_wave.',
     input_schema: obj(
       {
         actions: { type: 'array', items: ACTION, description: 'ordered actions (max 16)' },
@@ -743,7 +759,13 @@ function executeToolInner(ctx: ToolContext, name: string, rawInput: unknown): To
   const def = TOOL_BY_NAME[name];
   if (!def) return { ok: false, text: `ERROR unknown tool "${name}"` };
   if (!def.roles.includes(ctx.role)) return { ok: false, text: `ERROR tool ${name} is not available for role ${ctx.role}` };
-  const input = (rawInput ?? {}) as In;
+  let input = (rawInput ?? {}) as In;
+  // act 的旧意图名（anti_air / combo / support / economy / rebuild_maze）先改写成合并后的写法再校验（§19.12）
+  if (name === 'act' && Array.isArray(input.actions))
+    input = {
+      ...input,
+      actions: (input.actions as unknown[]).map((a) => (a && typeof a === 'object' ? normalizeAction(a as Record<string, unknown>) : a)),
+    };
   const errs = validateToolInput(name, input);
   if (errs.length) return { ok: false, text: `ERROR invalid input: ${errs.join('; ')}` };
   const w = ctx.world;
@@ -945,10 +967,21 @@ function runIntent(p: Planner, a: Record<string, unknown>): IntentOutcome {
   const ss = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
   switch (a.do) {
     case 'maze':
+      if (a.rebuild === true)
+        return p.rebuildMaze((ss(a.style) as 'serpentine' | 'funnel' | undefined) ?? 'serpentine', ss(a.route), nn(a.budget));
       return p.maze((ss(a.style) as 'serpentine' | 'funnel' | undefined) ?? 'serpentine', nn(a.budget), ss(a.route));
     case 'build_near': {
       const t = ss(a.tower) as TowerId | undefined;
       const pu = ss(a.purpose);
+      const tg = ss(a.target);
+      // 合并进 build_near 的旧意图：组合技 / 对空 / 计算器 / 存钱罐（各自的专门逻辑）
+      if (ss(a.pair)) return p.combo(ss(a.pair)!, ss(a.near) ?? tg ?? 'route');
+      if (!t && pu === 'air') {
+        const line = ss(a.route) ?? (tg?.startsWith('airline:') ? tg.slice(8) : undefined);
+        return p.antiAir(line, nn(a.count) ?? 1);
+      }
+      if (t === 'calculator' && !tg) return p.support();
+      if (t === 'piggy' && !tg) return p.economy(nn(a.count) ?? 1);
       if (!t && pu && (PURPOSES as readonly string[]).includes(pu))
         return p.buildPurpose(pu as Purpose, ss(a.target) ?? '', nn(a.count) ?? 1);
       if (!t) return { ok: false, text: `build_near needs tower or purpose (${PURPOSES.join('|')})`, spent: 0, done: 0 };
@@ -1010,7 +1043,7 @@ function executeAct(ctx: ToolContext, input: In): ToolResult {
       lines.push(`${n} OK end`);
       return;
     }
-    if ((INTENT_KINDS as readonly string[]).includes(String(a.do))) {
+    if ((INTENT_KINDS as readonly string[]).includes(String(a.do)) || (INTENT_ALIASES as readonly string[]).includes(String(a.do))) {
       if (!assist) {
         failed++;
         hardFailed++;

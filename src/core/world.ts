@@ -1416,10 +1416,10 @@ export class World implements IWorld {
 
   // ───────────────────────── AI 进攻方（文档 10 §2.3） ─────────────────────────
 
-  /** 下一波能否被改写：建造阶段、该波还没开始、没有超过总波数 */
+  /** 下一波能否被改写：该波还没开始、没有超过总波数（建造 / 战斗 / 选增益阶段都行，自动开波也来得及出题） */
   private attackOpen(w: number): boolean {
     const s = this.state;
-    return s.phase === 'build' && w === s.wave + 1 && !(s.totalWaves > 0 && w > s.totalWaves);
+    return s.phase !== 'won' && s.phase !== 'lost' && w === s.wave + 1 && !(s.totalWaves > 0 && w > s.totalWaves);
   }
 
   /** 第 w 波可指定的出生点（与分配出生点用同一套集合） */
@@ -1455,7 +1455,7 @@ export class World implements IWorld {
 
   private cmdOverrideWave(wave: number, plan: AttackPlan): CommandResult {
     const s = this.state;
-    if (s.phase !== 'build') return fail('attackPhase');
+    if (s.phase === 'won' || s.phase === 'lost') return fail('attackPhase');
     if (typeof wave !== 'number' || wave !== s.wave + 1) return fail('attackWave', { wave: s.wave + 1 });
     if (s.totalWaves > 0 && wave > s.totalWaves) return fail('lastWave');
     const base = this.basePlan(wave);
