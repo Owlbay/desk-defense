@@ -66,9 +66,10 @@ export default defineConfig(
     },
   },
 
-  // ── 确定性：src/core 只能用种子随机数（core/rng.ts）与模拟时间（帧计数 / world.time） ──
+  // ── 确定性（docs/08）：src/core、src/config 只能用种子随机数（core/rng.ts）与模拟时间 ──
+  // 若确有合法用途，用 eslint-disable-next-line 并写明理由（目前没有）。
   {
-    files: ['src/core/**/*.ts'],
+    files: ['src/core/**/*.ts', 'src/config/**/*.ts'],
     rules: {
       'no-restricted-properties': [
         'error',

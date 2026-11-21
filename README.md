@@ -6,7 +6,7 @@
 
 ## 快速开始
 
-需要 Node.js 20 或更高版本。
+需要 Node.js 22.22 或更高版本。参与开发前请先读 **[CONTRIBUTING.md](CONTRIBUTING.md)**（目录约定、确定性、国际化、主题、测试与部署）。
 
 ```bash
 npm install
@@ -24,6 +24,7 @@ npm run dev
 | `npm run build` | 类型检查并打包到 `dist/`（含 PWA，可以部署到任意静态托管） |
 | `npm run preview` | 本地预览打包结果 |
 | `npm test` | 运行全部单元测试（核心逻辑、存档、回放一致性） |
+| `npm run check` | 提交前检查：类型检查、ESLint、Prettier、单元测试（CI 同款） |
 | `npm run sim -- --scenario calib` | 平衡模拟：用机器人策略跑各难度，报告输出到 `scripts/out/report.html` |
 | `npm run gallery` | 重新生成美术预览页 `art/gallery.html` |
 
