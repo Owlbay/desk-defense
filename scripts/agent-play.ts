@@ -17,6 +17,7 @@
  *   --max-tool-calls N  --timeout-ms 90000
  *   --decision pause|realtime  --wave-interval 10  --latency 3|measured
  *   --role player|advisor|attacker
+ *   --assist on|off                          打法辅助（意图 / 战报 / 威胁估算，文档 10 §19；缺省 on）
  *   --fallback medium|expert|newbie|scripted  兜底机器人（默认 medium）
  *   --compare medium,expert                  评测场对照：同种子再跑这些内置机器人
  *   --out DIR                                默认 scripts/out/agent/<时间>-<模式>-<地图>-<难度>
@@ -76,6 +77,7 @@ const config: Partial<AgentModelConfig> = {
   contextMode: parseContextMode(arg('context')),
   maxToolCallsPerDecision: num('max-tool-calls'),
   role: arg('role', 'player') as AgentRole,
+  assist: arg('assist') === undefined ? undefined : arg('assist') !== 'off',
   decisionTimeoutMs: num('timeout-ms'),
   decision: {
     mode: arg('decision', 'pause') as DecisionMode,

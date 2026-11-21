@@ -107,7 +107,7 @@ export function catalogEntry(id: string): string | null {
 }
 
 /** 敌人的克制提示（速查表用；按敌人属性推出，不需要逐个维护） */
-function counterOf(e: (typeof ENEMIES)[keyof typeof ENEMIES]): string {
+export function counterOf(e: (typeof ENEMIES)[keyof typeof ENEMIES]): string {
   if (e.boss) return 'focus dps+skills';
   if (e.flying) return e.dodge ? 'AA: lamp/swatter' : 'AA: pencil/swatter/ruler';
   if (e.stealthy) return 'reveal: magnifier/whiteout/eraser_strike';
@@ -142,7 +142,7 @@ export function cheatSheet(): string {
   ].join('\n');
 }
 
-const RULES = `You play 书桌防线 / Desk Defense (deterministic maze tower defense) through tools.
+const RULES_V1 = `You play 书桌防线 / Desk Defense (deterministic maze tower defense) through tools.
 
 # Rules
 - Board 12 cols (x 0..11) × 14 rows (y 0..13). Ground enemies walk the shortest path from spawns to the exit; every tower is a wall, so towers shape the maze. Placements that fully block a path are rejected. Flyers fly straight to the exit; only A towers hit them.
@@ -168,15 +168,50 @@ const RULES = `You play 书桌防线 / Desk Defense (deterministic maze tower de
 t time s | ph phase | w wave/total | g gold | hp lives | sc score | aw auto-wave | T towers "#uid id x,y Llevel [A|B] [★n] [x xp%] [t=target] [up cost|br cost=needs branch] [ev evolve cost] (costs rounded up to 5) [ab R|cd]" | W walls "uid@x,y" | E enemy groups "code×n hp% far/mid/near [A air] [B boss] [e elite] [h hidden]" | Ef enemy nearest exit | EB bosses | nx next wave "wN [tags] | spawner: code×n" | R ground routes "spawner:waypoints Llen" (turn points only; warn = air-drop landing soon) | Rs longest straight segments "spawner a>b Llen b=buildable cells beside" | Rp best tower spots "x,y:route cells within r2.5" | Ra flight lines "spawner from>to Llen aa% covering towers" | sk skills id:R|cd | ev events | sp drop boxes | pu pickups | perk offer | crate options | own perks | b build prices ("base" = cheat-sheet prices; else differences, locked, max) | rc since last decision | pe queued errors.
 - MAP (sent when terrain changes): rows y, cols x (0..9,a,b). . empty | # obstacle | S spawn | X exit | d drop warning | D drop spawn | route letters a,b,c… (+ overlap, ~ future drop route) | towers: ${Object.entries(TOWER_CHAR).map(([k, v]) => `${v}=${k}`).join(' ')}. "(RLE)" rows: "3." = "...".`;
 
+
+const RULES_HEAD = `You play 书桌防线 / Desk Defense (deterministic maze tower defense) through tools.
+
+# Rules
+- Board 12×14 (x 0..11, y 0..13). Ground enemies walk the shortest path spawn→exit; every tower (walls too) blocks, so towers shape the maze; path-blocking placements are rejected. Flyers fly straight to the exit; only A towers hit them.
+- Leaks cost lives (bosses more); 0 = loss. Gold: kills, wave bonus, 5% interest (cap ≈20), piggy banks, early waves.
+- Phases build / wave / perk (paused, pick 1 of 3) / won / lost. Auto-wave starts later waves. Events are warned; air-drop boxes become spawns (demolish / seal_tape).
+- Towers gain XP (cheaper upgrades). Lv9→10 branch; Lv10 → evolve ★1..★3 (★3 = tower_ability). Selling refunds part (full within 5 s).
+`;
+
+const RULES = `${RULES_HEAD}
+# How to win
+1. Maze early: a straight route is ≈14 cells, a 5g-wall serpentine makes it 40-60 (towers shoot 3-4× longer). {do:"maze"} builds a proven serpentine barrier by barrier (never blocks); build_near/spend put towers inside the barriers. Single hand-placed walls rarely lengthen the path.
+2. Keep gold working: interest is tiny; end build phases with ≲20g unless saving on purpose ({do:"save",until:N}).
+3. Waves 1-6 buy towers; later upgrade_best too (Lv4/Lv7 are big jumps; Lv9 branch auto-picked).
+4. Before [air] waves every flight line (Ra) needs an A tower: {do:"anti_air"}.
+5. CTR = counters (armor → lamp/eraser, fast → glue). Skills on leaks / bosses / enemies near exit (Ef d≤3).
+6. TH = next-wave threat per route/line (your damage ÷ incoming HP): 危险/吃紧 → add damage there now; 安全 → may call waves early. BR = last-wave report (leaks by spawner; 0dmg towers are misplaced).
+Openings (150g): [{do:"spend",reserve:0}] (= 4 pencils + first barriers). ch1: one north entrance, serpentine is enough. ch2: two north entrances merge at the keyboard gap → also build_near target "chokepoint". ch3: corner entrances, long flight lines → anti_air on each line early.
+Each build phase: anti_air if [air] next, maze, spend; from ≈w6 upgrade_best.
+
+# Each decision (every request costs money)
+1. STATE is in the message; observe only if unclear.
+2. ONE act call with ALL actions + end:{…}. Prefer intents (the planner picks valid cells, reports cells/costs/path); a blocked place is auto-moved nearby.
+3. end:{plan,maze,priorities,note} = your memory (≤300 tokens), shown as MEMO; omitted fields keep old values.
+Example (build, g140, nx [air]): act {actions:[{do:"anti_air"},{do:"maze",budget:40},{do:"spend",reserve:10}],end:{plan:"serpentine+pencils; AA before air",priorities:"upgrade_best from w6"}}
+
+# STATE keys (after the first decision you get Δ = only changed keys; T+ changed/new towers, T- removed uids, _unset removed keys)
+t time s | ph phase | w wave/total | g gold | hp lives | sc score | aw auto-wave | T towers "#uid id x,y Llevel [A|B] [★n] [x xp%] [t=target] [up cost|br cost=needs branch] [ev evolve cost] (costs rounded up to 5) [ab R|cd]" | W walls "uid@x,y" | E enemy groups "code×n hp% far/mid/near [A air] [B boss] [e elite] [h hidden]" | Ef enemy nearest exit | EB bosses | nx next wave "wN [tags] | spawner: code×n" | R ground routes "spawner:waypoints Llen" (turn points only; warn = air-drop landing soon) | Rs longest straight segments "spawner a>b Llen b=buildable cells beside" | Rp best tower spots "x,y:route cells within r2.5" | Ra flight lines "spawner from>to Llen aa% covering towers" | sk skills id:R|cd | ev events | sp drop boxes | pu pickups | perk offer | crate options | own perks | b build prices ("base" = cheat-sheet prices; else differences, locked, max) | rc since last decision | pe queued errors.
+- Extra lines: BR / TH / CTR (see above), IDLE unspent gold.
+- MAP (sent when terrain changes): rows y, cols x (0..9,a,b). . empty | # obstacle | S spawn | X exit | d drop warning | D drop spawn | route letters a,b,c… (+ overlap, ~ future drop route) | towers: ${Object.entries(TOWER_CHAR).map(([k, v]) => `${v}=${k}`).join(' ')}. "(RLE)" rows: "3." = "...".`;
+
 const ROLE_TEXT: Record<AgentRole, string> = {
   player: `# Role: AI player (defender). Maximize waves survived and score.`,
   advisor: `# Role: AI advisor (军师). A human plays; you cannot act. Read STATE, then call suggest once (Chinese, concise, concrete coordinates/uids, actions like "place pencil 3,5"). suggest ends your turn.`,
   attacker: `# Role: AI attacker (design stub). The attacker protocol is not implemented; reply with a one-line plan and no tool calls.`,
 };
 
-/** 固定前缀的两个块：[规则 + 角色, 速查表]。纯函数、逐字节稳定（无种子 / 时间 / 随局内容），所有局共享缓存。 */
-export function systemBlocks(role: AgentRole): [string, string] {
-  return [`${RULES}\n\n${ROLE_TEXT[role]}`, cheatSheet()];
+/**
+ * 固定前缀的两个块：[规则 + 角色, 速查表]。纯函数、逐字节稳定（无种子 / 时间 / 随局内容），所有局共享缓存。
+ * assist = false：旧版规则（无意图 / 打法要点），评测基线用。
+ */
+export function systemBlocks(role: AgentRole, assist = true): [string, string] {
+  return [`${assist && role === 'player' ? RULES : RULES_V1}\n\n${ROLE_TEXT[role]}`, cheatSheet()];
 }
 
 /** 本局开局信息（放在每次决策 user 消息的开头，随局变化但同局内不变） */

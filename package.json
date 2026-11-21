@@ -21,7 +21,8 @@
     "agent:play": "vite-node scripts/agent-play.ts",
     "mcp": "vite-node scripts/mcp-server.ts",
     "agent:bridge": "vite-node scripts/agent-bridge.ts",
-    "agent:tokens": "vite-node scripts/agent-tokens.ts"
+    "agent:tokens": "vite-node scripts/agent-tokens.ts",
+    "agent:eval": "vite-node scripts/agent-eval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.11.0",

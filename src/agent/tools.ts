@@ -16,6 +16,7 @@ import { asciiMap, renderObservation } from './observation';
 import { catalogEntry, catalogText, type CatalogSection } from './prompts';
 import { compactObservation, terrainMap, type CompactObs } from './compact';
 import { coverageLines, groundRoutes, fmtWp, previewChanges, previewText, routeSummary } from './routes';
+import { Planner, type IntentOutcome, type PlannerState } from './planner';
 import type { AgentRole, CommandSink, ToolResult } from './types';
 
 // ───────────────────────── Schema ─────────────────────────
@@ -184,7 +185,10 @@ export const ACT_TO_LEGACY: Record<string, string> = {
   choose_perk: 'choose_perk', reroll_perks: 'reroll_perks', choose_crate: 'choose_crate', demolish: 'demolish_spawner',
   start_wave: 'start_wave',
 };
-export const ACT_KINDS = [...Object.keys(ACT_TO_LEGACY), 'end_turn'];
+export const ACT_KINDS_V1 = [...Object.keys(ACT_TO_LEGACY), 'end_turn'];
+/** 高层意图（由 planner.ts 挑具体格子 / 目标执行） */
+export const INTENT_KINDS = ['maze', 'build_near', 'upgrade_best', 'anti_air', 'spend', 'save'] as const;
+export const ACT_KINDS = [...INTENT_KINDS, ...ACT_KINDS_V1];
 
 /** 每种动作用到的字段（其余字段忽略） */
 const ACT_FIELDS: Record<string, string[]> = {
@@ -198,13 +202,24 @@ const MEMO: ObjectSchema = obj({
   plan: str('overall plan (≤60 words)'), maze: str('maze intent'), priorities: str('next priorities'), note: str('anything else'),
 });
 
-const ACTION: ObjectSchema = obj({
-  do: str('action', ACT_KINDS),
-  tower: str('place: tower id', TOWER_IDS), x: X, y: Y, uid: UID,
+const ACTION_FIELDS: Record<string, JsonSchema> = {
+  tower: str('place / build_near: tower id', TOWER_IDS), x: X, y: Y, uid: UID,
   branch: BRANCH, mode: str('target mode', TARGET_MODES), skill: str('cast_skill id', SKILL_IDS),
   axis: str('row|col', ['row', 'col']), index: int('row/col index'), angle: num('radians'), target_uid: int('ability target uid'),
   id: str('choose_perk id / demolish spawner id'), option: str('choose_crate option', ['gold', 'lives', 'cooldown', 'xp', 'caffeine', 'charge']),
   spawner: str('seal_tape spawner id'), note: str('end_turn memo'),
+};
+
+/** 旧版 act 动作（assist 关闭时发给模型；评测基线） */
+const ACTION_V1: ObjectSchema = obj({ do: str('action', ACT_KINDS_V1), ...ACTION_FIELDS }, ['do']);
+
+const ACTION: ObjectSchema = obj({
+  do: str('action', ACT_KINDS),
+  ...ACTION_FIELDS,
+  style: str('maze style', ['serpentine', 'funnel']), budget: int('maze / upgrade_best: max gold'),
+  target: str('build_near: route|route:<spawner>|early|exit|air|airline:<spawner>|chokepoint'), count: int('how many (build_near / upgrade_best / anti_air)'),
+  metric: str('upgrade_best metric', ['dps', 'coverage']), route: str('spawner id (maze funnel / anti_air line)'),
+  reserve: int('spend: keep this much gold'), focus: str('spend focus', ['balanced', 'towers', 'upgrades', 'maze']), until: int('save: target gold'),
 }, ['do']);
 
 /**
@@ -214,7 +229,7 @@ const ACTION: ObjectSchema = obj({
 export const SLIM_TOOLS: AgentToolDef[] = [
   {
     name: 'act', kind: 'action', roles: P,
-    description: 'Run game actions in order (each validated; per-action results). Put ALL actions of this decision in one call and include end to finish the turn. Fields per do: place tower,x,y | upgrade/evolve/sell uid | branch uid,branch | target uid,mode | cast_skill skill (+x,y / uid / axis,index / spawner) | tower_ability uid (+x,y/angle/axis,index/target_uid) | collect [uid] | choose_perk id [uid,branch] | reroll_perks | choose_crate option | demolish id | start_wave | end_turn [note].',
+    description: 'Run actions in order (each validated, per-action results); ONE call per decision incl. end. Intents (planner picks cells): maze [style,budget] | build_near tower [target,count] | upgrade_best [count,metric,budget] | anti_air [route,count] | spend [reserve,focus] | save until. Low-level: place tower,x,y (auto-moved if blocked) | upgrade/evolve/sell uid | branch uid,branch | target uid,mode | cast_skill skill (+x,y/uid/axis,index/spawner) | tower_ability uid (+args) | collect | choose_perk id | choose_crate option | demolish id | start_wave.',
     input_schema: obj({
       actions: { type: 'array', items: ACTION, description: 'ordered actions (max 16)' },
       end: { ...MEMO, description: 'finish the turn; fields update your MEMO' },
@@ -250,11 +265,21 @@ export const SLIM_TOOLS: AgentToolDef[] = [
   },
 ];
 
+/** 旧版 act（无意图；assist 关闭 = 评测基线） */
+export const ACT_TOOL_V1: AgentToolDef = {
+  name: 'act', kind: 'action', roles: P,
+  description: 'Run game actions in order (each validated; per-action results). Put ALL actions of this decision in one call and include end to finish the turn. Fields per do: place tower,x,y | upgrade/evolve/sell uid | branch uid,branch | target uid,mode | cast_skill skill (+x,y / uid / axis,index / spawner) | tower_ability uid (+x,y/angle/axis,index/target_uid) | collect [uid] | choose_perk id [uid,branch] | reroll_perks | choose_crate option | demolish id | start_wave | end_turn [note].',
+  input_schema: obj({
+    actions: { type: 'array', items: ACTION_V1, description: 'ordered actions (max 16)' },
+    end: { ...MEMO, description: 'finish the turn; fields update your MEMO' },
+  }, ['actions']),
+};
+
 export const TOOL_BY_NAME: Record<string, AgentToolDef> = Object.fromEntries([...LEGACY_TOOLS, ...SLIM_TOOLS].map((t) => [t.name, t]));
 
-/** 发给模型的工具（精简集） */
-export function toolsForRole(role: AgentRole): AgentToolDef[] {
-  return SLIM_TOOLS.filter((t) => t.roles.includes(role));
+/** 发给模型的工具（精简集）。assist = false：旧版 act（无意图），评测基线用 */
+export function toolsForRole(role: AgentRole, assist = true): AgentToolDef[] {
+  return SLIM_TOOLS.filter((t) => t.roles.includes(role)).map((t) => (t.name === 'act' && !assist ? ACT_TOOL_V1 : t));
 }
 
 /** 旧的细粒度工具（MCP / 旧客户端） */
@@ -415,6 +440,10 @@ export interface ToolContext {
   onObserve?: (obs: CompactObs) => void;
   /** 地图用游程编码 */
   rleMap?: boolean;
+  /** 打法辅助（意图 + 被拒放置自动挪位 + 不可修正的失败直接结束回合）；缺省开 */
+  assist?: boolean;
+  /** 规划器的跨决策状态（save 意图） */
+  planner?: PlannerState;
 }
 
 const fmtCmd = (c: Command): string => JSON.stringify(c);
@@ -588,11 +617,34 @@ const MAX_ACT = 16;
 /** 去掉旧结果文字里的冗余前缀，保证一行 */
 const oneLine = (t: string): string => t.replace(/\s*\n\s*/g, ' ').slice(0, 220);
 
+/** 模型这回合修不好的失败（钱不够 / 冷却 / 充能）：不为它们再发一次请求 */
+const UNFIXABLE = /金币不足|技能冷却中|没有充能|冷却中|nothing to collect|nothing collectable/;
+
+function runIntent(p: Planner, a: Record<string, unknown>): IntentOutcome {
+  const nn = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+  const ss = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
+  switch (a.do) {
+    case 'maze': return p.maze((ss(a.style) as 'serpentine' | 'funnel' | undefined) ?? 'serpentine', nn(a.budget), ss(a.route));
+    case 'build_near': {
+      const t = ss(a.tower) as TowerId | undefined;
+      if (!t) return { ok: false, text: 'build_near needs tower', spent: 0, done: 0 };
+      return p.buildNear(t, ss(a.target) ?? '', nn(a.count) ?? 1);
+    }
+    case 'upgrade_best': return p.upgradeBest(nn(a.count) ?? 1, (ss(a.metric) as 'dps' | 'coverage' | undefined) ?? 'dps', nn(a.budget));
+    case 'anti_air': return p.antiAir(ss(a.route), nn(a.count) ?? 1);
+    case 'spend': return p.spend(Math.max(0, nn(a.reserve) ?? 0), (ss(a.focus) as 'balanced' | 'towers' | 'upgrades' | 'maze' | undefined) ?? 'balanced');
+    case 'save': return p.save(Math.max(0, nn(a.until) ?? 0));
+  }
+  return { ok: false, text: `unknown intent ${String(a.do)}`, spent: 0, done: 0 };
+}
+
 function executeAct(ctx: ToolContext, input: In): ToolResult {
   const list = Array.isArray(input.actions) ? (input.actions as Record<string, unknown>[]) : [];
   const w = ctx.world;
+  const assist = ctx.assist !== false;
   const lines: string[] = [];
   let failed = 0;
+  let hardFailed = 0;
   let endNote: string | undefined;
   let ended = input.end !== undefined && input.end !== null;
   const memo: NonNullable<ToolResult['memo']> = {};
@@ -602,6 +654,8 @@ function executeAct(ctx: ToolContext, input: In): ToolResult {
       if (typeof v === 'string' && v.trim()) memo[k] = v.trim();
     }
   }
+  let planner: Planner | null = null;
+  const getPlanner = (): Planner => (planner ??= new Planner(w, (c) => send(ctx, c), ctx.planner ?? {}));
   let last: ToolResult | undefined;
   list.slice(0, MAX_ACT).forEach((a, i) => {
     const n = i + 1;
@@ -611,13 +665,37 @@ function executeAct(ctx: ToolContext, input: In): ToolResult {
       lines.push(`${n} OK end`);
       return;
     }
+    if ((INTENT_KINDS as readonly string[]).includes(String(a.do))) {
+      if (!assist) { failed++; hardFailed++; lines.push(`${n} ERROR unknown do "${String(a.do)}"`); return; }
+      const o = runIntent(getPlanner(), a);
+      // 意图"什么都没做"不算错误（例如钱不够）：结果文字里写明原因，模型下次再决定
+      lines.push(`${n} ${o.done || o.ok ? 'OK' : 'NOOP'} ${o.text}`.slice(0, 600));
+      return;
+    }
     const m = actToLegacy(a);
-    if ('error' in m) { failed++; lines.push(`${n} ERROR ${m.error}`); return; }
+    if ('error' in m) { failed++; hardFailed++; lines.push(`${n} ERROR ${m.error}`); return; }
     const errs = validateToolInput(m.name, m.input);
-    if (errs.length) { failed++; lines.push(`${n} ERROR ${a.do}: ${errs.join('; ')}`); return; }
-    const r = executeTool(ctx, m.name, m.input);
+    if (errs.length) { failed++; hardFailed++; lines.push(`${n} ERROR ${a.do}: ${errs.join('; ')}`); return; }
+    let r = executeTool(ctx, m.name, m.input);
+    if (!r.ok && assist && m.name === 'place_tower' && m.input.tower !== 'wall') {
+      // 被拒的放置：格子被敌人 / 障碍 / 塔占着或会堵路 → 自动挪到 2 格内覆盖最好的可放格
+      const t = m.input.tower as TowerId;
+      const x = m.input.x as number;
+      const y = m.input.y as number;
+      const why = w.canPlace(t, x, y).reason ?? '';
+      const alt = getPlanner().relocate(t, x, y, why);
+      if (alt) {
+        const r2 = executeTool(ctx, 'place_tower', { tower: t, x: alt.x, y: alt.y });
+        if (r2.ok) r = { ...r2, text: `MOVED ${x},${y} (${why}) → ${r2.text}` };
+      }
+    }
     last = r;
-    if (!r.ok) failed++;
+    if (!r.ok) {
+      failed++;
+      // 放置被拒但其实也买不起（位置错 + 钱不够）：这回合同样修不好
+      const poor = m.name === 'place_tower' && (w.getBuildOptions().find((b) => b.id === m.input.tower)?.cost ?? 0) > w.state.gold;
+      if (!UNFIXABLE.test(r.text) && !(assist && poor)) hardFailed++;
+    }
     lines.push(`${n} ${oneLine(r.text)}`);
   });
   if (list.length > MAX_ACT) lines.push(`(only the first ${MAX_ACT} actions were run)`);
@@ -625,8 +703,9 @@ function executeAct(ctx: ToolContext, input: In): ToolResult {
   const st = w.state;
   lines.push(`→ gold ${Math.floor(st.gold)} lives ${st.lives} phase ${st.phase} path ${w.currentPaths().map((p) => p.length).join('/')}`);
   // 全部成功又没写 end：也算本回合结束（省一次"只为说结束"的请求）；有失败则留给模型改正
-  const endTurn = ended || (failed === 0 && list.length > 0);
-  if (!ended && endTurn) lines.push('turn ended (all actions OK)');
+  // assist：只剩"钱不够 / 冷却中"这类这回合修不好的失败，也直接结束
+  const endTurn = ended || ((assist ? hardFailed : failed) === 0 && list.length > 0);
+  if (!ended && endTurn) lines.push(failed ? 'turn ended (the failures cannot be fixed this turn)' : 'turn ended (all actions OK)');
   else if (!endTurn) lines.push(failed ? 'fix the failed actions with another act (include end), or act {actions:[],end:{}}' : '');
   const hasMemo = Object.keys(memo).length > 0;
   return {

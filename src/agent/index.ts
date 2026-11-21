@@ -25,7 +25,7 @@ import { AgentTrace, type TraceExport } from './trace';
 export * from './types';
 export * from './config';
 export {
-  AGENT_TOOLS, LEGACY_TOOLS, SLIM_TOOLS, ACT_TO_LEGACY, toolsForRole, legacyToolsForRole, executeTool, validateToolInput, validateAgainst, toCommand, actToLegacy,
+  AGENT_TOOLS, LEGACY_TOOLS, SLIM_TOOLS, ACT_TOOL_V1, ACT_TO_LEGACY, INTENT_KINDS, toolsForRole, legacyToolsForRole, executeTool, validateToolInput, validateAgainst, toCommand, actToLegacy,
   type AgentToolDef, type ToolContext, type JsonSchema, type ObjectSchema,
 } from './tools';
 export { observe, renderObservation, asciiMap, estimateTokens, MAP_LEGEND, type Observation } from './observation';
@@ -35,18 +35,21 @@ export {
   type Route, type FlightLine, type PreviewInput, type PreviewResult,
 } from './routes';
 export { ContextBuilder, Memo, MEMO_MAX_TOKENS } from './context';
+export { Planner, DEFAULT_BRANCH, routeSamples, airLineSamples, type PlannerState, type IntentOutcome } from './planner';
+export { BattleLog, threatEstimate, threatLine, idleLine, towerDps, IDLE_GOLD, THREAT_SAFE, THREAT_TIGHT, type ThreatLine } from './battle';
+export { planMaze, type MazePlan } from './maze';
 export { gateDecision, cheapestUsefulAction, inDanger, type GatingLevel } from './gating';
 export { claudeThinkingPlan, piThinkingPlan, keepThinkingInHistory, mayCompactHistory } from './thinking';
 export { systemBlocks, catalogText, catalogEntry, cheatSheet, decisionMessage } from './prompts';
 export { BUDGET_STAGE_AT, BUDGET_EXTEND, type BudgetStage, type BudgetState, type BudgetChoice } from './engine';
 export { AgentScheduler, DecisionDetector, type SchedulerOptions } from './scheduler';
 export { DecisionEngine } from './engine';
-export { runAgentGame, aiBoardKey, type AgentRunConfig, type AgentRunReport } from './runner';
+export { runAgentGame, aiBoardKey, type AgentRunConfig, type AgentRunReport, type PlayStats } from './runner';
 export { createProvider } from './factory';
 export { listModels, testConnection, type ModelListing, type ConnectionDiagnostics } from './models';
 export * from './relay';
 export { connectBridge, originAllowed, makePairingCode, BRIDGE_PROTOCOL } from './bridge';
-export { scriptedFallback, ScriptedProvider } from './providers/scripted';
+export { scriptedFallback, ScriptedProvider, scriptedIntentTurn } from './providers/scripted';
 export type { LLMProvider, DecisionContext, DecisionOutcome } from './providers/types';
 export * from './trace';
 export { redactString, redactValue, redactJson, redactError, isSecretKey, REDACTED } from './redact';

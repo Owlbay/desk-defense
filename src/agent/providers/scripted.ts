@@ -163,6 +163,45 @@ export async function scriptedTurn(w: IWorld, call: Call, reasons: DecisionReaso
   return note;
 }
 
+/**
+ * 意图版脚本策略（确定性）：像模型那样每个决策点只发一次 act，用高层意图（anti_air / spend / 技能），
+ * 选位与迷宫全部交给规划器。用于离线评测规划器本身（scripts/agent-eval.ts 的 scripted-intents 变体）。
+ */
+export async function scriptedIntentTurn(w: IWorld, call: Call, reasons: DecisionReason[], think?: (line: string) => void): Promise<string> {
+  const s = w.state;
+  const say = (line: string): void => think?.(`${line}\n`);
+  const actions: Record<string, unknown>[] = [];
+  if (s.phase === 'perk' && s.perkChoices) {
+    const c = s.perkChoices.slice().sort((a, b) => rank(a.id) - rank(b.id)).find((x) => !x.needsTower) ?? s.perkChoices[0];
+    actions.push({ do: 'choose_perk', id: c.id });
+  }
+  if (s.crateChoice) {
+    const pref = ['gold', 'xp', 'lives', 'caffeine', 'cooldown', 'charge'];
+    const opt = s.crateChoice.options.slice().sort((a, b) => pref.indexOf(a.id) - pref.indexOf(b.id))[0];
+    if (opt) actions.push({ do: 'choose_crate', option: opt.id });
+  }
+  if (s.pickups.length) actions.push({ do: 'collect' });
+  if (s.nextWave.tags.includes('air')) actions.push({ do: 'anti_air' });
+  actions.push({ do: 'spend', reserve: 0 });
+  if (s.phase === 'wave' && s.enemies.length) {
+    let near = 0;
+    let front: { x: number; y: number; d: number } | null = null;
+    for (const e of s.enemies) {
+      const d = s.grid.dist[Math.floor(e.y) * s.grid.cols + Math.floor(e.x)];
+      const dd = Number.isFinite(d) ? d : 99;
+      if (dd <= 4) near++;
+      if (!front || dd < front.d) front = { x: Math.floor(e.x), y: Math.floor(e.y), d: dd };
+    }
+    const ready = (id: string) => s.skills.some((k) => k.id === id && k.ready);
+    if (front && (near >= 3 || s.bossUids.length) && ready('eraser_strike')) actions.push({ do: 'cast_skill', skill: 'eraser_strike', x: front.x, y: front.y });
+    if (near >= 6 && ready('bell')) actions.push({ do: 'cast_skill', skill: 'bell' });
+  }
+  if (s.phase === 'build' && !(s.autoWave.enabled && s.autoWave.started)) actions.push({ do: 'start_wave' });
+  say(`决策原因：${reasons.join(', ') || '—'}；金币 ${Math.floor(s.gold)} → ${actions.map((a) => a.do).join(', ')}`);
+  const r = await call('act', { actions, end: { plan: 'serpentine maze + spend', note: `w${s.wave}` } });
+  return r.text.split('\n').slice(0, -1).join('; ').slice(0, 200) || 'hold';
+}
+
 const rank = (id: string): number => {
   const i = PERK_PRIORITY.indexOf(id);
   return i < 0 ? 99 : i;
@@ -171,7 +210,11 @@ const rank = (id: string): number => {
 /** 作为 LLMProvider：所有动作经 ctx.callTool（记录、realtime 时间推进与模型完全一致） */
 export class ScriptedProvider implements LLMProvider {
   readonly id = 'scripted';
-  readonly model = 'scripted-v1';
+  readonly model: string;
+  /** intents = 意图版（一次 act + 规划器），否则旧版逐个细粒度工具 */
+  constructor(private readonly o: { intents?: boolean } = {}) {
+    this.model = o.intents ? 'scripted-intents' : 'scripted-v1';
+  }
 
   async decide(ctx: DecisionContext): Promise<DecisionOutcome> {
     const out: DecisionOutcome = { usage: emptyUsage(), costUsd: 0, toolCalls: 0, ended: false };
@@ -192,7 +235,8 @@ export class ScriptedProvider implements LLMProvider {
       if (r.endTurn) { out.ended = true; out.note = r.note; }
       return r;
     };
-    const note = await scriptedTurn(ctx.world, call, ctx.point.reasons, tr ? (line) => tr({ k: 'thinking', n: 1, text: line }) : undefined);
+    const turn = this.o.intents ? scriptedIntentTurn : scriptedTurn;
+    const note = await turn(ctx.world, call, ctx.point.reasons, tr ? (line) => tr({ k: 'thinking', n: 1, text: line }) : undefined);
     tr?.({ k: 'text', n: 1, text: `本回合：${note}` });
     tr?.({ k: 'response', n: 1, stop: 'end_turn', usage: emptyUsage(), ms: Date.now() - t0, costUsd: 0, raw: { stop_reason: 'end_turn', note, tool_calls: out.toolCalls } });
     return out;

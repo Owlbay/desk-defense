@@ -12,7 +12,7 @@ export async function createProvider(c: Partial<AgentModelConfig>): Promise<LLMP
   switch (cfg.provider) {
     case 'scripted': {
       const { ScriptedProvider } = await import('./providers/scripted');
-      return new ScriptedProvider();
+      return new ScriptedProvider({ intents: cfg.model === 'scripted-intents' });
     }
     case 'claude-native': {
       const { ClaudeProvider } = await import('./providers/claude');

@@ -43,7 +43,8 @@ describe('budget weighting', () => {
 describe('act (batched actions)', () => {
   it('runs actions in order with per-action results and ends the turn', () => {
     const w = createWorld(OPTS);
-    const ctx = { world: w, role: 'player' as const };
+    // 旧行为（assist 关闭）：被拒的放置原样报 REJECTED；assist 下的自动挪位见 tests/agent/planner.test.ts
+    const ctx = { world: w, role: 'player' as const, assist: false };
     const r = executeTool(ctx, 'act', {
       actions: [
         { do: 'place', tower: 'pencil', x: 0, y: 6 },

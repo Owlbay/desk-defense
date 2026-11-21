@@ -8,6 +8,8 @@ import { runHeader, systemBlocks } from './prompts';
 import { executeTool, toolsForRole } from './tools';
 import { CONTEXT_MODES, contextSpec, type AgentModelConfig, type ContextModeSpec, type ThinkingLevel } from './config';
 import { ContextBuilder } from './context';
+import { BattleLog, idleLine, threatLine } from './battle';
+import type { PlannerState } from './planner';
 import { gateDecision } from './gating';
 import type { LLMProvider } from './providers/types';
 import { cellOfArgs, type AgentTrace, type TraceSink } from './trace';
@@ -129,10 +131,19 @@ export class DecisionEngine {
   /** 门控跳过的决策点数 */
   skippedCount = 0;
   private goldAtLastCall = 0;
+  /** 打法辅助（§19）：意图、战报、威胁估算 */
+  readonly assist: boolean;
+  readonly battle: BattleLog;
+  readonly plannerState: PlannerState = {};
+  /** 建造阶段决策结束时剩下的金币（闲置金币指标；模型 / 机器人 / 跳过都记） */
+  readonly buildGoldAfter: number[] = [];
+  private lastThreatWave = -1;
 
   constructor(readonly o: EngineOptions) {
     this.role = o.config.role ?? 'player';
-    this.system = systemBlocks(this.role);
+    this.assist = o.config.assist !== false;
+    this.battle = new BattleLog(o.world);
+    this.system = systemBlocks(this.role, this.assist);
     this.header = runHeader(o.opts, o.world);
     this.baseSpec = contextSpec(o.config);
     this.budgetLimit = o.config.budget?.tokens ?? null;
@@ -277,9 +288,12 @@ export class DecisionEngine {
     const t0 = Date.now();
     const calls: ToolCallRecord[] = [];
     const compacted = await this.checkBudget();
-    const tools = toolsForRole(this.role);
+    const tools = toolsForRole(this.role, this.assist);
     const spec = this.spec;
     this.ctx.setSpec(spec);
+    this.battle.feed(recent);
+    this.goldAtWaveStart = null;
+    const buildPhase = point.reasons.includes('build') || point.reasons.includes('game_start');
 
     // 门控：模型可用、但局面里没有值得叫模型的事 → 本地处理
     if (!this.disabledReason && this.o.provider) {
@@ -287,7 +301,7 @@ export class DecisionEngine {
       if (why) return this.skipLocal(point, recent, why, t0, compacted);
     }
 
-    const built = this.ctx.build(point, recent);
+    const built = this.ctx.build(point, recent, this.assist && this.role !== 'attacker' ? this.extras(buildPhase) : undefined);
     const message = built.text;
     const rec: DecisionRecord = { point, by: 'agent', toolCalls: calls, usage: emptyUsage(), ms: 0, observationTokens: built.observationTokens };
     this.goldAtLastCall = Math.floor(w.state.gold);
@@ -383,6 +397,7 @@ export class DecisionEngine {
       }
     }
     const end = (): DecisionRecord => {
+      if (buildPhase) this.noteBuildGold();
       rec.ms = Date.now() - t0;
       this.decisions.push(rec);
       sink?.({
@@ -432,6 +447,7 @@ export class DecisionEngine {
       this.ensureProgress(rec);
       if (rec.fallbackReason) sink?.({ k: 'fallback', reason: rec.fallbackReason, acted: true, effect: effectSummary(before, snap(w)) || undefined });
     }
+    if (point.reasons.includes('build') || point.reasons.includes('game_start')) this.noteBuildGold();
     rec.ms = Date.now() - t0;
     this.decisions.push(rec);
     sink?.({ k: 'decision_end', by: 'local', ms: rec.ms, usage: rec.usage, costUsd: 0, toolCalls: 0, skipped: why, fallbackReason: rec.fallbackReason });
@@ -446,8 +462,10 @@ export class DecisionEngine {
     const r = executeTool({
       world: this.o.world,
       role: this.role,
-      sink: this.o.sink,
+      sink: this.send,
       rleMap: this.spec.rleMap,
+      assist: this.assist,
+      planner: this.plannerState,
       onObserve: (obs) => this.ctx.onObserve(obs),
       onSuggest: (text, actions) => {
         const s: Suggestion = { tick: this.o.world.state.tick, wave: this.o.world.state.wave, text, actions };
@@ -456,6 +474,7 @@ export class DecisionEngine {
       },
     }, name, input);
     this.ctx.onToolResult(r);
+    if (name === 'act') this.battle.noteActResult(r.text);
     calls.push({ name, input, ok: r.ok, result: r.text.length > 400 ? `${r.text.slice(0, 400)}…` : r.text, cmd: r.cmd, queuedFor: r.queuedFor });
     if (sink && before) {
       const fx = r.queuedFor !== undefined ? `已排队，第 ${r.queuedFor} 帧落地` : effectSummary(before, snap(w));
@@ -468,11 +487,49 @@ export class DecisionEngine {
     return r;
   }
 
+  /** 本次决策里开波（建造阶段）前一刻的金币：闲置金币按它算（提前开波的奖励不算"闲置"） */
+  private goldAtWaveStart: number | null = null;
+
+  /** 指令出口（工具 / 推进保证共用）：记下建造阶段开波前的金币，再交给 sink / world.command */
+  private readonly send: CommandSink = (c) => {
+    const w = this.o.world;
+    if (c.type === 'startWave' && w.state.phase === 'build' && this.goldAtWaveStart === null) this.goldAtWaveStart = Math.floor(w.state.gold);
+    return this.o.sink ? this.o.sink(c) : w.command(c);
+  };
+
+  private noteBuildGold(): void {
+    const g = this.goldAtWaveStart ?? Math.floor(this.o.world.state.gold);
+    this.goldAtWaveStart = null;
+    this.buildGoldAfter.push(g);
+    this.battle.noteBuildGold(g);
+  }
+
+  /**
+   * 打法信息（§19，一次性、不进增量基线）：上一波战报、下一波威胁估算与克制（建造阶段或下一波变了时）、闲置金币提醒（建造阶段）。
+   */
+  private extras(buildPhase: boolean): string | undefined {
+    const w = this.o.world;
+    const out: string[] = [];
+    const br = this.battle.take();
+    if (br) out.push(br);
+    const nw = w.state.nextWave.wave;
+    if (buildPhase || nw !== this.lastThreatWave) {
+      const th = threatLine(w);
+      if (th) out.push(th);
+      this.lastThreatWave = nw;
+    }
+    if (buildPhase && this.role === 'player') {
+      const idle = idleLine(w, this.plannerState);
+      if (idle) out.push(idle);
+    }
+    return out.length ? out.join('\n') : undefined;
+  }
+
   /** 决策后保证游戏能继续：增益必须选、补给必须选、手动模式必须开波 */
   private ensureProgress(rec: DecisionRecord): void {
     const w = this.o.world;
     const s = w.state;
-    const send = (c: Parameters<IWorld['command']>[0]) => (this.o.sink ? this.o.sink(c) : w.command(c));
+    const send = this.send;
     if (s.phase === 'perk' && s.perkChoices) {
       const c = s.perkChoices.find((x) => !x.needsTower) ?? s.perkChoices[0];
       send({ type: 'choosePerk', id: c.id });

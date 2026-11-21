@@ -61,7 +61,30 @@ export interface AgentRunReport {
   disabledReason: string | null;
   /** 结束时的预算分级（无预算时为 null） */
   budget: import('./engine').BudgetState | null;
+  /** 打法指标（评测用，scripts/agent-eval.ts） */
+  play: PlayStats;
   wallMs: number;
+}
+
+export interface PlayStats {
+  /** 建造阶段决策结束时剩余金币的平均值（闲置金币） */
+  idleGold: number;
+  idleSamples: number;
+  /** 被拒 / 出错的动作数（act 结果里的 REJECTED / ERROR 行 + 失败的旧工具调用） */
+  rejected: number;
+  /** 被拒后由规划器自动挪位成功的放置数 */
+  recovered: number;
+  /** 结束时的攻击塔 / 墙数量 */
+  towers: number;
+  walls: number;
+  /** 结束时各开放出生点的路线长度平均（格）；开局时的长度 */
+  pathLen: number;
+  pathLen0: number;
+}
+
+function pathAvg(w: IWorld): number {
+  const ps = w.currentPaths();
+  return ps.length ? Math.round((ps.reduce((a, p) => a + p.length, 0) / ps.length) * 10) / 10 : 0;
 }
 
 /** Agent 成绩的榜键：在真人榜键前加 ai: 前缀（服务端 parseBoard 不认识它 ⇒ 不可能混进真人榜） */
@@ -74,6 +97,7 @@ export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Pro
   const config = resolveConfig(agent.config);
   const world = createWorld(opts);
   const s = world.state;
+  const pathLen0 = pathAvg(world);
   const sched = new AgentScheduler(world, {
     mode: config.decision?.mode ?? 'pause',
     waveIntervalSec: config.decision?.waveIntervalSec,
@@ -151,6 +175,16 @@ export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Pro
     config: saveableConfig(config),
     disabledReason: agent.provider ? engine.disabledReason : null,
     budget: config.budget?.tokens || config.budget?.usd ? engine.budgetState() : null,
+    play: {
+      idleGold: engine.buildGoldAfter.length ? Math.round(engine.buildGoldAfter.reduce((a, b) => a + b, 0) / engine.buildGoldAfter.length) : 0,
+      idleSamples: engine.buildGoldAfter.length,
+      rejected: engine.battle.stats.rejected + engine.decisions.reduce((a, d) => a + d.toolCalls.filter((c) => !c.ok && c.name !== 'act').length, 0),
+      recovered: engine.battle.stats.recovered,
+      towers: [...s.towers.values()].filter((t) => t.id !== 'wall').length,
+      walls: [...s.towers.values()].filter((t) => t.id === 'wall').length,
+      pathLen: pathAvg(world),
+      pathLen0,
+    },
     wallMs: Date.now() - t0,
   };
 }

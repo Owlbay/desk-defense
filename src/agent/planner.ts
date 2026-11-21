@@ -1,0 +1,696 @@
+/**
+ * 意图规划器（文档 10 §19）：模型在 act 里给出高层意图（造迷宫 / 在哪类位置放几座某塔 / 升级最值的 / 补防空 / 花到剩多少 / 存钱），
+ * 由这里确定性地挑具体格子与目标，逐条经 send(cmd)（= World.command 或浏览器的排队出口）执行。
+ *
+ *  - 迷宫与选位复用内置机器人的逻辑（./maze.ts：蛇形挡板规划、路线采样、射程覆盖）；
+ *  - 不直接改任何状态：所有改动都是 Command，被拒就记下原因、换下一个候选；
+ *  - 无随机数、遍历顺序固定：同一局面 ⇒ 同一结果；
+ *  - 每个意图返回一行"做了什么"（格子、花费、路线长度变化）与被拒 / 跳过的原因。
+ */
+import { CellKind, type Branch, type Command, type CommandResult, type IWorld, type TowerId, type TowerState } from '../core/types';
+import { COMBOS, TOWERS } from '../config/towers';
+import { computeDist, tracePath } from '../core/flowfield';
+import { threatEstimate } from './battle';
+import { coverage as sampleCov, dropStart, planMaze, targetCells, type MazePlan, type Sample } from './maze';
+
+export type Send = (cmd: Command) => CommandResult & { queuedFor?: number };
+
+/** 跨决策的规划器状态（引擎持有；save 意图写这里） */
+export interface PlannerState {
+  /** 存钱目标：金币低于它时不催花钱 */
+  saveUntil?: number;
+  /** 存钱目标在第几波设下（过两波自动失效） */
+  saveWave?: number;
+}
+
+export interface IntentOutcome {
+  ok: boolean;
+  text: string;
+  /** 实际花掉的金币（出售退款记为负） */
+  spent: number;
+  /** 成功的指令数 */
+  done: number;
+}
+
+/** 每种塔"单位覆盖"的大致价值（秒伤量级），只用于买 / 升比较（与 scripts/bots/strategy.ts 一致） */
+export const POWER: Record<TowerId, number> = {
+  wall: 0, pencil: 16, stapler: 26, glue: 12, lamp: 24, compass: 40, eraser: 10, ruler: 24, pen: 20, calculator: 0, piggy: 0, swatter: 30,
+};
+
+/** 传奇分支缺省（高手机器人的选择） */
+export const DEFAULT_BRANCH: Partial<Record<TowerId, Branch>> = {
+  pencil: 'A', stapler: 'B', glue: 'B', lamp: 'A', compass: 'B', eraser: 'A', ruler: 'B', pen: 'B', calculator: 'A', piggy: 'A', swatter: 'A',
+};
+
+/** spend 的买塔轮换（无状态：按已有数量决定下一座） */
+const ROTATION: TowerId[] = [
+  'pencil', 'pencil', 'pencil', 'pencil', 'eraser', 'pencil', 'pencil', 'lamp', 'pencil', 'pencil', 'glue', 'pencil', 'lamp', 'pencil', 'eraser',
+  'pencil', 'compass', 'pencil', 'lamp', 'pencil', 'stapler', 'pencil', 'compass', 'ruler', 'lamp', 'pencil',
+];
+/** 墙的投入上限：塔投入的这个比例 + 25（高手机器人 0.5） */
+const WALL_SHARE = 0.5;
+
+function levelGain(id: TowerId, next: number): number {
+  let g = 0.186;
+  if (next === 4) g += ({ pencil: 0.15, compass: 0.25, lamp: 0.3, stapler: 0.1, eraser: 0.3, pen: 0.2 } as Partial<Record<TowerId, number>>)[id] ?? 0.1;
+  if (next === 7) g += ({ pencil: 1.0, lamp: 0.8, ruler: 1.6, compass: 0.4, stapler: 0.3, pen: 0.3, glue: 0.3, eraser: 0.3 } as Partial<Record<TowerId, number>>)[id] ?? 0.2;
+  if (next === 10) g += 0.5;
+  return g;
+}
+
+/** 路线采样（带出生点 id 与进度 f） */
+export interface RSample extends Sample { sp: string; f: number }
+
+interface Slot { x: number; y: number; i: number; wallUid: number; plan: boolean }
+
+const FIXABLE = new Set(['有敌人在这里', '这里不能建造', '已经有塔了', '会堵死道路', '会困住敌人']);
+
+/** 每次 act 新建一个（局面快照），意图之间共享"已排队但未落地"的格子与金币 */
+export class Planner {
+  readonly plan: MazePlan;
+  private readonly cols: number;
+  private readonly rows: number;
+  private readonly scratch: Float32Array;
+  /** realtime 排队的放置：格子已占用、金币已扣 */
+  private reserved = new Set<number>();
+  private pendingGold = 0;
+  private cacheKey = '';
+  private gS: RSample[] = [];
+  private aS: RSample[] = [];
+  /** 规划完全建成后的路线采样（规划外的格子按它打分：迷宫建完后仍在射程内才有用） */
+  private fS: RSample[] = [];
+  /** 当前（真实）路线采样：新塔现在就要打得到 */
+  private cS: RSample[] = [];
+  /** 规划路线（迷宫建成后）经过的格子：不在这里放塔，免得堵住规划 */
+  private planned = new Set<number>();
+
+  constructor(readonly w: IWorld, private readonly send: Send, readonly state: PlannerState = {}) {
+    this.plan = planMaze(w);
+    this.cols = w.state.grid.cols;
+    this.rows = w.state.grid.rows;
+    this.scratch = new Float32Array(this.cols * this.rows);
+  }
+
+  // ───────────── 基础 ─────────────
+
+  gold(): number {
+    return Math.floor(this.w.state.gold - this.pendingGold);
+  }
+
+  cost(id: TowerId): number {
+    return this.w.getBuildOptions().find((o) => o.id === id)?.cost ?? TOWERS[id].cost;
+  }
+
+  private unlocked(id: TowerId): boolean {
+    const b = this.w.getBuildOptions().find((o) => o.id === id);
+    return !!b && b.unlocked && !b.limitReached;
+  }
+
+  private towers(): TowerState[] {
+    return [...this.w.state.towers.values()];
+  }
+
+  private attackers(): TowerState[] {
+    return this.towers().filter((t) => TOWERS[t.id].attacks);
+  }
+
+  private exec(cmd: Command): CommandResult & { queuedFor?: number } {
+    const r = this.send(cmd);
+    // realtime 排队：格子与金币先记在本地，后续候选不会重复用到
+    if (r.ok && r.queuedFor !== undefined && cmd.type === 'place') {
+      this.reserved.add(cmd.cy * this.cols + cmd.cx);
+      this.pendingGold += this.cost(cmd.tower);
+    }
+    if (r.ok) this.cacheKey = '';
+    return r;
+  }
+
+  private empty(i: number): boolean {
+    return this.w.state.grid.cells[i] === CellKind.Empty && !this.reserved.has(i);
+  }
+
+  pathLens(): number[] {
+    return this.w.currentPaths().map((p) => p.length);
+  }
+
+  /** 规划里已建成的段数 + 1（只看近期能建成的部分；与机器人同规则） */
+  private activeSegments(): number {
+    const g = this.w.state.grid;
+    let built = 0;
+    for (; built < this.plan.segments.length; built++) {
+      if (this.plan.segments[built].some((i) => g.cells[i] === CellKind.Empty && this.wallPlaceable(i))) break;
+    }
+    return Math.min(this.plan.segments.length, built + 1);
+  }
+
+  private wallPlaceable(i: number): boolean {
+    const r = this.w.canPlace('wall', i % this.cols, Math.floor(i / this.cols));
+    return r.ok || r.reason === '金币不足' || r.reason === '有敌人在这里';
+  }
+
+  /** 迷宫完成度：规划格里已被占用（墙或塔）的比例 */
+  mazeProgress(): { built: number; total: number; left: number } {
+    const g = this.w.state.grid;
+    let built = 0;
+    let left = 0;
+    for (const i of this.plan.all) {
+      if (g.cells[i] !== CellKind.Empty) built++;
+      else if (this.wallPlaceable(i)) left++;
+    }
+    return { built, total: this.plan.all.length, left };
+  }
+
+  /** 路线采样（按规划的前 nSeg 段建成后的格子） */
+  private refresh(): void {
+    const g = this.w.state.grid;
+    const nSeg = this.activeSegments();
+    const key = `${g.version}|${nSeg}|${this.w.state.spawners.filter((s) => s.active).map((s) => s.id).join(',')}|${this.reserved.size}`;
+    if (key === this.cacheKey) return;
+    this.cacheKey = key;
+    const cells = targetCells(this.w, this.plan, nSeg, this.scratch);
+    for (const i of this.reserved) cells[i] = CellKind.Tower;
+    this.gS = routeSamples(this.w, cells, this.scratch);
+    const cur = g.cells.slice();
+    for (const i of this.reserved) cur[i] = CellKind.Tower;
+    this.cS = routeSamples(this.w, cur, this.scratch);
+    this.aS = airLineSamples(this.w);
+    // 规划完全建成后的路线：不在上面放塔（任何不在这条路线上的格子都不可能让规划失效）
+    const full = targetCells(this.w, this.plan, this.plan.segments.length, this.scratch);
+    for (const i of this.reserved) full[i] = CellKind.Tower;
+    this.fS = routeSamples(this.w, full, this.scratch);
+    this.planned = new Set(this.fS.map((s) => Math.floor(s.y) * this.cols + Math.floor(s.x)));
+  }
+
+  /** 候选格：规划的迷宫格（空格或可替换的 Lv1 墙）+ 不在当前 / 规划路线上的空格 */
+  private slots(): Slot[] {
+    const g = this.w.state.grid;
+    const out: Slot[] = [];
+    const seen = new Set<number>();
+    const nSeg = this.activeSegments();
+    for (let k = 0; k < nSeg; k++) {
+      for (const i of this.plan.segments[k]) {
+        seen.add(i);
+        const x = i % this.cols;
+        const y = (i - x) / this.cols;
+        if (this.empty(i)) out.push({ x, y, i, wallUid: 0, plan: true });
+        else if (g.cells[i] === CellKind.Tower) {
+          const t = this.w.state.towers.get(g.towerAt[i]);
+          if (t && t.id === 'wall' && t.level === 1) out.push({ x, y, i, wallUid: t.uid, plan: true });
+        }
+      }
+    }
+    const onRoute = new Set<number>();
+    for (const p of this.w.currentPaths()) for (const c of p) onRoute.add(c.y * this.cols + c.x);
+    for (let i = 0; i < g.cells.length; i++) {
+      if (seen.has(i) || !this.empty(i) || onRoute.has(i) || this.planned.has(i)) continue;
+      out.push({ x: i % this.cols, y: Math.floor(i / this.cols), i, wallUid: 0, plan: false });
+    }
+    return out;
+  }
+
+  private range(id: TowerId): { r: number; inner: number } {
+    const b = this.w.baseRange(id);
+    return { r: b.range + 0.3, inner: b.inner ?? 0 };
+  }
+
+  private adjacent(x: number, y: number, id: TowerId): boolean {
+    const g = this.w.state.grid;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= this.cols || ny >= this.rows) continue;
+      const t = this.w.state.towers.get(g.towerAt[ny * this.cols + nx]);
+      if (t && t.id === id) return true;
+    }
+    return false;
+  }
+
+  /** 目标 → 采样集合与对空权重 */
+  private samplesFor(id: TowerId, target: string, which: 'near' | 'final' | 'current' = 'near'): { ground: RSample[]; air: RSample[]; airW: number } {
+    this.refresh();
+    const def = TOWERS[id];
+    const [kind, arg] = target.split(':');
+    const base = which === 'final' ? this.fS : which === 'current' ? this.cS : this.gS;
+    let ground = def.hitsGround ? base : [];
+    let air = def.hitsAir ? this.aS : [];
+    let airW = 1;
+    switch (kind) {
+      case 'early': ground = ground.filter((s) => s.f <= 0.4); break;
+      case 'exit': ground = ground.filter((s) => s.f >= 0.6); air = air.filter((s) => s.f >= 0.5); break;
+      case 'route': if (arg) { ground = ground.filter((s) => s.sp === arg); air = air.filter((s) => s.sp === arg); } break;
+      case 'air': case 'airline': {
+        air = def.hitsAir ? this.aS.filter((s) => !arg || s.sp === arg) : [];
+        ground = ground.map((s) => ({ ...s, w: s.w * 0.1 }));
+        airW = 3;
+        break;
+      }
+      case 'chokepoint': {
+        // 多条路线汇合处：每个采样按附近（0.75 格内）经过的路线条数加权
+        const near = (s: RSample) => new Set(this.gS.filter((o) => Math.abs(o.x - s.x) <= 0.75 && Math.abs(o.y - s.y) <= 0.75).map((o) => o.sp)).size;
+        ground = ground.map((s) => ({ ...s, w: s.w * near(s) ** 2 }));
+        void base;
+        break;
+      }
+      default: break;
+    }
+    return { ground, air, airW };
+  }
+
+  /** 某塔放在某格的价值（覆盖 × 组合技加成；计算器 / 存钱罐按机器人的规则） */
+  private slotValue(id: TowerId, sl: { x: number; y: number }, s: { ground: RSample[]; air: RSample[]; airW: number }): number {
+    if (id === 'calculator') {
+      let v = 0;
+      for (const t of this.attackers()) {
+        if ((t.cx - sl.x) ** 2 + (t.cy - sl.y) ** 2 <= 4 + 1e-6) v += 1.19 ** (t.level - 1) * (POWER[t.id] || 10);
+      }
+      return v;
+    }
+    if (id === 'piggy') return 100 - sampleCov(sl.x, sl.y, 2.5, 0, this.gS) + (this.adjacent(sl.x, sl.y, 'calculator') ? 50 : 0);
+    const { r, inner } = this.range(id);
+    let v = s.ground.length ? sampleCov(sl.x, sl.y, r, inner, s.ground) : 0;
+    if (s.air.length) v += s.airW * sampleCov(sl.x, sl.y, r, 0, s.air);
+    for (const cb of COMBOS) {
+      const partner = cb.a === id ? cb.b : cb.b === id ? cb.a : null;
+      if (partner && this.adjacent(sl.x, sl.y, partner)) v *= 1.15;
+    }
+    return v;
+  }
+
+  /**
+   * 最佳格（不含 exclude）；只返回 canPlace 通过（或是可替换的墙）的格。
+   * 先看规划的迷宫格（与机器人相同：按近期路线打分，塔同时是迷宫墙）；没有有用的规划格时（迷宫已建满 / 对空目标）
+   * 才用规划外的空格，并按"迷宫建完后的路线"打分——否则塔会放在迷宫建成后就够不着的地方。
+   */
+  bestSlot(id: TowerId, target = 'route', exclude?: Set<number>): { slot: Slot; v: number } | null {
+    const near = this.samplesFor(id, target);
+    const cur = this.samplesFor(id, target, 'current');
+    const far = this.samplesFor(id, target, 'final');
+    const airTarget = /^air/.test(target);
+    const all = this.slots();
+    const pick = (list: Slot[], s: (sl: Slot) => number): { slot: Slot; v: number } | null => {
+      let best: Slot | null = null;
+      let bv = 0;
+      for (const sl of list) {
+        if (exclude?.has(sl.i)) continue;
+        const v = s(sl);
+        if (v <= bv + 1e-9) continue;
+        if (!sl.wallUid) {
+          const r = this.w.canPlace(id, sl.x, sl.y);
+          if (!r.ok && r.reason !== '金币不足') continue;
+        }
+        best = sl;
+        bv = v;
+      }
+      return best ? { slot: best, v: bv } : null;
+    };
+    const planSlots = all.filter((sl) => sl.plan);
+    const offSlots = all.filter((sl) => !sl.plan);
+    if (airTarget) return pick(all, (sl) => this.slotValue(id, sl, sl.plan ? near : far));
+    // 规划格：一半看"下一道挡板建成后"的路线（机器人的口径），一半看现在的路线（这一波就要打得到）
+    const p = pick(planSlots, (sl) => 0.5 * this.slotValue(id, sl, near) + 0.5 * this.slotValue(id, sl, cur));
+    if (p && (p.v >= 1 || id === 'piggy' || id === 'calculator')) return p;
+    const o = pick(offSlots, (sl) => this.slotValue(id, sl, far));
+    return o && (!p || o.v > p.v) ? o : p;
+  }
+
+  /** 放一座塔（必要时先卖掉该格的 Lv1 墙）；返回结果行 */
+  private placeAt(id: TowerId, sl: Slot): { ok: boolean; line: string; spent: number } {
+    const cost = this.cost(id);
+    if (this.gold() + (sl.wallUid ? 3 : 0) < cost) return { ok: false, line: `${id}@${sl.x},${sl.y} 金币不足 (cost ${cost}, gold ${this.gold()})`, spent: 0 };
+    const g0 = this.w.state.gold;
+    if (sl.wallUid) {
+      const r = this.exec({ type: 'sell', uid: sl.wallUid });
+      if (!r.ok) return { ok: false, line: `${id}@${sl.x},${sl.y} sell wall #${sl.wallUid}: ${r.reason}`, spent: 0 };
+    }
+    const r = this.exec({ type: 'place', tower: id, cx: sl.x, cy: sl.y });
+    if (!r.ok) {
+      if (sl.wallUid) this.exec({ type: 'place', tower: 'wall', cx: sl.x, cy: sl.y });
+      return { ok: false, line: `${id}@${sl.x},${sl.y} ${r.reason}`, spent: Math.round(g0 - this.w.state.gold) };
+    }
+    const uid = this.w.state.grid.towerAt[sl.i];
+    if (id === 'lamp' && uid && r.queuedFor === undefined) this.exec({ type: 'setTarget', uid, mode: 'strong' });
+    const spent = r.queuedFor !== undefined ? cost : Math.round(g0 - this.w.state.gold);
+    return { ok: true, line: `${id}#${r.queuedFor !== undefined ? '?' : uid}@${sl.x},${sl.y}${sl.wallUid ? '(replaced wall)' : ''} -${spent}g`, spent };
+  }
+
+  // ───────────── 意图 ─────────────
+
+  /** maze：按规划逐格放墙（serpentine）或贪心放能让路线变长最多的墙（funnel），最多花 budget */
+  maze(style: 'serpentine' | 'funnel' = 'serpentine', budget?: number, route?: string): IntentOutcome {
+    const wallCost = this.cost('wall');
+    const cap = Math.min(budget ?? Infinity, this.gold());
+    const before = this.pathLens();
+    let spent = 0;
+    let done = 0;
+    const skipped = new Map<string, number>();
+    const skip = (why: string) => skipped.set(why, (skipped.get(why) ?? 0) + 1);
+    if (style === 'funnel') {
+      for (let guard = 0; guard < 24 && spent + wallCost <= cap; guard++) {
+        const c = this.bestFunnelWall(route);
+        if (!c) break;
+        const r = this.exec({ type: 'place', tower: 'wall', cx: c.x, cy: c.y });
+        if (!r.ok) { skip(r.reason ?? 'invalid'); break; }
+        spent += wallCost;
+        done++;
+      }
+    } else {
+      outer: for (const seg of this.plan.segments) {
+        for (const i of seg) {
+          if (!this.empty(i)) continue;
+          if (spent + wallCost > cap || this.gold() < wallCost) break outer;
+          const r = this.exec({ type: 'place', tower: 'wall', cx: i % this.cols, cy: Math.floor(i / this.cols) });
+          if (r.ok) { spent += wallCost; done++; } else skip(r.reason ?? 'invalid');
+        }
+      }
+    }
+    const after = this.pathLens();
+    const pg = this.mazeProgress();
+    const sk = skipped.size ? ` skipped ${[...skipped].map(([k, v]) => `${k}×${v}`).join(',')}` : '';
+    const tail = style === 'serpentine' ? ` | plan ${pg.built}/${pg.total} cells, L${Math.round(this.plan.length)} when done, ${pg.left} left ≈${pg.left * wallCost}g` : '';
+    const text = done
+      ? `maze ${style}: +${done} walls -${spent}g path ${before.join('/')}→${after.join('/')}${sk}${tail}`
+      : `maze ${style}: nothing built (${this.gold() < wallCost ? `gold ${this.gold()}` : pg.left === 0 && style === 'serpentine' ? 'plan complete' : 'no useful wall'})${sk}${tail}`;
+    return { ok: done > 0 || (style === 'serpentine' && pg.left === 0), text, spent, done };
+  }
+
+  /** 让（指定 / 全部）路线变长最多的单格墙（只看当前路线旁边的格子；用 previewPath，与真实放置同规则） */
+  private bestFunnelWall(route?: string): { x: number; y: number; gain: number } | null {
+    const w = this.w;
+    const ids = w.state.spawners.filter((s) => s.active).map((s) => s.id);
+    const paths = w.currentPaths();
+    const pick = (ps: { x: number; y: number }[][]): number => {
+      if (route) {
+        const k = ids.indexOf(route);
+        if (k >= 0 && ps[k]) return ps[k].length;
+      }
+      return ps.reduce((a, p) => a + p.length, 0);
+    };
+    const cur = pick(paths);
+    const cand = new Set<number>();
+    for (const p of paths) for (const c of p) {
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const x = c.x + dx;
+        const y = c.y + dy;
+        if (x < 0 || y < 0 || x >= this.cols || y >= this.rows) continue;
+        const i = y * this.cols + x;
+        if (this.empty(i)) cand.add(i);
+      }
+    }
+    let best: { x: number; y: number; gain: number } | null = null;
+    for (const i of [...cand].sort((a, b) => a - b)) {
+      const x = i % this.cols;
+      const y = Math.floor(i / this.cols);
+      if (!w.canPlace('wall', x, y).ok) continue;
+      const pv = w.previewPath('wall', x, y);
+      if (!pv) continue;
+      const gain = pick(pv) - cur;
+      if (gain >= 1 && (!best || gain > best.gain)) best = { x, y, gain };
+    }
+    return best;
+  }
+
+  /** build_near：在 target 类位置放 count 座 tower */
+  buildNear(id: TowerId, target = 'route', count = 1): IntentOutcome {
+    if (!TOWERS[id]) return { ok: false, text: `build_near: unknown tower ${id}`, spent: 0, done: 0 };
+    if (id === 'wall') return { ok: false, text: 'build_near: walls → use {do:"maze"}', spent: 0, done: 0 };
+    if (!this.unlocked(id)) return { ok: false, text: `build_near ${id}: locked or at limit`, spent: 0, done: 0 };
+    const tgt = target || (id === 'eraser' || id === 'glue' ? 'early' : 'route');
+    const lines: string[] = [];
+    let spent = 0;
+    let done = 0;
+    const tried = new Set<number>();
+    for (let k = 0; k < Math.min(8, Math.max(1, count)); k++) {
+      if (this.gold() < this.cost(id)) { lines.push(`stop: 金币不足 (cost ${this.cost(id)}, gold ${this.gold()})`); break; }
+      let placed = false;
+      for (let attempt = 0; attempt < 4 && !placed; attempt++) {
+        const b = this.bestSlot(id, tgt, tried);
+        if (!b) { lines.push('stop: no valid cell'); k = 99; break; }
+        tried.add(b.slot.i);
+        const r = this.placeAt(id, b.slot);
+        if (r.ok) { placed = true; spent += r.spent; done++; lines.push(`${r.line} cov${Math.round(b.v * 10) / 10}`); }
+        else lines.push(`skip ${r.line}`);
+      }
+      if (!placed && k < 99) break;
+    }
+    return { ok: done > 0, text: `build_near ${id} ${tgt}: ${lines.join('; ')} → path ${this.pathLens().join('/')}`, spent, done };
+  }
+
+  /** 升级价值（每金币收益）；与机器人 bestUpgrade 同口径。metric=coverage 不除以价格 */
+  private upgradeCandidates(metric: 'dps' | 'coverage'): { t: TowerState; cost: number; eff: number; evolve: boolean }[] {
+    this.refresh();
+    const out: { t: TowerState; cost: number; eff: number; evolve: boolean }[] = [];
+    for (const t of this.towers()) {
+      if (t.id === 'wall') continue;
+      const info = this.w.getTowerInfo(t.uid);
+      if (!info) continue;
+      const evolve = t.level >= 10;
+      const cost = evolve ? info.evolveCost : info.upgradeCost;
+      if (cost === null) continue;
+      let val: number;
+      if (t.id === 'piggy') val = t.level < 9 && !evolve ? 10 : 0.02;
+      else if (t.id === 'calculator') val = 0.01 * this.slotValue('calculator', { x: t.cx, y: t.cy }, { ground: [], air: [], airW: 1 }) * 3;
+      else {
+        const r = this.range(t.id);
+        let cov = TOWERS[t.id].hitsGround ? sampleCov(t.cx, t.cy, r.r, r.inner, this.gS) : 0;
+        if (TOWERS[t.id].hitsAir) cov += sampleCov(t.cx, t.cy, r.r, 0, this.aS);
+        const power = evolve ? POWER[t.id] * 1.186 ** 9 * 1.5 : POWER[t.id] * 1.186 ** (t.level - 1);
+        val = cov * power * (evolve ? (t.stars === 2 ? 0.35 : 0.16) : levelGain(t.id, t.level + 1));
+      }
+      out.push({ t, cost, eff: metric === 'coverage' ? val : val / cost, evolve });
+    }
+    return out.sort((a, b) => b.eff - a.eff || a.t.uid - b.t.uid);
+  }
+
+  upgradeBest(n = 1, metric: 'dps' | 'coverage' = 'dps', budget?: number): IntentOutcome {
+    const lines: string[] = [];
+    let spent = 0;
+    let done = 0;
+    const cap = budget ?? Infinity;
+    for (let k = 0; k < Math.min(10, Math.max(1, n)); k++) {
+      const c = this.upgradeCandidates(metric).find((x) => x.cost <= this.gold() && spent + x.cost <= cap);
+      if (!c) {
+        const top = this.upgradeCandidates(metric)[0];
+        lines.push(top ? `stop: best #${top.t.uid} ${top.t.id} needs ${top.cost}g (gold ${this.gold()})` : 'stop: nothing to upgrade');
+        break;
+      }
+      const r = this.upgradeOne(c.t, c.evolve);
+      if (!r.ok) { lines.push(`#${c.t.uid} ${r.reason}`); break; }
+      spent += r.spent;
+      done++;
+      lines.push(r.line);
+    }
+    return { ok: done > 0, text: `upgrade_best ${metric}: ${lines.join('; ')}`, spent, done };
+  }
+
+  private upgradeOne(t: TowerState, evolve: boolean): { ok: boolean; reason?: string; line: string; spent: number } {
+    const g0 = this.w.state.gold;
+    const cmd: Command = evolve ? { type: 'evolve', uid: t.uid }
+      : t.level === 9 ? { type: 'upgrade', uid: t.uid, branch: DEFAULT_BRANCH[t.id] ?? 'A' } : { type: 'upgrade', uid: t.uid };
+    const r = this.exec(cmd);
+    if (!r.ok) return { ok: false, reason: r.reason ?? 'invalid', line: '', spent: 0 };
+    const nt = this.w.state.towers.get(t.uid);
+    const spent = Math.round(g0 - this.w.state.gold);
+    return { ok: true, line: `#${t.uid} ${t.id} →${evolve ? `★${nt?.stars ?? '?'}` : `L${nt?.level ?? '?'}${nt?.branch ? nt.branch : ''}`} -${spent}g`, spent };
+  }
+
+  /** 每条飞行线的对空火力（覆盖 × 威力），最弱的排前面 */
+  airLines(): { id: string; power: number }[] {
+    this.refresh();
+    const ids = [...new Set(this.aS.map((s) => s.sp))];
+    return ids.map((id) => {
+      const line = this.aS.filter((s) => s.sp === id);
+      let p = 0;
+      for (const t of this.attackers()) {
+        if (!TOWERS[t.id].hitsAir) continue;
+        const r = this.range(t.id);
+        p += sampleCov(t.cx, t.cy, r.r, 0, line) * (POWER[t.id] || 10) * 1.186 ** (t.level - 1);
+      }
+      return { id, power: Math.round(p) };
+    }).sort((a, b) => a.power - b.power);
+  }
+
+  antiAir(line?: string, count = 1): IntentOutcome {
+    const lines = this.airLines();
+    const tgt = line ?? lines[0]?.id;
+    if (!tgt) return { ok: false, text: 'anti_air: no flight lines', spent: 0, done: 0 };
+    const id: TowerId = this.unlocked('swatter') && this.gold() >= this.cost('swatter') ? 'swatter' : 'pencil';
+    const r = this.buildNear(id, `airline:${tgt}`, count);
+    return { ...r, text: `anti_air ${tgt}: ${r.text}` };
+  }
+
+  /** spend：按机器人的买 / 升规则把金币花到 reserve 为止（结果合并成一行：新塔 / 墙 / 升级 / 路线） */
+  spend(reserve = 0, focus: 'balanced' | 'towers' | 'upgrades' | 'maze' = 'balanced'): IntentOutcome {
+    const s = this.w.state;
+    const g0 = this.gold();
+    const path0 = this.pathLens();
+    const built: string[] = [];
+    const ups: string[] = [];
+    const aa: string[] = [];
+    let walls = 0;
+    let wallGold = 0;
+    let spent = 0;
+    let done = 0;
+    let saving = '';
+    const wave = s.wave + 1;
+    const maxTowers = Math.min(8 + Math.floor(wave * 1.5), 48);
+    for (let guard = 0; guard < 40; guard++) {
+      const budget = this.gold() - reserve;
+      if (budget <= 0) break;
+      const atk = this.attackers();
+      // 防空：下一波有空军、某条飞行线几乎没有对空
+      if (atk.length >= 3 && s.nextWave.tags.includes('air')) {
+        const weak = this.airLines().find((l) => l.power < 40);
+        if (weak && budget >= this.cost('pencil')) {
+          const o = this.antiAir(weak.id, 1);
+          if (o.done) { spent += o.spent; done += o.done; aa.push(weak.id); continue; }
+        }
+      }
+      // 迷宫：墙的投入 ≤ 50% 塔的投入 + 25（maze 优先时不设限）
+      const wallInv = this.towers().filter((t) => t.id === 'wall').reduce((x, t) => x + t.invested, 0);
+      const towerInv = atk.reduce((x, t) => x + t.invested, 0);
+      if (atk.length >= 3 && this.mazeProgress().left > 0 && (focus === 'maze' || wallInv < WALL_SHARE * towerInv + 25)) {
+        const cap = focus === 'maze' ? budget : Math.max(this.cost('wall'), Math.min(budget, WALL_SHARE * towerInv + 25 - wallInv));
+        const o = this.maze('serpentine', cap);
+        if (o.done) { spent += o.spent; done += o.done; walls += o.done; wallGold += o.spent; continue; }
+      }
+      const id = this.nextRotation();
+      const slot = id && atk.length < maxTowers && focus !== 'upgrades' ? this.bestSlot(id, id === 'eraser' || id === 'glue' ? 'early' : 'route') : null;
+      const up = atk.length >= Math.min(2 + wave, 6) && focus !== 'towers' ? this.upgradeCandidates('dps')[0] : undefined;
+      let buy = !!slot;
+      if (slot && up && id && focus === 'balanced') {
+        const support = !(POWER[id] > 0);
+        buy = support || id === 'glue' || id === 'eraser' || (slot.v * POWER[id]) / this.cost(id) >= up.eff;
+      }
+      if (focus === 'upgrades' && up) buy = false;
+      if (buy && slot && id) {
+        if (budget < this.cost(id)) {
+          // 危急（下一波有路线"危险"或本局已漏怪）：不攒钱，先买得起的铅笔
+          if (id !== 'pencil' && budget >= this.cost('pencil') && this.urgent()) {
+            const ps = this.bestSlot('pencil');
+            const r = ps ? this.placeAt('pencil', ps.slot) : null;
+            if (r?.ok) { spent += r.spent; done++; built.push(r.line.replace(/ -\d+g$/, '')); continue; }
+          }
+          saving = `saving for ${id} ${this.cost(id)}g`;
+          break;
+        }
+        const r = this.placeAt(id, slot.slot);
+        if (r.ok) { spent += r.spent; done++; built.push(r.line.replace(/ -\d+g$/, '')); continue; }
+        break;
+      }
+      if (up) {
+        if (budget < up.cost) { saving = `saving for #${up.t.uid} ${up.evolve ? 'evolve' : 'upgrade'} ${up.cost}g`; break; }
+        const r = this.upgradeOne(up.t, up.evolve);
+        if (r.ok) { spent += r.spent; done++; ups.push(r.line.replace(/ -\d+g$/, '')); continue; }
+        break;
+      }
+      break;
+    }
+    const left = this.gold();
+    const pg = this.mazeProgress();
+    const parts: string[] = [];
+    if (built.length) parts.push(`+${built.join(' +')}`);
+    if (aa.length) parts.push(`anti-air ${aa.join(',')}`);
+    if (walls) parts.push(`walls +${walls} (-${wallGold}g)`);
+    if (ups.length) parts.push(`up ${ups.join(' ')}`);
+    parts.push(`spent ${g0 - left}g, gold ${left}${saving ? ` (${saving})` : ''}`);
+    parts.push(`path ${path0.join('/')}→${this.pathLens().join('/')}`);
+    parts.push(`maze ${pg.built}/${pg.total} (L${Math.round(this.plan.length)} when done${pg.left ? `, ≈${pg.left * this.cost('wall')}g of walls left` : ''})`);
+    return { ok: true, text: `spend→${reserve}: ${done ? '' : 'nothing bought; '}${parts.join(' | ')}`, spent, done };
+  }
+
+  /** 危急：下一波有地面 / 空中线威胁"危险"，或已经漏过怪 */
+  private urgent(): boolean {
+    const s = this.w.state;
+    if (s.lives < s.maxLives) return true;
+    return threatEstimate(this.w).some((t) => t.verdict === '危险');
+  }
+
+  /** 下一座要买的塔：按轮换表与已有数量（无状态） */
+  nextRotation(): TowerId | null {
+    const have = new Map<TowerId, number>();
+    for (const t of this.attackers()) have.set(t.id, (have.get(t.id) ?? 0) + 1);
+    const want = new Map<TowerId, number>();
+    for (const id of ROTATION) {
+      want.set(id, (want.get(id) ?? 0) + 1);
+      if (!this.unlocked(id)) continue;
+      if (id === 'calculator' && this.attackers().length < 8) continue;
+      if ((have.get(id) ?? 0) < want.get(id)!) return id;
+    }
+    // 轮换表用完：继续按比例补铅笔 / 台灯 / 圆规
+    for (const id of ['pencil', 'lamp', 'compass', 'stapler'] as TowerId[]) if (this.unlocked(id)) return id;
+    return null;
+  }
+
+  save(until: number): IntentOutcome {
+    this.state.saveUntil = until;
+    this.state.saveWave = this.w.state.wave;
+    return { ok: true, text: `save: holding gold until ${until} (gold ${this.gold()})`, spent: 0, done: 0 };
+  }
+
+  /**
+   * 被拒的放置（格子被敌人 / 障碍 / 塔占着、或会堵路）→ 2 格内覆盖最好的可放空格（不在当前 / 规划路线上，不改路线）。
+   * 返回 null = 不可自动修正（原因不在可修正之列 / 附近没有合适的格）。
+   */
+  relocate(id: TowerId, x: number, y: number, reason: string): { x: number; y: number } | null {
+    if (id === 'wall' || !FIXABLE.has(reason)) return null;
+    this.refresh();
+    const onRoute = new Set<number>();
+    for (const p of this.w.currentPaths()) for (const c of p) onRoute.add(c.y * this.cols + c.x);
+    const s = this.samplesFor(id, 'route');
+    let best: { x: number; y: number; v: number } | null = null;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if ((dx === 0 && dy === 0) || nx < 0 || ny < 0 || nx >= this.cols || ny >= this.rows) continue;
+      const i = ny * this.cols + nx;
+      if (!this.empty(i) || onRoute.has(i) || this.planned.has(i)) continue;
+      if (!this.w.canPlace(id, nx, ny).ok) continue;
+      const v = this.slotValue(id, { x: nx, y: ny }, s) - 0.01 * Math.max(Math.abs(dx), Math.abs(dy));
+      if (!best || v > best.v) best = { x: nx, y: ny, v };
+    }
+    return best;
+  }
+}
+
+/** 每个开放出生点沿流场的路线采样（权重按出生点数平分；f = 沿路线的进度） */
+export function routeSamples(w: IWorld, cells: Uint8Array, scratch: Float32Array): RSample[] {
+  const g = w.state.grid;
+  const d = computeDist(g.cols, g.rows, cells, g.exits, scratch);
+  const ents = w.state.spawners.filter((sp) => sp.active);
+  const out: RSample[] = [];
+  const wt = 1 / Math.max(1, ents.length);
+  for (const sp of ents) {
+    const c0 = sp.cells[0];
+    let start = c0.y * g.cols + c0.x;
+    if (sp.kind === 'drop') start = dropStart(w, c0, cells, d);
+    if (start < 0 || !(d[start] < Infinity)) continue;
+    const p = tracePath(g.cols, g.rows, cells, d, start);
+    for (let k = 0; k < p.length; k++) {
+      const f = k / Math.max(1, p.length - 1);
+      out.push({ x: p[k].x + 0.5, y: p[k].y + 0.5, w: wt * 0.5, f, sp: sp.id });
+      if (k + 1 < p.length) out.push({ x: (p[k].x + p[k + 1].x) / 2 + 0.5, y: (p[k].y + p[k + 1].y) / 2 + 0.5, w: wt * 0.5, f, sp: sp.id });
+    }
+  }
+  return out;
+}
+
+/** 每个开放出生点的飞行线采样（出生格中心 → 横向最近的出口；与 routes.ts flightLines 同口径） */
+export function airLineSamples(w: IWorld): RSample[] {
+  const g = w.state.grid;
+  const out: RSample[] = [];
+  const ents = w.state.spawners.filter((sp) => sp.active);
+  const wt = 1 / Math.max(1, ents.length);
+  for (const sp of ents) {
+    const c = sp.cells[0];
+    const x0 = c.x + 0.5;
+    const y0 = c.y + 0.5;
+    let best = g.exits[0];
+    for (const ex of g.exits) if (Math.abs(ex.x + 0.5 - x0) < Math.abs(best.x + 0.5 - x0)) best = ex;
+    if (!best) continue;
+    const x1 = best.x + 0.5;
+    const y1 = best.y + 0.5;
+    const n = Math.max(1, Math.round(Math.hypot(x1 - x0, y1 - y0) / 0.5));
+    for (let k = 0; k <= n; k++) out.push({ x: x0 + ((x1 - x0) * k) / n, y: y0 + ((y1 - y0) * k) / n, w: wt * 0.5, f: k / n, sp: sp.id });
+  }
+  return out;
+}

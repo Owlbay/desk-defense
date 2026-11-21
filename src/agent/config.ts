@@ -95,6 +95,11 @@ export interface AgentModelConfig {
   /** 单次模型回复的最大输出 token（默认 claude 16000、其他 4096） */
   maxOutputTokens?: number;
   role?: AgentRole;
+  /**
+   * 打法辅助（文档 10 §19，缺省开）：act 里的高层意图（maze / build_near / upgrade_best / anti_air / spend / save，由确定性规划器挑格子）、
+   * 被拒放置自动挪位、每次决策附战报 / 威胁估算 / 克制 / 闲置金币提醒、提示词的打法要点与开局。false = 旧版（评测基线）。
+   */
+  assist?: boolean;
   decision?: {
     mode?: DecisionMode;
     /** 波次中每隔多少秒决策（默认 10；小模型建议 20～30） */
