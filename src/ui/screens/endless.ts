@@ -2,11 +2,11 @@ import type { DifficultyId, MapId } from '../../core/types';
 import {
   ABYSS_MAX,
   bestWave,
-  chapterCleared,
   diffKey,
   DIFF_NAME,
   difficultyUnlocked,
   effectiveAutoWave,
+  endlessMaps,
   INK_FACTOR,
   MAPS,
   maxAbyssLevel,
@@ -27,7 +27,7 @@ const diffBlurb = (d: DifficultyId): string => t(`ui.endless.blurb.${d}`);
 
 export function endlessScreen(app: App): Screen {
   const p = app.store.get();
-  const maps = MAPS.filter((m) => chapterCleared(p, m));
+  const maps = endlessMaps(p, MAPS);
   const last = p.lastEndless;
   const abyssMax = maxAbyssLevel(p);
   const state = {

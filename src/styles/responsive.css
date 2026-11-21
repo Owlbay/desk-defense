@@ -1649,3 +1649,24 @@ body {
     padding: 12px 10px;
   }
 }
+
+/* 菜单标题：基础字号按 4 个汉字设计；英文 "Desk Defense" 12 个字符，缩小字号并禁止换行（随 <html lang> 切换） */
+html[lang='en'] .logo-zh {
+  font-size: clamp(30px, 9.5vw, 60px);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+html[lang='ja'] .logo-zh {
+  font-size: clamp(32px, 9.5vw, 64px);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+html[lang='zh-TW'] .logo-zh {
+  white-space: nowrap;
+}
+@media (max-height: 520px) and (orientation: landscape) {
+  html[lang='en'] .logo-zh,
+  html[lang='ja'] .logo-zh {
+    font-size: clamp(28px, 6vw, 44px);
+  }
+}

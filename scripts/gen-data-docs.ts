@@ -740,6 +740,21 @@ function genSkills(): string {
       img(`art/events/${e.id}.svg`, e.id), `${e.name}<br><sub>${e.id}</sub>`, TONE[e.tone] ?? e.tone, e.weight, e.minWave, e.cooldown,
       e.warn === 'drop' ? '难度 dropWarn' : e.warn ? `${e.warn} 秒` : '无', e.duration ? `${e.duration} 秒` : '瞬时', (e.tags ?? []).join(', ') || '—', esc(e.desc),
     ]));
+    const ME = EV.MONSTER_EVENTS;
+    if (ME) {
+      const G = ME.goldbag;
+      const GE = ME.golden;
+      s += '### 怪物类事件数值\n\n负面事件强度 × 难度系数 clamp(0.6 + eventHostile, 0.8, 1.35)（普通 = 1.0）。\n\n' + table(['事件', '数值'], [
+        ['茶歇时间', `场上敌人每秒回复 ${pct(ME.teaRegen, 1)} 最大生命（Boss ×${ME.teaBossMul}，钢笔墨水再减半）`],
+        ['急救小队', `修正液 ×(${ME.medicBase} + ⌊波数 / ${ME.medicPerWaves}⌋)，最多 ${ME.medicMax} 个，间隔 ${ME.medicInterval} 秒，同一出生点`],
+        ['护盾补给', `护盾 + 最大生命 × ${pct(ME.shieldRatio, 0)}`],
+        ['狂暴', `敌人速度 ×${ME.frenzySpeed}，击杀金币 ×${ME.frenzyGold}`],
+        ['赏金时刻', `击杀金币 ×${ME.bountyGold}`],
+        ['加练', `塔获得的经验 ×${ME.trainingXp}`],
+        ['金币袋怪', `${G.regenDelay} 秒没挨打每秒回复 ${pct(G.regen, 0)} 最大生命；击杀爆出 ${G.coinsMin}～${G.coinsMax} 枚硬币，总额 ${G.burst} × 金币成长（${G.coinLife} 秒内收集）；漏走偷走 max(${G.stealMin}, 当前金币 × ${pct(G.stealPct, 0)})，不扣命；第 ${G.count2Wave} 波起一次 2 只`],
+        ['金色精英', `生命 ×1.5、护甲 +1（在精英基础上）；死亡掉落 ${GE.coins} 枚硬币，总额 ${GE.burst} × 金币成长（${GE.coinLife} 秒内收集）`],
+      ]);
+    }
     const DROP = C.DROP;
     if (DROP) {
       s += '### 空降出生点\n\n' + table(['参数', '数值'], [
@@ -757,6 +772,7 @@ function genSkills(): string {
     s += '### 拾取物\n\n' + table(['', '拾取物', '来源', '说明'], [
       [img('art/events/coins.svg', 'coin', 24), '硬币', '「掉落零花钱」事件', `出现 3～5 枚，每枚 round(3 + 0.4×波数) 金币，${C.RANDOM_EVENTS?.coins?.duration ?? '?'} 秒内点击收集`],
       [img('art/events/supply_crate.svg', 'crate', 24), '补给箱', '「补给箱」事件', `${C.RANDOM_EVENTS?.supply_crate?.duration ?? '?'} 秒内点击打开，三选一`],
+      [img('art/events/goldbag.svg', 'goldbag', 24), '硬币堆', '击杀金币袋怪 / 金色精英', '在死亡位置附近爆出，10 秒内点击收集（数值见「怪物类事件数值」）'],
     ]);
     s += '> 硬币数量与面值取自 `world.ts` 逻辑（未导出为常量），若平衡调整改动了这里，需要同步更新本脚本。\n\n';
     return s;

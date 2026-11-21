@@ -93,7 +93,7 @@ export default {
 
   // ───────────── 玩法 · 模式 ─────────────
   'guide.play.modes.title': '模式',
-  'guide.play.modes.intro': '三种玩法加一个每日挑战。先通关战役第一章，其余模式随之解锁。',
+  'guide.play.modes.intro': '三种玩法加一个每日挑战。无尽模式和每日挑战一开始就能玩；通关战役第一章后开放自定义模式，并解锁更多地图。',
   'guide.play.modes.campaign.name': '战役',
   'guide.play.modes.campaign.desc': '3 章，每章一张地图、20 波手工编排的波次，可选普通或困难。按剩余生命评 1～3 星，星星用来买永久天赋；新塔和新技能随进度解锁。',
   'guide.play.modes.endless.name': '无尽',
@@ -112,7 +112,7 @@ export default {
   'guide.play.modes.diff.col.interest': '利息上限',
   'guide.play.modes.diff.eliteNever': '不出现',
   'guide.play.modes.diff.abyss': '魔境 {n}',
-  'guide.play.modes.diff.unlock': '解锁：通关第一章开放简单和普通；普通撑到第 30 波开困难，困难第 40 波开噩梦，噩梦第 35 波开魔境 I，之后每级魔境撑到第 30 波开下一级。',
+  'guide.play.modes.diff.unlock': '解锁：简单和普通一开始就能选；普通撑到第 30 波开困难，困难第 40 波开噩梦，噩梦第 35 波开魔境 I，之后每级魔境撑到第 30 波开下一级。',
   'guide.play.modes.seed': '**种子**：同一个种子意味着同样的杂物布局、波次和事件时间表。暂停菜单、结算画面和排行榜里都能复制，发给朋友就能打同一局。',
   'guide.play.modes.score': '**得分** =（撑过的波数 × 100 + 击杀数 + 剩余生命 × 50 + 剩余金币 × 0.1）× 难度倍率。',
 
@@ -347,6 +347,10 @@ export default {
   'guide.arch.line.core': '尺子、圆规（相邻触发组合），钢尺击退。',
   'guide.arch.line.how': '留一条长直道，把尺子放在直道的延长线上，一发穿透一整排；圆规守住拐角。',
   'guide.arch.line.weak': '地形被事件改变后直道容易断；对分散的敌人效率低。',
+  'guide.arch.prism.name': "光棱阵 · 聚光流",
+  'guide.arch.prism.core': "台灯 ×3～4，后期换激光笔（传奇 A）做核心，配一座护眼灯（B）。",
+  'guide.arch.prism.how': "把台灯两两相隔约 2 格沿 Boss 路线摆成一串（中心距 ≤ 2.5 格），联动组里只有主灯开火，其余辅灯把光汇进去，光束持续照射并逐渐增强。普通联动组最多 4 座；组里有激光笔时不限座数。护眼灯给整组光束加标记和易伤。",
+  'guide.arch.prism.weak': "成群的小怪和快怪（单体光束，换目标就清零）；咖啡泼到链中间的灯会断组；事件「台灯跳闸」；「反光」词缀伤害减半。",
 
   // ───────────── AI 参战 ─────────────
   'guide.ai.intro': '让大模型像玩家一样玩这个游戏，或者在你玩的时候当军师。AI 的每一步都和你的点击走同一套校验，无法作弊；AI 的成绩进入单独的 AI 排行榜。',
@@ -440,7 +444,7 @@ export default {
   'guide.about.feature.towers.title': '12 座塔，5 种形态',
   'guide.about.feature.towers.desc': '每座塔从草稿、精良、镀金成长到传奇，再进化为神话。传奇有 A / B 两条分支，神话带主动能力，每个阶段外观都不同。',
   'guide.about.feature.field.title': '动态战场',
-  'guide.about.feature.field.desc': '入口会增加，纸箱会空降，台灯会跳闸，咖啡会打翻。15 种随机事件让每一局都不一样。',
+  'guide.about.feature.field.desc': '入口会增加，纸箱会空降，台灯会跳闸，咖啡会打翻。23 种随机事件让每一局都不一样。',
   'guide.about.feature.endless.title': '无尽魔境',
   'guide.about.feature.endless.desc': '战役 3 章之后是无尽模式：简单、普通、困难、噩梦，再到魔境 I～X。精英敌人带着随机词缀，看你能撑到第几波。',
   'guide.about.feature.online.title': '全服排行榜与每日挑战',
@@ -483,4 +487,7 @@ export default {
   'guide.about.footer.leaderboard': '排行榜',
   'guide.about.footer.label': '页脚链接',
   'guide.about.footer.note': '书桌防线 Desk Defense，一款网页塔防游戏。',
+  'guide.enemy.goldbag.behavior': '飞快地沿路线逃跑；2 秒没挨打就快速回血。被击杀时爆出一大把可点击收集的硬币；漏走不扣生命，但会偷走一大笔金币。',
+  'guide.enemy.goldbag.counter': '集中火力或用大橡皮等爆发技能一口气打掉；减速 / 定身让它多挨几下，别给它喘息回血的机会。',
+  'guide.affix.golden.counter': '金色精英更耐打，但击杀后掉落一堆硬币——优先集火并记得点击收集。',
 } satisfies Dict;

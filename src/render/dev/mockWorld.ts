@@ -404,14 +404,22 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
     homework_check: { name: '作业检查', tone: 'bad', warn: 0, dur: 20 },
     coffee_spill: { name: '咖啡打翻', tone: 'bad', warn: 3, dur: 6 },
     reinforce: { name: '敌军增援', tone: 'bad', warn: 0, dur: 0 },
+    tea_break: { name: '茶歇时间', tone: 'bad', warn: 2, dur: 10 },
+    medic_squad: { name: '急救小队', tone: 'bad', warn: 0, dur: 0 },
+    shield_supply: { name: '护盾补给', tone: 'bad', warn: 2, dur: 0 },
     coins: { name: '掉落零花钱', tone: 'good', warn: 0, dur: 0 },
     inspiration: { name: '灵感闪现', tone: 'good', warn: 0, dur: 0 },
     nap: { name: '午休铃', tone: 'good', warn: 0, dur: 4 },
     praise: { name: '老师表扬', tone: 'good', warn: 0, dur: 15 },
     supply_crate: { name: '补给箱', tone: 'good', warn: 0, dur: 0 },
+    goldbag: { name: '金币袋怪', tone: 'good', warn: 0, dur: 0 },
+    bounty: { name: '赏金时刻', tone: 'good', warn: 0, dur: 15 },
+    golden_elite: { name: '金色精英', tone: 'good', warn: 0, dur: 0 },
+    training: { name: '加练', tone: 'good', warn: 0, dur: 20 },
     tidy: { name: '桌面整理', tone: 'neutral', warn: 0, dur: 0 },
     wind: { name: '窗外起风', tone: 'neutral', warn: 0, dur: 15 },
     secret_door: { name: '暗门', tone: 'neutral', warn: 0, dur: 0 },
+    frenzy: { name: '狂暴', tone: 'neutral', warn: 2, dur: 12 },
   };
   let evUid = 1;
 
@@ -569,6 +577,26 @@ export function createMockWorld(): IWorld & { dev: MockDev } {
       case 'reinforce':
         for (let i = 0; i < 6; i++) spawnQueue.push({ id: 'crumb', at: now + i * 0.3 });
         break;
+      case 'medic_squad':
+        for (let i = 0; i < 3; i++) spawnQueue.push({ id: 'whiteout', at: now + i * 1.1 });
+        break;
+      case 'goldbag':
+        spawnQueue.push({ id: 'goldbag', at: now + 0.5 });
+        break;
+      case 'shield_supply':
+        for (const en of state.enemies) {
+          en.shield += en.maxHp * 0.25;
+          en.maxShield = Math.max(en.maxShield, en.shield);
+        }
+        break;
+      case 'golden_elite': {
+        const en = state.enemies.find((x) => !x.boss && !x.affixes.includes('golden'));
+        if (en) {
+          en.elite = true;
+          en.affixes = [...en.affixes, 'golden'];
+        }
+        break;
+      }
       default:
         break;
     }

@@ -272,7 +272,7 @@ describe('prefix', () => {
     const b = withLocale(SOURCE_LOCALE, () => systemBlocks('player'));
     expect(a).toEqual(b);
     const cs = a[1];
-    expect(estimateTokens(cs)).toBeLessThan(1000);
+    expect(estimateTokens(cs)).toBeLessThan(1250);
     expect(estimateTokens(a[0])).toBeLessThan(1300);
     for (const c of COMBOS) expect(cs).toContain(`${c.a}+${c.b}`);
     for (const pu of ['armor', 'aoe', 'slow', 'air', 'stealth', 'boss', 'antiheal', 'shield']) expect(cs).toContain(`${pu}(`);

@@ -74,6 +74,12 @@ export default {
   'core.toast.reinforce': '敵の増援：{name} ×{n}',
   'core.toast.crate': '補給：{name}',
   'core.toast.secretDoor': '隠し扉が開いた：{name}',
+  'core.toast.shieldSupply': 'シールド補給：敵 {n} 体にシールド',
+  'core.toast.medicSquad': '救護班：修正液 ×{n} が接近',
+  'core.toast.goldbag': '金貨袋 ×{n} 出現、急いで倒せ！',
+  'core.toast.goldbagKilled': '金貨袋を撃破、硬貨を拾おう！',
+  'core.toast.goldbagEscaped': '金貨袋に逃げられ、{n} ゴールド盗まれた',
+  'core.toast.goldenElite': '黄金エリート：{name}',
 
   // ── タワー情報パネル（TowerInfo） ──
   'core.info.tierMythic': '神話・{form}',

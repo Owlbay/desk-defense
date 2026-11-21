@@ -134,6 +134,7 @@ export const ENEMY_COLOR: Record<EnemyId, number> = {
   invisink: 0x6c5b7b,
   tape: 0xc8b68e,
   moth: 0xb7a99a,
+  goldbag: 0xf2c14e,
   boss_coffee: 0x6f4e37,
   boss_coffee_small: 0x6f4e37,
   boss_shredder: 0x4a4a4a,

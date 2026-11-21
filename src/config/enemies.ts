@@ -45,6 +45,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   invisink: enemy({ id: 'invisink', hp: 25, speed: 1.8, armor: 0, bounty: 6, xp: 12, lives: 1, radius: 0.25, flying: false, boss: false, first: 22, baseCount: 3, interval: 1.0, weight: 3, stealthy: true }),
   tape: enemy({ id: 'tape', hp: 120, speed: 0.8, armor: 2, bounty: 10, xp: 24, lives: 2, radius: 0.36, flying: false, boss: false, first: 25, baseCount: 1, interval: 2.5, weight: 2, unstoppable: true }),
   moth: enemy({ id: 'moth', hp: 22, speed: 2.0, armor: 0, bounty: 5, xp: 12, lives: 1, radius: 0.28, flying: true, boss: false, first: 28, baseCount: 4, interval: 0.8, weight: 3, dodge: 0.25, fast: true }),
+  goldbag: enemy({ id: 'goldbag', hp: 70, speed: 2.5, armor: 1, bounty: 0, xp: 30, lives: 0, radius: 0.27, flying: false, boss: false, first: 0, baseCount: 0, interval: 1, weight: 0, fast: true }),
   crumbmini: enemy({ id: 'crumbmini', hp: 6, speed: 1.8, armor: 0, bounty: 1, xp: 1.5, lives: 1, radius: 0.16, flying: false, boss: false, first: 0, baseCount: 0, interval: 0.5, weight: 0 }),
   boss_coffee: enemy({ id: 'boss_coffee', hp: 300, speed: 0.9, armor: 2, bounty: 50, xp: 120, lives: 5, radius: 0.48, flying: false, boss: true, first: 10, baseCount: 1, interval: 3, weight: 0 }),
   boss_coffee_small: enemy({ id: 'boss_coffee_small', hp: 150, speed: 1.0, armor: 2, bounty: 25, xp: 60, lives: 3, radius: 0.36, flying: false, boss: true, first: 0, baseCount: 0, interval: 1, weight: 0 }),
@@ -84,8 +85,16 @@ export const AFFIXES: Record<AffixId, AffixDef> = {
   reflect: affix({ id: 'reflect' }),
   unstoppable: affix({ id: 'unstoppable', excludes: ['swift'], notOn: ['tape'] }),
   rally: affix({ id: 'rally' }),
+  /** 金色精英：只由「金色精英」事件赋予（不参与随机抽取）；死亡掉落一堆可收集硬币 */
+  golden: affix({ id: 'golden', excludes: ['split'], notOn: ['crumbmini', 'goldbag', 'boss_coffee', 'boss_coffee_small', 'boss_shredder', 'boss_inkbottle', 'boss_alarm'] }),
 };
 
-export const AFFIX_IDS: AffixId[] = ['hard', 'swift', 'regen', 'shield', 'split', 'stealth', 'reflect', 'unstoppable', 'rally'];
+/** 全部词缀（图鉴 / 文档用） */
+export const AFFIX_IDS: AffixId[] = ['hard', 'swift', 'regen', 'shield', 'split', 'stealth', 'reflect', 'unstoppable', 'rally', 'golden'];
+/** 波次生成时随机抽取的词缀（不含事件专属的 golden） */
+export const AFFIX_ROLL_IDS: AffixId[] = AFFIX_IDS.filter((a) => a !== 'golden');
 
 export const ELITE = { hp: 2.5, scale: 1.2, bounty: 2, xp: 2 };
+
+/** 金色精英（事件词缀 golden）：额外生命倍率 / 护甲 */
+export const GOLDEN = { hp: 1.5, armor: 1 };

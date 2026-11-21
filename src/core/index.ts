@@ -9,7 +9,7 @@ export {
   RANDOM_EVENT_META, ABILITY_META,
 } from './meta';
 export { EVO, EVOLUTION, ABILITIES } from '../config/evolution';
-export { RANDOM_EVENTS, DROP, CRATE_OPTIONS } from '../config/events';
+export { RANDOM_EVENTS, DROP, CRATE_OPTIONS, MONSTER_EVENTS, eventSeverity } from '../config/events';
 export { abyssParams, ABYSS_MAX_LEVEL, INK_FACTOR, CAPS } from '../config/difficulty';
 export { COMBOS, TIER_NAMES } from '../config/towers';
 export { CAMPAIGN_WAVES } from '../config/campaign';

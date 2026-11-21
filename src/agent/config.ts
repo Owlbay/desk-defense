@@ -11,6 +11,7 @@
  * apiKey 默认绝不持久化：saveableConfig() 会去掉它；浏览器端只放内存（可选 sessionStorage，由 UI 决定）。
  */
 import type { AgentRole, DecisionMode } from './types';
+import { t, type Params } from '../i18n';
 
 export type ProviderKind = 'claude-native' | 'pi' | 'bridge' | 'scripted';
 export type PiApi = 'anthropic-messages' | 'openai-completions' | 'openai-responses' | 'google-generative-ai';
@@ -228,44 +229,66 @@ export function contextSpec(c: AgentModelConfig): ContextModeSpec {
   };
 }
 
-/** 校验配置；返回中文错误列表（空 = 可用） */
-export function validateConfig(c: Partial<AgentModelConfig>): string[] {
-  const e: string[] = [];
+/** 一条配置错误：code 与语言无关（界面按 code 过滤 / 替换），text 是当前语言的说明 */
+export interface ConfigIssue {
+  code: string;
+  text: string;
+}
+
+/** 校验配置；返回错误（code + 当前语言文本；空 = 可用） */
+export function validateConfigIssues(c: Partial<AgentModelConfig>): ConfigIssue[] {
+  const e: ConfigIssue[] = [];
+  const add = (code: string, params?: Params) => e.push({ code, text: t(`agent.cfg.err.${code}`, params) });
+  const oneOf = (field: string, values: string) => e.push({ code: `oneOf:${field}`, text: t('agent.cfg.err.oneOf', { field, values }) });
   const kinds: ProviderKind[] = ['claude-native', 'pi', 'bridge', 'scripted'];
-  if (!c.provider || !kinds.includes(c.provider)) e.push(`provider 必须是 ${kinds.join(' / ')}`);
-  if (c.provider !== 'scripted' && c.provider !== 'bridge' && !c.model) e.push('缺少 model');
-  if (c.provider === 'claude-native' && c.model && !c.model.startsWith('claude-')) e.push('claude-native 只支持 claude-* 模型');
-  if (c.preset && !(c.preset in PRESETS)) e.push(`未知预设 ${c.preset}`);
-  if (c.api && !['anthropic-messages', 'openai-completions', 'openai-responses', 'google-generative-ai'].includes(c.api)) e.push(`未知 api ${c.api}`);
+  if (!c.provider || !kinds.includes(c.provider)) add('provider', { kinds: kinds.join(' / ') });
+  if (c.provider !== 'scripted' && c.provider !== 'bridge' && !c.model) add('noModel');
+  if (c.provider === 'claude-native' && c.model && !c.model.startsWith('claude-')) add('claudeOnly');
+  if (c.preset && !(c.preset in PRESETS)) add('preset', { v: c.preset });
+  if (c.api && !['anthropic-messages', 'openai-completions', 'openai-responses', 'google-generative-ai'].includes(c.api)) add('api', { v: c.api });
   if (c.baseUrl) {
     try {
       const u = new URL(c.baseUrl);
-      if (u.protocol !== 'http:' && u.protocol !== 'https:') e.push('baseUrl 必须是 http(s)');
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') add('urlProto');
     } catch {
-      e.push('baseUrl 不是合法 URL');
+      add('badUrl');
     }
   }
-  if (c.provider === 'pi' && c.preset === 'custom' && !c.baseUrl) e.push('自定义预设需要 baseUrl');
+  if (c.provider === 'pi' && c.preset === 'custom' && !c.baseUrl) add('customUrl');
   if (c.provider === 'pi' && c.preset === 'relay') {
-    if (!c.baseUrl) e.push('中转服务需要填写服务地址');
-    if (c.api === 'google-generative-ai') e.push('中转服务只支持 OpenAI Chat Completions / OpenAI Responses / Anthropic Messages');
+    if (!c.baseUrl) add('relayUrl');
+    if (c.api === 'google-generative-ai') add('relayApi');
   }
   if (c.provider === 'bridge') {
-    if (!c.bridge?.url) e.push('bridge 需要 url（ws://127.0.0.1:端口）');
-    else if (!/^wss?:\/\//.test(c.bridge.url)) e.push('bridge url 必须是 ws:// 或 wss://');
-    if (!c.bridge?.code) e.push('bridge 需要配对码');
+    if (!c.bridge?.url) add('bridgeUrl');
+    else if (!/^wss?:\/\//.test(c.bridge.url)) add('bridgeProto');
+    if (!c.bridge?.code) add('bridgeCode');
   }
-  if (c.effort && !['low', 'medium', 'high', 'xhigh', 'max'].includes(c.effort)) e.push('effort 取值 low / medium / high / xhigh / max');
-  if (c.thinking && !THINKING_LEVELS.includes(c.thinking)) e.push('thinking 取值 off / low / medium / high / xhigh / max');
-  if (c.contextMode && !(c.contextMode in CONTEXT_MODES)) e.push('contextMode 取值 saver / balanced / full');
-  if (c.toolMode && c.toolMode !== 'native' && c.toolMode !== 'json') e.push('toolMode 取值 native / json');
-  if (c.maxToolCallsPerDecision !== undefined && (c.maxToolCallsPerDecision < 1 || c.maxToolCallsPerDecision > 64)) e.push('maxToolCallsPerDecision 范围 1..64');
-  if (c.decision?.mode && c.decision.mode !== 'pause' && c.decision.mode !== 'realtime') e.push('decision.mode 取值 pause / realtime');
-  if (c.decision?.waveIntervalSec !== undefined && c.decision.waveIntervalSec < 0) e.push('waveIntervalSec 不能为负');
-  if (c.budget?.tokens !== undefined && c.budget.tokens <= 0) e.push('budget.tokens 必须为正');
-  if (c.budget?.mode && !['soft', 'hard', 'ask'].includes(c.budget.mode)) e.push('budget.mode 取值 soft / hard / ask');
-  if (c.temperature !== undefined && (c.temperature < 0 || c.temperature > 2)) e.push('temperature 范围 0..2');
+  if (c.effort && !['low', 'medium', 'high', 'xhigh', 'max'].includes(c.effort)) oneOf('effort', 'low / medium / high / xhigh / max');
+  if (c.thinking && !THINKING_LEVELS.includes(c.thinking)) oneOf('thinking', 'off / low / medium / high / xhigh / max');
+  if (c.contextMode && !(c.contextMode in CONTEXT_MODES)) oneOf('contextMode', 'saver / balanced / full');
+  if (c.toolMode && c.toolMode !== 'native' && c.toolMode !== 'json') oneOf('toolMode', 'native / json');
+  if (c.maxToolCallsPerDecision !== undefined && (c.maxToolCallsPerDecision < 1 || c.maxToolCallsPerDecision > 64)) {
+    e.push({ code: 'range:maxToolCallsPerDecision', text: t('agent.cfg.err.range', { field: 'maxToolCallsPerDecision', range: '1..64' }) });
+  }
+  if (c.decision?.mode && c.decision.mode !== 'pause' && c.decision.mode !== 'realtime') oneOf('decision.mode', 'pause / realtime');
+  if (c.decision?.waveIntervalSec !== undefined && c.decision.waveIntervalSec < 0) {
+    e.push({ code: 'negative:waveIntervalSec', text: t('agent.cfg.err.negative', { field: 'waveIntervalSec' }) });
+  }
+  if (c.budget?.tokens !== undefined && c.budget.tokens <= 0) e.push({ code: 'positive:budget.tokens', text: t('agent.cfg.err.positive', { field: 'budget.tokens' }) });
+  if (c.budget?.mode && !['soft', 'hard', 'ask'].includes(c.budget.mode)) oneOf('budget.mode', 'soft / hard / ask');
+  if (c.temperature !== undefined && (c.temperature < 0 || c.temperature > 2)) e.push({ code: 'range:temperature', text: t('agent.cfg.err.range', { field: 'temperature', range: '0..2' }) });
   return e;
+}
+
+/** 校验配置；返回当前语言的错误列表（空 = 可用） */
+export function validateConfig(c: Partial<AgentModelConfig>): string[] {
+  return validateConfigIssues(c).map((x) => x.text);
+}
+
+/** 「配置有误：…」异常文本（当前语言） */
+export function configErrorMessage(errs: readonly string[]): string {
+  return t('agent.cfg.invalid', { errs: errs.join(t('agent.cfg.sep')) });
 }
 
 /** 可以保存（localStorage / 文件）的配置：去掉 apiKey 与配对码 */

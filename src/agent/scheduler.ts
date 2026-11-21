@@ -12,7 +12,7 @@
  *   game_start  开局第一帧
  *   build       建造阶段（手动开波：每次等待开波时；自动开波：每波结束时）
  *   wave_interval 波次进行中每 N 秒（默认 10 秒）
- *   event_warn / drop_warn  随机事件预警 / 空降出生点预警
+ *   event_warn / drop_warn  随机事件预警（含无预警但相关的怪物类事件开始）/ 空降出生点预警
  *   boss_spawn  Boss 出场
  *   perk        增益三选一（世界已自动暂停）
  *   crate       补给箱打开待选
@@ -21,6 +21,7 @@
  */
 import type { GameEvent, IWorld } from '../core/types';
 import type { DecisionMode, DecisionPoint, DecisionReason } from './types';
+import { eventNeedsDecision } from './gating';
 
 export interface SchedulerOptions {
   mode?: DecisionMode;
@@ -52,7 +53,10 @@ export class DecisionDetector {
     const auto = w.state.autoWave.enabled && w.state.autoWave.started;
     switch (ev.type) {
       case 'waveEnd': if (auto) this.pending.add('build'); break;
-      case 'randomEvent': if (ev.phase === 'warn') this.pending.add('event_warn'); break;
+      case 'randomEvent':
+        // 预警；或没有预警、直接开始且与当前局面相关的怪物类事件（gating.eventNeedsDecision）
+        if (ev.phase === 'warn' || (ev.phase === 'start' && eventNeedsDecision(ev.id, w))) this.pending.add('event_warn');
+        break;
       case 'spawnerDrop': if (ev.phase === 'warn') this.pending.add('drop_warn'); break;
       case 'spawn': if (ev.boss) this.pending.add('boss_spawn'); break;
       case 'leak': this.pending.add('leak'); break;

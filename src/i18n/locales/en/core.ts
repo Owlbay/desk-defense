@@ -74,6 +74,12 @@ export default {
   'core.toast.reinforce': 'Enemy reinforcements: {name} ×{n}',
   'core.toast.crate': 'Supply: {name}',
   'core.toast.secretDoor': 'Secret Door opened: {name}',
+  'core.toast.shieldSupply': 'Shield Supply: {n} enemies shielded',
+  'core.toast.medicSquad': 'Medic Squad: Correction Fluid ×{n} incoming',
+  'core.toast.goldbag': 'Gold Bag ×{n} spotted, hit it fast!',
+  'core.toast.goldbagKilled': 'Gold Bag popped, grab the coins!',
+  'core.toast.goldbagEscaped': 'The Gold Bag got away with {n} gold',
+  'core.toast.goldenElite': 'Golden Elite: {name}',
 
   // ── Tower info panel (TowerInfo) ──
   'core.info.tierMythic': 'Mythic · {form}',

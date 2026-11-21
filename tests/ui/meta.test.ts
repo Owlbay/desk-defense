@@ -12,6 +12,8 @@ import {
   chapterUnlocked,
   difficultyUnlocked,
   endlessUnlocked,
+  endlessMaps,
+  customUnlocked,
   inkFor,
   insertLeader,
   maxAbyssLevel,
@@ -108,8 +110,14 @@ describe('progress rules', () => {
     expect(chapterUnlocked(p, 'ch1')).toBe(true);
     expect(chapterUnlocked(p, 'ch2')).toBe(false);
     expect(campaignDiffUnlocked(p, 'ch1', 'hard')).toBe(false);
-    expect(endlessUnlocked(p)).toBe(false);
+    // 无尽模式默认开放（新玩家可直接玩，简单 / 普通可选，只有第一章地图）；自定义仍需通关第一章
+    expect(endlessUnlocked(p)).toBe(true);
+    expect(difficultyUnlocked(p, 'normal')).toBe(true);
+    expect(endlessMaps(p, ['ch1', 'ch2', 'ch3'])).toEqual(['ch1']);
+    expect(customUnlocked(p)).toBe(false);
     recordCampaignClear(p, 'ch1', 'normal', 1);
+    expect(customUnlocked(p)).toBe(true);
+    expect(endlessMaps(p, ['ch1', 'ch2', 'ch3'])).toEqual(['ch1']);
     expect(chapterUnlocked(p, 'ch2')).toBe(true);
     expect(campaignDiffUnlocked(p, 'ch1', 'hard')).toBe(true);
     expect(difficultyUnlocked(p, 'normal')).toBe(true);

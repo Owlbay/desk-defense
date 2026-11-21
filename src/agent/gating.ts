@@ -3,13 +3,16 @@
  * 追踪里记一条"跳过（无可行动作）"。
  *
  * 永远不跳过：开局、增益三选一、补给箱、随机事件 / 空降预警、Boss 出场、漏怪、有危险（敌人离出口 ≤3 格）时有就绪技能 / 能力。
+ * 没有预警、直接开始的怪物类事件（金币袋怪 / 金色精英 / 急救小队 / 赏金 / 狂暴 / 加练…）在「相关」时也按 event_warn 叫模型，
+ * 见 eventNeedsDecision。
  * 其余（建造阶段、波次中定期检查）按激进程度判断"有没有买得起的有用动作"：
  *   normal：金币 ≥ 最便宜的有用动作（建一座攻击塔 / 升级 / 分支 / 进化）才叫模型；
  *   aggressive：另外要求自上次真正叫模型以来新增的金币 ≥ 最便宜动作，且波次中的定期检查只有"金币 ≥ 2× 最便宜动作"才叫；
  *   off：从不跳过。
  */
-import type { IWorld } from '../core/types';
+import type { IWorld, RandomEventId } from '../core/types';
 import { TOWERS } from '../config/towers';
+import { RANDOM_EVENTS } from '../config/events';
 import type { DecisionReason } from './types';
 
 export type GatingLevel = 'aggressive' | 'normal' | 'off';
@@ -51,6 +54,24 @@ export function inDanger(w: IWorld): boolean {
     if (d <= 3) return true;
   }
   return false;
+}
+
+/**
+ * 怪物类事件开始时要不要叫模型：
+ *   always：金币袋怪 / 金色精英（集火、放技能）、急救小队（先打修正液）、茶歇 / 护盾补给（爆发技能）；
+ *   spend：赏金 / 狂暴 / 加练——手里的钱够做一件有用的事（花在输出上）或有就绪技能时才叫。
+ */
+export const EVENT_DECIDE: Partial<Record<RandomEventId, 'always' | 'spend'>> = {
+  goldbag: 'always', golden_elite: 'always', medic_squad: 'always', tea_break: 'always', shield_supply: 'always',
+  bounty: 'spend', frenzy: 'spend', training: 'spend',
+};
+
+/** 随机事件「开始」时是否值得叫模型（有预警的事件已在预警时叫过，这里只看没有预警的） */
+export function eventNeedsDecision(id: RandomEventId, w: IWorld): boolean {
+  const k = EVENT_DECIDE[id];
+  if (!k || RANDOM_EVENTS[id].warn !== 0) return false;
+  if (k === 'always') return true;
+  return Math.floor(w.state.gold) >= cheapestUsefulAction(w) || readyAbility(w);
 }
 
 function readyAbility(w: IWorld): boolean {

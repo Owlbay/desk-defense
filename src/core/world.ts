@@ -10,7 +10,7 @@ import { generateLayout } from './layout';
 import { t as tr, type Params } from '../i18n';
 import { spawnerName } from '../config/maps';
 import { liveText } from '../config/text';
-import { RANDOM_EVENTS, EVENT_DIRECTOR, DROP, CRATE_OPTIONS } from '../config/events';
+import { RANDOM_EVENTS, EVENT_DIRECTOR, DROP, CRATE_OPTIONS, MONSTER_EVENTS, eventSeverity } from '../config/events';
 import { ABILITIES, ABILITY_FX, EVO, evoBranch } from '../config/evolution';
 import { Rng, makeSeed } from './rng';
 import {
@@ -24,7 +24,7 @@ import {
   type Enemy, type Proj, type Tower, type Zone,
 } from './entities';
 import { BRANCH, COMBOS, GROWTH, LAMP, PIGGY_MAX, SWATTER, TIER_NAMES, TOWERS, UNDO_SECONDS, WALL_UPGRADE_COST } from '../config/towers';
-import { ELITE, ENEMIES } from '../config/enemies';
+import { AFFIXES, ELITE, ENEMIES, GOLDEN } from '../config/enemies';
 import { MAPS, spawnerOpenWave, type MapDef } from '../config/maps';
 import { CAPS } from '../config/difficulty';
 import { RELOCATE_CHARGES, RELOCATE_RECOVER_WAVES, SKILLS, SKILL_IDS, SKILL_LEVEL } from '../config/skills';
@@ -74,6 +74,14 @@ function tierOf(level: number, isWall: boolean, stars = 0): Tier {
 /** 指令失败：原因文本按当前语言生成（core.reason.<code>），code 与语言无关 */
 function fail(code: string, params?: Params): { ok: false; reason: string; code: string } {
   return { ok: false, reason: tr(`core.reason.${code}`, params), code };
+}
+
+function cellBounds(cells: { x: number; y: number }[]): { x: number; y: number; w: number; h: number } {
+  const xs = cells.map((c) => c.x);
+  const ys = cells.map((c) => c.y);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return { x, y, w: Math.max(...xs) - x + 1, h: Math.max(...ys) - y + 1 };
 }
 
 function fmt(n: number, d = 1): string {
@@ -126,6 +134,12 @@ export class World implements IWorld {
   private windUntil = 0;
   private windDir = 1;
   private homeworkUntil = 0;
+  // 怪物类事件（文档 09 §3.2）
+  private teaUntil = 0;
+  private teaRate = 0;
+  private frenzyUntil = 0;
+  private bountyUntil = 0;
+  private trainingUntil = 0;
   private daylightUntil = 0;
   private vaultUntil = 0;
   private praiseWaves = new Set<number>();
@@ -970,7 +984,7 @@ export class World implements IWorld {
 
   private gainXp(t: Tower, amount: number, share = true): void {
     if (t.id === 'wall' || amount <= 0) return;
-    const a = amount * t.xpGainMul * this.xpGlobalMul;
+    const a = amount * t.xpGainMul * this.xpGlobalMul * (this.trainingUntil > this.state.time ? MONSTER_EVENTS.trainingXp : 1);
     if (t.level >= 10) {
       if (t.stars < 3 && this.canEvolveKind(t)) {
         t.evoXp += a;
@@ -1422,8 +1436,10 @@ export class World implements IWorld {
       if (k > 1) hp *= k * 0.9;
     }
     hp = Math.max(1, hp);
+    if (o.hpAbs === undefined && affixes.includes('golden')) hp *= GOLDEN.hp;
     let armor = armorAt(D, def.armor, effWave);
     if (affixes.includes('hard')) armor += 3;
+    if (affixes.includes('golden')) armor += GOLDEN.armor;
     let speed = def.speed * speedScale(D, effWave);
     if (affixes.includes('swift')) speed *= 1.35;
     let bounty = def.bounty * goldScale(D, effWave) * k * (elite ? ELITE.bounty : 1);
@@ -1853,6 +1869,7 @@ export class World implements IWorld {
       let spd = e.baseSpeed;
       if (e.rallied) spd *= 1.2;
       if (e.ringUntil > t) spd *= 1.5;
+      if (this.frenzyUntil > t) spd *= MONSTER_EVENTS.frenzySpeed;
       e.speed = spd;
       const stunned = e.stunUntil > t || e.rootUntil > t;
       if (e.jumping && t >= e.jumpEnd) e.jumping = false;
@@ -1965,7 +1982,18 @@ export class World implements IWorld {
         if (this.evo(t, 'B', 1)) refund = 15;
       }
     }
-    if (e.id === 'ant') {
+    if (e.id === 'goldbag') {
+      // 金币袋怪：不扣命，但卷走一大笔金币（保险箱同样能防）
+      if (!safeBox) {
+        const G = MONSTER_EVENTS.goldbag;
+        stolen = Math.min(s.gold, Math.max(G.stealMin, Math.floor(s.gold * G.stealPct)));
+        if (stolen > 0) {
+          s.gold -= stolen;
+          this.emit({ type: 'gold', amount: -stolen, reason: 'stolen', x: e.x, y: e.y });
+        }
+      }
+      this.toast('core.toast.goldbagEscaped', 'warn', { n: stolen });
+    } else if (e.id === 'ant') {
       if (!safeBox) {
         stolen = Math.min(s.gold, Math.max(5, Math.floor(s.gold * 0.03)) * Math.min(e.group, 3));
         if (stolen > 0) {
@@ -2077,6 +2105,15 @@ export class World implements IWorld {
       e.markedUntil = mk;
       if (e.affixes.includes('regen') && e.hp < e.maxHp) {
         e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.02 * DT * (e.inkStacks > 0 ? 0.5 : 1));
+      }
+      // 茶歇时间：全场回血（Boss 减半，钢笔墨水再减半）
+      if (this.teaUntil > t && e.hp < e.maxHp) {
+        const r = this.teaRate * (e.boss ? MONSTER_EVENTS.teaBossMul : 1) * (e.inkStacks > 0 ? 0.5 : 1);
+        e.hp = Math.min(e.maxHp, e.hp + e.maxHp * r * DT);
+      }
+      // 金币袋怪：一段时间没挨打就快速回血
+      if (e.id === 'goldbag' && e.hp < e.maxHp && t - e.lastHit >= MONSTER_EVENTS.goldbag.regenDelay) {
+        e.hp = Math.min(e.maxHp, e.hp + e.maxHp * MONSTER_EVENTS.goldbag.regen * DT * (e.inkStacks > 0 ? 0.5 : 1));
       }
       if (e.id === 'sticky' && e.maxShield > 0 && e.shield < e.maxShield && t - e.lastHit >= 4) {
         e.shield = Math.min(e.maxShield, e.shield + e.maxShield * 0.25 * DT);
@@ -2336,6 +2373,8 @@ export class World implements IWorld {
         break;
       }
     }
+    const goldMul = (this.bountyUntil > s.time ? MONSTER_EVENTS.bountyGold : 1) * (this.frenzyUntil > s.time ? MONSTER_EVENTS.frenzyGold : 1);
+    if (goldMul !== 1) gold *= goldMul;
     const got = this.addGold(gold, 'kill', e.x, e.y, false);
     s.stats.kills += e.group;
     if (t) {
@@ -2349,7 +2388,19 @@ export class World implements IWorld {
         if (d) this.gainXp(d, share);
       }
     }
-    this.emit({ type: 'death', enemyUid: e.uid, enemy: e.id, x: e.x, y: e.y, gold: got, boss: e.boss, elite: e.elite });
+    const death: GameEvent = { type: 'death', enemyUid: e.uid, enemy: e.id, x: e.x, y: e.y, gold: got, boss: e.boss, elite: e.elite };
+    if (goldMul !== 1) death.goldMul = goldMul;
+    this.emit(death);
+    // 金币袋怪 / 金色精英：爆出一把可点击收集的硬币
+    if (e.id === 'goldbag') {
+      const G = MONSTER_EVENTS.goldbag;
+      const n = G.coinsMin + this.evRng.int(G.coinsMax - G.coinsMin + 1);
+      this.coinBurst(e.x, e.y, G.burst * goldScale(s.params, e.wave), n, G.coinLife);
+      this.toast('core.toast.goldbagKilled', 'good');
+    } else if (e.affixes.includes('golden')) {
+      const G = MONSTER_EVENTS.golden;
+      this.coinBurst(e.x, e.y, G.burst * goldScale(s.params, e.wave) * Math.min(e.group, 3), G.coins, G.coinLife);
+    }
     // 分裂
     if (e.id === 'paperball') {
       this.emit({ type: 'split', x: e.x, y: e.y, enemy: 'crumbmini' });
@@ -4317,6 +4368,24 @@ export class World implements IWorld {
       case 'praise':
         if (!inWave) return false;
         break;
+      case 'tea_break':
+      case 'shield_supply':
+      case 'frenzy':
+        if (!inWave || !s.enemies.some((e) => !(e as Enemy).dead)) return false;
+        break;
+      case 'medic_squad':
+      case 'goldbag': {
+        if (!inWave) return false;
+        const from = this.pickSpawnSlot(this.lastStarted!.plan.wave);
+        if (!from) return false;
+        fx.spawner = from;
+        const sp = s.spawners.find((k) => k.id === from);
+        if (sp) area = cellBounds(sp.cells);
+        break;
+      }
+      case 'golden_elite':
+        if (!inWave || !this.goldenTarget()) return false;
+        break;
       case 'coffee_spill': {
         const atk = this.towerList.filter((t) => t.def.attacks);
         if (!atk.length) return false;
@@ -4414,6 +4483,48 @@ export class World implements IWorld {
       }
       case 'homework_check':
         this.homeworkUntil = Math.max(this.homeworkUntil, ev.endsAt);
+        break;
+      case 'tea_break':
+        this.teaUntil = Math.max(this.teaUntil, ev.endsAt);
+        this.teaRate = MONSTER_EVENTS.teaRegen * eventSeverity(s.params.eventHostile);
+        break;
+      case 'shield_supply': {
+        const ratio = MONSTER_EVENTS.shieldRatio * eventSeverity(s.params.eventHostile);
+        let n = 0;
+        for (const e0 of s.enemies) {
+          const e = e0 as Enemy;
+          if (e.dead) continue;
+          e.shield += e.maxHp * ratio;
+          e.maxShield = Math.max(e.maxShield, e.shield);
+          n++;
+        }
+        this.toast('core.toast.shieldSupply', 'warn', { n });
+        break;
+      }
+      case 'medic_squad': {
+        const G = MONSTER_EVENTS;
+        const n = Math.min(G.medicMax, G.medicBase + Math.floor(Math.max(1, s.wave) / G.medicPerWaves));
+        if (this.injectGroup('whiteout', n, G.medicInterval, fx.spawner)) this.toast('core.toast.medicSquad', 'warn', { n });
+        break;
+      }
+      case 'frenzy':
+        this.frenzyUntil = Math.max(this.frenzyUntil, ev.endsAt);
+        break;
+      case 'goldbag': {
+        const n = s.wave >= MONSTER_EVENTS.goldbag.count2Wave ? 2 : 1;
+        if (this.injectGroup('goldbag', n, 1.5, fx.spawner)) this.toast('core.toast.goldbag', 'good', { n });
+        break;
+      }
+      case 'bounty':
+        this.bountyUntil = Math.max(this.bountyUntil, ev.endsAt);
+        break;
+      case 'golden_elite': {
+        const name = this.makeGolden();
+        if (name) this.toast('core.toast.goldenElite', 'good', { name });
+        break;
+      }
+      case 'training':
+        this.trainingUntil = Math.max(this.trainingUntil, ev.endsAt);
         break;
       case 'coffee_spill': {
         const a = fx.area ?? ev.area;
@@ -4523,22 +4634,97 @@ export class World implements IWorld {
     for (const [k, v] of counts) if (v > best) { best = v; enemy = k; }
     for (const e of aw.plan.entries) if (e.enemy === enemy && e.gi >= 0) { tmpl = e; break; }
     const n = Math.max(3, Math.min(30, Math.round(total * 0.3)));
-    const { open, drops } = this.spawnSlots(aw.plan.wave);
+    const from = this.pickSpawnSlot(aw.plan.wave);
+    this.injectGroup(enemy, n, ENEMIES[enemy].interval * 0.8, from, tmpl?.group ?? 1, tmpl?.hpMul ?? 1);
+    this.toast('core.toast.reinforce', 'warn', { name: ENEMIES[enemy].name, n });
+  }
+
+  /** 随机挑一个开放中的出生点（含空降），按出怪权重 */
+  private pickSpawnSlot(wave: number): string | undefined {
+    const { open, drops } = this.spawnSlots(wave);
     const slots = [...open, ...drops];
-    const from = slots.length ? slots[this.evRng.weighted(slots.map((x) => x.weight))].id : undefined;
+    return slots.length ? slots[this.evRng.weighted(slots.map((x) => x.weight))].id : undefined;
+  }
+
+  /** 给最近开始的一波追加一组敌人（从指定出生点出来）；返回是否成功 */
+  private injectGroup(enemy: EnemyId, n: number, ivl: number, from: string | undefined, group = 1, hpMul = 1): boolean {
+    const aw = this.lastStarted;
+    if (!aw || !this.active.includes(aw)) return false;
     const gi = aw.plan.groupSpawn.length;
     aw.plan.groupSpawn.push({ mode: 'fixed', from });
-    const ivl = ENEMIES[enemy].interval * 0.8;
     const add: SpawnEntry[] = [];
     for (let j = 0; j < n; j++) {
       const at = aw.t + 0.5 + j * ivl;
-      add.push({
-        at, at0: at, enemy, entrance: 0, elite: false, affixes: [], group: tmpl?.group ?? 1, hpMul: tmpl?.hpMul ?? 1, gi, spawner: from,
-      });
+      add.push({ at, at0: at, enemy, entrance: 0, elite: false, affixes: [], group, hpMul, gi, spawner: from });
     }
     const tail = aw.plan.entries.splice(aw.idx).concat(add).sort((a, b) => a.at - b.at);
     aw.plan.entries.push(...tail);
-    this.toast('core.toast.reinforce', 'warn', { name: ENEMIES[enemy].name, n });
+    return true;
+  }
+
+  private canBeGolden(id: EnemyId, boss: boolean): boolean {
+    return !boss && !AFFIXES.golden.notOn?.includes(id);
+  }
+
+  /** 金色精英的目标：本波还没出场的第一个合适敌人；没有就选场上离出口最远的 */
+  private goldenTarget(): { entry: SpawnEntry } | { enemy: Enemy } | null {
+    const aw = this.lastStarted;
+    if (aw && this.active.includes(aw)) {
+      for (let i = aw.idx; i < aw.plan.entries.length; i++) {
+        const en = aw.plan.entries[i];
+        if (en.gi >= 0 && this.canBeGolden(en.enemy, ENEMIES[en.enemy].boss) && !en.affixes.includes('golden')) return { entry: en };
+      }
+    }
+    let best: Enemy | null = null;
+    for (const e0 of this.state.enemies) {
+      const e = e0 as Enemy;
+      if (e.dead || !this.canBeGolden(e.id, e.boss) || e.affixes.includes('golden')) continue;
+      if (!best || e.remaining > best.remaining) best = e;
+    }
+    return best ? { enemy: best } : null;
+  }
+
+  /** 金色精英：把一个敌人变成带 golden 词缀的精英；返回敌人名 */
+  private makeGolden(): string | null {
+    const tg = this.goldenTarget();
+    if (!tg) return null;
+    if ('entry' in tg) {
+      const en = tg.entry;
+      en.affixes = [...en.affixes.filter((a) => !(AFFIXES.golden.excludes ?? []).includes(a)), 'golden'];
+      en.elite = true;
+      return ENEMIES[en.enemy].name;
+    }
+    const e = tg.enemy;
+    const mul = (e.elite ? 1 : ELITE.hp) * GOLDEN.hp;
+    e.hp *= mul;
+    e.maxHp *= mul;
+    e.armor += GOLDEN.armor;
+    if (!e.elite) {
+      e.bounty *= ELITE.bounty;
+      e.xpVal *= ELITE.xp;
+      e.scale *= ELITE.scale;
+      e.radius *= ELITE.scale;
+      e.elite = true;
+    }
+    e.affixes = [...e.affixes.filter((a) => !(AFFIXES.golden.excludes ?? []).includes(a)), 'golden'];
+    this.emit({ type: 'pulse', x: e.x, y: e.y, r: 1, color: 'gold' });
+    return ENEMIES[e.id].name;
+  }
+
+  /** 在 (x,y) 附近爆出 n 枚硬币（总额 total），可点击收集 */
+  private coinBurst(x: number, y: number, total: number, n: number, life: number): void {
+    const s = this.state;
+    const g = s.grid;
+    const v = Math.max(1, Math.round(total / n));
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * TAU + this.evRng.next() * 0.6;
+      const d = 0.35 + this.evRng.next() * 0.65;
+      const px = Math.max(0.3, Math.min(g.cols - 0.3, x + Math.cos(a) * d));
+      const py = Math.max(0.3, Math.min(g.rows - 0.3, y + Math.sin(a) * d));
+      const p = { uid: this.nextUid++, kind: 'coin' as const, x: px, y: py, until: s.time + life, value: v };
+      s.pickups.push(p);
+      this.emit({ type: 'pickup', uid: p.uid, kind: 'coin', x: px, y: py, phase: 'spawn', value: v });
+    }
   }
 
   // ───────────────────────── 掉落物 ─────────────────────────

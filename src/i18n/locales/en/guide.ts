@@ -93,7 +93,7 @@ export default {
 
   // ───────────── How to Play · Modes ─────────────
   'guide.play.modes.title': 'Modes',
-  'guide.play.modes.intro': 'Three ways to play, plus a Daily Challenge. Clear Chapter 1 of the Campaign and the other modes unlock.',
+  'guide.play.modes.intro': 'Three ways to play, plus a Daily Challenge. Endless and the Daily Challenge are open from the start; clearing Chapter 1 of the Campaign opens Custom mode and more maps.',
   'guide.play.modes.campaign.name': 'Campaign',
   'guide.play.modes.campaign.desc': '3 chapters, each with its own map and 20 hand-crafted waves, on Normal or Hard. You earn 1–3 stars based on lives left, and stars buy permanent talents. New towers and skills unlock as you progress.',
   'guide.play.modes.endless.name': 'Endless',
@@ -112,7 +112,7 @@ export default {
   'guide.play.modes.diff.col.interest': 'Interest cap',
   'guide.play.modes.diff.eliteNever': 'Never',
   'guide.play.modes.diff.abyss': 'Abyss {n}',
-  'guide.play.modes.diff.unlock': 'Unlocks: clearing Chapter 1 opens Easy and Normal. Reach wave 30 on Normal for Hard, wave 40 on Hard for Nightmare, and wave 35 on Nightmare for Abyss I. After that, reach wave 30 on each Abyss level to open the next.',
+  'guide.play.modes.diff.unlock': 'Unlocks: Easy and Normal are available from the start. Reach wave 30 on Normal for Hard, wave 40 on Hard for Nightmare, and wave 35 on Nightmare for Abyss I. After that, reach wave 30 on each Abyss level to open the next.',
   'guide.play.modes.seed': '**Seed**: the same seed means the same clutter layout, waves and event schedule. You can copy it from the pause menu, the results screen and the leaderboard. Send it to a friend to play the exact same run.',
   'guide.play.modes.score': '**Score** = (waves survived × 100 + kills + lives left × 50 + gold left × 0.1) × difficulty multiplier.',
 
@@ -347,6 +347,10 @@ export default {
   'guide.arch.line.core': 'Ruler and Compass (adjacent for the combo), with Steel Ruler knockback.',
   'guide.arch.line.how': 'Leave one long straight lane and place the Ruler in line with it so a single shot pierces the whole row. The Compass holds the corners.',
   'guide.arch.line.weak': 'The straight lane breaks easily when events change the terrain. Inefficient against spread-out enemies.',
+  'guide.arch.prism.name': "Prism Array build · Focused beams",
+  'guide.arch.prism.core': "Desk Lamp ×3–4, later a Laser Pointer (Legend A) as the core, plus one Eye-Care Lamp (B).",
+  'guide.arch.prism.how': "Line the Desk Lamps up along the Boss route about 2 tiles apart (≤ 2.5 tiles center to center). In a link group only the main lamp fires while the others feed their light into it, so the beam keeps shining and ramps up. A normal link group holds at most 4 lamps; a group with a Laser Pointer has no limit. The Eye-Care Lamp marks targets and adds vulnerability for the whole group's beams.",
+  'guide.arch.prism.weak': "Swarms of small and fast enemies (single beam, ramp resets on a new target). Coffee on a lamp in the middle of the chain splits the group. The Lamp Outage event. The Reflective affix halves the damage.",
 
   // ───────────── AI Play ─────────────
   'guide.ai.intro': "Let a large language model play the game like a player, or have it advise you while you play. Every AI move goes through the same validation as your clicks, so it can't cheat. AI results go on a separate AI leaderboard.",
@@ -440,7 +444,7 @@ export default {
   'guide.about.feature.towers.title': '12 towers, 5 forms',
   'guide.about.feature.towers.desc': 'Every tower grows from Draft through Fine and Gilded to Legendary, then evolves into Mythic. Legendary offers two paths, A and B, Mythic adds an active ability, and each stage has its own look.',
   'guide.about.feature.field.title': 'Dynamic Battlefield',
-  'guide.about.feature.field.desc': 'Entrances open, boxes drop from above, the lamp trips out and the coffee spills. 15 random events make every run different.',
+  'guide.about.feature.field.desc': 'Entrances open, boxes drop from above, the lamp trips out and the coffee spills. 23 random events make every run different.',
   'guide.about.feature.endless.title': 'Endless Abyss',
   'guide.about.feature.endless.desc': 'After the 3 Campaign chapters comes Endless: Easy, Normal, Hard, Nightmare, then Abyss I–X. Elite enemies carry random affixes. How many waves can you survive?',
   'guide.about.feature.online.title': 'Global leaderboards and Daily Challenge',
@@ -483,4 +487,7 @@ export default {
   'guide.about.footer.leaderboard': 'Leaderboard',
   'guide.about.footer.label': 'Footer links',
   'guide.about.footer.note': 'Desk Defense, a tower defense game for the web.',
+  'guide.enemy.goldbag.behavior': 'Runs along the route very fast and regenerates quickly after 2s without being hit. Drops a big burst of collectible coins when killed; if it escapes it costs no lives but steals a large chunk of gold.',
+  'guide.enemy.goldbag.counter': 'Focus fire or use burst skills like the Big Eraser to take it down in one go; slows and roots keep it under fire so it never gets a breather to regenerate.',
+  'guide.affix.golden.counter': 'Golden elites are tougher, but drop a pile of coins when killed. Focus them down and remember to tap the coins.',
 } satisfies Dict;

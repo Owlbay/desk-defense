@@ -116,6 +116,7 @@
 | invisink | 隐形墨水 | 隱形墨水 | Invisible Ink | 透明インク |
 | tape | 胶带卷 | 膠帶捲 | Tape Roll | テープロール |
 | moth | 飞蛾 | 飛蛾 | Moth | 蛾 |
+| goldbag | 金币袋怪 | 金幣袋怪 | Gold Bag | 金貨袋 |
 | boss_coffee | 咖啡渍 | 咖啡漬 | Coffee Stain | コーヒーのしみ |
 | boss_coffee_small | 小咖啡渍 | 小咖啡漬 | Small Coffee Stain | 小さなコーヒーのしみ |
 | boss_shredder | 碎纸机 | 碎紙機 | Shredder | シュレッダー |

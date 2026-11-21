@@ -15,6 +15,7 @@ const ARCHETYPES: { id: string; towers: TowerId[] }[] = [
   { id: 'rush', towers: ['pencil', 'stapler', 'glue'] },
   { id: 'mythic', towers: ['glue', 'lamp', 'swatter', 'piggy'] },
   { id: 'line', towers: ['ruler', 'compass'] },
+  { id: 'prism', towers: ['lamp'] },
 ];
 const PARTS = ['core', 'how', 'weak'] as const;
 

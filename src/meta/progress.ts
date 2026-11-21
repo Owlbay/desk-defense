@@ -122,8 +122,13 @@ export function totalStarsEarned(p: Profile): number {
 
 // ───────────── 无尽难度解锁（文档 04 §2.2） ─────────────
 
-export const endlessUnlocked = (p: Profile): boolean => chapterCleared(p, 'ch1');
-export const customUnlocked = endlessUnlocked;
+/** 无尽模式默认开放：新玩家打开游戏就能直接玩（地图至少有第一章，其他章节通关战役后加入） */
+export const ENDLESS_OPEN_BY_DEFAULT = true;
+export const endlessUnlocked = (p: Profile): boolean => ENDLESS_OPEN_BY_DEFAULT || chapterCleared(p, 'ch1');
+/** 自定义模式仍需通关战役第一章 */
+export const customUnlocked = (p: Profile): boolean => chapterCleared(p, 'ch1');
+/** 无尽模式可选的地图：第一章始终可选，其余章节通关后加入 */
+export const endlessMaps = (p: Profile, all: readonly MapId[]): MapId[] => all.filter((m) => m === 'ch1' || chapterCleared(p, m));
 
 export const bestWave = (p: Profile, key: string): number => p.bestWave[key] ?? 0;
 

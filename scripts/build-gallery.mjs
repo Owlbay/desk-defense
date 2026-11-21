@@ -39,9 +39,9 @@ const NAMES = {
   crumb: '橡皮屑', inkdot: '墨点', paperclip: '回形针', plane: '纸飞机', paperball: '纸团',
   sticky: '便利贴', rubberband: '橡皮筋', whiteout: '修正液', ant: '蚂蚁', invisink: '隐形墨水',
   tape: '胶带卷', moth: '飞蛾', boss_coffee: '咖啡渍', boss_shredder: '碎纸机',
-  boss_inkbottle: '墨水瓶', boss_alarm: '闹钟',
+  boss_inkbottle: '墨水瓶', boss_alarm: '闹钟', goldbag: '金币袋怪',
   hard: '坚硬', swift: '迅捷', regen: '再生', shield: '护盾', split: '分裂', stealth: '隐身',
-  reflect: '反光', unstoppable: '免控', rally: '激励',
+  reflect: '反光', unstoppable: '免控', rally: '激励', golden: '金色',
   eraser_strike: '大橡皮', bell: '下课铃', whiteout_zone: '涂改液', caffeine: '咖啡因',
   ruler_sweep: '横扫尺', scholarship: '奖学金', relocate: '搬家', inspiration: '灵感闪现',
   magnifier: '放大镜', seal_tape: '封箱胶带',
@@ -52,6 +52,8 @@ const NAMES = {
   drop_box: '空降纸箱', lamp_outage: '台灯跳闸', fan: '风扇转起来', books_fall: '书本倒下', homework_check: '作业检查',
   coffee_spill: '咖啡打翻', reinforce: '敌军增援', coins: '掉落零花钱', inspiration_ev: '灵感闪现', nap: '午休铃',
   praise: '老师表扬', supply_crate: '补给箱', tidy: '桌面整理', wind: '窗外起风', secret_door: '暗门',
+  tea_break: '茶歇时间', medic_squad: '急救小队', shield_supply: '护盾补给', frenzy: '狂暴', bounty: '赏金时刻',
+  golden_elite: '金色精英', training: '加练',
 };
 
 const towerFiles = new Set(list('towers'));

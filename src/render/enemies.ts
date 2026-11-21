@@ -394,6 +394,9 @@ class EnemyView {
       if (this.fxT <= 0) {
         this.fxT = 0.18;
         const fx = ctx.fx;
+        // 金币袋怪 / 金色精英：往上冒的小金星
+        if ((e.id === 'goldbag' || e.affixes.includes('golden')) && Math.random() < 0.5)
+          fx.mote(this.x + (Math.random() - 0.5) * 14, this.y - 6 - this.lift, C.goldLight, -18, 0.5, 1.8);
         if (e.burnUntil > now) fx.mote(this.x + (Math.random() - 0.5) * 10, this.y - 4 - this.lift, Math.random() < 0.3 ? C.goldLight : C.lamp, -26, 0.45, 2.2);
         // 流血：一滴一滴往下掉
         if (e.bleedStacks > 0 && Math.random() < 0.35 + 0.15 * Math.min(4, e.bleedStacks)) fx.drip(this.x + (Math.random() - 0.5) * 8, this.y - this.lift, C.bookRed, 1.7);
@@ -412,8 +415,13 @@ class EnemyView {
     const r = this.rpx(e); // 世界像素
     const liftW = this.lift * s;
     const bodyY = -liftW * k;
-    // 深色主题：身下的浅色光晕
-    if (B.haloAlpha > 0) this.halo.setVisible(true).setPosition(0, bodyY).setDisplaySize(r * 3.4 * k, r * 3.4 * k).setAlpha(B.haloAlpha);
+    // 金币袋怪 / 金色精英：脉动的金色光晕；否则深色主题下身下的浅色光晕
+    const golden = e.id === 'goldbag' || e.affixes.includes('golden');
+    if (golden) {
+      const gp = 0.5 + 0.5 * Math.sin(this.ctx.vtime * 4 + this.phase);
+      const d = r * (4 + 0.6 * gp) * k;
+      this.halo.setVisible(true).setTint(C.gold).setPosition(0, bodyY).setDisplaySize(d, d).setAlpha(0.6 + 0.3 * gp);
+    } else if (B.haloAlpha > 0) this.halo.setVisible(true).setTint(C.lampLight).setPosition(0, bodyY).setDisplaySize(r * 3.4 * k, r * 3.4 * k).setAlpha(B.haloAlpha);
     else this.halo.setVisible(false);
     // 精英环
     if (e.elite) {
@@ -421,6 +429,7 @@ class EnemyView {
       const sh = 0.5 + 0.5 * Math.sin(this.ctx.vtime * 3.2 + this.phase);
       this.eliteRing
         .setVisible(true)
+        .setTint(e.affixes.includes('golden') ? C.goldLight : C.white)
         .setPosition(0, r * 0.55 * k)
         .setDisplaySize(r * (2.3 + 0.12 * sh) * k, r * (0.95 + 0.05 * sh) * k)
         .setAlpha(0.7 + 0.3 * sh);

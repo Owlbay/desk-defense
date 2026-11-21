@@ -12,7 +12,7 @@
  */
 import type { Command, GameEvent, IWorld } from '../core/types';
 import { makeMidRun } from '../meta/midrun';
-import { agentTag, resolveConfig, saveableConfig, validateConfig, type AgentModelConfig } from './config';
+import { agentTag, configErrorMessage, resolveConfig, saveableConfig, validateConfig, type AgentModelConfig } from './config';
 import { DecisionEngine, type BudgetChoice, type BudgetState } from './engine';
 import { createProvider } from './factory';
 import { DecisionDetector } from './scheduler';
@@ -36,9 +36,9 @@ export {
 } from './routes';
 export { ContextBuilder, Memo, MEMO_MAX_TOKENS } from './context';
 export { Planner, DEFAULT_BRANCH, routeSamples, airLineSamples, type PlannerState, type IntentOutcome } from './planner';
-export { BattleLog, threatEstimate, threatLine, idleLine, towerDps, IDLE_GOLD, THREAT_SAFE, THREAT_TIGHT, type ThreatLine } from './battle';
+export { BattleLog, threatEstimate, threatLine, idleLine, eventLine, towerDps, IDLE_GOLD, THREAT_SAFE, THREAT_TIGHT, type ThreatLine } from './battle';
 export { planMaze, type MazePlan } from './maze';
-export { gateDecision, cheapestUsefulAction, inDanger, type GatingLevel } from './gating';
+export { gateDecision, cheapestUsefulAction, inDanger, eventNeedsDecision, EVENT_DECIDE, type GatingLevel } from './gating';
 export { claudeThinkingPlan, piThinkingPlan, keepThinkingInHistory, mayCompactHistory } from './thinking';
 export { systemBlocks, catalogText, catalogEntry, cheatSheet, decisionMessage } from './prompts';
 export { BUDGET_STAGE_AT, BUDGET_EXTEND, type BudgetStage, type BudgetState, type BudgetChoice } from './engine';
@@ -130,7 +130,7 @@ export interface AgentBrowserReport {
 
 export function createAgentController(o: AgentControllerOptions): AgentController {
   const errs = validateConfig({ provider: 'claude-native', ...o.config });
-  if (errs.length) throw new Error(`配置有误：${errs.join('；')}`);
+  if (errs.length) throw new Error(configErrorMessage(errs));
   const config = resolveConfig({ ...o.config, decision: { ...o.config.decision, mode: o.mode ?? o.config.decision?.mode } });
   const session = o.session;
   const w = session.world;

@@ -285,6 +285,61 @@ export class FieldLayer {
       case 'lamp_outage':
         for (const t of st.towers.values()) if (t.id === 'lamp') fx.shatter(P(t.cx + 0.5), P(t.cy + 0.3), C.lampLight, 3, 3);
         break;
+      // ── 怪物类事件 ──
+      case 'tea_break': {
+        let n = 0;
+        for (const e of st.enemies) {
+          if (e.hidden || n++ > (low ? 12 : 30)) continue;
+          fx.ring(P(e.x), P(e.y), 4, CELL * 0.6, C.screen, 0.5, 3, true);
+          fx.plus(P(e.x), P(e.y) - 10, C.screen);
+        }
+        break;
+      }
+      case 'shield_supply': {
+        let n = 0;
+        for (const e of st.enemies) {
+          if (e.hidden || n++ > (low ? 12 : 30)) continue;
+          fx.ring(P(e.x), P(e.y), CELL * 0.7, 6, C.cyan, 0.45, 3, true);
+          if (!low) fx.sparkle(P(e.x), P(e.y) - 4, C.cyan, 2, 10);
+        }
+        break;
+      }
+      case 'medic_squad':
+      case 'goldbag':
+        if (areaC) {
+          const col = ev.id === 'goldbag' ? C.goldLight : C.whiteoutBlue;
+          fx.ring(areaC.x, areaC.y, 4, CELL * 1.3, col, 0.55, 4, ev.id === 'goldbag');
+          if (ev.id === 'goldbag') fx.sparkle(areaC.x, areaC.y - 6, C.goldLight, low ? 6 : 12, 26);
+          else fx.plus(areaC.x, areaC.y - 10, C.whiteoutBlue);
+        }
+        break;
+      case 'frenzy': {
+        let n = 0;
+        for (const e of st.enemies) {
+          if (e.hidden || n++ > (low ? 12 : 30)) continue;
+          fx.ring(P(e.x), P(e.y), 4, CELL * 0.55, C.alarmRed, 0.35, 3);
+        }
+        break;
+      }
+      case 'bounty':
+        for (let i = 0; i < (low ? 5 : 12); i++) fx.sparkle(Math.random() * BOARD_W, Math.random() * BOARD_H, C.goldLight, 2, 12);
+        fx.ring(BOARD_W / 2, BOARD_H / 2, 10, BOARD_H * 0.55, C.gold, 0.6, 4, true);
+        break;
+      case 'golden_elite': {
+        const g = st.enemies.find((e) => e.affixes.includes('golden'));
+        if (g) {
+          fx.ring(P(g.x), P(g.y), 4, CELL * 0.9, C.goldLight, 0.5, 3, true);
+          fx.sparkle(P(g.x), P(g.y) - 6, C.goldLight, 8, 20);
+        }
+        break;
+      }
+      case 'training':
+        for (const t of st.towers.values()) {
+          if (t.id === 'wall') continue;
+          fx.ring(P(t.cx + 0.5), P(t.cy + 0.5), 4, CELL * 0.6, C.teal, 0.45, 3, true);
+          if (!low) fx.sparkle(P(t.cx + 0.5), P(t.cy + 0.3), C.screen, 2, 12);
+        }
+        break;
       default:
         break;
     }
@@ -740,6 +795,61 @@ export class FieldLayer {
         }
         case 'praise': {
           if (!low && this.ctx.vdt > 0 && Math.random() < 0.08) this.ctx.fx.sparkle(Math.random() * BOARD_W, Math.random() * BOARD_H, C.goldLight, 1, 4);
+          break;
+        }
+        case 'tea_break': {
+          // 回血：敌人身上一圈一圈往外扩的绿色脉冲 + 冒出的小十字
+          let n = 0;
+          for (const en of st.enemies) {
+            if (en.hidden || en.hp >= en.maxHp || n++ > (low ? 15 : 40)) continue;
+            const x = en.x * CELL,
+              y = en.y * CELL;
+            const r = Math.max(6, en.radius * CELL) * (en.scale || 1);
+            const ph = (vt * 1.2 + en.uid * 0.37) % 1;
+            tg.lineStyle(2, C.screen, 0.8 * fade * (1 - ph));
+            tg.strokeCircle(x, y, r * (0.8 + ph * 0.8));
+            if (!low) {
+              const py = y - r - 4 - ph * 10;
+              tg.lineStyle(2, C.screen, 0.9 * fade * (1 - ph));
+              tg.lineBetween(x + r * 0.6 - 3, py, x + r * 0.6 + 3, py);
+              tg.lineBetween(x + r * 0.6, py - 3, x + r * 0.6, py + 3);
+            }
+          }
+          break;
+        }
+        case 'frenzy': {
+          // 速度线：敌人身后的红色拖尾
+          let n = 0;
+          for (const en of st.enemies) {
+            if (en.hidden || n++ > (low ? 15 : 40)) continue;
+            const x = en.x * CELL,
+              y = en.y * CELL;
+            const r = Math.max(6, en.radius * CELL) * (en.scale || 1);
+            const bx = -Math.cos(en.angle),
+              by = -Math.sin(en.angle);
+            const px = -by,
+              py = bx;
+            for (let k = -1; k <= 1; k++) {
+              const ph = (vt * 3 + k * 0.33 + en.uid * 0.21) % 1;
+              const ox = x + bx * (r + 2 + ph * 8) + px * k * r * 0.5,
+                oy = y + by * (r + 2 + ph * 8) + py * k * r * 0.5;
+              tg.lineStyle(2, C.alarmRed, 0.7 * fade * (1 - ph));
+              tg.lineBetween(ox, oy, ox + bx * 8, oy + by * 8);
+            }
+          }
+          break;
+        }
+        case 'bounty': {
+          if (!low && this.ctx.vdt > 0 && Math.random() < 0.12) this.ctx.fx.sparkle(Math.random() * BOARD_W, Math.random() * BOARD_H, C.gold, 1, 4);
+          break;
+        }
+        case 'training': {
+          // 加练：塔顶上缓缓上升的经验光点
+          if (low || this.ctx.vdt <= 0) break;
+          for (const t of st.towers.values()) {
+            if (t.id === 'wall' || Math.random() > 0.05) continue;
+            this.ctx.fx.mote((t.cx + 0.5) * CELL + (Math.random() - 0.5) * 16, (t.cy + 0.4) * CELL, C.screen, -22, 0.8, 2);
+          }
           break;
         }
         default:

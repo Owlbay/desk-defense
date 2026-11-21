@@ -74,6 +74,12 @@ export default {
   'core.toast.reinforce': '敌军增援：{name} ×{n}',
   'core.toast.crate': '补给：{name}',
   'core.toast.secretDoor': '暗门开启：{name}',
+  'core.toast.shieldSupply': '护盾补给：{n} 个敌人获得护盾',
+  'core.toast.medicSquad': '急救小队：修正液 ×{n} 赶来',
+  'core.toast.goldbag': '金币袋怪出现了 ×{n}，快打！',
+  'core.toast.goldbagKilled': '金币袋怪被打爆了，快捡硬币！',
+  'core.toast.goldbagEscaped': '金币袋怪跑了，卷走 {n} 金币',
+  'core.toast.goldenElite': '金色精英：{name}',
 
   // ── 塔信息面板（TowerInfo） ──
   'core.info.tierMythic': '神话·{form}',

@@ -10,7 +10,8 @@ import { PRESETS, resolveConfig, type AgentModelConfig } from './config';
 import type { LLMProvider } from './providers/types';
 import { createProvider } from './factory';
 import type { AgentToolDef } from './tools';
-import { listRelayModels, RELAY_CORS_HINT } from './relay';
+import { listRelayModels, relayCorsHint } from './relay';
+import { t } from '../i18n';
 
 export interface ModelListing {
   ok: boolean;
@@ -21,9 +22,9 @@ export interface ModelListing {
 }
 
 const corsHint = (c: AgentModelConfig): string | undefined => {
-  if (c.preset === 'relay') return RELAY_CORS_HINT;
+  if (c.preset === 'relay') return relayCorsHint();
   if (!PRESETS[c.preset ?? 'custom']?.local) return undefined;
-  return '连不上本机模型：确认服务已启动，并允许本站跨域（Ollama: OLLAMA_ORIGINS；LM Studio: Enable CORS；llama.cpp / vLLM: --allowed-origins），Chrome 弹出"本地网络访问"时点允许。也可以改用本机桥接器。';
+  return t('agent.diag.localHint');
 };
 
 export async function listModels(partial: Partial<AgentModelConfig>, fetchImpl: typeof fetch = fetch): Promise<ModelListing> {
@@ -58,7 +59,7 @@ export async function listModels(partial: Partial<AgentModelConfig>, fetchImpl: 
       return { ok: true, models: kp ? getModels(kp).map((m) => m.id) : [] };
     }
     if (c.provider === 'scripted') return { ok: true, models: ['scripted-v1'] };
-    return { ok: false, models: [], error: 'bridge: 模型列表由桥接器提供' };
+    return { ok: false, models: [], error: t('agent.diag.bridgeModels') };
   } catch (e) {
     return { ok: false, models: [], error: e instanceof Error ? e.message : String(e), hint: corsHint(c) };
   }
@@ -115,7 +116,7 @@ export async function testConnection(partial: Partial<AgentModelConfig>, provide
     diag.toolCalling = called;
     diag.ok = called && !out.error;
     if (out.error) diag.error = out.error;
-    if (diag.reachable && !called) diag.advice = (c.toolMode ?? 'native') === 'native' ? '模型没有调用工具：换一个支持工具调用的模型（如 Qwen3 8B+ / Llama 3.1 8B Instruct），或把 toolMode 改成 json。' : 'JSON 模式也没得到可解析的动作：模型可能太小。';
+    if (diag.reachable && !called) diag.advice = (c.toolMode ?? 'native') === 'native' ? t('agent.diag.noToolCall') : t('agent.diag.noJsonAction');
     if (!diag.reachable) diag.hint = corsHint(c);
   } catch (e) {
     diag.latencyMs = Date.now() - t0;

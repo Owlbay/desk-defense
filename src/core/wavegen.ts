@@ -1,7 +1,7 @@
 import type { AffixId, DifficultyParams, EnemyId, MapId, ModeId, SpawnMode, WavePreview, WavePreviewGroup } from './types';
 import { Rng } from './rng';
 import { countScale, eliteChance } from './scaling';
-import { AFFIXES, AFFIX_IDS, BOSS_ROTATION, ENDLESS_POOL, ENEMIES } from '../config/enemies';
+import { AFFIXES, AFFIX_ROLL_IDS, BOSS_ROTATION, ENDLESS_POOL, ENEMIES } from '../config/enemies';
 import { CAMPAIGN, CAMPAIGN_WAVES } from '../config/campaign';
 import { CAPS } from '../config/difficulty';
 
@@ -72,7 +72,7 @@ function rollAffixes(rng: Rng, enemy: EnemyId, max: number): AffixId[] {
   const n = 1 + rng.int(Math.max(1, max));
   const out: AffixId[] = [];
   for (let tries = 0; tries < 20 && out.length < n; tries++) {
-    const a = AFFIX_IDS[rng.int(AFFIX_IDS.length)];
+    const a = AFFIX_ROLL_IDS[rng.int(AFFIX_ROLL_IDS.length)];
     if (out.includes(a)) continue;
     const def = AFFIXES[a];
     if (def.notOn?.includes(enemy)) continue;

@@ -299,3 +299,35 @@ export function idleLine(w: IWorld, ps?: PlannerState): string | undefined {
   const interest = Math.min(s.params.interestCap, Math.floor(g * 0.05));
   return `IDLE ${g}g unspent (interest only +${interest}/wave): put it to work, e.g. {do:"spend",reserve:20} or maze/build_near/upgrade_best; {do:"save",until:N} if saving on purpose.`;
 }
+
+/** 需要模型应对的怪物类事件（ev 行的补充，按当前局面给一句话；速查表里有对策） */
+const EVENT_HINT: Record<string, string> = {
+  tea_break: 'enemies heal: burst skills / pen ink',
+  shield_supply: 'shields up: eraser / burst skills',
+  medic_squad: 'healers: kill wo first (pen/aoe)',
+  frenzy: 'fast enemies, +50% kill gold: slow, buy DPS',
+  bounty: '2x kill gold: buy DPS now',
+  training: '2x XP: keep towers firing',
+};
+
+/**
+ * EVT 行：进行中的怪物类事件 + 金色目标（金币袋怪 / 金色精英，击杀掉硬币）+ 就绪的爆发技能。
+ * 没有相关事件时返回 undefined。
+ */
+export function eventLine(w: IWorld): string | undefined {
+  const s = w.state;
+  const parts: string[] = [];
+  for (const e of s.events) {
+    if (e.phase === 'done') continue;
+    const h = EVENT_HINT[e.id];
+    if (!h) continue;
+    const left = e.phase === 'warn' ? `in ${Math.ceil(Math.max(0, e.startsAt - s.time))}s` : `${Math.ceil(Math.max(0, e.endsAt - s.time))}s`;
+    parts.push(`${e.id} ${left}: ${h}`);
+  }
+  const gold = s.enemies.filter((e) => e.hp > 0 && (e.id === 'goldbag' || e.affixes.includes('golden')));
+  if (gold.length) {
+    const ready = s.skills.filter((k) => k.ready && (k.target === 'circle' || k.target === 'line')).map((k) => k.id);
+    parts.push(`coin targets ${gold.slice(0, 3).map((e) => `${code(e.id)}#${e.uid} ${Math.round(e.x)},${Math.round(e.y)} ${Math.round(e.hp + e.shield)}hp`).join(', ')}: focus${ready.length ? ` (${ready.join('/')} R)` : ''}`);
+  }
+  return parts.length ? `EVT ${parts.join(' | ')}` : undefined;
+}

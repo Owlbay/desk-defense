@@ -11,6 +11,7 @@
  */
 import type { AgentModelConfig, PiApi } from './config';
 import type { ConnectionDiagnostics } from './models';
+import { t } from '../i18n';
 
 export type RelayApi = Exclude<PiApi, 'google-generative-ai'>;
 export const RELAY_APIS: readonly RelayApi[] = ['openai-completions', 'openai-responses', 'anthropic-messages'];
@@ -116,8 +117,8 @@ export interface RelayModelListing {
   auth?: 'bearer' | 'x-api-key';
 }
 
-export const RELAY_CORS_HINT =
-  '浏览器没能连上这个地址：可能是地址写错，或者这个中转站不允许网页跨域访问（CORS）。本游戏不经服务器转发，请求由浏览器直接发给中转站，所以中转站必须允许跨域；也可以改用“使用本地桥接”。';
+/** 浏览器连不上中转站时的说明（当前语言） */
+export const relayCorsHint = (): string => t('agent.relay.cors');
 
 const parseIds = (j: unknown): string[] => {
   const o = j as { data?: { id?: string; name?: string }[]; models?: { id?: string; name?: string }[] } | null;
@@ -128,7 +129,7 @@ const parseIds = (j: unknown): string[] => {
 /** GET {根}/v1/models：先 Bearer，再 x-api-key + anthropic-version */
 export async function listRelayModels(url: string, apiKey: string | undefined, fetchImpl: typeof fetch = fetch): Promise<RelayModelListing> {
   const p = parseRelayUrl(url);
-  if (!p) return { ok: false, models: [], error: '服务地址不是合法的 http(s) URL' };
+  if (!p) return { ok: false, models: [], error: t('agent.relay.badUrl') };
   const endpoint = `${normalizeRelayBase(url, 'openai-completions')}/models`;
   const attempts: { auth: 'bearer' | 'x-api-key'; headers: Record<string, string> }[] = [
     { auth: 'bearer', headers: apiKey ? { authorization: `Bearer ${apiKey}` } : {} },
@@ -157,13 +158,13 @@ export async function listRelayModels(url: string, apiKey: string | undefined, f
   }
   const status = /HTTP (\d+)/.exec(lastErr)?.[1];
   const hint = network && !status
-    ? RELAY_CORS_HINT
+    ? relayCorsHint()
     : status === '401' || status === '403'
-      ? 'Key 被拒绝：检查 API Key 是否正确、是否还有额度。'
+      ? t('agent.relay.keyRejected')
       : status === '404'
-        ? '这个中转站没有提供模型列表接口（/v1/models），可以直接手动填写模型名。'
+        ? t('agent.relay.noModelList')
         : undefined;
-  return { ok: false, models: [], error: lastErr || '未知错误', hint };
+  return { ok: false, models: [], error: lastErr || t('agent.relay.unknownError'), hint };
 }
 
 // ───────────────────────── 接口探测 ─────────────────────────
@@ -192,7 +193,7 @@ export interface RelayDetection {
   attempts: RelayAttempt[];
   /** 全部失败时的主要原因 */
   failure?: RelayFailure;
-  /** 面向玩家的中文说明 */
+  /** 面向玩家的说明（当前语言） */
   message: string;
 }
 
@@ -219,17 +220,8 @@ export function classifyRelayError(error: string | undefined, reachable: boolean
   return 'other';
 }
 
-const FAILURE_TEXT: Record<RelayFailure, string> = {
-  stale: '游戏刚刚更新过，当前页面还是旧版本，加载不到新的 AI 模块：请刷新页面（电脑按 Cmd/Ctrl+Shift+R，手机下拉刷新）后再试。这不是中转站的问题。',
-  cors: RELAY_CORS_HINT,
-  auth: 'Key 被拒绝（401 / 403）：检查 API Key 是否正确、是否过期、是否还有额度或是否开通了这个模型。',
-  not_found: '接口不存在（404）：这个中转站可能不支持这几种接口，或者地址里多了 / 少了路径前缀。请对照中转站文档检查“服务地址”。',
-  model: '中转站不认识这个模型：点“获取模型列表”从列表里选一个，或换一个模型名。',
-  rate: '请求被限流或额度不足（429 / quota）：稍后再试，或在中转站后台检查余额。',
-  no_tools: '连上了，但模型没有按要求调用工具：可以换一个支持工具调用的模型，或把“工具模式”改成“JSON 动作”。',
-  other: '请求失败：请检查地址、Key 和模型名。',
-};
-export const relayFailureText = (f: RelayFailure): string => FAILURE_TEXT[f];
+/** 失败原因的说明（当前语言） */
+export const relayFailureText = (f: RelayFailure): string => (f === 'cors' ? relayCorsHint() : t(`agent.relay.fail.${f}`));
 
 /** 多个失败里挑最能说明问题的那个 */
 function mainFailure(attempts: RelayAttempt[]): RelayFailure {
@@ -292,7 +284,7 @@ export async function detectRelayApi(cfg: Partial<AgentModelConfig>, opts: Detec
       api, baseUrl, ok, reachable, latencyMs: d.latencyMs, tokens: d.tokens,
       ...(ok ? {} : { failure: classifyRelayError(d.error, reachable, d.tokens), error: d.error }),
     });
-    if (ok) return { ok: true, api, attempts, message: `检测到中转站支持 ${RELAY_API_LABEL[api]}（${(d.latencyMs / 1000).toFixed(1)} 秒）` };
+    if (ok) return { ok: true, api, attempts, message: t('agent.relay.detected', { api: RELAY_API_LABEL[api], s: (d.latencyMs / 1000).toFixed(1) }) };
   }
   const failure = mainFailure(attempts);
   const partial = attempts.find((a) => a.failure === 'no_tools');

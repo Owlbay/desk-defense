@@ -120,7 +120,7 @@ const TOWER_USE: Record<string, string> = {
   pencil: 'cheap G+A, opener, any lane',
   stapler: 'AoE r1.6 at U-turns/merges, swarms',
   glue: 'slow, early route, feeds stapler/compass',
-  lamp: 'armor-pierce, sees stealth r1.5 (B whole range +15% dmg taken)',
+  lamp: 'ramping beam, pierces armor, sees stealth r1.5',
   compass: 'ring 0.8-1.8, cell between two lanes',
   eraser: '-armor, ×3 vs shield, early route',
   ruler: 'r4.5 pierce, end of long straight lanes',
@@ -129,6 +129,16 @@ const TOWER_USE: Record<string, string> = {
   piggy: '+8g/wave max3, early when safe {do:"economy"}',
   swatter: 'air only splash {do:"anti_air"}',
 };
+
+/** 台灯（持续光束 / 递增 / 光棱联动，docs/notes-lamp-for-agent.md）；静态文本 */
+const LAMP_NOTE = 'Lamp: beam ignores armor, +60%/s on one target up to 3x, resets on retarget: bosses/armor/long straights, weak vs swarms/fast. ' +
+  'Lamps <=2.5 apart link (group max 4, unlimited with an A laser); the lead beam gets the others\' light (4 equal ~3.9x). ' +
+  'Before boss waves cluster 3-4 lamps 2 cells apart by the boss lane; vs swarms spread them. A: 5x ramp, overload when a boss enters.';
+
+/** 怪物类随机事件的应对（ev 行；EG = 金色目标）；静态文本 */
+const EVENT_NOTE = 'Events (ev; EG = coin targets): goldbag gb fast, regens if unhit 2s: focus fire + eraser_strike/slow, kill = coins (pu), leak steals gold | golden elite (EG) drops coins: target it | ' +
+  'tea_break heal / shield_supply: burst skills, pen halves heal, eraser 3x shield | medic_squad wo: pen/aoe | ' +
+  'frenzy (+30% speed, +50% kill gold) / bounty (2x kill gold): slow + buy DPS now | training 2x XP: keep towers firing, don\'t sell.';
 
 /**
  * 速查表（固定前缀的第二块，≈600 token）：塔一行一个（价格 / 定位 / 对空 / Lv1 数值 / 传奇分支名）、
@@ -156,6 +166,8 @@ export function cheatSheet(): string {
     `Combos (orthogonally adjacent, auto; {do:"combo",pair}): ${COMBOS.map((c) => `${c.a}+${c.b} ${c.desc}`).join(' | ')}`,
     'Wall next to attack towers: upgrade Lv2 (+15g) range+5%, Lv3 (+30g) +5% dmg. Swapping a wall for a tower keeps the maze (towers block too).',
     'Branches: stapler B shreds armor | glue A roots fast/B burns | lamp A melts bosses/B stealth+amp | ruler B executes | pen B +20% dmg taken | swatter B nets flyers to ground. Evolve top-damage Lv10 first; ★3 ability on bosses.',
+    LAMP_NOTE,
+    EVENT_NOTE,
   ].join('\n');
 }
 
@@ -182,7 +194,7 @@ const RULES_V1 = `You play 书桌防线 / Desk Defense (deterministic maze tower
 - If nothing is worth doing: act {actions:[], end:{}}.
 
 # STATE keys (after the first decision you get Δ = only changed keys; T+ changed/new towers, T- removed uids, _unset removed keys)
-t time s | ph phase | w wave/total | g gold | hp lives | sc score | aw auto-wave | T towers "#uid id x,y Llevel [A|B] [★n] [x xp%] [t=target] [up cost|br cost=needs branch] [ev evolve cost] (costs rounded up to 5) [ab R|cd]" | W walls "uid@x,y" | E enemy groups "code×n hp% far/mid/near [A air] [B boss] [e elite] [h hidden]" | Ef enemy nearest exit | EB bosses | nx next wave "wN [tags] | spawner: code×n" | R ground routes "spawner:waypoints Llen" (turn points only; warn = air-drop landing soon) | Rs longest straight segments "spawner a>b Llen b=buildable cells beside" | Rp best tower spots "x,y:route cells within r2.5" | Ra flight lines "spawner from>to Llen aa% covering towers" | sk skills id:R|cd | ev events | sp drop boxes | pu pickups | perk offer | crate options | own perks | b build prices ("base" = cheat-sheet prices; else differences, locked, max) | rc since last decision | pe queued errors.
+t time s | ph phase | w wave/total | g gold | hp lives | sc score | aw auto-wave | T towers "#uid id x,y Llevel [A|B] [★n] [x xp%] [t=target] [up cost|br cost=needs branch] [ev evolve cost] (costs rounded up to 5) [ab R|cd]" | W walls "uid@x,y" | E enemy groups "code×n hp% far/mid/near [A air] [B boss] [e elite] [h hidden]" | Ef enemy nearest exit | EB bosses | EG coin targets | nx next wave "wN [tags] | spawner: code×n" | R ground routes "spawner:waypoints Llen" (turn points only; warn = air-drop landing soon) | Rs longest straight segments "spawner a>b Llen b=buildable cells beside" | Rp best tower spots "x,y:route cells within r2.5" | Ra flight lines "spawner from>to Llen aa% covering towers" | sk skills id:R|cd | ev events | sp drop boxes | pu pickups | perk offer | crate options | own perks | b build prices ("base" = cheat-sheet prices; else differences, locked, max) | rc since last decision | pe queued errors.
 - MAP (sent when terrain changes): rows y, cols x (0..9,a,b). . empty | # obstacle | S spawn | X exit | d drop warning | D drop spawn | route letters a,b,c… (+ overlap, ~ future drop route) | towers: ${Object.entries(TOWER_CHAR).map(([k, v]) => `${v}=${k}`).join(' ')}. "(RLE)" rows: "3." = "...".`;
 
 
@@ -214,8 +226,8 @@ Each build phase: anti_air if [air], maze, fix LK/GAP/CTR, spend; ≈w6+ upgrade
 Example (build, g140, nx [air]): act {actions:[{do:"anti_air"},{do:"maze",budget:40},{do:"spend",reserve:10}],end:{plan:"serpentine+pencils; AA before air",priorities:"upgrade_best from w6"}}
 
 # STATE keys (after the first decision you get Δ = only changed keys; T+ changed/new towers, T- removed uids, _unset removed keys)
-t time s | ph phase | w wave/total | g gold | hp lives | sc score | aw auto-wave | T towers "#uid id x,y Llevel [A|B] [★n] [x xp%] [t=target] [up cost|br cost=needs branch] [ev evolve cost] (costs rounded up to 5) [ab R|cd]" | W walls "uid@x,y" | E enemy groups "code×n hp% far/mid/near [A air] [B boss] [e elite] [h hidden]" | Ef enemy nearest exit | EB bosses | nx next wave "wN [tags] | spawner: code×n" | R ground routes "sp:turn points Llen" (warn = drop landing soon) | Rs long straights "sp a>b Llen b=free cells beside" | Rp best spots "x,y:route cells in r2.5" | Ra flight lines "sp from>to Llen aa% towers" | sk skills id:R|cd | ev events | sp drop boxes | pu pickups | perk offer | crate options | own perks | b prices ("base" = cheat sheet; else diffs/locked/max) | rc since last decision | pe queued errors.
-- Extra lines: BR TH CTR LK GAP KH RC CB MZ (above), IDLE unspent gold.
+t time s | ph phase | w wave/total | g gold | hp lives | sc score | aw auto-wave | T towers "#uid id x,y Llevel [A|B] [★n] [x xp%] [t=target] [up cost|br cost=needs branch] [ev evolve cost] (costs rounded up to 5) [ab R|cd]" | W walls "uid@x,y" | E enemy groups "code×n hp% far/mid/near [A air] [B boss] [e elite] [h hidden]" | Ef enemy nearest exit | EB bosses | EG coin targets | nx next wave "wN [tags] | spawner: code×n" | R ground routes "sp:turn points Llen" (warn = drop landing soon) | Rs long straights "sp a>b Llen b=free cells beside" | Rp best spots "x,y:route cells in r2.5" | Ra flight lines "sp from>to Llen aa% towers" | sk skills id:R|cd | ev events | sp drop boxes | pu pickups | perk offer | crate options | own perks | b prices ("base" = cheat sheet; else diffs/locked/max) | rc since last decision | pe queued errors.
+- Extra lines: BR TH CTR LK GAP KH RC CB MZ (above), IDLE unspent gold, EVT event tips.
 - MAP (sent when terrain changes): rows y, cols x (0..9,a,b). . empty | # obstacle | S spawn | X exit | d drop warning | D drop spawn | route letters a,b,c… (+ overlap, ~ future drop route) | towers: ${Object.entries(TOWER_CHAR).map(([k, v]) => `${v}=${k}`).join(' ')}. "(RLE)" rows: "3." = "...".`;
 
 const ROLE_TEXT: Record<AgentRole, string> = {
@@ -244,7 +256,7 @@ const REASON_TEXT: Record<string, string> = {
   game_start: 'game start — plan the opening maze',
   build: 'build phase — spend gold for the next wave',
   wave_interval: 'periodic check',
-  event_warn: 'random event announced',
+  event_warn: 'random event announced or started (see ev / EG)',
   drop_warn: 'air-drop landing soon',
   boss_spawn: 'boss appeared',
   perk: 'perk offer — choose_perk now',

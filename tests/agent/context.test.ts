@@ -90,7 +90,7 @@ describe('act (batched actions)', () => {
 describe('fixed prefix', () => {
   it('cheat sheet is small and covers every tower / enemy', () => {
     const cs = cheatSheet();
-    expect(estimateTokens(cs)).toBeLessThan(1000);
+    expect(estimateTokens(cs)).toBeLessThan(1250);
     for (const id of ['pencil', 'swatter', 'lamp', 'wall', 'calculator']) expect(cs).toContain(` ${id} `);
     for (const id of ['plane', 'boss_alarm', 'invisink']) expect(cs).toContain(id);
     const [rules, sheet] = systemBlocks('player');

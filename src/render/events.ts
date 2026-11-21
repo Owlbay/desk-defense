@@ -175,6 +175,12 @@ export class EventFx {
           fx.ring(x, y, 4, 20, C.goldLight, 0.3, 2, false, 0.06);
         }
         if (ev.gold > 0) fx.text(x, y - 14, `+${Math.round(ev.gold)}`, 'gold');
+        // 赏金时刻 / 狂暴：击杀金币加成的「×2」小浮字
+        if (ev.goldMul && ev.goldMul > 1 && ev.gold > 0) fx.text(x + 12, y - 24, `×${Math.round(ev.goldMul * 10) / 10}`, 'gold');
+        if (ev.enemy === 'goldbag') {
+          fx.coinBurst(x, y, 10);
+          fx.ring(x, y, 4, 40, C.goldLight, 0.45, 4, true);
+        }
         if (ev.boss) {
           // Boss：拉长的连环爆裂（全部用粒子自带的延迟，不开定时器）
           fx.ring(x, y, 10, 120, col, 0.7, 6);

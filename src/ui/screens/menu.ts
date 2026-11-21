@@ -96,9 +96,7 @@ export function menuScreen(app: App): Screen {
         h(
           'span.logo-zh',
           {
-            // 西文标题字母多：缩小字号、不换行（样式表按 4 个汉字设计；data-long 供主题样式接管）
-            ...(t('ui.menu.logo').length > 6 ? { style: 'font-size: clamp(30px, 9vw, 60px); white-space: nowrap; letter-spacing: 0.02em' } : {}),
-            attrs: { role: 'img', 'aria-label': t('ui.menu.logo'), 'data-long': String(t('ui.menu.logo').length > 6) },
+            attrs: { role: 'img', 'aria-label': t('ui.menu.logo') },
           }, [...t('ui.menu.logo')].map((ch, i) => h('span.logo-ch', { style: `--i:${i}`, attrs: { 'aria-hidden': 'true' } }, ch === ' ' ? '\u00a0' : ch))),
         // 英文界面里主标题已是英文，不再重复副标题
         getLocale() === 'en' ? null : h('span.logo-en', null, 'DESK DEFENSE'),

@@ -15,7 +15,7 @@ import { routeSummary } from './routes';
 /** 敌人两字母代号（Boss 大写开头）。图例在速查表里 */
 export const ENEMY_CODE: Record<EnemyId, string> = {
   crumb: 'cr', inkdot: 'ik', paperclip: 'pc', plane: 'pl', paperball: 'pb', sticky: 'st', rubberband: 'rb',
-  whiteout: 'wo', ant: 'an', invisink: 'iv', tape: 'tp', moth: 'mo', crumbmini: 'cm',
+  whiteout: 'wo', ant: 'an', invisink: 'iv', tape: 'tp', moth: 'mo', crumbmini: 'cm', goldbag: 'gb',
   boss_coffee: 'Bc', boss_coffee_small: 'Bs', boss_shredder: 'Bd', boss_inkbottle: 'Bi', boss_alarm: 'Ba',
 };
 const code = (id: string): string => ENEMY_CODE[id as EnemyId] ?? id;
@@ -107,6 +107,7 @@ export function compactObservation(w: IWorld, o: CompactOptions = {}): CompactOb
     const groups = new Map<string, { n: number; hp: number; max: number; band: [number, number, number]; air: boolean; boss: boolean; elite: number; hidden: number }>();
     let front: { d: number; txt: string } | null = null;
     const bosses: string[] = [];
+    const gold: string[] = [];
     for (const e of s.enemies) {
       const d = distToExit(w, e.x, e.y, e.flying);
       const k = code(e.id);
@@ -122,11 +123,14 @@ export function compactObservation(w: IWorld, o: CompactOptions = {}): CompactOb
       const txt = `${k}#${e.uid} ${r1(e.x)},${r1(e.y)} d${r1(d)} ${Math.round(e.hp + e.shield)}hp`;
       if (!front || d < front.d) front = { d, txt };
       if (e.boss) bosses.push(txt);
+      // 金币袋怪 / 金色精英：击杀掉硬币（事件，值得集火 / 放技能）
+      if (e.id === 'goldbag' || e.affixes.includes('golden')) gold.push(txt);
     }
     obs.E = [...groups].sort((a, b) => b[1].n - a[1].n || (a[0] < b[0] ? -1 : 1)).map(([k, g]) =>
       `${k}×${g.n} ${Math.round((g.hp / Math.max(1, g.max)) * 100)}% ${g.band.join('/')}${g.air ? ' A' : ''}${g.boss ? ' B' : ''}${g.elite ? ` e${g.elite}` : ''}${g.hidden ? ` h${g.hidden}` : ''}`);
     if (front) obs.Ef = front.txt;
     if (bosses.length) obs.EB = bosses;
+    if (gold.length) obs.EG = gold;
   }
   const nw = s.nextWave;
   const rs = routeSummary(w);

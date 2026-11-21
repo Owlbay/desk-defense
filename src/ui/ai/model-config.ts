@@ -4,7 +4,7 @@
  * 「AI 参战」设置页、设置里的「AI 助手」、对局里的 AI 按钮共用这一份：同一份保存的配置在哪里都一样。
  * Key 按玩家选的存放方式读取（store.readKey），只随配置传给模型服务商。
  */
-import { PRESETS, normalizeRelayBase, parseRelayUrl, validateConfig, type AgentModelConfig, type PiApi, type Preset, type RelayApi } from '../../agent';
+import { PRESETS, normalizeRelayBase, parseRelayUrl, validateConfigIssues, type AgentModelConfig, type PiApi, type Preset, type RelayApi } from '../../agent';
 import { t, tOr } from '../../i18n';
 import type { BridgeConn } from './bridge-state';
 import type { AiRole } from './launch';
@@ -97,25 +97,25 @@ export function buildModelConfig(st: AiSetupSaved, o: BuildOpts): Partial<AgentM
 
 /** 表单层面的校验（在 validateConfig 之外补上“需要 Key”等） */
 export function modelConfigErrors(st: AiSetupSaved, cfg: Partial<AgentModelConfig>, bridge: BridgeConn | null | undefined): string[] {
-  const errs = validateConfig(cfg);
+  const issues = validateConfigIssues(cfg);
   if (st.tab === 'bridge') {
     if (!bridge?.alive) return [t('agent.setup.err.noBridge')];
-    return errs.filter((e) => !e.includes('配对码')); // i18n-ignore：匹配 validateConfig 的中文错误
+    return issues.filter((e) => e.code !== 'bridgeCode').map((e) => e.text);
   }
+  const drop = new Set<string>();
   const s = st.source;
-  if (s !== 'demo' && !isLocal(s) && s !== 'custom' && !readKey(s).trim()) errs.push(t('agent.setup.err.needKey'));
+  const extra: string[] = [];
+  if (s !== 'demo' && !isLocal(s) && s !== 'custom' && !readKey(s).trim()) extra.push(t('agent.setup.err.needKey'));
   if (s === 'relay') {
     const raw = baseUrlOf(st, s).trim();
-    const i = errs.indexOf('baseUrl 不是合法 URL'); // i18n-ignore：匹配 validateConfig 的中文错误
-    if (i >= 0) errs.splice(i, 1);
-    if (raw && !parseRelayUrl(raw)) errs.push(t('agent.setup.err.badUrl'));
+    drop.add('badUrl');
+    if (raw && !parseRelayUrl(raw)) extra.push(t('agent.setup.err.badUrl'));
     if (!modelOf(st, s).trim()) {
-      const j = errs.indexOf('缺少 model'); // i18n-ignore：匹配 validateConfig 的中文错误
-      if (j >= 0) errs.splice(j, 1);
-      errs.push(t('agent.setup.err.needModel'));
+      drop.add('noModel');
+      extra.push(t('agent.setup.err.needModel'));
     }
   }
-  return errs;
+  return [...issues.filter((e) => !drop.has(e.code)).map((e) => e.text), ...extra];
 }
 
 /** 界面上显示的模型名，例如「Claude · claude-sonnet-5-5」 */

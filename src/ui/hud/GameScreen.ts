@@ -1,5 +1,5 @@
 import type { BuildOption, Command, GameEvent, RunOptions } from '../../core/types';
-import { t } from '../../i18n';
+import { t, tOr } from '../../i18n';
 import { Session } from '../../game/Session';
 import { ui } from '../../game/UiStore';
 import { makeMidRun, replayAsync } from '../../meta/midrun';
@@ -73,7 +73,10 @@ export function gameScreen(app: App, route: Route): Screen {
       const r = session.command(c);
       if (!r.ok) {
         audio.play('error');
-        if (r.reason) overlay.toast(r.reason, 'warn');
+        // 原因码优先按当前界面语言重译（AI 在 zh-CN 下执行指令时 reason 是中文）；带参数的原因无法重译则退回原文
+        const msg = r.code ? tOr(`core.reason.${r.code}`, r.reason ?? '') : r.reason;
+        if (msg && !/\{\w+\}/.test(msg)) overlay.toast(msg, 'warn');
+        else if (r.reason) overlay.toast(r.reason, 'warn');
       }
       dirty = true;
       return r;
@@ -250,7 +253,7 @@ export function gameScreen(app: App, route: Route): Screen {
     tutorial.onEvent(ev);
     switch (ev.type) {
       case 'toast':
-        overlay.toast(ev.text, ev.tone);
+        overlay.toast(ev.key ? tOr(ev.key, ev.text, ev.params) : ev.text, ev.tone);
         break;
       case 'waveStart':
         overlay.banner(ev.wave, ev.tags, world.state.totalWaves);

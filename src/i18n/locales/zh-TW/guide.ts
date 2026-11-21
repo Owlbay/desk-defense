@@ -93,7 +93,7 @@ export default {
 
   // ───────────── 玩法 · 模式 ─────────────
   'guide.play.modes.title': '模式',
-  'guide.play.modes.intro': '三種玩法加一個每日挑戰。先通關戰役第一章，其餘模式隨之解鎖。',
+  'guide.play.modes.intro': '三種玩法加一個每日挑戰。無盡模式和每日挑戰一開始就能玩；通關戰役第一章後開放自訂模式，並解鎖更多地圖。',
   'guide.play.modes.campaign.name': '戰役',
   'guide.play.modes.campaign.desc': '3 章，每章一張地圖、20 波手工編排的波次，可選普通或困難。依剩餘生命評 1～3 星，星星用來買永久天賦；新塔和新技能隨進度解鎖。',
   'guide.play.modes.endless.name': '無盡',
@@ -112,7 +112,7 @@ export default {
   'guide.play.modes.diff.col.interest': '利息上限',
   'guide.play.modes.diff.eliteNever': '不出現',
   'guide.play.modes.diff.abyss': '魔境 {n}',
-  'guide.play.modes.diff.unlock': '解鎖：通關第一章開放簡單和普通；普通撐到第 30 波開困難，困難第 40 波開噩夢，噩夢第 35 波開魔境 I，之後每級魔境撐到第 30 波開下一級。',
+  'guide.play.modes.diff.unlock': '解鎖：簡單和普通一開始就能選；普通撐到第 30 波開困難，困難第 40 波開噩夢，噩夢第 35 波開魔境 I，之後每級魔境撐到第 30 波開下一級。',
   'guide.play.modes.seed': '**種子**：同一個種子代表同樣的雜物配置、波次和事件時間表。暫停選單、結算畫面和排行榜裡都能複製，傳給朋友就能打同一局。',
   'guide.play.modes.score': '**得分** =（撐過的波數 × 100 + 擊殺數 + 剩餘生命 × 50 + 剩餘金幣 × 0.1）× 難度倍率。',
 
@@ -347,6 +347,10 @@ export default {
   'guide.arch.line.core': '尺、圓規（相鄰觸發組合），鋼尺擊退。',
   'guide.arch.line.how': '留一條長直道，把尺放在直道的延長線上，一發穿透一整排；圓規守住轉角。',
   'guide.arch.line.weak': '地形被事件改變後直道容易斷；對分散的敵人效率低。',
+  'guide.arch.prism.name': "光稜陣 · 聚光流",
+  'guide.arch.prism.core': "檯燈 ×3～4，後期換雷射筆（傳奇 A）當核心，配一座護眼檯燈（B）。",
+  'guide.arch.prism.how': "把檯燈兩兩相隔約 2 格沿 Boss 路線擺成一串（中心距 ≤ 2.5 格），聯動組裡只有主燈開火，其餘輔燈把光匯進去，光束持續照射並逐漸增強。一般聯動組最多 4 座；組裡有雷射筆時不限座數。護眼檯燈替整組光束加標記與易傷。",
+  'guide.arch.prism.weak': "成群的小怪和快怪（單體光束，換目標就歸零）；咖啡潑到鏈中間的燈會斷組；事件「檯燈跳電」；「反光」詞綴傷害減半。",
 
   // ───────────── AI 參戰 ─────────────
   'guide.ai.intro': '讓大型語言模型像玩家一樣玩這個遊戲，或者在你玩的時候當軍師。AI 的每一步都和你的點擊走同一套驗證，無法作弊；AI 的成績進入獨立的 AI 排行榜。',
@@ -440,7 +444,7 @@ export default {
   'guide.about.feature.towers.title': '12 座塔，5 種形態',
   'guide.about.feature.towers.desc': '每座塔從草稿、精良、鍍金成長到傳奇，再進化為神話。傳奇有 A / B 兩條分支，神話帶主動能力，每個階段外觀都不同。',
   'guide.about.feature.field.title': '動態戰場',
-  'guide.about.feature.field.desc': '入口會增加，紙箱會空降，檯燈會跳電，咖啡會打翻。15 種隨機事件讓每一局都不一樣。',
+  'guide.about.feature.field.desc': '入口會增加，紙箱會空降，檯燈會跳電，咖啡會打翻。23 種隨機事件讓每一局都不一樣。',
   'guide.about.feature.endless.title': '無盡魔境',
   'guide.about.feature.endless.desc': '戰役 3 章之後是無盡模式：簡單、普通、困難、噩夢，再到魔境 I～X。菁英敵人帶著隨機詞綴，看你能撐到第幾波。',
   'guide.about.feature.online.title': '全服排行榜與每日挑戰',
@@ -483,4 +487,7 @@ export default {
   'guide.about.footer.leaderboard': '排行榜',
   'guide.about.footer.label': '頁尾連結',
   'guide.about.footer.note': '書桌防線 Desk Defense，一款網頁塔防遊戲。',
+  'guide.enemy.goldbag.behavior': '飛快地沿路線逃跑；2 秒沒挨打就快速回血。被擊殺時爆出一大把可點擊收集的硬幣；漏走不扣生命，但會偷走一大筆金幣。',
+  'guide.enemy.goldbag.counter': '集中火力或用大橡皮等爆發技能一口氣打掉；減速 / 定身讓它多挨幾下，別給它喘息回血的機會。',
+  'guide.affix.golden.counter': '金色菁英更耐打，但擊殺後掉落一堆硬幣——優先集火並記得點擊收集。',
 } satisfies Dict;

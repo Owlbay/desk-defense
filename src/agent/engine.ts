@@ -3,13 +3,13 @@
  * 观测、工具执行与记录、超时、token / 费用预算、连续失败熔断、决策后的推进保证。
  * 无头 runner（CLI / 测试）与浏览器控制器（index.ts）共用。
  */
-import { SOURCE_LOCALE, withLocale } from '../i18n';
+import { SOURCE_LOCALE, t, withLocale } from '../i18n';
 import type { IWorld, RunOptions } from '../core/types';
 import { runHeader, systemBlocks } from './prompts';
 import { executeTool, toolsForRole } from './tools';
 import { CONTEXT_MODES, contextSpec, type AgentModelConfig, type ContextModeSpec, type ThinkingLevel } from './config';
 import { ContextBuilder } from './context';
-import { BattleLog, idleLine, threatLine } from './battle';
+import { BattleLog, eventLine, idleLine, threatLine } from './battle';
 import { BattleIntel, gapLine, killLine, leakLine, type LeakRecord } from './intel';
 import { comboLine, mazeLine, reclaimLine } from './board';
 import { AFFIX_PURPOSE, enemyPurposes, type Purpose } from './purpose';
@@ -74,12 +74,8 @@ export interface BudgetState {
   policy: 'soft' | 'hard' | 'ask';
 }
 
-const STAGE_MSG: Record<BudgetStage, string | undefined> = {
-  0: undefined,
-  1: '预算已用 70%：已切换到省流模式',
-  2: '预算已用 90%：省流 + 低思考，只在建造阶段 / 事件时决策',
-  3: '已超出预算，已切换到最省模式继续',
-};
+/** 预算分级的提示（当前语言；0 级没有） */
+const stageMsg = (st: BudgetStage): string | undefined => (st === 0 ? undefined : t(`agent.budget.stage${st}`));
 
 interface Snap {
   gold: number;
@@ -199,9 +195,9 @@ export class DecisionEngine {
     const tok = this.budgetLimit ? weighted / this.budgetLimit : 0;
     const usd = this.o.config.budget?.usd ? this.costUsd / this.o.config.budget.usd : 0;
     const base = this.o.config.contextMode ?? 'balanced';
-    const labels = { saver: '省流', balanced: '均衡', full: '完整' } as const;
-    const modeLabel = this.stage === 0 ? labels[base] : this.stage === 1 ? '省流' : this.stage === 2 ? '省流·低思考' : '最省';
-    return { stage: this.stage, ratio: Math.max(tok, usd), weighted, limit: this.budgetLimit, modeLabel, message: message ?? STAGE_MSG[this.stage], compactions: this.compactions, policy: this.policy };
+    const mode = this.stage === 0 ? base : this.stage === 1 ? 'saver' : this.stage === 2 ? 'saverLow' : 'min';
+    const modeLabel = t(`agent.budget.mode.${mode}`);
+    return { stage: this.stage, ratio: Math.max(tok, usd), weighted, limit: this.budgetLimit, modeLabel, message: message ?? stageMsg(this.stage), compactions: this.compactions, policy: this.policy };
   }
 
   private ratio(): number {
@@ -224,16 +220,16 @@ export class DecisionEngine {
     if (next === 3 && this.policy === 'hard') {
       this.disabledReason = this.overBudget() ?? 'budget exhausted';
       this.stage = 3;
-      this.o.onBudget?.(this.budgetState('预算已用完，余下由内置机器人接管'));
+      this.o.onBudget?.(this.budgetState(t('agent.budget.toBot')));
       return null;
     }
     if (next === 3 && this.policy === 'ask' && !this.budgetAsked) {
       this.budgetAsked = true;
-      const choice = this.o.onBudgetExceeded ? await this.o.onBudgetExceeded({ ...this.budgetState('预算已用完：继续（最省模式）/ 追加预算 / 交给机器人？'), stage: 3 }) : 'continue';
+      const choice = this.o.onBudgetExceeded ? await this.o.onBudgetExceeded({ ...this.budgetState(t('agent.budget.ask')), stage: 3 }) : 'continue';
       if (choice === 'bot') {
         this.disabledReason = 'budget exhausted (handed to bot)';
         this.stage = 3;
-        this.o.onBudget?.(this.budgetState('预算已用完，余下由内置机器人接管'));
+        this.o.onBudget?.(this.budgetState(t('agent.budget.toBot')));
         return null;
       }
       if (choice === 'extend') {
@@ -336,7 +332,7 @@ export class DecisionEngine {
       delta: !built.full,
       budgetStage: this.stage,
     });
-    if (compacted) sink?.({ k: 'compact', n: compacted.n, before: compacted.before, after: compacted.after, stage: compacted.stage, reason: STAGE_MSG[compacted.stage] ?? '' });
+    if (compacted) sink?.({ k: 'compact', n: compacted.n, before: compacted.before, after: compacted.after, stage: compacted.stage, reason: stageMsg(compacted.stage) ?? '' });
     let costThis = 0;
 
     let failed: string | null = this.disabledReason;
@@ -453,7 +449,7 @@ export class DecisionEngine {
       provider: this.o.provider?.id ?? 'none', model: this.o.provider?.model ?? this.o.fallback.name, role: this.role,
       contextMode: this.o.config.contextMode, skipped: why, budgetStage: this.stage,
     });
-    if (compacted) sink?.({ k: 'compact', n: compacted.n, before: compacted.before, after: compacted.after, stage: compacted.stage, reason: STAGE_MSG[compacted.stage] ?? '' });
+    if (compacted) sink?.({ k: 'compact', n: compacted.n, before: compacted.before, after: compacted.after, stage: compacted.stage, reason: stageMsg(compacted.stage) ?? '' });
     if (this.role === 'player' || this.o.fallbackPlaysForHuman) {
       if (this.role !== 'player') void this.o.fallback.decide(point.reasons);
       const before = snap(w);
@@ -543,6 +539,8 @@ export class DecisionEngine {
       if (th) out.push(th);
       this.lastThreatWave = nw;
     }
+    const evt = eventLine(w);
+    if (evt) out.push(evt);
     if (buildPhase && this.role === 'player') {
       this.buildSeq++;
       for (const [k, f] of [['RC', () => reclaimLine(w, this.intel)], ['CB', () => comboLine(w)], ['MZ', () => mazeLine(w)]] as const) {

@@ -30,11 +30,13 @@ export type EnemyId =
   | 'crumb' | 'inkdot' | 'paperclip' | 'plane' | 'paperball' | 'sticky'
   | 'rubberband' | 'whiteout' | 'ant' | 'invisink' | 'tape' | 'moth'
   | 'crumbmini'            // 纸团分裂出的小纸屑（美术复用 crumb，缩小 0.6）
+  | 'goldbag'              // 金币袋怪：只由随机事件召唤（文档 09 §3.2）
   | 'boss_coffee' | 'boss_coffee_small' | 'boss_shredder' | 'boss_inkbottle' | 'boss_alarm';
 
 export type AffixId =
   | 'hard' | 'swift' | 'regen' | 'shield' | 'split'
-  | 'stealth' | 'reflect' | 'unstoppable' | 'rally';
+  | 'stealth' | 'reflect' | 'unstoppable' | 'rally'
+  | 'golden';              // 金色精英：只由随机事件赋予，不参与随机抽取
 
 export type SkillId =
   | 'eraser_strike' | 'bell' | 'whiteout_zone' | 'caffeine' | 'ruler_sweep'
@@ -45,15 +47,19 @@ export type SkillId =
 export type RandomEventId =
   // 负面
   | 'drop_box' | 'lamp_outage' | 'fan' | 'books_fall' | 'homework_check' | 'coffee_spill' | 'reinforce'
+  | 'tea_break' | 'medic_squad' | 'shield_supply'
   // 正面
   | 'coins' | 'inspiration' | 'nap' | 'praise' | 'supply_crate'
+  | 'goldbag' | 'bounty' | 'golden_elite' | 'training'
   // 中性
-  | 'tidy' | 'wind' | 'secret_door';
+  | 'tidy' | 'wind' | 'secret_door' | 'frenzy';
 
 export const RANDOM_EVENT_IDS: RandomEventId[] = [
   'drop_box', 'lamp_outage', 'fan', 'books_fall', 'homework_check', 'coffee_spill', 'reinforce',
+  'tea_break', 'medic_squad', 'shield_supply',
   'coins', 'inspiration', 'nap', 'praise', 'supply_crate',
-  'tidy', 'wind', 'secret_door',
+  'goldbag', 'bounty', 'golden_elite', 'training',
+  'tidy', 'wind', 'secret_door', 'frenzy',
 ];
 
 export type SpawnMode = 'fixed' | 'roundRobin' | 'random' | 'split' | 'focus';
@@ -459,7 +465,7 @@ export type GameEvent =
   | { type: 'immune'; x: number; y: number }
   | { type: 'dodge'; x: number; y: number }
   | { type: 'heal'; x: number; y: number; amount: number }
-  | { type: 'death'; enemyUid: number; enemy: EnemyId; x: number; y: number; gold: number; boss: boolean; elite: boolean }
+  | { type: 'death'; enemyUid: number; enemy: EnemyId; x: number; y: number; gold: number; boss: boolean; elite: boolean; goldMul?: number }
   | { type: 'split'; x: number; y: number; enemy: EnemyId }
   | { type: 'leak'; enemy: EnemyId; lives: number; stolenGold: number }
   | { type: 'spawn'; enemyUid: number; enemy: EnemyId; boss: boolean }

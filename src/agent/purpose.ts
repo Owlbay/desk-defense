@@ -33,6 +33,7 @@ export const PURPOSE_TARGET: Partial<Record<Purpose, string>> = { slow: 'early',
 /** 敌人 → 需要的用途（按属性推出；any = 什么都行） */
 export function enemyPurposes(e: EnemyDef): Purpose[] {
   if (e.boss) return ['boss'];
+  if (e.id === 'goldbag') return ['dps', 'slow'];
   if (e.flying) return ['air'];
   if (e.stealthy) return ['stealth'];
   if (e.shieldRatio) return ['shield'];
@@ -46,7 +47,7 @@ export function enemyPurposes(e: EnemyDef): Purpose[] {
 
 /** 精英词缀 → 用途 */
 export const AFFIX_PURPOSE: Partial<Record<AffixId, Purpose>> = {
-  hard: 'armor', shield: 'shield', regen: 'antiheal', stealth: 'stealth', swift: 'slow', split: 'aoe', unstoppable: 'dps', rally: 'aoe', reflect: 'dps',
+  hard: 'armor', shield: 'shield', regen: 'antiheal', stealth: 'stealth', swift: 'slow', split: 'aoe', unstoppable: 'dps', rally: 'aoe', reflect: 'dps', golden: 'dps',
 };
 
 /** 用途 → 速查表里的简写："armor(eraser/lamp)" */

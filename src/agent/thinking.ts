@@ -19,6 +19,7 @@
  *   - google-generative-ai：off = pi 发 thinkingBudget 0（Gemini 2.x）/ 最低 thinkingLevel（Gemini 3）
  */
 import type { PiApi, ThinkingLevel } from './config';
+import { t } from '../i18n';
 
 export type PiThinkingLevel = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 
@@ -39,13 +40,13 @@ export function claudeThinkingPlan(model: string, level: ThinkingLevel = 'medium
   if (level !== 'off') {
     return { thinking: { type: 'adaptive', display: 'summarized' }, effort: level, effective: `adaptive · effort ${level}` };
   }
-  if (model.includes('sonnet-5-5')) return { thinking: { type: 'between_tools' }, effort: 'low', effective: 'between_tools（无思考）· effort low' };
-  if (model.includes('haiku-5-5')) return { thinking: { type: 'disabled' }, effort: 'low', effective: 'disabled（无思考）· effort low' };
+  if (model.includes('sonnet-5-5')) return { thinking: { type: 'between_tools' }, effort: 'low', effective: t('agent.think.offEffort', { mode: 'between_tools' }) };
+  if (model.includes('haiku-5-5')) return { thinking: { type: 'disabled' }, effort: 'low', effective: t('agent.think.offEffort', { mode: 'disabled' }) };
   return {
     thinking: { type: 'adaptive', display: 'summarized' },
     effort: 'low',
-    effective: 'adaptive · effort low（不能关闭思考）',
-    note: `${CLAUDE_NAME(model)} 不支持关闭思考，已用最低强度`,
+    effective: t('agent.think.cantOff'),
+    note: t('agent.think.cantOffNote', { model: CLAUDE_NAME(model) }),
   };
 }
 
@@ -76,24 +77,24 @@ export function piThinkingPlan(
       const fmt = o.thinkingFormat;
       if (fmt === 'deepseek') return on ? { reasoning: lv, effective: `thinking enabled · reasoning_effort ${lv}` } : { effective: 'thinking {type:"disabled"}' };
       if (fmt === 'qwen') return on ? { reasoning: lv, effective: `enable_thinking true（${lv}）` } : { effective: 'enable_thinking false' };
-      if (o.reasoningModel === false) return { effective: '模型不支持推理参数（未发送）' };
-      return on ? { reasoning: lv, effective: `reasoning_effort ${lv}` } : { effective: '未发送 reasoning_effort（无思考）' };
+      if (o.reasoningModel === false) return { effective: t('agent.think.noParam') };
+      return on ? { reasoning: lv, effective: `reasoning_effort ${lv}` } : { effective: t('agent.think.notSent', { param: 'reasoning_effort' }) };
     }
     case 'openai-responses':
-      if (o.reasoningModel === false) return { modelReasoning: false, effective: '非推理模型（未发送 reasoning）' };
-      return on ? { reasoning: lv, modelReasoning: true, effective: `reasoning.effort ${lv}` } : { modelReasoning: false, effective: '未发送 reasoning（无思考）' };
+      if (o.reasoningModel === false) return { modelReasoning: false, effective: t('agent.think.nonReasoning') };
+      return on ? { reasoning: lv, modelReasoning: true, effective: `reasoning.effort ${lv}` } : { modelReasoning: false, effective: t('agent.think.notSent', { param: 'reasoning' }) };
     case 'anthropic-messages':
       if (isClaude5(id)) {
         if (!on && id.includes('haiku')) return { modelReasoning: true, effective: 'thinking {type:"disabled"}' };
         return {
           modelReasoning: false,
-          effective: '未发送 thinking（服务端默认自适应）',
-          note: on ? '经 pi 无法设置 Claude 5.x 的 effort，按服务端默认；需要精细控制请用 Claude 官方适配器' : `${CLAUDE_NAME(id)} 经 pi 不能关闭思考，按服务端默认自适应`,
+          effective: t('agent.think.serverDefault'),
+          note: on ? t('agent.think.piNoEffort') : t('agent.think.piCantOff', { model: CLAUDE_NAME(id) }),
         };
       }
       return on ? { reasoning: lv, modelReasoning: true, effective: `thinking ${lv}` } : { modelReasoning: o.reasoningModel, effective: 'thinking {type:"disabled"}' };
     case 'google-generative-ai':
-      return on ? { reasoning: lv, effective: `thinking ${lv}` } : { effective: 'thinkingBudget 0 / 最低 thinkingLevel' };
+      return on ? { reasoning: lv, effective: `thinking ${lv}` } : { effective: t('agent.think.googleOff') };
     default:
       // 其他 pi 接口（测试用 faux 等）：照 pi 的通用 reasoning 语义
       return on ? { reasoning: lv, effective: `reasoning ${lv}` } : { effective: 'reasoning off' };
