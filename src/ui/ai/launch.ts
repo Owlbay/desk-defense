@@ -7,7 +7,7 @@
  *   对局页用 takeAiLaunch() 取出这个请求并以「AI 参战」方式挂上（同一套机制：从第 1 波开始、结算出 AI 报告）。
  * 没有启用 AI 的对局零开销：Agent / 模型 SDK 只会出现在动态分包里。
  */
-import type { AgentModelConfig } from '../../agent/config';
+import { type AgentModelConfig, agentTag, resolveConfig } from '../../agent/config';
 import type { LLMProvider } from '../../agent/providers/types';
 import type { RunOptions } from '../../core/types';
 import type { Session } from '../../game/Session';
@@ -44,6 +44,20 @@ export interface AiLaunch {
    * 每个建造阶段先由进攻方改写下一波，再由防守方决策；两边都是暂停模式。不参与任何排行，只记本地记录。
    */
   duel?: { config: Partial<AgentModelConfig>; provider?: LLMProvider; label: string; defenderLabel: string };
+}
+
+/**
+ * 「AI 辅助」标记用的模型名 + 思考档位（不含渠道：launch.label 里的「Claude · / 中转服务 ·」不进标记）。
+ * 本机桥接器以桥接器实际使用的模型为准。
+ */
+export function assistModelOf(l: Pick<AiLaunch, 'config' | 'provider'>): { model?: string; effort?: string } {
+  try {
+    const tag = agentTag(resolveConfig(l.config));
+    const model = l.provider?.model || tag.model;
+    return { ...(model ? { model } : {}), ...(tag.effort ? { effort: tag.effort } : {}) };
+  } catch {
+    return {};
+  }
 }
 
 /** 防守方启动参数 + 进攻方 → 「AI 对战」启动参数（防守方按 AI 玩家、暂停模式） */
@@ -244,7 +258,10 @@ export function createAiSlot(ctx: AiAttachCtx, init: { assist?: AiAssist } = {})
       const dedicated = !!o.dedicated;
       if (dedicated) dedicatedRole = launch.role;
       // 「AI 出题」不帮真人防守：不算 AI 协助
-      if (!launch.attack) markAssist(assist, launch.role, launch.label);
+      if (!launch.attack) {
+        const m = assistModelOf(launch);
+        markAssist(assist, launch.role, m.model, m.effort);
+      }
       const g = ++gen;
       const onBotShare = launch.role === 'player' && !launch.attack ? (s: number): void => void (assist.botShare = s) : undefined;
       const l: AiLaunch = dedicated ? { ...launch, onBotShare } : { ...launch, onStop: () => slot.detach(), onBotShare };

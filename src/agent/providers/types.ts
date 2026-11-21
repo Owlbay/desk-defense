@@ -15,6 +15,8 @@ import type { AgentRole, DecisionPoint, TokenUsage, ToolResult } from '../types'
 export interface DecisionContext {
   role: AgentRole;
   point: DecisionPoint;
+  /** 当前中心策略（§20；已选定时）：离线演示据此改走意图版（经规划器按策略打） */
+  doctrine?: string;
   /** 固定系统提示：[规则, 资料表]（逐字节稳定，供缓存） */
   system: [string, string];
   /** 本次决策的 user 消息（开局信息 + 原因 + 观测） */

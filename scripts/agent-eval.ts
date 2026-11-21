@@ -6,6 +6,8 @@
  *   --provider scripted|relay          scripted = 离线确定性策略（缺省）；relay = OpenAI 兼容中转（pi，openai-completions）
  *   --variants "名字:键=值,键=值;…"     每个变体一组配置。键：assist on|off、thinking off|low|…、context saver|balanced|full、
  *                                     model（scripted：scripted-v1 | scripted-intents；relay：模型 id）。
+ *                                     doctrine（中心策略预设 balanced|pencil|aoe|lamp|ruler|economy|antiair|auto）。
+ *   --doctrine aoe                     所有变体统一用这个中心策略（变体里的 doctrine 优先）
  *                                     缺省：scripted → "v1:model=scripted-v1;intents:model=scripted-intents"
  *                                           relay    → "base:assist=off,thinking=low;assist:assist=on,thinking=low"
  *   --seeds relay1,relay4,relay5       固定种子（可复现）

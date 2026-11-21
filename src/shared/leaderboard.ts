@@ -158,9 +158,11 @@ export interface SubmitBody {
   aiAssist?: AiAssistMeta;
 }
 
-/** 「让 AI 替我玩」的标记（只带界面上显示的模型名，不含任何 Key） */
+/** 「让 AI 替我玩」的标记（只带模型名与思考档位，不含渠道 / 服务商 / 地址 / 任何 Key） */
 export interface AiAssistMeta {
   model?: string;
+  /** 思考档位（AI_EFFORTS）；旧客户端不发 */
+  effort?: AiEffort;
   /**
    * 可选：AI 操作期间兜底机器人做的决策占比 0..1（AI 参战中途被你接管的局会带；> AI_BOT_SHARE_FLAG 时榜上标「兜底多」）。
    * 旧客户端不发，服务端存 NULL。
@@ -170,9 +172,15 @@ export interface AiAssistMeta {
 
 /** AI 对局随成绩上传的元数据（不含任何 Key） */
 export interface AgentMeta {
-  /** claude-native / pi:ollama / bridge / scripted / mcp … */
+  /**
+   * 只做内部判断：新客户端只发 'scripted'（内置机器人）或 'llm'，不再发渠道 / 服务商；
+   * 旧客户端可能发 claude-native / pi:ollama …（服务端照收、只存库，不对外返回）
+   */
   provider: string;
+  /** 模型名（publicModelName 清洗过：不带中转前缀 / 地址） */
   model: string;
+  /** 思考档位（AI_EFFORTS）；内置机器人 / 旧客户端没有 */
+  effort?: AiEffort;
   /** 决策模式 */
   mode: 'pause' | 'realtime';
   /** 兜底机器人做的决策占比 0..1（内置策略 scripted 恒为 1） */
@@ -183,10 +191,12 @@ export interface AgentMeta {
   costUsd?: number;
 }
 
-/** 榜单上展示的 AI 标记 */
+/** 榜单上展示的 AI 标记（只有模型名 + 思考档位，不含渠道 / 服务商） */
 export interface AgentBadge {
-  provider: string;
   model: string;
+  effort?: AiEffort;
+  /** 内置机器人（离线演示 / 脚本策略） */
+  scripted?: boolean;
   mode: 'pause' | 'realtime';
   botShare: number;
   /** 兜底机器人决策占比超过 AI_BOT_SHARE_FLAG：榜上标注「机器人代打」 */
@@ -227,9 +237,11 @@ export interface LeaderRow {
   createdAt: number;
   /** AI 辅助（「让 AI 替我玩」或「AI 参战」）的成绩 */
   ai: boolean;
-  /** AI 辅助时界面显示的模型名（可能为空） */
+  /** AI 辅助时的模型名（可能为空；不含渠道） */
   aiModel?: string;
-  /** 仅「AI 参战」：服务商 / 模型 / 决策模式 / 兜底占比 */
+  /** AI 辅助时的思考档位（旧成绩没有） */
+  aiEffort?: AiEffort;
+  /** 仅「AI 参战」：模型 / 思考档位 / 决策模式 / 兜底占比 */
   agent?: AgentBadge;
   /**
    * AI 辅助成绩里兜底机器人决策占比超过 AI_BOT_SHARE_FLAG（AI 参战或中途接管的局；内置策略 scripted 除外）：
@@ -263,6 +275,7 @@ export interface RunDetail {
   createdAt: number;
   ai: boolean;
   aiModel?: string;
+  aiEffort?: AiEffort;
   /** 仅「AI 参战」 */
   agent?: AgentBadge;
 }
@@ -371,6 +384,45 @@ export const AI_BOT_SHARE_FLAG = 0.2;
 const AGENT_PROVIDER_RE = /^[a-z0-9][a-z0-9:_.-]{0,39}$/;
 const AGENT_MODEL_RE = /^[\x21-\x7e]{1,80}$/;
 
+// ── 模型名 / 思考档位（对外只显示这两样，不显示渠道） ──
+
+/** 思考档位白名单（与 src/agent/config.ts THINKING_LEVELS 一致，测试里核对） */
+export const AI_EFFORTS = ['off', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
+export type AiEffort = (typeof AI_EFFORTS)[number];
+export const isAiEffort = (x: unknown): x is AiEffort => typeof x === 'string' && (AI_EFFORTS as readonly string[]).includes(x);
+
+const URL_HEAD_RE = /^[a-z][a-z0-9+.-]*:\/\/[^/]*/i;
+const HOST_PORT_RE = /^[a-z0-9-]+(\.[a-z0-9-]+)+:\d{1,5}$/i;
+
+/**
+ * 对外显示的模型名：去掉渠道信息，只留模型本身。
+ *  - 旧客户端的界面标签「服务商 · 模型」→ 只留「模型」；
+ *  - 带地址 / 中转前缀 / 路径（https://relay.example/v1/gpt-5、openrouter 的 vendor/model）→ 只留最后一段；
+ *  - 去掉查询串、控制字符；ascii = true 时非可打印 ASCII 换成 _（AI 参战的模型名要求）；≤ AI_MODEL_MAX 字。
+ * 结果可能是空串（例如只填了一个地址）。
+ */
+export function publicModelName(raw: unknown, ascii = false): string {
+  if (typeof raw !== 'string') return '';
+  let s = raw.normalize('NFKC').replace(CONTROL_RE, '').trim();
+  const dot = s.lastIndexOf(' · ');
+  if (dot >= 0) s = s.slice(dot + 3);
+  s = s
+    .replace(/[?#].*$/, '')
+    .replace(URL_HEAD_RE, '')
+    .replace(/\/+$/, '');
+  const slash = s.lastIndexOf('/');
+  if (slash >= 0) s = s.slice(slash + 1);
+  s = s.replace(/\s+/g, ' ').trim();
+  if (HOST_PORT_RE.test(s)) s = '';
+  if (ascii) s = s.replace(/[^\x21-\x7e]/g, '_');
+  return Array.from(s).slice(0, AI_MODEL_MAX).join('');
+}
+
+/** 榜单 / 结算上的模型标记文本：「deepseek-flash · high」（没有档位时只有模型名） */
+export function modelTagText(model: string | null | undefined, effort?: string | null): string {
+  return [model, effort].filter((x) => !!x).join(' · ');
+}
+
 /** 校验 / 规范化 AI 标记 */
 export function sanitizeAgentMeta(raw: unknown): Checked<AgentMeta> {
   const bad = (message: string): Checked<AgentMeta> => ({ ok: false, message });
@@ -378,6 +430,9 @@ export function sanitizeAgentMeta(raw: unknown): Checked<AgentMeta> {
   const a = raw as Record<string, unknown>;
   if (typeof a.provider !== 'string' || !AGENT_PROVIDER_RE.test(a.provider)) return bad('AI 标记无效（服务商）');
   if (typeof a.model !== 'string' || !AGENT_MODEL_RE.test(a.model)) return bad('AI 标记无效（模型）');
+  const model = publicModelName(a.model, true);
+  if (!model) return bad('AI 标记无效（模型）');
+  if (a.effort !== undefined && a.effort !== null && !isAiEffort(a.effort)) return bad('AI 标记无效（思考档位）');
   if (a.role !== undefined && a.role !== 'player') return bad('只有「AI 玩家」的对局带 AI 参战标记');
   if (a.mode !== 'pause' && a.mode !== 'realtime') return bad('AI 标记无效（决策模式）');
   if (typeof a.botShare !== 'number' || !(a.botShare >= 0 && a.botShare <= 1)) return bad('AI 标记无效（兜底占比）');
@@ -386,12 +441,14 @@ export function sanitizeAgentMeta(raw: unknown): Checked<AgentMeta> {
   if (a.tokens !== undefined && !(Number.isSafeInteger(a.tokens) && (a.tokens as number) >= 0)) return bad('AI 标记无效（token）');
   if (a.costUsd !== undefined && !(typeof a.costUsd === 'number' && a.costUsd >= 0 && a.costUsd <= 1e6)) return bad('AI 标记无效（费用）');
   // 内置策略本身就是机器人：占比恒为 1
-  const botShare = a.provider === 'scripted' ? 1 : Math.round((a.botShare as number) * 1000) / 1000;
+  const scripted = a.provider === 'scripted';
+  const botShare = scripted ? 1 : Math.round((a.botShare as number) * 1000) / 1000;
   return {
     ok: true,
     value: {
       provider: a.provider,
-      model: a.model,
+      model,
+      ...(isAiEffort(a.effort) && !scripted ? { effort: a.effort } : {}),
       mode: a.mode,
       botShare,
       decisions: a.decisions as number,
@@ -409,12 +466,15 @@ export function sanitizeAiAssist(raw: unknown): Checked<AiAssistMeta> {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return bad('AI 辅助标记无效');
   const m = (raw as Record<string, unknown>).model;
   const b = (raw as Record<string, unknown>).botShare;
+  const e = (raw as Record<string, unknown>).effort;
   if (b !== undefined && b !== null && !(typeof b === 'number' && b >= 0 && b <= 1)) return bad('AI 辅助标记无效（兜底占比）');
+  if (e !== undefined && e !== null && !isAiEffort(e)) return bad('AI 辅助标记无效（思考档位）');
   const share = typeof b === 'number' ? { botShare: Math.round(b * 1000) / 1000 } : {};
-  if (m === undefined || m === null || m === '') return { ok: true, value: { ...share } };
+  const effort = isAiEffort(e) ? { effort: e } : {};
+  if (m === undefined || m === null || m === '') return { ok: true, value: { ...effort, ...share } };
   if (typeof m !== 'string' || m.length > 200) return bad('AI 辅助标记无效（模型）');
-  const model = Array.from(m.normalize('NFKC').replace(CONTROL_RE, '').replace(/\s+/g, ' ').trim()).slice(0, AI_MODEL_MAX).join('');
-  return { ok: true, value: { ...(model ? { model } : {}), ...share } };
+  const model = publicModelName(m);
+  return { ok: true, value: { ...(model ? { model } : {}), ...effort, ...share } };
 }
 
 /** 兜底占比是否要在榜上标「兜底多」（内置策略 scripted 本身就是机器人，不标） */
@@ -422,8 +482,17 @@ export function isBotHeavy(botShare: number | null | undefined, provider?: strin
   return provider !== 'scripted' && typeof botShare === 'number' && botShare > AI_BOT_SHARE_FLAG;
 }
 
-export function agentBadge(a: Pick<AgentMeta, 'provider' | 'model' | 'mode' | 'botShare'>): AgentBadge {
-  return { provider: a.provider, model: a.model, mode: a.mode, botShare: a.botShare, botAssisted: a.botShare > AI_BOT_SHARE_FLAG };
+/** 榜上的 AI 标记：provider 只用来判断是不是内置机器人，不放进返回值 */
+export function agentBadge(a: Pick<AgentMeta, 'provider' | 'model' | 'mode' | 'botShare' | 'effort'>): AgentBadge {
+  const scripted = a.provider === 'scripted';
+  return {
+    model: publicModelName(a.model) || a.model.slice(0, AI_MODEL_MAX),
+    ...(isAiEffort(a.effort) && !scripted ? { effort: a.effort } : {}),
+    ...(scripted ? { scripted: true } : {}),
+    mode: a.mode,
+    botShare: a.botShare,
+    botAssisted: a.botShare > AI_BOT_SHARE_FLAG,
+  };
 }
 
 /** 这局是不是参与排名的对局：无尽（非自定义参数、非固定布局）/ 每日挑战 / 战役 */
@@ -644,6 +713,8 @@ export interface CheckedSubmission {
   ai: boolean;
   /** AI 辅助时显示的模型名 */
   aiModel: string | null;
+  /** AI 辅助时的思考档位 */
+  aiEffort: AiEffort | null;
   /** 兜底机器人决策占比 0..1：AI 参战取 agent.botShare，接管过的 AI 辅助局取 aiAssist.botShare；未知为 null */
   botShare: number | null;
   /** 战役评星（失败 0）；无尽 / 每日恒为 0 */
@@ -702,6 +773,7 @@ export function checkSubmission(body: unknown, ctx: SubmitContext): Checked<Chec
   }
   const ai = !!agent || !!assist;
   const aiModel = agent ? agent.model : (assist?.model ?? null);
+  const aiEffort = (agent ? agent.effort : assist?.effort) ?? null;
   const botShare = agent ? agent.botShare : (assist?.botShare ?? null);
 
   const board = normalizeBoardKey(body.board);
@@ -840,6 +912,7 @@ export function checkSubmission(body: unknown, ctx: SubmitContext): Checked<Chec
       agent,
       ai,
       aiModel,
+      aiEffort,
       botShare,
       stars,
     },
@@ -850,7 +923,7 @@ export function checkSubmission(body: unknown, ctx: SubmitContext): Checked<Chec
  * 解码后的指令日志校验：形状、帧号单调、不晚于结束帧（游戏结束后没有指令）、
  * 数量与波数 / 时长相称、开波指令数量合理。
  */
-export function checkLog(log: unknown, result: ClaimedResult, opts: RunOptions): Checked<LogEntry[]> {
+export function checkLog(log: unknown, result: ClaimedResult, opts: RunOptions, o: { allowOverride?: boolean } = {}): Checked<LogEntry[]> {
   const bad = (message: string): Checked<LogEntry[]> => ({ ok: false, message });
   if (!Array.isArray(log)) return bad('操作记录格式错误');
   if (log.length > LOG_MAX_ENTRIES) return bad('操作记录过长');
@@ -861,9 +934,16 @@ export function checkLog(log: unknown, result: ClaimedResult, opts: RunOptions):
   if (log.length > maxCmds) return bad('操作次数与对局时长不符');
   let prev = 0;
   let starts = 0;
+  let overrides = 0;
   for (const e of log) {
     if (!isObj(e) || !isInt(e.tick) || !isObj(e.cmd) || typeof e.cmd.type !== 'string') return bad('操作记录格式错误');
-    if (!COMMAND_TYPES.includes(e.cmd.type as (typeof COMMAND_TYPES)[number])) return bad('操作记录包含未知指令');
+    if (e.cmd.type === 'overrideWave' && o.allowOverride) {
+      // AI 对战：进攻方改写下一波（每波最多一次；内容由 core 回放时校验，这里只看形状）
+      const plan = e.cmd.plan;
+      if (!intIn(e.cmd.wave, 1, 10_000) || !isObj(plan) || !Array.isArray(plan.groups) || plan.groups.length > 64)
+        return bad('出题记录格式错误');
+      if (++overrides > result.wave + 2) return bad('出题次数与波数不符');
+    } else if (!COMMAND_TYPES.includes(e.cmd.type as (typeof COMMAND_TYPES)[number])) return bad('操作记录包含未知指令');
     if (e.tick < prev) return bad('操作记录的时间顺序错误');
     if (e.tick > result.ticks) return bad('游戏结束后不应再有操作');
     prev = e.tick;
@@ -873,4 +953,201 @@ export function checkLog(log: unknown, result: ClaimedResult, opts: RunOptions):
   // 手动开波：每一波都要玩家点开始（撑过 N 波至少开了 N 波）
   if (!effectiveAutoWave(opts) && starts < result.wave) return bad('操作记录与波数不符');
   return { ok: true, value: log as LogEntry[] };
+}
+
+// ───────────────────────── AI 对战榜（进攻方模型 vs 防守方模型） ─────────────────────────
+//
+// 独立于三类榜（不混进玩家 / AI 玩家的成绩）：POST /api/duels、GET /api/duels、GET /api/duels/:id，
+// 存在 D1 的 duel_runs 表（migrations/0004）。每台设备每个「进攻模型+档位 × 防守模型+档位」组合保留最好的一条，
+// 排序：通关（战役）↓ → 撑过的波数 ↓ → 得分 ↓ → 先提交 → id。
+// 对外只有模型名 + 思考档位，不含渠道 / 服务商 / 地址。
+
+export const DUEL_BOARD = 'duel';
+/** 进攻方出题次数的上限（一局里） */
+export const DUEL_MAX_PLANS = 10_000;
+
+/** AI 对战里一方的上传数据 */
+export interface DuelSideMeta {
+  /** 模型名（publicModelName 清洗过） */
+  model: string;
+  effort?: AiEffort;
+  /** 内置机器人（离线演示 / 脚本策略） */
+  scripted?: boolean;
+  /** 这一方的决策数 */
+  decisions: number;
+  /** 兜底机器人决策占比 0..1 */
+  botShare: number;
+  tokens?: number;
+  costUsd?: number;
+  /** 出错次数 */
+  errors?: number;
+}
+
+export interface DuelMeta {
+  attacker: DuelSideMeta;
+  defender: DuelSideMeta;
+  /** 进攻方实际改写了几波（overrideWave 条数） */
+  plans?: number;
+}
+
+export interface DuelSubmitBody {
+  nickname: string;
+  deviceId: string;
+  opts: RunOptions;
+  seed: string;
+  /** 含 overrideWave 的完整指令日志 */
+  log: LogPayload;
+  /** 防守方视角的结算（wave = 撑过的波数） */
+  result: ClaimedResult;
+  gameVersion: string;
+  turnstileToken?: string;
+  duel: DuelMeta;
+}
+
+/** 对战榜上一方的标记 */
+export interface DuelSideBadge {
+  model: string;
+  effort?: AiEffort;
+  scripted?: boolean;
+  /** 兜底机器人决策占比超过 AI_BOT_SHARE_FLAG（内置机器人除外） */
+  botHeavy?: boolean;
+}
+
+export interface DuelRow {
+  rank: number;
+  id: string;
+  nickname: string;
+  attacker: DuelSideBadge;
+  defender: DuelSideBadge;
+  mode: 'endless' | 'campaign';
+  map: MapId;
+  difficulty: DifficultyId;
+  abyssLevel?: number;
+  /** 防守方撑过的波数 */
+  wave: number;
+  score: number;
+  kills: number;
+  lives: number;
+  /** 战役通关（防守方赢） */
+  won: boolean;
+  stars: number;
+  /** 进攻方改写了几波 */
+  plans: number;
+  createdAt: number;
+}
+
+export interface DuelBoardResponse {
+  board: typeof DUEL_BOARD;
+  rows: DuelRow[];
+  total: number;
+  /** 传了 around=deviceId 时：本设备最好的一条（没有则 null） */
+  me?: DuelRow | null;
+  generatedAt: number;
+}
+
+export interface DuelDetail {
+  id: string;
+  nickname: string;
+  opts: RunOptions;
+  seed: string;
+  logGz: string;
+  result: ClaimedResult;
+  gameVersion: string;
+  createdAt: number;
+  attacker: DuelSideBadge;
+  defender: DuelSideBadge;
+}
+
+export interface CheckedDuel {
+  nickname: string;
+  deviceId: string;
+  opts: RunOptions;
+  seed: string;
+  log: LogPayload;
+  result: ClaimedResult;
+  gameVersion: string;
+  turnstileToken?: string;
+  stars: number;
+  duel: DuelMeta;
+}
+
+function sanitizeDuelSide(raw: unknown): DuelSideMeta | null {
+  if (!isObj(raw)) return null;
+  if (typeof raw.model !== 'string' || raw.model.length > 200) return null;
+  const model = publicModelName(raw.model, true);
+  if (!model) return null;
+  if (raw.effort !== undefined && raw.effort !== null && !isAiEffort(raw.effort)) return null;
+  if (raw.scripted !== undefined && typeof raw.scripted !== 'boolean') return null;
+  if (!intIn(raw.decisions, 0, 200_000) || !inRange(raw.botShare, 0, 1)) return null;
+  if (raw.tokens !== undefined && !intIn(raw.tokens, 0, 1e12)) return null;
+  if (raw.costUsd !== undefined && !inRange(raw.costUsd, 0, 1e6)) return null;
+  if (raw.errors !== undefined && !intIn(raw.errors, 0, 200_000)) return null;
+  const scripted = raw.scripted === true;
+  return {
+    model,
+    ...(isAiEffort(raw.effort) && !scripted ? { effort: raw.effort } : {}),
+    ...(scripted ? { scripted: true } : {}),
+    decisions: raw.decisions,
+    botShare: scripted ? 1 : Math.round(raw.botShare * 1000) / 1000,
+    ...(raw.tokens !== undefined ? { tokens: raw.tokens as number } : {}),
+    ...(raw.costUsd !== undefined ? { costUsd: Math.round((raw.costUsd as number) * 1e4) / 1e4 } : {}),
+    ...(raw.errors !== undefined ? { errors: raw.errors as number } : {}),
+  };
+}
+
+/** 校验 AI 对战的元数据（未知字段一律丢掉，包括任何渠道 / 服务商信息） */
+export function sanitizeDuelMeta(raw: unknown): Checked<DuelMeta> {
+  const bad = (message: string): Checked<DuelMeta> => ({ ok: false, message });
+  if (!isObj(raw)) return bad('对战数据缺失');
+  const attacker = sanitizeDuelSide(raw.attacker);
+  if (!attacker) return bad('对战数据无效（进攻方）');
+  const defender = sanitizeDuelSide(raw.defender);
+  if (!defender) return bad('对战数据无效（防守方）');
+  if (raw.plans !== undefined && !intIn(raw.plans, 0, DUEL_MAX_PLANS)) return bad('对战数据无效（出题次数）');
+  return { ok: true, value: { attacker, defender, ...(raw.plans !== undefined ? { plans: raw.plans as number } : {}) } };
+}
+
+/**
+ * AI 对战成绩的轻量校验：开局参数 / 种子 / 结算 / 得分与普通成绩同一套（checkSubmission，按无尽或战役榜键），
+ * 再加对战元数据。日志解码后用 checkLog(..., { allowOverride: true }) 校验（允许进攻方的 overrideWave）。
+ */
+export function checkDuelSubmission(body: unknown, ctx: SubmitContext): Checked<CheckedDuel> {
+  const bad = (message: string): Checked<CheckedDuel> => ({ ok: false, message });
+  if (!isObj(body)) return bad('请求格式错误');
+  const d = sanitizeDuelMeta(body.duel);
+  if (!d.ok) return bad(d.message);
+  const o = body.opts;
+  const board = isObj(o) && o.mode === 'campaign' && MAPS.includes(o.map as MapId) ? campaignBoardKey(o.map as MapId) : ENDLESS_BOARD;
+  const { agent: _a, aiAssist: _b, duel: _d, ...rest } = body;
+  void _a;
+  void _b;
+  void _d;
+  const c = checkSubmission({ ...rest, board }, ctx);
+  if (!c.ok) return bad(c.message);
+  const v = c.value;
+  return {
+    ok: true,
+    value: {
+      nickname: v.nickname,
+      deviceId: v.deviceId,
+      opts: v.opts,
+      seed: v.seed,
+      log: v.log,
+      result: v.result,
+      gameVersion: v.gameVersion,
+      ...(v.turnstileToken ? { turnstileToken: v.turnstileToken } : {}),
+      stars: v.stars,
+      duel: d.value,
+    },
+  };
+}
+
+/** 一方的上传数据 → 榜上标记 */
+export function duelSideBadge(s: Pick<DuelSideMeta, 'model' | 'effort' | 'scripted' | 'botShare'>): DuelSideBadge {
+  return {
+    model: publicModelName(s.model) || s.model.slice(0, AI_MODEL_MAX),
+    ...(isAiEffort(s.effort) && !s.scripted ? { effort: s.effort } : {}),
+    ...(s.scripted ? { scripted: true } : {}),
+    ...(isBotHeavy(s.botShare, s.scripted ? 'scripted' : null) ? { botHeavy: true } : {}),
+  };
 }

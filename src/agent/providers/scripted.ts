@@ -12,6 +12,7 @@ import { CellKind } from '../../core/types';
 import { t } from '../../i18n';
 import { comboState } from '../board';
 import { HOLD_INTENTS, instructionIntents, type InstructionRef } from '../instructions';
+import type { PlannerState } from '../planner';
 import { enemyPurposes, type Purpose, PURPOSE_CORE } from '../purpose';
 import { executeTool } from '../tools';
 import { type DecisionReason, emptyUsage, type FallbackPolicy, type ToolResult } from '../types';
@@ -453,7 +454,9 @@ export class ScriptedProvider implements LLMProvider {
       hold = r.hold;
       ack = r.ack;
     }
-    const turn = this.o.tactics ? scriptedTacticsTurn : this.o.intents ? scriptedIntentTurn : scriptedTurn;
+    // 选了非均衡的中心策略：旧版逐个工具不经规划器，改走意图版（规划器按策略买塔 / 分支 / 迷宫）
+    const intents = this.o.intents || (!!ctx.doctrine && ctx.doctrine !== 'balanced');
+    const turn = this.o.tactics ? scriptedTacticsTurn : intents ? scriptedIntentTurn : scriptedTurn;
     const note = hold ? `hold (${t('agent.demo.holdTag')})` : await turn(ctx.world, call, ctx.point.reasons, think);
     if (hold) think?.(`${t('agent.demo.holdThink')}\n`);
     if (ack) out.text = ack;
@@ -473,10 +476,18 @@ export class ScriptedProvider implements LLMProvider {
 
 /** 作为兜底策略（同步执行器，直接下指令；浏览器里无脚本机器人时的默认兜底） */
 export function scriptedFallback(w: IWorld): FallbackPolicy {
+  // 引擎绑定了规划器状态且选了中心策略（非 balanced）：走意图版（规划器按策略买塔 / 分支 / 迷宫）；否则保持旧版
+  let planner: PlannerState | undefined;
   return {
     name: 'scripted',
+    bindPlanner(s) {
+      planner = s;
+    },
     decide: async (reasons) => {
-      await scriptedTurn(w, (name, input) => executeTool({ world: w, role: 'player' }, name, input), reasons);
+      const d = planner?.doctrine;
+      const intents = !!d?.chosen && d.doc.preset !== 'balanced';
+      const call: Call = async (name, input) => executeTool({ world: w, role: 'player', planner }, name, input);
+      await (intents ? scriptedIntentTurn(w, call, reasons) : scriptedTurn(w, call, reasons));
     },
   };
 }

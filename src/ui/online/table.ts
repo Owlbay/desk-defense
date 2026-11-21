@@ -11,6 +11,7 @@ import { audio } from '../audio';
 import { MAP_META } from '../coreMeta';
 import { clear, h } from '../dom';
 import { G } from '../icons';
+import { aiModelText } from './model-tag';
 import { openReplay } from './replay';
 import { fmtTime } from './util';
 
@@ -30,15 +31,17 @@ function statusBadge(r: LeaderRow): HTMLElement | null {
   return null;
 }
 
-/** 「AI 辅助」标记；AI 参战的成绩再带模型名 */
-export function aiBadge(r: Pick<LeaderRow, 'ai' | 'aiModel' | 'agent'>): HTMLElement | null {
+export { aiModelText } from './model-tag';
+
+/** 「AI 辅助」标记：带模型名 + 思考档位（例如 deepseek-flash · high），不显示渠道 */
+export function aiBadge(r: Pick<LeaderRow, 'ai' | 'aiModel' | 'aiEffort' | 'agent'>): HTMLElement | null {
   if (!r.ai) return null;
-  const model = r.agent?.model ?? r.aiModel;
+  const model = aiModelText(r);
   return h(
     'span.badge.lb-ai-badge',
     { title: model ? t('ui.lb.aiTip', { model }) : t('ui.lb.aiTipNoModel') },
     t('ui.lb.ai'),
-    r.agent ? h('small.lb-ai-model', null, r.agent.model) : null,
+    model ? h('small.lb-ai-model', null, model) : null,
   );
 }
 

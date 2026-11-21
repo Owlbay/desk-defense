@@ -215,8 +215,9 @@ describe('设置保存与上传标记', () => {
       usage,
       costUsd: 0.123456,
     });
+    // 不上传渠道：provider 只区分内置机器人（scripted）和模型（llm）
     expect(meta).toMatchObject({
-      provider: 'pi:ollama',
+      provider: 'llm',
       model: 'qwen3:8b____tag',
       mode: 'pause',
       botShare: 0.25,
@@ -235,9 +236,12 @@ describe('设置保存与上传标记', () => {
     expect(aiUploadPlan(base)).toEqual({ kind: 'agent' });
     expect(aiUploadPlan({ ...base, agent: { ...base.agent, role: 'advisor' } })).toEqual({ kind: 'human' });
     expect(aiUploadPlan({ ...base, takenOver: true })).toEqual({ kind: 'assist' });
-    // AI 出题 / AI 对战：不参与排行
+    // AI 出题：不参与排行；AI 对战：上传到独立的对战榜（接管过 / 没决策过 / 自定义参数不传）
     expect(aiUploadPlan({ ...base, agent: { ...base.agent, role: 'attacker' } }).kind).toBe('skip');
-    expect(aiUploadPlan({ ...base, agent: { ...base.agent, role: 'duel' } }).kind).toBe('skip');
+    expect(aiUploadPlan({ ...base, agent: { ...base.agent, role: 'duel' } })).toEqual({ kind: 'duel' });
+    expect(aiUploadPlan({ ...base, agent: { ...base.agent, role: 'duel' }, takenOver: true }).kind).toBe('skip');
+    expect(aiUploadPlan({ ...base, agent: { ...base.agent, role: 'duel' }, decisions: 0 }).kind).toBe('skip');
+    expect(aiUploadPlan({ ...base, agent: { ...base.agent, role: 'duel' }, opts: { ...OPTS, fixedLayout: true } }).kind).toBe('skip');
     expect(aiUploadPlan({ ...base, opts: { ...OPTS, mode: 'campaign', map: 'ch2' } })).toEqual({ kind: 'agent' });
     expect(aiUploadPlan({ ...base, opts: { ...OPTS, fixedLayout: true } }).kind).toBe('skip');
     expect(aiUploadPlan({ ...base, decisions: 0 }).kind).toBe('skip');

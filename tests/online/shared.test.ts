@@ -231,7 +231,8 @@ describe('提交校验', () => {
     const oldAi = checkSubmission({ ...good(), board: 'ai:normal:auto', aiAssist: {} }, { now: NOW });
     expect(oldAi.ok && oldAi.value.board).toBe('endless');
     const assisted = checkSubmission({ ...good(), aiAssist: { model: '  Claude\u0000 · sonnet  ' } }, { now: NOW });
-    expect(assisted.ok && assisted.value).toMatchObject({ ai: true, aiModel: 'Claude · sonnet', agent: null });
+    // 旧客户端发的是界面标签「服务商 · 模型」：只留模型名，渠道不进库
+    expect(assisted.ok && assisted.value).toMatchObject({ ai: true, aiModel: 'sonnet', aiEffort: null, agent: null });
     const noModel = checkSubmission({ ...good(), aiAssist: {} }, { now: NOW });
     expect(noModel.ok && noModel.value).toMatchObject({ ai: true, aiModel: null });
     const long = checkSubmission({ ...good(), aiAssist: { model: 'x'.repeat(150) } }, { now: NOW });

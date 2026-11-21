@@ -4,8 +4,9 @@ import type { Dict } from '../../index';
 export default {
   'agent.duel.label': '攻 {attacker} vs 守 {defender}',
   'agent.duel.badge': 'AI 对战',
-  'agent.duel.badgeTip': '两个 AI 同局对抗：进攻方每波开始前改写下一波，防守方建塔应对；本局不参与排行，只记本地记录',
-  'agent.duel.unranked': 'AI 对战局不参与排行，只记本地记录',
+  'agent.duel.badgeTip':
+    '两个 AI 同局对抗：进攻方每波开始前改写下一波，防守方建塔应对；不进无尽 / 每日 / 战役榜，成绩上传到独立的 AI 对战榜',
+  'agent.duel.unranked': 'AI 对战局不进无尽 / 每日 / 战役榜，成绩上传到独立的 AI 对战榜',
   'agent.duel.role': 'AI 对战',
   'agent.duel.panel': 'AI 对战',
   'agent.duel.side.attack': '攻',
@@ -20,8 +21,9 @@ export default {
   'agent.duel.roleAttack': 'AI 出题',
   'agent.duel.roleAttackDesc': 'AI 当进攻方，每波开始前改写敌人，你来防守（不上传全服榜）',
   'agent.duel.roleDuel': 'AI 对战',
-  'agent.duel.roleDuelDesc': '两个模型同局对抗：一个出题进攻，一个建塔防守（只记本地记录）',
-  'agent.duel.setupNote': '每个建造阶段先由进攻方改写下一波，再由防守方决策；两边都用暂停模式，不参与排行。',
+  'agent.duel.roleDuelDesc': '两个模型同局对抗：一个出题进攻，一个建塔防守（上传到独立的 AI 对战榜）',
+  'agent.duel.setupNote':
+    '每个建造阶段先由进攻方改写下一波，再由防守方决策；两边都用暂停模式。完整数据记在本地，成绩上传到独立的 AI 对战榜（只显示模型和思考档位）。',
   'agent.duel.attackNote':
     '每波一开始，AI 就在后台给下一波出题（不暂停游戏，题没出完时开波会稍等），你来防守；这种局不上传全服榜，只记本地记录。',
 } satisfies Dict;

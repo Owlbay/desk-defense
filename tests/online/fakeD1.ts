@@ -6,6 +6,7 @@ import type { D1Like, D1StmtLike } from '../../functions/_lib/db';
 import migration from '../../migrations/0001_init.sql?raw';
 import migrationAi from '../../migrations/0002_ai_board.sql?raw';
 import migrationBoards from '../../migrations/0003_simple_boards.sql?raw';
+import migrationDuels from '../../migrations/0004_effort_duels.sql?raw';
 
 interface SqliteStmt {
   get(...a: unknown[]): unknown;
@@ -24,14 +25,15 @@ export interface FakeD1 extends D1Like {
 
 const plain = <T>(row: unknown): T => ({ ...(row as object) }) as T;
 
-/** upTo：只执行到第几个迁移（测试旧数据迁移时用 2，插入旧行后再 applyMigration3） */
-export async function createFakeD1(o: { upTo?: 2 | 3 } = {}): Promise<FakeD1> {
+/** upTo：只执行到第几个迁移（测试旧数据迁移时用 2 / 3，插入旧行后再 applyMigration3 / applyMigration4） */
+export async function createFakeD1(o: { upTo?: 2 | 3 | 4 } = {}): Promise<FakeD1> {
   const name = 'node:sqlite';
   const mod = (await import(/* @vite-ignore */ name)) as { DatabaseSync: new (path: string) => SqliteDb };
   const sqlite = new mod.DatabaseSync(':memory:');
   sqlite.exec(migration);
   sqlite.exec(migrationAi);
-  if ((o.upTo ?? 3) >= 3) sqlite.exec(migrationBoards);
+  if ((o.upTo ?? 4) >= 3) sqlite.exec(migrationBoards);
+  if ((o.upTo ?? 4) >= 4) sqlite.exec(migrationDuels);
   const queries: string[] = [];
   const stmt = (sql: string, args: unknown[]): D1StmtLike => ({
     bind: (...values: unknown[]) => {
@@ -62,4 +64,8 @@ export async function createFakeD1(o: { upTo?: 2 | 3 } = {}): Promise<FakeD1> {
 
 export function applyMigration3(db: FakeD1): void {
   db.sqlite.exec(migrationBoards);
+}
+
+export function applyMigration4(db: FakeD1): void {
+  db.sqlite.exec(migrationDuels);
 }

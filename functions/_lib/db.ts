@@ -7,7 +7,17 @@
  * 排序：评星（仅战役，其他榜为 0）↓ → 得分 ↓ → 波数 ↓ → 提交时间 ↑ → id ↑。
  */
 import type { DifficultyId, MapId } from '../../src/core/types';
-import { agentBadge, isBotHeavy, type LeaderRow, type RunStatus } from '../../src/shared/leaderboard';
+import {
+  agentBadge,
+  type DuelRow,
+  type DuelSideBadge,
+  duelSideBadge,
+  isAiEffort,
+  isBotHeavy,
+  type LeaderRow,
+  publicModelName,
+  type RunStatus,
+} from '../../src/shared/leaderboard';
 
 export interface D1StmtLike {
   bind(...values: unknown[]): D1StmtLike;
@@ -62,6 +72,9 @@ export interface RunRow {
   stars: number;
   /** 战役通关 1 */
   won: number;
+  // ── 思考档位（migrations/0004）；旧成绩为 NULL ──
+  /** AI 辅助 / AI 参战时的思考档位 */
+  ai_effort?: string | null;
 }
 
 export type BestRow = Pick<
@@ -85,6 +98,7 @@ export type BestRow = Pick<
   | 'agent_model'
   | 'agent_mode'
   | 'agent_bot_share'
+  | 'ai_effort'
 >;
 
 const RUN_COLUMNS: (keyof RunRow)[] = [
@@ -120,10 +134,11 @@ const RUN_COLUMNS: (keyof RunRow)[] = [
   'ai_model',
   'stars',
   'won',
+  'ai_effort',
 ];
 const BEST_COLS =
   'id, nickname, score, wave, kills, lives, map, difficulty, abyss, stars, won, status, created_at, ai, ai_model, ' +
-  'agent_provider, agent_model, agent_mode, agent_bot_share';
+  'agent_provider, agent_model, agent_mode, agent_bot_share, ai_effort';
 
 export const RANK_ORDER = 'stars DESC, score DESC, wave DESC, created_at ASC, id ASC';
 
@@ -259,22 +274,28 @@ export type PendingRun = Pick<RunRow, 'id' | 'board' | 'seed' | 'opts_json' | 'r
 
 const num = (x: unknown): number => Number(x ?? 0);
 
+/** 榜上的 AI 参战标记：只有模型名 + 思考档位（agent_provider 只用来判断是不是内置机器人，不对外返回） */
 export function agentOfRow(
-  r: Pick<RunRow, 'agent_provider' | 'agent_model' | 'agent_mode' | 'agent_bot_share'>,
+  r: Pick<RunRow, 'agent_provider' | 'agent_model' | 'agent_mode' | 'agent_bot_share' | 'ai_effort'>,
 ): LeaderRow['agent'] | undefined {
   if (!r.agent_provider || !r.agent_model) return undefined;
   return agentBadge({
     provider: r.agent_provider,
     model: r.agent_model,
+    ...(isAiEffort(r.ai_effort) ? { effort: r.ai_effort } : {}),
     mode: r.agent_mode === 'realtime' ? 'realtime' : 'pause',
     botShare: num(r.agent_bot_share),
   });
 }
 
+/** 对外的模型名：旧数据里可能是「服务商 · 模型」的界面标签，这里统一清洗 */
+export const publicAiModel = (m: string | null | undefined): string | undefined => (m ? publicModelName(m) || undefined : undefined);
+
 export function toLeaderRow(r: BestRow, rank: number): LeaderRow {
   const agent = agentOfRow(r);
   const ai = num(r.ai) === 1 || !!agent;
-  const aiModel = r.ai_model || agent?.model || undefined;
+  const aiModel = publicAiModel(r.ai_model) ?? agent?.model;
+  const aiEffort = isAiEffort(r.ai_effort) ? r.ai_effort : undefined;
   const abyss = num(r.abyss);
   return {
     rank,
@@ -293,7 +314,198 @@ export function toLeaderRow(r: BestRow, rank: number): LeaderRow {
     createdAt: num(r.created_at),
     ai,
     ...(ai && aiModel ? { aiModel } : {}),
+    ...(ai && aiEffort ? { aiEffort } : {}),
     ...(agent ? { agent } : {}),
     ...(ai && isBotHeavy(r.agent_bot_share, r.agent_provider) ? { botHeavy: true } : {}),
+  };
+}
+
+// ───────────────────────── AI 对战榜（duel_runs，migrations/0004） ─────────────────────────
+
+/** duel_runs 表的一行 */
+export interface DuelRunRow {
+  id: string;
+  nickname: string;
+  /** 设备 + 对阵组合（去重键） */
+  device_hash: string;
+  /** 只按设备（查「我的最佳」） */
+  owner_hash: string;
+  mode: string;
+  map: string;
+  difficulty: string;
+  abyss: number;
+  wave: number;
+  score: number;
+  kills: number;
+  lives: number;
+  won: number;
+  stars: number;
+  plans: number;
+  seed: string;
+  game_version: string;
+  opts_json: string;
+  result_json: string;
+  log_gz: string;
+  log_bytes: number;
+  atk_model: string;
+  atk_effort: string | null;
+  atk_scripted: number;
+  atk_bot_share: number | null;
+  def_model: string;
+  def_effort: string | null;
+  def_scripted: number;
+  def_bot_share: number | null;
+  duel_json: string;
+  created_at: number;
+  ip_hash: string;
+}
+
+const DUEL_COLUMNS: (keyof DuelRunRow)[] = [
+  'id',
+  'nickname',
+  'device_hash',
+  'owner_hash',
+  'mode',
+  'map',
+  'difficulty',
+  'abyss',
+  'wave',
+  'score',
+  'kills',
+  'lives',
+  'won',
+  'stars',
+  'plans',
+  'seed',
+  'game_version',
+  'opts_json',
+  'result_json',
+  'log_gz',
+  'log_bytes',
+  'atk_model',
+  'atk_effort',
+  'atk_scripted',
+  'atk_bot_share',
+  'def_model',
+  'def_effort',
+  'def_scripted',
+  'def_bot_share',
+  'duel_json',
+  'created_at',
+  'ip_hash',
+];
+
+export type DuelBestRow = Omit<
+  DuelRunRow,
+  'device_hash' | 'owner_hash' | 'seed' | 'game_version' | 'opts_json' | 'result_json' | 'log_gz' | 'log_bytes' | 'duel_json' | 'ip_hash'
+>;
+
+const DUEL_BEST_COLS =
+  'id, nickname, mode, map, difficulty, abyss, wave, score, kills, lives, won, stars, plans, ' +
+  'atk_model, atk_effort, atk_scripted, atk_bot_share, def_model, def_effort, def_scripted, def_bot_share, created_at';
+
+export const DUEL_RANK_ORDER = 'won DESC, wave DESC, score DESC, created_at ASC, id ASC';
+
+/** 「比那条更好」：won=?1 wave=?2 score=?3 created_at=?4 id=?5 */
+const DUEL_BETTER_THAN =
+  '(won > ?1 OR (won = ?1 AND (wave > ?2 OR (wave = ?2 AND score > ?3) OR (wave = ?2 AND score = ?3 AND created_at < ?4) ' +
+  'OR (wave = ?2 AND score = ?3 AND created_at = ?4 AND id < ?5))))';
+
+export class DuelStore {
+  constructor(private readonly db: D1Like) {}
+
+  /** 每台设备每个对阵组合只保留最好的一条：通关 → 波数 → 得分 更好才覆盖，否则只更新昵称 */
+  async upsertBest(row: DuelRunRow): Promise<{ improved: boolean }> {
+    const cols = DUEL_COLUMNS.join(', ');
+    const qs = DUEL_COLUMNS.map(() => '?').join(', ');
+    const sets = DUEL_COLUMNS.filter((c) => c !== 'device_hash' && c !== 'owner_hash')
+      .map((c) => `${c} = excluded.${c}`)
+      .join(', ');
+    const sql =
+      `INSERT INTO duel_runs (${cols}) VALUES (${qs}) ` +
+      `ON CONFLICT(device_hash) DO UPDATE SET ${sets} ` +
+      `WHERE excluded.won > duel_runs.won ` +
+      `OR (excluded.won = duel_runs.won AND (excluded.wave > duel_runs.wave ` +
+      `OR (excluded.wave = duel_runs.wave AND excluded.score > duel_runs.score))) ` +
+      `RETURNING id`;
+    const res = await this.db
+      .prepare(sql)
+      .bind(...DUEL_COLUMNS.map((c) => row[c] ?? null))
+      .first<{ id: string }>();
+    if (res) return { improved: true };
+    await this.db
+      .prepare('UPDATE duel_runs SET nickname = ? WHERE device_hash = ? AND nickname <> ?')
+      .bind(row.nickname, row.device_hash, row.nickname)
+      .run();
+    return { improved: false };
+  }
+
+  bestOf(deviceHash: string): Promise<DuelBestRow | null> {
+    return this.db.prepare(`SELECT ${DUEL_BEST_COLS} FROM duel_runs WHERE device_hash = ?`).bind(deviceHash).first<DuelBestRow>();
+  }
+
+  /** 本设备（所有对阵组合里）最好的一条 */
+  bestOfOwner(ownerHash: string): Promise<DuelBestRow | null> {
+    return this.db
+      .prepare(`SELECT ${DUEL_BEST_COLS} FROM duel_runs WHERE owner_hash = ?1 ORDER BY ${DUEL_RANK_ORDER} LIMIT 1`)
+      .bind(ownerHash)
+      .first<DuelBestRow>();
+  }
+
+  async rankOf(r: Pick<DuelBestRow, 'id' | 'won' | 'wave' | 'score' | 'created_at'>): Promise<{ rank: number; total: number }> {
+    const x = await this.db
+      .prepare(`SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN ${DUEL_BETTER_THAN} THEN 1 ELSE 0 END), 0) AS better FROM duel_runs`)
+      .bind(Number(r.won), Number(r.wave), Number(r.score), Number(r.created_at), r.id)
+      .first<{ total: number; better: number }>();
+    return { rank: Number(x?.better ?? 0) + 1, total: Number(x?.total ?? 0) };
+  }
+
+  async total(): Promise<number> {
+    const r = await this.db.prepare('SELECT COUNT(*) AS n FROM duel_runs').first<{ n: number }>();
+    return Number(r?.n ?? 0);
+  }
+
+  async top(limit: number): Promise<DuelRow[]> {
+    const { results } = await this.db
+      .prepare(`SELECT ${DUEL_BEST_COLS} FROM duel_runs ORDER BY ${DUEL_RANK_ORDER} LIMIT ?1`)
+      .bind(limit)
+      .all<DuelBestRow>();
+    return results.map((r, i) => toDuelRow(r, i + 1));
+  }
+
+  getRun(id: string): Promise<DuelRunRow | null> {
+    return this.db.prepare('SELECT * FROM duel_runs WHERE id = ?').bind(id).first<DuelRunRow>();
+  }
+}
+
+export function duelSideOfRow(model: string, effort: string | null | undefined, scripted: unknown, botShare: unknown): DuelSideBadge {
+  return duelSideBadge({
+    model,
+    ...(isAiEffort(effort) ? { effort } : {}),
+    ...(num(scripted) === 1 ? { scripted: true } : {}),
+    botShare: num(botShare),
+  });
+}
+
+export function toDuelRow(r: DuelBestRow, rank: number): DuelRow {
+  const abyss = num(r.abyss);
+  return {
+    rank,
+    id: r.id,
+    nickname: r.nickname,
+    attacker: duelSideOfRow(r.atk_model, r.atk_effort, r.atk_scripted, r.atk_bot_share),
+    defender: duelSideOfRow(r.def_model, r.def_effort, r.def_scripted, r.def_bot_share),
+    mode: r.mode === 'campaign' ? 'campaign' : 'endless',
+    map: r.map as MapId,
+    difficulty: r.difficulty as DifficultyId,
+    ...(r.difficulty === 'abyss' && abyss > 0 ? { abyssLevel: abyss } : {}),
+    wave: num(r.wave),
+    score: num(r.score),
+    kills: num(r.kills),
+    lives: num(r.lives),
+    won: num(r.won) === 1,
+    stars: num(r.stars),
+    plans: num(r.plans),
+    createdAt: num(r.created_at),
   };
 }

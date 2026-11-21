@@ -32,6 +32,32 @@ export interface HistoryEntry {
   /** 是否参与全服排名（自定义模式为 false） */
   ranked: boolean;
   seed?: string;
+  /** AI 对战局：双方模型 + 思考档位（不含渠道）；id 指向 ./duels.ts 里的完整记录（详情 / 回放） */
+  duel?: HistoryDuel;
+}
+
+export interface HistoryDuel {
+  id: string;
+  attacker: string;
+  defender: string;
+  atkEffort?: string;
+  defEffort?: string;
+}
+
+function sanitizeDuel(x: unknown): HistoryDuel | undefined {
+  if (!x || typeof x !== 'object' || Array.isArray(x)) return undefined;
+  const o = x as Record<string, unknown>;
+  if (typeof o.id !== 'string' || typeof o.attacker !== 'string' || typeof o.defender !== 'string') return undefined;
+  const s = (v: unknown) => (typeof v === 'string' && v.length <= 16 ? v : undefined);
+  const atkEffort = s(o.atkEffort);
+  const defEffort = s(o.defEffort);
+  return {
+    id: o.id.slice(0, 40),
+    attacker: o.attacker.slice(0, 120),
+    defender: o.defender.slice(0, 120),
+    ...(atkEffort ? { atkEffort } : {}),
+    ...(defEffort ? { defEffort } : {}),
+  };
 }
 
 const MODES: readonly ModeId[] = ['campaign', 'endless', 'custom'];
@@ -60,6 +86,8 @@ function sanitize(x: unknown): HistoryEntry | null {
   if (n(o.stars)) e.stars = o.stars as number;
   if (o.ai === true) e.ai = true;
   if (typeof o.seed === 'string' && o.seed.length <= 64) e.seed = o.seed;
+  const duel = sanitizeDuel(o.duel);
+  if (duel) e.duel = duel;
   return e;
 }
 
@@ -134,7 +162,17 @@ export function recordHistory(
 /** 从结束时的对局构造一条记录 */
 export function historyEntryOf(
   opts: RunOptions,
-  r: { wave: number; score: number; won: boolean; stars?: number; ai: boolean; ranked: boolean; daily?: string | null; seed?: string },
+  r: {
+    wave: number;
+    score: number;
+    won: boolean;
+    stars?: number;
+    ai: boolean;
+    ranked: boolean;
+    daily?: string | null;
+    seed?: string;
+    duel?: HistoryDuel;
+  },
   at: number,
 ): HistoryEntry {
   return {
@@ -151,5 +189,6 @@ export function historyEntryOf(
     ...(r.ai ? { ai: true } : {}),
     ranked: r.ranked,
     ...(r.seed ? { seed: r.seed } : {}),
+    ...(r.duel ? { duel: r.duel } : {}),
   };
 }

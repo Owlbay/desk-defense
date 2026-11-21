@@ -55,3 +55,21 @@
 .ai-card > h3 .badge.ai-side {
   margin-inline-end: 6px;
 }
+
+/* AI 对战结算：双方各一行（模型 · 档位 / 决策 / token / 费用 / 错误） */
+.ai-duel-sides {
+  display: grid;
+  gap: 4px;
+}
+
+.ai-duel-side {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+
+.ai-duel-model {
+  overflow-wrap: anywhere;
+}

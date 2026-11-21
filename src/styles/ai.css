@@ -1479,3 +1479,24 @@ html.tab-hidden .ai-hud[data-status] .ai-dot {
   display: grid;
   gap: 4px;
 }
+
+/* ───────────── 中心策略（文档 10 §20） ───────────── */
+.ai-doctrines {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 96px), 1fr));
+}
+.ai-doctrines .seg {
+  min-width: 0;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.ai-doctrines .seg.suggested {
+  outline: 2px dashed var(--accent, currentColor);
+  outline-offset: -3px;
+}
+.ai-doctrine-desc {
+  margin: 6px 0 2px;
+  min-height: 1.4em;
+}
+.ai-doctrine-match:empty {
+  display: none;
+}

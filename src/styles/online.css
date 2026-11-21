@@ -690,3 +690,124 @@
 .online-submit p {
   margin: 0;
 }
+
+/* AI 对战榜（src/ui/online/duels.ts）：每行昵称下面是「攻 模型 · 档位 / 守 模型 · 档位」 */
+.olb-row.lb-duel-row {
+  min-height: 56px;
+  padding-block: 6px;
+}
+
+.olb-row .name.lb-duel-name {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+}
+
+.lb-duel-nick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.lb-duel-nick > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-duel-vs,
+.lb-duel-vs-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.lb-duel-side {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.lb-duel-side.attack {
+  background: var(--tint-red);
+}
+
+.lb-duel-side.defend {
+  background: var(--tint-blue);
+}
+
+.lb-duel-side > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-duel-bot {
+  opacity: 0.75;
+}
+
+.lb-duel-detail {
+  display: grid;
+  gap: 2px;
+}
+
+.lb-hist-duel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.lb-hist-more {
+  min-height: 28px;
+  padding: 0 10px;
+}
+
+/* AI 对战详情（我的记录） */
+.lb-duel-dialog {
+  width: min(100%, 560px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+
+.lb-duel-dialog h3,
+.lb-duel-dialog h4 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.lb-duel-detail-side {
+  display: grid;
+  gap: 8px;
+}
+
+.lb-duel-detail-side .go-stats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.lb-duel-errors ul,
+.lb-duel-plans {
+  margin: 0;
+  padding-left: 1.4em;
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+  .lb-duel-detail-side .go-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

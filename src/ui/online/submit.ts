@@ -11,13 +11,14 @@ import { fmtNumber, t } from '../../i18n';
 import { isAiAssisted } from '../../meta/aiAssist';
 import { historyEntryOf, recordHistory } from '../../meta/history';
 import { getAutoUpload, getNickname, initOnline, type SubmitOutcome, submitWorldRun } from '../../meta/online';
-import { boardLabel, CUSTOM_BOARD, starsFor } from '../../shared/leaderboard';
+import { boardLabel, CUSTOM_BOARD, isAiEffort, starsFor } from '../../shared/leaderboard';
 import { audio } from '../audio';
 import { h, setText } from '../dom';
 import type { GameCtx } from '../hud/context';
 import { G } from '../icons';
 import { requestLeaderboardTab } from './nav';
 import { askNickname } from './nickname';
+import { aiModelText } from './table';
 import { boardOfRun, dailyDayOfOpts, isEligibleRun } from './util';
 
 export type SubmitView =
@@ -111,6 +112,10 @@ export function onlineSubmitPanel(ctx: GameCtx, wavesSurvived: number): HTMLElem
     }
     const board = boardOfRun(opts);
     const assisted = isAiAssisted(ctx.aiAssist);
+    const assistText = aiModelText({
+      aiModel: ctx.aiAssist?.model,
+      aiEffort: isAiEffort(ctx.aiAssist?.effort) ? ctx.aiAssist.effort : undefined,
+    });
     const world = ctx.world as object;
     const status = h('span.os-status', { attrs: { role: 'status', 'aria-live': 'polite' } });
     const nick = h('b.nick-name');
@@ -207,7 +212,15 @@ export function onlineSubmitPanel(ctx: GameCtx, wavesSurvived: number): HTMLElem
           'span.os-board',
           null,
           boardLabel(board),
-          assisted ? h('span.badge.lb-ai-badge', { title: ctx.aiAssist?.model ?? '' }, t('ui.lb.ai')) : null,
+          // AI 辅助：带模型名 + 思考档位（不含渠道）
+          assisted
+            ? h(
+                'span.badge.lb-ai-badge',
+                { title: assistText },
+                t('ui.lb.ai'),
+                assistText ? h('small.lb-ai-model', null, assistText) : null,
+              )
+            : null,
         ),
         status,
       ),

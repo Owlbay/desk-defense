@@ -970,3 +970,65 @@ npm run agent:eval -- --provider relay --variants "base:assist=off,thinking=low;
 **意图合并：Schema 只列 6 个**——`spend`、`maze`（`rebuild:true` = 原 rebuild_maze）、`build_near`（`tower` | `purpose` | `pair`；`purpose:"air"` = 原 anti_air，按飞行线 `route`、线已"安全"跳过、`count ≥2` 强制；`tower:"calculator"` / `"piggy"` 不给 target = 原 support / economy 的光环 / 安全门槛逻辑；`pair` = 原 combo）、`upgrade_best`、`save`、`reclaim`。旧名 `anti_air / combo / support / economy / rebuild_maze`（以及 combo 的 `near`）照收：`executeTool('act')` 与 MCP 都先经 `normalizeAction()` 改写再校验，脚本策略、玩家指令解析、旧客户端不用改。观测里的建议意图（TH / GAP / CB）都改成新写法。act 描述："Intents: spend | maze (rebuild) | build_near tower|purpose|pair (purpose air = anti-air; tower calculator/piggy = aura/economy spot) | upgrade_best | save | reclaim target"。
 
 前缀（规则 + 速查表 + 玩家工具）4281 → **4513 token**（+5.4%）；脚本对局每次决策消息均值 529 → 440 token（−17%，AR 计入后）。脚本评测数字不变（intents 60.0 / tactics 54.7，旧名走别名）。
+
+## 20. 中心策略（Doctrine）
+
+整局「以什么为主」的一组参数：核心塔（排序）、迷宫长度、选位方式、传奇分支、增益偏好。代码在 `src/agent/doctrine.ts`，只在 agent 一侧，不碰 core，回放与确定性不受影响。
+
+### 20.1 预设
+
+| 预设 | 核心塔 | 迷宫 | 分支 | 增益偏好 |
+|---|---|---|---|---|
+| balanced 均衡（缺省） | — | standard 2.5× | 规划器缺省 | — |
+| pencil 铅笔流 | pencil > eraser > calculator | long 3.5× | pencil A | sharpener、legend |
+| aoe 范围流 | stapler > compass > glue | long 3.5×，uturn | stapler A、compass A | staples、drafting、quickglue、thickcover |
+| lamp 光束流 | lamp > glue > eraser | long 3.5× | lamp A | bulb、thickcover |
+| economy 经济复利 | piggy > calculator > pencil | lean 2.0× | calculator A、piggy A | compound、sale、promotion |
+| antiair 重防空 | swatter > pencil > lamp | standard 2.5× | swatter A | — |
+
+- 也可以自定义：`core:[≤3 座塔]`、`maze long|standard|lean`、`focus uturn`；自定义的买塔轮换取最接近的预设。
+- 去掉了 ruler（远程穿透）预设：调了两版轮换，6 局平均仍只有 47～49 波（均衡 60）。尺子可以放进自定义核心塔。
+
+### 20.2 怎么驱动规划器（加权，不排他）
+
+- 买塔轮换：`rotationFor(doctrine)`。所有预设开局都是 4 支铅笔（§19.7），之后按核心塔穿插，破甲（橡皮擦 / 台灯）都保留。
+- 买 / 升比较：核心塔的每金币收益 ×1.3 / ×1.15 / ×1.05（`coreWeight`）；核心塔的升级价值 ×1.25。
+- 分支：`doctrine.branches[id] ?? DEFAULT_BRANCH[id]`；模型在 act 里显式写的分支优先。
+- 迷宫：目标倍数 long 3.5 / standard 2.5 / lean 2.0；spend 的墙投入上限 0.7 / 0.5 / 0.35 × 塔投入 + 25。
+- 多层攻击（focus uturn）：`maze.ts layers()` 数射程内有几段不同的路线经过，核心塔的选位价值 ×(1 + 0.3 × (段数 − 1))。
+- 自动选增益（推进保证）先看 `doctrine.perks`。
+- 保底不受策略影响：紧急时先买铅笔、spend 里的防空分支、`build_near purpose` 的非 dps 用途（护甲 / Boss / 对空…）不乘核心权重。
+- 兜底机器人：选了非均衡策略时改走 `scriptedIntentTurn`（经规划器，按策略买塔）；均衡时保持旧版 `scriptedTurn`。
+
+### 20.3 模型怎么看到、怎么改
+
+- 每次决策（玩家 / 军师）的附加信息第一行是 DOC 行，例如 `DOC aoe(player,w0,locked) | core stapler>compass>glue | maze long 3.5x uturn | br stapler A compass A | perks staples,…`。未选时是 `DOC none — pick one in end.doctrine {preset,why}: …`，列出各预设的一句话说明（只在选定前出现，不占固定前缀）。
+- 固定前缀只加了两小段：打法里 1 行、术语表里「DOC strategy」。规则 1756 → 1796 token；act 工具 1243 → 1392 token（end.doctrine 的 Schema）。
+- 修改：`act` 的 `end.doctrine {preset?, core?, maze?, focus?, why}`，先改再执行这次的动作。规则：
+  - 必须写 why；只写 why（「保持」）不算修改；
+  - 冷却 5 波（最近两波漏过怪除外）；第一次选不受冷却；
+  - 玩家锁定时模型改不了，只记为建议，界面上出现「AI 建议改为…［采纳］」。
+- 玩家修改不受冷却 / 锁定限制，并立即触发一次决策（`controller.setDoctrine`）。
+- 追踪里每次切换记一条 `{k:'doctrine', from, to, by, why, wave}`，思路面板里显示。
+
+### 20.4 界面
+
+- 设置页（AI 玩家 / 军师 / AI 对战的防守方；AI 出题不显示）：「中心策略」卡片，「AI 自动选」+ 6 个预设，每个一句说明；「你的话」输入框（本地关键词认出预设，原话作为 player notes 转给 AI）；「锁定，不让 AI 改」开关。保存在 `AiSetupSaved.doctrine`，开局写进 `config.doctrine`。
+- 对局「AI 状态」页：策略标签（例如「策略：范围流（锁定）」），点开是预设按钮、锁定开关和修改记录。
+- 指令框：发送的话里认出策略（「主打范围」「铅笔流」「把路绕成弯弯绕」…）时先问「把中心策略改为『范围流』？［改策略］［当普通指令发送］」。
+
+### 20.5 评测
+
+离线（不花 token），`npm run agent:eval -- --variants "aoe:doctrine=aoe;…" --seeds e1,…,e6 --max-waves 120 --bots none`（或全局 `--doctrine aoe`），scripted-intents，ch1 普通无尽，6 个种子：
+
+| 预设 | 平均波数 |
+|---|---|
+| balanced | 60.0（与 §19.11 基线相同） |
+| pencil | 63.0 |
+| economy | 61.2 |
+| aoe | 56.7（第一版轮换 51.0：核心塔进场太早） |
+| antiair | 56.3 |
+| lamp | 56.2（第一版 53.8） |
+| ruler（已去掉） | 47.5 / 47.0 / 48.7 |
+
+真实模型（中转 deepseek-flash，relay1，15 波，`doctrine=auto`）：第一次决策就用 `end.doctrine` 选了 `pencil` + `core [pencil, lamp]` + `long` + `uturn`，理由是「单线长迷宫，铅笔便宜、Lv7 双发，后期补台灯打护甲 / Boss」；15 波 0 漏怪、生命 20/20。只跑了这 1 局，各预设在真实模型上的长局效果还没有对比。

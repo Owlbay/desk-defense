@@ -4,6 +4,7 @@ import { ui } from '../../game/UiStore';
 import { getLocale, onLocaleChange, t } from '../../i18n';
 import { isAiAssisted, usedAi } from '../../meta/aiAssist';
 import type { Rewards } from '../../meta/progress';
+import { modelTagText } from '../../shared/leaderboard';
 import { towerIcon } from '../assets';
 import { audio } from '../audio';
 import { eventMeta, TOWER_META } from '../coreMeta';
@@ -500,7 +501,7 @@ function assistLine(ctx: GameCtx): HTMLElement | null {
     null,
     h(
       `span.badge.ai-assist-badge${assisted ? '' : '.advisor'}`,
-      { title: a?.model ?? '' },
+      { title: a?.model ? modelTagText(a.model, a.effort) : '' },
       assisted ? t('ui.assist.badge') : t('ui.assist.badgeAdvisor'),
     ),
     h('small.muted', null, assisted ? t('ui.assist.goNote') : t('ui.assist.goNoteAdvisor')),

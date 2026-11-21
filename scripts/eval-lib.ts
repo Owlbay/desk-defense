@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import { passesPerTower } from '../src/agent/board';
 import { type AgentModelConfig, parseContextMode, parseThinking } from '../src/agent/config';
+import type { DoctrinePreset } from '../src/agent/doctrine';
 import { createProvider } from '../src/agent/factory';
 import { type AgentRunReport, runAgentGame } from '../src/agent/runner';
 import { budgetTokens, type FallbackPolicy } from '../src/agent/types';
@@ -438,6 +439,9 @@ export async function runEval(
                 }
               : { provider: 'scripted', model: kv.model ?? 'scripted-intents', contextMode: parseContextMode(kv.context ?? 'balanced') };
             config.assist = kv.assist !== 'off';
+            // 中心策略（§20）：变体键 doctrine=aoe 或全局 --doctrine aoe（auto = 让模型自己选）
+            const doc = kv.doctrine ?? arg('doctrine', undefined);
+            if (doc) config.doctrine = doc === 'auto' ? { preset: 'auto' } : { preset: doc as DoctrinePreset, locked: true };
             config.budget = { tokens: Number(arg('budget-tokens', '1000000')), mode: 'soft' };
             const provider = await createProvider(config);
             const rep = await runAgentGame(opts, { config, provider, fallback: botFallback('medium', mode, map), maxWaves });

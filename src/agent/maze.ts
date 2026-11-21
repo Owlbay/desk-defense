@@ -286,6 +286,31 @@ export function airSamples(w: IWorld): Sample[] {
   return out;
 }
 
+/**
+ * 多层攻击：射程内有几段「不同的路线经过」（同一条路线进出射程多次算多段；不同出生点各算各的）。
+ * samples 须按路线顺序排列（groundSamples / 规划器的路线采样都是），可带 sp（出生点）。
+ */
+export function layers(cx: number, cy: number, range: number, inner: number, samples: (Sample & { sp?: string })[]): number {
+  const x = cx + 0.5;
+  const y = cy + 0.5;
+  const r2 = range * range;
+  const i2 = inner * inner;
+  let n = 0;
+  let inside = false;
+  let sp: string | undefined;
+  for (const s of samples) {
+    if (s.sp !== sp) {
+      sp = s.sp;
+      inside = false;
+    }
+    const d2 = (s.x - x) ** 2 + (s.y - y) ** 2;
+    const hit = d2 <= r2 && d2 >= i2;
+    if (hit && !inside) n++;
+    inside = hit;
+  }
+  return n;
+}
+
 /** 某格塔对采样路线的覆盖（≈ 敌人在射程内经过的格数） */
 export function coverage(cx: number, cy: number, range: number, inner: number, samples: Sample[]): number {
   const x = cx + 0.5;

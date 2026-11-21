@@ -12,8 +12,9 @@ import { computeDist, tracePath } from '../core/flowfield';
 import { type Branch, CellKind, type Command, type CommandResult, type IWorld, type TowerId, type TowerState } from '../core/types';
 import { threatEstimate } from './battle';
 import { comboState, crowdedCells, idleTowers, outOfReach, refreshStats, shortensRoutes, uselessWalls, wallInfo } from './board';
+import { coreWeight, type DoctrineState, MAZE_TARGET, MAZE_WALL_SHARE, rotationFor } from './doctrine';
 import type { BattleIntel } from './intel';
-import { coverage as sampleCov, dropStart, type MazePlan, planMaze, routeLength, type Sample, targetCells } from './maze';
+import { coverage as sampleCov, dropStart, layers, type MazePlan, planMaze, routeLength, type Sample, targetCells } from './maze';
 import { type Purpose, PURPOSE_TARGET, PURPOSE_TOWERS, PURPOSES } from './purpose';
 
 export { PURPOSES, PURPOSE_TOWERS, type Purpose } from './purpose';
@@ -28,6 +29,8 @@ export interface PlannerState {
   saveWave?: number;
   /** 战场情报（零伤害塔等；引擎注入） */
   intel?: BattleIntel;
+  /** 中心策略（§20；缺省 = balanced） */
+  doctrine?: DoctrineState;
 }
 
 export const COMBO_PAIRS = COMBOS.map((c) => `${c.a}+${c.b}`);
@@ -72,46 +75,11 @@ export const DEFAULT_BRANCH: Partial<Record<TowerId, Branch>> = {
   swatter: 'A',
 };
 
-/**
- * spend 的买塔轮换（无状态：按已有数量决定下一座）。开局 4 支铅笔，之后与高手机器人同序：
- * 破甲 / 台灯 / 胶水穿插，计算器（≥8 座攻击塔才买）与存钱罐（最多 3 个）在 w15～25 前后进场——复利是无尽后期的关键。
- * 一轮买完后按同一顺序继续（数量翻倍）。
- */
-const ROTATION: TowerId[] = [
-  'pencil',
-  'pencil',
-  'pencil',
-  'pencil',
-  'eraser',
-  'pencil',
-  'pencil',
-  'lamp',
-  'pencil',
-  'pencil',
-  'glue',
-  'pencil',
-  'lamp',
-  'pencil',
-  'eraser',
-  'pencil',
-  'calculator',
-  'pencil',
-  'compass',
-  'pencil',
-  'piggy',
-  'lamp',
-  'pencil',
-  'stapler',
-  'pencil',
-  'calculator',
-  'piggy',
-];
+/** spend 的买塔轮换：见 doctrine.ts（rotationFor；开局 4 支铅笔，之后按中心策略的核心塔穿插） */
 /** 买新塔 vs 升级：新塔的每金币收益要高过升级 × 这个系数才买（高手机器人 1.5：后期多升级少铺塔） */
 const UPGRADE_BIAS = 1.5;
 /** build_near：最好格的路线覆盖低于这个值就不建（攻击塔、地面目标） */
 const MIN_COVER = 3;
-/** 墙的投入上限：塔投入的这个比例 + 25（高手机器人 0.5） */
-const WALL_SHARE = 0.5;
 
 function levelGain(id: TowerId, next: number): number {
   let g = 0.186;
@@ -183,6 +151,21 @@ export class Planner {
 
   cost(id: TowerId): number {
     return this.w.getBuildOptions().find((o) => o.id === id)?.cost ?? TOWERS[id].cost;
+  }
+
+  /** 中心策略（未选 = balanced 的缺省） */
+  private get doc() {
+    return this.state.doctrine?.chosen ? this.state.doctrine.doc : undefined;
+  }
+
+  /** 核心塔权重（§20） */
+  private cw(id: TowerId): number {
+    return coreWeight(this.doc, id);
+  }
+
+  /** 墙的投入上限：塔投入的这个比例 + 25（standard 0.5 = 高手机器人） */
+  private wallShare(): number {
+    return MAZE_WALL_SHARE[this.doc?.maze ?? 'standard'];
   }
 
   private unlocked(id: TowerId): boolean {
@@ -392,6 +375,9 @@ export class Planner {
     if (id === 'piggy') return 100 - sampleCov(sl.x, sl.y, 2.5, 0, this.gS) + (this.adjacent(sl.x, sl.y, 'calculator') ? 50 : 0);
     const { r, inner } = this.range(id);
     let v = s.ground.length ? sampleCov(sl.x, sl.y, r, inner, s.ground) : 0;
+    // 多层攻击（uturn）：核心塔按射程内经过的路线段数加权（U 形转弯 / 两道走廊之间）
+    if (v > 0 && this.doc?.focus === 'uturn' && this.doc.core.includes(id))
+      v *= 1 + 0.3 * Math.max(0, layers(sl.x, sl.y, r, inner, s.ground) - 1);
     if (s.air.length) v += s.airW * sampleCov(sl.x, sl.y, r, 0, s.air);
     for (const cb of COMBOS) {
       const partner = cb.a === id ? cb.b : cb.b === id ? cb.a : null;
@@ -529,9 +515,9 @@ export class Planner {
     if (k < 0) return budget;
     const finishCur = segLeft[k] * wallCost;
     if (budget !== undefined) return Math.max(budget, finishCur);
-    // 按规划顺序累加，直到路线 ≥ 2.5× 直线
+    // 按规划顺序累加，直到路线 ≥ 目标倍数 × 直线（中心策略：long 3.5 / standard 2.5 / lean 2.0）
     const cells = g.cells.slice();
-    const target = 2.5 * Math.max(1, this.plan.baseLength);
+    const target = MAZE_TARGET[this.doc?.maze ?? 'standard'] * Math.max(1, this.plan.baseLength);
     let need = 0;
     for (let j = k; j < this.plan.segments.length; j++) {
       if (routeLength(this.w, cells, this.scratch) >= target && need >= finishCur) break;
@@ -647,6 +633,8 @@ export class Planner {
         const power = evolve ? POWER[t.id] * 1.186 ** 9 * 1.5 : POWER[t.id] * 1.186 ** (t.level - 1);
         val = cov * power * (evolve ? (t.stars === 2 ? 0.35 : 0.16) : levelGain(t.id, t.level + 1));
       }
+      // 中心策略的核心塔优先升级
+      if (this.doc?.core.includes(t.id)) val *= 1.25;
       out.push({ t, cost, eff: metric === 'coverage' ? val : val / cost, evolve });
     }
     return out.sort((a, b) => b.eff - a.eff || a.t.uid - b.t.uid);
@@ -696,7 +684,7 @@ export class Planner {
     if (!id || !(POWER[id] > 0) || this.attackers().length >= this.maxTowers()) return null;
     const slot = this.bestSlot(id, id === 'eraser' || id === 'glue' ? 'early' : 'route');
     if (!slot) return null;
-    const eff = (slot.v * POWER[id]) / this.cost(id);
+    const eff = (slot.v * POWER[id] * this.cw(id)) / this.cost(id);
     const bias = this.w.state.wave + 1 >= 15 ? UPGRADE_BIAS : 1;
     return eff >= upEff * bias ? { id, eff } : null;
   }
@@ -706,7 +694,7 @@ export class Planner {
     const cmd: Command = evolve
       ? { type: 'evolve', uid: t.uid }
       : t.level === 9
-        ? { type: 'upgrade', uid: t.uid, branch: DEFAULT_BRANCH[t.id] ?? 'A' }
+        ? { type: 'upgrade', uid: t.uid, branch: this.doc?.branches[t.id] ?? DEFAULT_BRANCH[t.id] ?? 'A' }
         : { type: 'upgrade', uid: t.uid };
     const r = this.exec(cmd);
     if (!r.ok) return { ok: false, reason: r.reason ?? 'invalid', line: '', spent: 0 };
@@ -782,13 +770,13 @@ export class Planner {
           }
         }
       }
-      // 迷宫：墙的投入 ≤ 50% 塔的投入 + 25（maze 优先时不设限）
+      // 迷宫：墙的投入 ≤ 塔的投入 × 比例（中心策略；standard 50%）+ 25（maze 优先时不设限）
       const wallInv = this.towers()
         .filter((t) => t.id === 'wall')
         .reduce((x, t) => x + t.invested, 0);
       const towerInv = atk.reduce((x, t) => x + t.invested, 0);
-      if (atk.length >= 3 && this.mazeProgress().left > 0 && (focus === 'maze' || wallInv < WALL_SHARE * towerInv + 25)) {
-        const cap = focus === 'maze' ? budget : Math.max(this.cost('wall'), Math.min(budget, WALL_SHARE * towerInv + 25 - wallInv));
+      if (atk.length >= 3 && this.mazeProgress().left > 0 && (focus === 'maze' || wallInv < this.wallShare() * towerInv + 25)) {
+        const cap = focus === 'maze' ? budget : Math.max(this.cost('wall'), Math.min(budget, this.wallShare() * towerInv + 25 - wallInv));
         const o = this.maze('serpentine', cap, undefined, true);
         if (o.done) {
           spent += o.spent;
@@ -808,7 +796,10 @@ export class Planner {
       if (slot && up && id && focus === 'balanced') {
         const support = !(POWER[id] > 0);
         buy =
-          support || id === 'glue' || id === 'eraser' || (slot.v * POWER[id]) / this.cost(id) >= up.eff * (wave >= 15 ? UPGRADE_BIAS : 1);
+          support ||
+          id === 'glue' ||
+          id === 'eraser' ||
+          (slot.v * POWER[id] * this.cw(id)) / this.cost(id) >= up.eff * (wave >= 15 ? UPGRADE_BIAS : 1);
       }
       if (focus === 'upgrades' && up) buy = false;
       if (buy && slot && id) {
@@ -839,7 +830,7 @@ export class Planner {
       if (up) {
         if (budget < up.cost) {
           // 升级买不起：新塔的每金币收益不比升级差（或危急）且买得起，就先买塔，不干攒（困难难度：攒钱期间漏怪）
-          if (slot && id && budget >= this.cost(id) && (this.urgent() || (slot.v * POWER[id]) / this.cost(id) >= up.eff)) {
+          if (slot && id && budget >= this.cost(id) && (this.urgent() || (slot.v * POWER[id] * this.cw(id)) / this.cost(id) >= up.eff)) {
             const r = this.placeAt(id, slot.slot);
             if (r.ok) {
               spent += r.spent;
@@ -884,7 +875,7 @@ export class Planner {
     return threatEstimate(this.w).some((t) => t.verdict === '危险');
   }
 
-  /** 下一座要买的塔：按轮换表与已有数量（无状态） */
+  /** 下一座要买的塔：按（中心策略的）轮换表与已有数量（无状态） */
   nextRotation(): TowerId | null {
     const have = new Map<TowerId, number>();
     const atk = this.attackers();
@@ -892,7 +883,7 @@ export class Planner {
     for (const t of this.towers()) if (t.id !== 'wall') have.set(t.id, (have.get(t.id) ?? 0) + 1);
     const want = new Map<TowerId, number>();
     for (let lap = 0; lap < 3; lap++)
-      for (const id of ROTATION) {
+      for (const id of rotationFor(this.doc)) {
         want.set(id, (want.get(id) ?? 0) + 1);
         if (!this.unlocked(id)) continue;
         if (id === 'calculator' && atk.length < 8) continue;
@@ -928,7 +919,7 @@ export class Planner {
       // 其他用途（护甲 / Boss / 群伤…）保持线性：适配系数挑出台灯 / 尺子 / 橡皮擦，w40 起 Boss 护甲 7+ 时铅笔打不动
       const sq = purpose === 'dps';
       const score =
-        ((sq ? Math.sqrt(b.v) : b.v) * (POWER[id] || 10) * fit) /
+        ((sq ? Math.sqrt(b.v) : b.v) * (POWER[id] || 10) * fit * (sq ? this.cw(id) : 1)) /
         this.cost(id) /
         (sq && id === 'pencil' ? 1 : 1 + 0.12 * (have.get(id) ?? 0));
       if (!best || score > best.score + 1e-9) best = { id, v: b.v, score, why: `${id} cov${Math.round(b.v * 10) / 10}` };
@@ -951,7 +942,7 @@ export class Planner {
       // 泛用的 dps：升级更划算时不买新塔（脚本评测：每个建造阶段 build_near dps，59.5 → 49.2 波）；其他用途（护甲 / 对空 / Boss…）照买
       if (purpose === 'dps') {
         const up = this.upgradeCandidates('dps')[0];
-        const eff = (pick.v * (POWER[pick.id] || 10)) / this.cost(pick.id);
+        const eff = (pick.v * (POWER[pick.id] || 10) * this.cw(pick.id)) / this.cost(pick.id);
         const bias = this.w.state.wave + 1 >= 15 ? UPGRADE_BIAS : 1;
         if (up && eff < up.eff * bias) {
           lines.push(

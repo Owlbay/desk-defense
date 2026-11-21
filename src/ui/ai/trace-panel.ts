@@ -89,7 +89,8 @@ type Seg =
   | { kind: 'resp'; ev: Ev<'response'>; el?: HTMLElement; dirty: boolean }
   | { kind: 'error'; ev: Ev<'error'>; el?: HTMLElement; dirty: boolean }
   | { kind: 'fallback'; ev: Ev<'fallback'>; el?: HTMLElement; dirty: boolean }
-  | { kind: 'compact'; ev: Ev<'compact'>; el?: HTMLElement; dirty: boolean };
+  | { kind: 'compact'; ev: Ev<'compact'>; el?: HTMLElement; dirty: boolean }
+  | { kind: 'doctrine'; ev: Ev<'doctrine'>; el?: HTMLElement; dirty: boolean };
 
 interface Card {
   d: number;
@@ -925,6 +926,13 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
         addSearch(c, e.k === 'error' ? e.message : e.reason);
         break;
       }
+      case 'doctrine': {
+        const s: Seg = { kind: 'doctrine', ev: e, dirty: true };
+        c.segs.push(s);
+        c.pending.push(s);
+        addSearch(c, `${t('agent.doctrine.title')} ${e.from} ${e.to} ${e.why ?? ''}`);
+        break;
+      }
       case 'decision_end':
         c.end = e;
         c.dirtyHead = true;
@@ -1394,6 +1402,16 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
           s.ev.effect ? h('small.muted', null, ` → ${s.ev.effect}`) : null,
         );
         break;
+      case 'doctrine': {
+        const nm = (p: string): string => (p === 'none' ? t('agent.doctrine.none') : t(`agent.doctrine.p.${p}`));
+        fill(
+          el,
+          h('span.gi', { html: G.target }),
+          h('span', null, t('agent.doctrine.traceLine', { from: nm(s.ev.from), to: nm(s.ev.to) })),
+          s.ev.why ? h('small.muted', null, ` · ${s.ev.why}`) : null,
+        );
+        break;
+      }
     }
     s.dirty = false;
   };

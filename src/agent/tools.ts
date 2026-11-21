@@ -24,6 +24,7 @@ import {
 import { SOURCE_LOCALE, withLocale } from '../i18n';
 import { planLine } from './attack';
 import { type CompactObs, compactObservation, terrainMap } from './compact';
+import { applyDoctrine, DOCTRINE_PRESETS } from './doctrine';
 import { asciiMap, renderObservation } from './observation';
 import { COMBO_PAIRS, type IntentOutcome, Planner, type PlannerState } from './planner';
 import { catalogEntry, type CatalogSection, catalogText } from './prompts';
@@ -340,6 +341,21 @@ const MEMO: ObjectSchema = obj({
   note: str('anything else'),
 });
 
+/** act 的 end：备忘 + 中心策略修改（§20；描述从简，DOC none 行里有各预设的说明） */
+const ACT_END: ObjectSchema = obj({
+  ...MEMO.properties,
+  doctrine: obj(
+    {
+      preset: str('', DOCTRINE_PRESETS),
+      core: { type: 'array', items: { type: 'string' }, description: '≤3 tower ids' },
+      maze: str('', ['long', 'standard', 'lean']),
+      focus: str('', ['route', 'uturn']),
+      why: str('required'),
+    },
+    ['why'],
+  ),
+});
+
 const ACTION_FIELDS: Record<string, JsonSchema> = {
   tower: str('place / build_near: tower id', TOWER_IDS),
   x: X,
@@ -400,7 +416,7 @@ export const SLIM_TOOLS: AgentToolDef[] = [
     input_schema: obj(
       {
         actions: { type: 'array', items: ACTION, description: 'ordered actions (max 16)' },
-        end: { ...MEMO, description: 'finish the turn; fields update your MEMO' },
+        end: { ...ACT_END, description: 'finish the turn; fields update your MEMO; doctrine changes the DOC (core strategy)' },
       },
       ['actions'],
     ),
@@ -1032,6 +1048,18 @@ function executeAct(ctx: ToolContext, input: In): ToolResult {
       if (typeof v === 'string' && v.trim()) memo[k] = v.trim();
     }
   }
+  // 中心策略（§20）：先改，再执行这次的动作（这一回合就按新策略买）
+  let doctrine: ToolResult['doctrine'];
+  const dIn = ended && typeof input.end === 'object' ? (input.end as Record<string, unknown>).doctrine : undefined;
+  if (dIn && typeof dIn === 'object' && ctx.role !== 'attacker') {
+    const st = ctx.planner?.doctrine;
+    if (!st) doctrine = { ok: false, text: 'doctrine: not available' };
+    else {
+      const wave = w.state.wave;
+      const hurt = (ctx.planner?.intel?.leaks ?? []).some((l) => l.wave >= wave - 1);
+      doctrine = applyDoctrine(st, dIn as Record<string, string>, 'model', { wave, hurt });
+    }
+  }
   let planner: Planner | null = null;
   const getPlanner = (): Planner => (planner ??= new Planner(w, (c) => send(ctx, c), ctx.planner ?? {}));
   let last: ToolResult | undefined;
@@ -1093,6 +1121,7 @@ function executeAct(ctx: ToolContext, input: In): ToolResult {
     lines.push(`${n} ${oneLine(r.text)}`);
   });
   if (list.length > MAX_ACT) lines.push(`(only the first ${MAX_ACT} actions were run)`);
+  if (doctrine) lines.push(`${doctrine.ok ? 'OK' : 'NOOP'} ${doctrine.text}`);
   if (endNote && !memo.note) memo.note = endNote;
   const st = w.state;
   lines.push(
@@ -1112,6 +1141,7 @@ function executeAct(ctx: ToolContext, input: In): ToolResult {
     text: lines.filter(Boolean).join('\n'),
     endTurn,
     ...(hasMemo ? { memo, note: Object.values(memo).join(' | ').slice(0, 600) } : {}),
+    ...(doctrine ? { doctrine } : {}),
     ...(last?.cmd && list.length === 1 ? { cmd: last.cmd } : {}),
     ...(last?.queuedFor !== undefined && list.length === 1 ? { queuedFor: last.queuedFor } : {}),
   };

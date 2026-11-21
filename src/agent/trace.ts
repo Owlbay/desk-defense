@@ -123,6 +123,8 @@ export type TraceBody =
     }
   | { k: 'error'; n?: number; message: string; retry?: boolean }
   | { k: 'fallback'; reason: string; acted: boolean; effect?: string }
+  /** 中心策略切换（§20；模型在 act 的 end.doctrine 里改） */
+  | { k: 'doctrine'; from: string; to: string; by: string; why?: string; wave: number }
   | {
       /** 本次决策带上的玩家指令（「给 AI 下指令」；once = 这次执行，standing = 长期方针） */
       k: 'instruction';
@@ -455,6 +457,9 @@ export class AgentTrace {
         break;
       case 'fallback':
         out = { ...ev, d, t, reason: redactString(ev.reason, sec), effect: ev.effect && redactString(ev.effect, sec) };
+        break;
+      case 'doctrine':
+        out = { ...ev, d, t, why: ev.why && redactString(ev.why, sec).slice(0, 400) };
         break;
       case 'decision_end':
         out = {

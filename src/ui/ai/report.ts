@@ -3,12 +3,13 @@
  * 成绩进与真人相同的榜（无尽 / 每日 / 战役），带「AI 辅助」+ 模型标记（文档 12 §3）；
  * 与普通结算一样按「自动上传成绩」设置自动上传，名次显示在这里。
  */
-import { type AgentReplay, type TokenUsage, type TraceExport, usageTotal } from '../../agent';
+import { type AgentReplay, type DuelSideReport, type TokenUsage, type TraceExport, usageTotal } from '../../agent';
 import type { IWorld, RunOptions } from '../../core/types';
 import { t } from '../../i18n';
+import { duelRecordOf, noteDuelUpload, recordDuel } from '../../meta/duels';
 import { historyEntryOf, recordHistory } from '../../meta/history';
-import { getAutoUpload, getNickname, initOnline, submitWorldRun } from '../../meta/online';
-import { AI_BOT_SHARE_FLAG, boardForOpts, boardLabel, starsFor } from '../../shared/leaderboard';
+import { getAutoUpload, getNickname, initOnline, submitDuel, submitWorldRun } from '../../meta/online';
+import { AI_BOT_SHARE_FLAG, boardForOpts, boardLabel, modelTagText, publicModelName, starsFor } from '../../shared/leaderboard';
 import type { App } from '../App';
 import { audio } from '../audio';
 import { copyText, fmtNum, h, setText } from '../dom';
@@ -20,7 +21,7 @@ import { botHeavyBadge } from '../online/table';
 import { boardOfRun, dailyDayOfOpts } from '../online/util';
 import { fmtCost, fmtTokens } from './format';
 import { type AiGameOverHandlers, type AiGameOverInfo, type AiLaunch, requestAiLaunch } from './launch';
-import { agentMetaOf, aiUploadPlan } from './meta';
+import { agentMetaOf, aiUploadPlan, duelMetaOf } from './meta';
 import { openLocalReplay } from './replay';
 
 export interface AiRunSummary {
@@ -28,7 +29,8 @@ export interface AiRunSummary {
   info: AiGameOverInfo;
   opts: RunOptions;
   world: IWorld;
-  agent: { provider: string; model: string; role: string };
+  /** provider 是渠道：只在本地判断是不是内置机器人，不显示、不上传 */
+  agent: { provider: string; model: string; role: string; effort?: string };
   mode: 'pause' | 'realtime';
   usage: TokenUsage;
   costUsd: number;
@@ -45,6 +47,44 @@ export interface AiRunSummary {
   seconds: number;
   /** 思路与请求记录（已脱敏、封顶），回放时在旁边显示 */
   trace?: TraceExport;
+  /** AI 对战：双方各自的统计 */
+  duel?: { attack: DuelSideReport; defend: DuelSideReport };
+}
+
+/** 模型标记文本（模型名 + 思考档位，不含渠道） */
+const tagOf = (x: { model: string; effort?: string; provider?: string }): string =>
+  x.provider === 'scripted' ? t('agent.setup.label.demo') : modelTagText(publicModelName(x.model) || x.model, x.effort);
+
+/** AI 对战：双方各一行（模型 · 档位 / 决策 / token / 费用 / 错误）+ 出题次数 */
+function duelSides(s: AiRunSummary): HTMLElement | null {
+  const d = s.duel;
+  if (!d) return null;
+  const plans = s.world.log.filter((e) => e.cmd.type === 'overrideWave').length;
+  const row = (side: 'attack' | 'defend', x: DuelSideReport) =>
+    h(
+      'div.ai-duel-side',
+      null,
+      h(`span.badge.ai-side.${side}`, null, t(`agent.duel.side.${side}`)),
+      h('b.ai-duel-model', null, tagOf(x)),
+      h(
+        'small.muted',
+        null,
+        t('ui.duel.sideStats', {
+          decisions: fmtNum(x.decisions),
+          fallback: fmtNum(x.fallback),
+          tokens: fmtTokens(usageTotal(x.usage)),
+          cost: fmtCost(x.costUsd),
+          errors: x.errors.length,
+        }),
+      ),
+    );
+  return h(
+    'div.ai-duel-sides',
+    null,
+    row('attack', d.attack),
+    row('defend', d.defend),
+    h('small.muted', null, t('ui.duel.plansLine', { n: plans })),
+  );
 }
 
 const fmtDuration = (sec: number): string =>
@@ -162,6 +202,7 @@ export function reportCard(app: App, s: AiRunSummary, hd: AiGameOverHandlers): H
         ),
       ),
       badges,
+      duelSides(s),
       stats,
       online,
       isPlayer ? h('p.muted.small.center', null, t('agent.report.noRewards')) : null,
@@ -211,6 +252,8 @@ export function reportCard(app: App, s: AiRunSummary, hd: AiGameOverHandlers): H
 /** 同一局只上传一次、只记一次「我的记录」（结算卡片可能重建） */
 const uploads = new WeakMap<object, Promise<SubmitView>>();
 const recorded = new WeakSet<object>();
+/** AI 对战：本局在本地记录里的 id（上传成功后补名次） */
+const duelIds = new WeakMap<object, string>();
 
 function onlinePanel(app: App, s: AiRunSummary): HTMLElement {
   const st = s.world.state;
@@ -220,10 +263,42 @@ function onlinePanel(app: App, s: AiRunSummary): HTMLElement {
   const day = ranked ? dailyDayOfOpts(opts) : null;
   const world = s.world as object;
   const ai = plan.kind === 'agent' || plan.kind === 'assist';
+  let duelId: string | null = null;
   if (!recorded.has(world)) {
     recorded.add(world);
     try {
       const won = st.phase === 'won';
+      const stars = opts.mode === 'campaign' && won ? starsFor(st.lives, Math.max(st.lives, st.maxLives)) : 0;
+      // AI 对战：完整数据记本地（双方模型 / 档位 / 用量 / 费用 / 错误 / 出题 / 回放）
+      if (s.duel) {
+        const rec = duelRecordOf(
+          {
+            opts,
+            seed: st.seed,
+            result: {
+              wave: s.info.wave,
+              wavesSurvived: s.info.wavesSurvived,
+              score: Math.round(s.info.score),
+              kills: st.stats.kills,
+              lives: st.lives,
+              maxLives: st.maxLives,
+              won,
+              stars,
+              ticks: st.tick,
+            },
+            seconds: s.seconds,
+            attack: s.duel.attack,
+            defend: s.duel.defend,
+            log: s.world.log,
+            takenOver: s.takenOver,
+            switchedToBot: s.switchedToBot,
+          },
+          Date.now(),
+        );
+        recordDuel(rec);
+        duelId = rec.id;
+        duelIds.set(world, rec.id);
+      }
       recordHistory(
         historyEntryOf(
           opts,
@@ -231,11 +306,22 @@ function onlinePanel(app: App, s: AiRunSummary): HTMLElement {
             wave: s.info.wavesSurvived,
             score: s.info.score,
             won,
-            stars: opts.mode === 'campaign' && won ? starsFor(st.lives, Math.max(st.lives, st.maxLives)) : 0,
+            stars,
             ai,
             ranked,
             daily: day,
             seed: st.seed,
+            ...(s.duel && duelId
+              ? {
+                  duel: {
+                    id: duelId,
+                    attacker: tagOf({ ...s.duel.attack, effort: undefined }),
+                    defender: tagOf({ ...s.duel.defend, effort: undefined }),
+                    ...(s.duel.attack.effort && s.duel.attack.provider !== 'scripted' ? { atkEffort: s.duel.attack.effort } : {}),
+                    ...(s.duel.defend.effort && s.duel.defend.provider !== 'scripted' ? { defEffort: s.duel.defend.effort } : {}),
+                  },
+                }
+              : {}),
           },
           Date.now(),
         ),
@@ -247,6 +333,7 @@ function onlinePanel(app: App, s: AiRunSummary): HTMLElement {
   }
   if (plan.kind === 'skip') return h('div.online-submit.ai-submit', null, h('div.os-line', null, h('span.muted', null, plan.reason)));
 
+  const duel = plan.kind === 'duel';
   const board = boardOfRun(opts);
   const scripted = s.switchedToBot || s.agent.provider === 'scripted';
   const botPct = Math.round(s.botShare * 100);
@@ -274,6 +361,19 @@ function onlinePanel(app: App, s: AiRunSummary): HTMLElement {
       try {
         const os = await initOnline();
         if (os.status === 'unavailable') return { kind: 'unavailable' };
+        // AI 对战：上传到独立的对战榜（只带双方模型名 + 思考档位 + 统计）
+        if (duel && s.duel) {
+          const out = await submitDuel(s.world as Parameters<typeof submitDuel>[0], {
+            wavesSurvived: s.info.wavesSurvived,
+            duel: duelMetaOf(s.duel, {
+              plans: s.world.log.filter((e) => e.cmd.type === 'overrideWave').length,
+              switchedToBot: s.switchedToBot,
+            }),
+          });
+          const id = duelIds.get(world);
+          if (out.kind === 'ok' && id) noteDuelUpload(id, { rank: out.res.rank, total: out.res.total });
+          return outcomeView(out);
+        }
         return outcomeView(
           await submitWorldRun(s.world as Parameters<typeof submitWorldRun>[0], {
             wavesSurvived: s.info.wavesSurvived,
@@ -281,7 +381,16 @@ function onlinePanel(app: App, s: AiRunSummary): HTMLElement {
             ...(plan.kind === 'agent' ? { agent: agentMetaOf(s) } : {}),
             // 中途接管的局：照样记下 AI 操作期间的兜底占比（> 20% 榜上标「兜底多」，docs/10 §18-6）
             ...(plan.kind === 'assist'
-              ? { aiAssist: { player: true, advisor: false, model: s.launch.label }, ...(scripted ? {} : { aiBotShare: s.botShare }) }
+              ? {
+                  // 只带模型名 + 思考档位（launch.label 里有渠道名，不上传）
+                  aiAssist: {
+                    player: true,
+                    advisor: false,
+                    model: s.agent.model,
+                    ...(s.agent.effort && s.agent.provider !== 'scripted' ? { effort: s.agent.effort } : {}),
+                  },
+                  ...(scripted ? {} : { aiBotShare: s.botShare }),
+                }
               : {}),
           }),
         );
@@ -313,7 +422,10 @@ function onlinePanel(app: App, s: AiRunSummary): HTMLElement {
       attrs: { type: 'button' },
       onclick: () => {
         audio.play('click');
-        if (day) app.go({ name: 'daily' });
+        if (duel) {
+          requestLeaderboardTab('duel');
+          app.go({ name: 'leaderboard' });
+        } else if (day) app.go({ name: 'daily' });
         else {
           requestLeaderboardTab('endless', board);
           app.go({ name: 'leaderboard' });
@@ -340,9 +452,12 @@ function onlinePanel(app: App, s: AiRunSummary): HTMLElement {
       h(
         'span.os-board',
         null,
-        boardLabel(board),
+        duel ? t('ui.duel.board') : boardLabel(board),
         ai ? h('span.badge.lb-ai-badge', null, t('ui.lb.ai')) : null,
-        plan.kind === 'agent' ? h('span.badge.ai-model-badge', null, s.agent.model) : null,
+        plan.kind === 'agent' ? h('span.badge.ai-model-badge', null, tagOf(s.agent)) : null,
+        duel && s.duel
+          ? h('span.badge.ai-model-badge', null, t('ui.duel.vs', { attacker: tagOf(s.duel.attack), defender: tagOf(s.duel.defend) }))
+          : null,
         (plan.kind === 'agent' || plan.kind === 'assist') && flagged ? botHeavyBadge({ botHeavy: true }) : null,
       ),
       status,
@@ -353,15 +468,17 @@ function onlinePanel(app: App, s: AiRunSummary): HTMLElement {
       h('span.online-nick', null, h('span.muted.small', null, t('agent.report.nick')), nick, nickBtn),
       h('span.os-actions', null, submitBtn, viewBtn),
     ),
-    plan.kind === 'human'
-      ? h('p.muted.small', null, t('agent.report.advisorNote'))
-      : plan.kind === 'assist'
-        ? h('p.muted.small', null, t('agent.report.takenOverNote'))
-        : scripted
-          ? h('p.muted.small', null, t('agent.report.scriptedNote'))
-          : flagged
-            ? h('p.muted.small', null, t('agent.report.flaggedNote', { pct: botPct, limit: Math.round(AI_BOT_SHARE_FLAG * 100) }))
-            : null,
+    duel
+      ? h('p.muted.small', null, t('ui.duel.uploadNote'))
+      : plan.kind === 'human'
+        ? h('p.muted.small', null, t('agent.report.advisorNote'))
+        : plan.kind === 'assist'
+          ? h('p.muted.small', null, t('agent.report.takenOverNote'))
+          : scripted
+            ? h('p.muted.small', null, t('agent.report.scriptedNote'))
+            : flagged
+              ? h('p.muted.small', null, t('agent.report.flaggedNote', { pct: botPct, limit: Math.round(AI_BOT_SHARE_FLAG * 100) }))
+              : null,
     getAutoUpload() ? null : h('p.muted.small', null, t('ui.lb.autoOffNote')),
   );
   paintNick();

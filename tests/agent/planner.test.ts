@@ -389,7 +389,8 @@ describe('act with assist', () => {
     expect(old).not.toMatch(/do:"maze"/);
     expect(systemBlocks('player')).toEqual(systemBlocks('player'));
     expect(estimateTokens(rules)).toBeLessThan(1800);
-    expect(estimateTokens(JSON.stringify(a))).toBeLessThan(1250);
+    // 含 end.doctrine（中心策略，§20）
+    expect(estimateTokens(JSON.stringify(a))).toBeLessThan(1450);
     // 军师不发意图规则
     expect(systemBlocks('advisor')[0]).not.toMatch(/do:"maze"/);
   });

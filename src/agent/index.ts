@@ -76,7 +76,8 @@ export {
   THREAT_TIGHT,
   type ThreatLine,
 } from './battle';
-export { planMaze, type MazePlan } from './maze';
+export { planMaze, layers, type MazePlan } from './maze';
+export * from './doctrine';
 export { gateDecision, cheapestUsefulAction, inDanger, eventNeedsDecision, EVENT_DECIDE, type GatingLevel } from './gating';
 export { claudeThinkingPlan, piThinkingPlan, keepThinkingInHistory, mayCompactHistory, modelLevel } from './thinking';
 export * from './modelinfo';
@@ -129,6 +130,8 @@ export type AgentControllerEvent =
   | { type: 'budget'; budget: BudgetState }
   /** budget.mode = 'ask' 用完预算：游戏已暂停，等 resolveBudget() */
   | { type: 'budget_ask'; budget: BudgetState }
+  /** 中心策略变了（模型 / 玩家改了，或模型在锁定时提了建议） */
+  | { type: 'doctrine'; doctrine: import('./doctrine').DoctrineState }
   | { type: 'error'; message: string };
 
 export interface AgentControllerOptions {
@@ -169,10 +172,28 @@ export interface AgentController {
   /** 是否正在等玩家回答预算询问 */
   readonly budgetPending: boolean;
   report(): AgentBrowserReport;
+  /** 中心策略（§20）：当前状态（进攻方 / 未启动 = null） */
+  doctrine?(): import('./doctrine').DoctrineState | null;
+  /** 玩家改中心策略（立即触发一次决策）；locked 改锁定 */
+  setDoctrine?(input: import('./doctrine').DoctrineInput & { locked?: boolean }): { ok: boolean; text: string };
+}
+
+/** AI 对战里一方的统计（报告 / 本地记录 / 上传对战榜用） */
+export interface DuelSideReport {
+  provider: string;
+  model: string;
+  effort?: import('./config').ThinkingLevel;
+  decisions: number;
+  /** 由内置机器人兜底的决策数 */
+  fallback: number;
+  usage: TokenUsage;
+  costUsd: number;
+  errors: string[];
 }
 
 export interface AgentBrowserReport {
-  agent: { provider: string; model: string; role: string };
+  /** effort：思考档位（内置机器人没有）；provider 是渠道，只留在本地，不上传 */
+  agent: { provider: string; model: string; role: string; effort?: import('./config').ThinkingLevel };
   board: string;
   usage: TokenUsage;
   costUsd: number;
@@ -184,7 +205,9 @@ export interface AgentBrowserReport {
   /** 思路与请求记录（已脱敏、封顶约 1.5M 字符；原始请求 / 响应可能被去掉） */
   trace: TraceExport;
   /** AI 对战：进攻方模型（agent 是防守方，role = 'duel'） */
-  attacker?: { provider: string; model: string };
+  attacker?: { provider: string; model: string; effort?: import('./config').ThinkingLevel };
+  /** AI 对战：双方各自的决策数 / 用量 / 费用 / 错误 */
+  duel?: { attack: DuelSideReport; defend: DuelSideReport };
 }
 
 export function createAgentController(o: AgentControllerOptions): AgentController {
@@ -209,6 +232,8 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
   let budgetResolve: ((c: BudgetChoice) => void) | null = null;
   /** 进攻方：已为哪一波出过题（每波只问一次） */
   let attackPlanned = -1;
+  /** 玩家刚改了中心策略：下一次 poll 立即决策 */
+  let forceNext = false;
   /** 进攻方正在出题 */
   let planning = false;
   /** 自动开波快到了、题还没出完 → 临时暂停了游戏 */
@@ -244,8 +269,9 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
       planning = true;
       reasons = ['build'];
     } else {
-      reasons = detector.check(w, !!o.instructions?.hasPending());
+      reasons = detector.check(w, !!o.instructions?.hasPending() || forceNext);
       if (!reasons) return;
+      forceNext = false;
     }
     const point = detector.point(w, reasons);
     // 进攻方出题时不暂停：真人照常操作，只是开波要等题出完（session.holdStart + 自动开波前暂停）
@@ -310,6 +336,7 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
         sink: (cmd) => session.command(cmd),
         signal: ac.signal,
         onSuggest: (s) => emit({ type: 'suggestion', suggestion: s }),
+        onDoctrine: (d) => emit({ type: 'doctrine', doctrine: d }),
         onUsage: (u, c) => emit({ type: 'usage', usage: u, costUsd: c }),
         onBudget: (b) => emit({ type: 'budget', budget: b }),
         instructions: o.instructions,
@@ -371,6 +398,13 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
       if (!r) return;
       setStatus('thinking', choice);
       r(choice);
+    },
+    doctrine: () => engine?.doctrine ?? null,
+    setDoctrine(input) {
+      if (!engine || config.role === 'attacker') return { ok: false, text: 'doctrine: not available' };
+      const r = engine.setDoctrine(input, 'player');
+      if (r.ok && (input.preset !== undefined || input.core !== undefined || input.maze !== undefined)) forceNext = true;
+      return r;
     },
     report() {
       const tag = provider ? agentTag(config) : { provider: 'none', model: 'none' };

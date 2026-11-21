@@ -8,7 +8,8 @@
  *   - 其余决策点只有防守方决策；
  *   - 两边都固定为暂停模式（实时模式下进攻方来不及在开波前出题）。
  * 决策事件带 side（attack / defend），状态事件也带 side，面板据此显示两行状态并给记录打标签。
- * 这种局不参与任何排行（report().agent.role = 'duel'），只记本地记录。
+ * 这种局不进玩家 / AI 玩家的三类榜（report().agent.role = 'duel'）：完整数据记本地（src/meta/duels.ts），
+ * 成绩上传到独立的 AI 对战榜（/api/duels，只带模型名 + 思考档位）。report().duel 是双方各自的统计。
  */
 import type { GameEvent } from '../core/types';
 import { makeMidRun } from '../meta/midrun';
@@ -48,6 +49,17 @@ const pauseCfg = (c: Partial<AgentModelConfig>, role: 'attacker' | 'player'): Pa
   role,
   decision: { ...c.decision, mode: 'pause', ...(role === 'attacker' ? { waveIntervalSec: 0 } : {}) },
 });
+
+/** 一方的统计（report().duel） */
+function sideStats(e: DecisionEngine | null) {
+  return {
+    decisions: e?.decisions.length ?? 0,
+    fallback: e?.decisions.filter((d) => d.by === 'fallback').length ?? 0,
+    usage: e?.usage ?? emptyUsage(),
+    costUsd: e?.costUsd ?? 0,
+    errors: e?.errors.slice() ?? [],
+  };
+}
 
 export function createDuelController(o: DuelControllerOptions): AgentController {
   const acfgIn = pauseCfg(o.attacker.config, 'attacker');
@@ -166,7 +178,7 @@ export function createDuelController(o: DuelControllerOptions): AgentController 
           emit({ type: 'budget_ask', budget: b });
         }),
       trace,
-      ...(defender ? { holdWaveStart: attackDue } : {}),
+      ...(defender ? { holdWaveStart: attackDue, onDoctrine: (d) => emit({ type: 'doctrine', doctrine: d }) } : {}),
     });
 
   return {
@@ -226,6 +238,8 @@ export function createDuelController(o: DuelControllerOptions): AgentController 
       setStatus('stopped');
     },
     poll,
+    doctrine: () => def?.doctrine ?? null,
+    setDoctrine: (input) => def?.setDoctrine(input, 'player') ?? { ok: false, text: 'doctrine: not available' },
     budget: () => def?.budgetState() ?? null,
     get budgetPending() {
       return budgetResolve !== null;
@@ -240,9 +254,13 @@ export function createDuelController(o: DuelControllerOptions): AgentController 
       const dtag = dProv ? agentTag(dcfg) : { provider: 'none', model: 'none' };
       const atag = aProv ? agentTag(acfg) : { provider: 'none', model: 'none' };
       return {
-        // 防守方是「玩家」；role = duel：不参与任何排行
+        // 防守方是「玩家」；role = duel：不进三类榜，上传到独立的 AI 对战榜
         agent: { ...dtag, role: 'duel' },
         attacker: atag,
+        duel: {
+          attack: { ...atag, ...sideStats(att) },
+          defend: { ...dtag, ...sideStats(def) },
+        },
         board: boardForOpts(w.state.opts),
         usage: usageNow(),
         costUsd: costNow(),

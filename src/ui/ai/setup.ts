@@ -23,6 +23,7 @@ import { MAP_META } from '../coreMeta';
 import { clear, h, setText } from '../dom';
 import { G } from '../icons';
 import { buildRunOptions, layoutPicker, randomSeed, switchRow } from '../screens/common';
+import { doctrinePicker } from './doctrine-ui';
 import { type AiLaunch, type AiRole, attackLaunch, duelLaunch, requestAiLaunch } from './launch';
 import { field, mountAiModelConfigForm } from './model-form';
 import { type AiSetupKind, type AiSetupSaved, loadAttackerSetup, loadSetup, saveAttackerSetup } from './store';
@@ -72,8 +73,15 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
     onChange: () => paintSummary(),
   });
   const kindNote = h('p.muted.small.ai-kind-note');
+  // 中心策略（§20）：AI 玩家 / 军师 / AI 对战的防守方；AI 出题（AI 只进攻）不用
+  const doctrine = doctrinePicker(st.doctrine, (c) => {
+    st.doctrine = c;
+    persist();
+  });
+  const doctrineCard = h('section.card.section.ai-card', null, h('h3', null, t('agent.doctrine.title')), doctrine.el);
   const paintKind = (): void => {
     const k = kind();
+    doctrineCard.hidden = k === 'attack';
     aform.modelCard.hidden = k !== 'duel';
     aform.errBox.hidden = k !== 'duel';
     const head = form.modelCard.querySelector('h3');
@@ -303,6 +311,7 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
         if (duel && (!(await aform.prepare()) || disposed)) return;
         audio.play('select');
         const cfg = form.buildConfig();
+        if (k !== 'attack' && st.doctrine) cfg.doctrine = { ...st.doctrine };
         const resolved = resolveConfig(cfg);
         st.lastConfig = saveableConfig(resolved);
         persist();
@@ -358,6 +367,7 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
       autoSw.el,
       runNote,
     ),
+    doctrineCard,
     aform.modelCard,
     form.modelCard,
     form.decisionCard,

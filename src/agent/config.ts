@@ -161,6 +161,10 @@ export interface AgentModelConfig {
   refusalFallback?: boolean;
   /** 浏览器直连托管 API（BYO key）：claude-native 需要 dangerouslyAllowBrowser */
   browser?: boolean;
+  /**
+   * 中心策略（文档 10 §20）：开局的预设（auto / 缺省 = 让模型在第一次决策里选）、是否锁定（模型不能改）、玩家原话。
+   */
+  doctrine?: { preset?: import('./doctrine').DoctrinePreset | 'auto'; locked?: boolean; notes?: string };
 }
 
 export interface PresetInfo {
@@ -415,8 +419,12 @@ export function saveableConfig(c: AgentModelConfig): AgentModelConfig {
   return rest;
 }
 
-/** 报告 / 排行榜上的 agent 标记 */
-export function agentTag(c: AgentModelConfig): { provider: string; model: string } {
+/**
+ * 报告 / 排行榜上的 agent 标记。provider（渠道）只留在本地报告里；上传时只用 model + effort（见 src/ui/ai/meta.ts）。
+ * effort = 配置的思考档位（resolveConfig 补齐过的 thinking）；内置机器人没有。
+ */
+export function agentTag(c: AgentModelConfig): { provider: string; model: string; effort?: ThinkingLevel } {
   const provider = c.provider === 'pi' ? `pi:${c.preset ?? 'custom'}` : c.provider;
-  return { provider, model: c.model };
+  const effort = c.provider === 'scripted' ? undefined : (c.thinking ?? c.effort);
+  return effort ? { provider, model: c.model, effort } : { provider, model: c.model };
 }

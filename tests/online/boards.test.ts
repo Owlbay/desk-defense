@@ -29,7 +29,7 @@ import {
   type SubmitBody,
   type SubmitResponse,
 } from '../../src/shared/leaderboard';
-import { applyMigration3, createFakeD1, type FakeD1 } from './fakeD1';
+import { applyMigration3, applyMigration4, createFakeD1, type FakeD1 } from './fakeD1';
 import { type PlayedRun, playRun } from './helpers';
 
 const ORIGIN = 'https://desk-defense.pages.dev';
@@ -146,8 +146,11 @@ describe('POST /api/runs：AI 辅助进同一张榜', () => {
       ai: true,
       aiModel: 'claude-sonnet-5-5',
       difficulty: 'normal',
-      agent: { provider: 'claude-native' },
+      agent: { model: 'claude-sonnet-5-5' },
     });
+    // 渠道（服务商）只存库做内部判断，不对外返回
+    expect(all.rows[0].agent).not.toHaveProperty('provider');
+    expect(JSON.stringify(all)).not.toContain('claude-native');
     expect((await lb('board=endless&hideAi=1')).rows).toHaveLength(0);
     const d = (await (await handleGetRun(get(`/api/runs/${data.id}`), deps, data.id)).json()) as RunDetail;
     expect(d).toMatchObject({ board: 'endless', ai: true, aiModel: 'claude-sonnet-5-5' });
@@ -297,6 +300,7 @@ describe('migrations/0003：旧数据归一', () => {
     add('c2', 'ai:hard', 'devAI', 400, { agent: true });
     add('d1', 'daily:2026-11-19', 'devA', 70, { day: '2026-11-19' });
     applyMigration3(old);
+    applyMigration4(old);
     const rows = old.sqlite.prepare('SELECT id, board, ai, ai_model, stars FROM runs ORDER BY id').all();
     expect(rows).toEqual([
       { id: 'a2', board: 'endless', ai: 0, ai_model: null, stars: 0 },

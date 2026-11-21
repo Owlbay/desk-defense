@@ -866,3 +866,37 @@ html.reduce-motion .ai-dock[data-mode='sheet'] {
     height: 28px;
   }
 }
+
+/* 中心策略：状态页标签 + 菜单；指令框的确认条 */
+.ai-doctrine-box {
+  display: grid;
+  gap: 6px;
+}
+.ai-doctrine-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.ai-doctrine-tag {
+  cursor: pointer;
+  min-height: 28px;
+}
+.ai-doctrine-suggest:empty {
+  display: none;
+}
+.ai-doctrine-menu {
+  display: grid;
+  gap: 6px;
+}
+.ai-doctrine-log {
+  margin: 0;
+  padding-left: 1.2em;
+}
+.ic-doctrine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}

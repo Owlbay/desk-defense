@@ -11,6 +11,7 @@ import { BattleLog, eventLine, idleLine, threatLine } from './battle';
 import { comboLine, mazeLine, reclaimLine } from './board';
 import { type AgentModelConfig, CONTEXT_MODES, type ContextModeSpec, contextSpec, type ThinkingLevel } from './config';
 import { ContextBuilder } from './context';
+import { applyDoctrine, type DoctrineInput, doctrineLine, type DoctrineState, initialDoctrine } from './doctrine';
 import { gateDecision } from './gating';
 import { type AckCode, type InstructionQueue, type InstructionRef, instructionSection } from './instructions';
 import { BattleIntel, gapLine, killLine, leakLine, type LeakRecord } from './intel';
@@ -50,6 +51,8 @@ export interface EngineOptions {
   sink?: CommandSink;
   signal?: AbortSignal;
   onSuggest?: (s: Suggestion) => void;
+  /** 中心策略变了（模型 / 玩家改了，或模型在锁定时提了建议） */
+  onDoctrine?: (st: DoctrineState) => void;
   onUsage?: (total: TokenUsage, costUsd: number) => void;
   /** 军师 / 进攻方（桩）模式下由兜底机器人代替真人执行操作（无头评测用；浏览器里真人自己玩，保持 false） */
   fallbackPlaysForHuman?: boolean;
@@ -180,6 +183,9 @@ export class DecisionEngine {
     this.battle = new BattleLog(o.world);
     this.intel = new BattleIntel(o.world);
     this.plannerState.intel = this.intel;
+    // 中心策略（§20）：防守方 / 军师；进攻方不用
+    if (this.role !== 'attacker') this.plannerState.doctrine = initialDoctrine(o.config.doctrine);
+    o.fallback.bindPlanner?.(this.plannerState);
     // 提示词里的目录文本始终用源语言（简体中文），与玩家界面语言无关
     this.system = withLocale(SOURCE_LOCALE, () => systemBlocks(this.role, this.assist));
     this.header = withLocale(SOURCE_LOCALE, () => runHeader(o.opts, o.world));
@@ -459,6 +465,7 @@ export class DecisionEngine {
           signal: ac.signal,
           world: this.o.provider.id === 'scripted' ? w : undefined,
           instructions: ins.once.length || ins.standing.length ? ins : undefined,
+          doctrine: this.plannerState.doctrine?.chosen ? this.plannerState.doctrine.doc.preset : undefined,
           callTool: async (name, input, meta) => this.callTool(name, input, calls, sink, meta?.id),
           trace: sink,
           afterRequest: async (ms) => {
@@ -665,7 +672,15 @@ export class DecisionEngine {
       input,
     );
     this.ctx.onToolResult(r);
-    if (name === 'act') this.battle.noteActResult(r.text);
+    if (name === 'act') {
+      this.battle.noteActResult(r.text);
+      if (r.doctrine) {
+        const st = this.plannerState.doctrine;
+        const last = st?.log.at(-1);
+        if (r.doctrine.ok && last) sink?.({ k: 'doctrine', from: last.from, to: last.to, by: last.by, why: last.why, wave: last.wave });
+        if (st) this.o.onDoctrine?.(st);
+      }
+    }
     calls.push({
       name,
       input,
@@ -712,6 +727,8 @@ export class DecisionEngine {
   private extras(buildPhase: boolean): string | undefined {
     const w = this.o.world;
     const out: string[] = [];
+    const doc = this.role === 'attacker' ? undefined : doctrineLine(this.plannerState.doctrine, w.state.wave + 1);
+    if (doc) out.push(doc);
     const br = this.battle.take();
     if (br) out.push(br);
     // 漏怪明细 / 缺口热点 / 击杀分布：与战报同一窗口（波末之后的第一次模型决策）；波中漏怪也即时给明细
@@ -773,6 +790,27 @@ export class DecisionEngine {
     return [...out];
   }
 
+  /** 玩家改中心策略（不受冷却 / 锁定限制）；locked 给出时同时改锁定 */
+  setDoctrine(input: DoctrineInput & { locked?: boolean }, by: 'player' | 'model' = 'player'): { ok: boolean; text: string } {
+    const st = (this.plannerState.doctrine ??= initialDoctrine());
+    const w = this.o.world;
+    const r =
+      input.preset !== undefined ||
+      input.core !== undefined ||
+      input.maze !== undefined ||
+      input.focus !== undefined ||
+      input.notes !== undefined
+        ? applyDoctrine(st, input, by, { wave: w.state.wave })
+        : { ok: true, text: 'doctrine: unchanged' };
+    if (typeof input.locked === 'boolean' && by === 'player') st.locked = input.locked && st.chosen;
+    this.o.onDoctrine?.(st);
+    return r;
+  }
+
+  get doctrine(): DoctrineState | undefined {
+    return this.plannerState.doctrine;
+  }
+
   /** 每个世界事件调用（浏览器控制器 / 无头 runner）：喂给战场情报 */
   onWorldEvent(ev: import('../core/types').GameEvent): void {
     this.intel.onEvent(ev);
@@ -799,7 +837,11 @@ export class DecisionEngine {
     const s = w.state;
     const send = this.send;
     if (s.phase === 'perk' && s.perkChoices) {
-      const c = s.perkChoices.find((x) => !x.needsTower) ?? s.perkChoices[0];
+      const pref = this.plannerState.doctrine?.chosen ? this.plannerState.doctrine.doc.perks : [];
+      const c =
+        pref.map((id) => s.perkChoices!.find((x) => x.id === id && !x.needsTower)).find(Boolean) ??
+        s.perkChoices.find((x) => !x.needsTower) ??
+        s.perkChoices[0];
       send({ type: 'choosePerk', id: c.id });
       rec.fallbackReason = (rec.fallbackReason ? `${rec.fallbackReason}; ` : '') + `auto perk ${c.id}`;
     }

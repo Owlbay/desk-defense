@@ -5,13 +5,19 @@
  */
 import { decodeLogPayload, gzipJsonBase64 } from '../../src/shared/codec';
 import {
+  checkDuelSubmission,
   checkLog,
   checkSubmission,
   type DailyInfo,
   dailyInfo,
   dayOf,
+  DUEL_BOARD,
+  type DuelBoardResponse,
+  type DuelDetail,
+  type DuelMeta,
   effectiveAutoWave,
   GAME_VERSION,
+  isAiEffort,
   isDeviceId,
   LEADERBOARD_MAX_LIMIT,
   type LeaderboardResponse,
@@ -22,7 +28,19 @@ import {
   type StatusResponse,
   type SubmitResponse,
 } from '../../src/shared/leaderboard';
-import { agentOfRow, type BestRow, type D1Like, ranksBefore, type RunRow, RunStore, toLeaderRow } from './db';
+import {
+  agentOfRow,
+  type BestRow,
+  type D1Like,
+  duelSideOfRow,
+  DuelStore,
+  publicAiModel,
+  ranksBefore,
+  type RunRow,
+  RunStore,
+  toDuelRow,
+  toLeaderRow,
+} from './db';
 import { apiError, json } from './http';
 import { checkRateLimit, D1RateLimitStore, type RateLimitStore } from './ratelimit';
 
@@ -71,6 +89,16 @@ export const hashDevice = async (salt: string, deviceId: string): Promise<string
  */
 export const hashAiDevice = async (salt: string, deviceId: string): Promise<string> =>
   (await sha256Hex(`${salt}|dev|${deviceId.toLowerCase()}|ai`)).slice(0, 32);
+/** AI 对战：设备 + 对阵组合（进攻模型 / 档位 × 防守模型 / 档位）——每个组合各保留最好的一条 */
+export const hashDuelDevice = async (salt: string, deviceId: string, d: DuelMeta): Promise<string> =>
+  (
+    await sha256Hex(
+      `${salt}|dev|${deviceId.toLowerCase()}|duel|${d.attacker.model}|${d.attacker.effort ?? ''}|${d.defender.model}|${d.defender.effort ?? ''}`,
+    )
+  ).slice(0, 32);
+/** AI 对战：只按设备（查「我的最佳」） */
+export const hashDuelOwner = async (salt: string, deviceId: string): Promise<string> =>
+  (await sha256Hex(`${salt}|dev|${deviceId.toLowerCase()}|duel`)).slice(0, 32);
 export const hashIp = async (salt: string, ip: string): Promise<string> => (await sha256Hex(`${salt}|ip|${ip}`)).slice(0, 32);
 
 const ID_ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyz';
@@ -204,6 +232,7 @@ export async function handleSubmit(req: Request, deps: Deps): Promise<Response> 
     ai_model: sub.aiModel,
     stars: sub.stars,
     won: sub.result.won ? 1 : 0,
+    ai_effort: sub.aiEffort,
   };
   const { improved } = await store.upsertBest(row);
   const best = await store.bestOf(sub.board, row.device_hash);
@@ -296,8 +325,161 @@ export async function handleGetRun(req: Request, deps: Deps, id: string): Promis
     status: r.status,
     createdAt: Number(r.created_at),
     ai: Number(r.ai) === 1 || !!r.agent_provider,
-    ...(r.ai_model || r.agent_model ? { aiModel: (r.ai_model || r.agent_model) as string } : {}),
+    ...(publicAiModel(r.ai_model || r.agent_model) ? { aiModel: publicAiModel(r.ai_model || r.agent_model) } : {}),
+    ...(isAiEffort(r.ai_effort) ? { aiEffort: r.ai_effort } : {}),
     ...(agentOfRow(r) ? { agent: agentOfRow(r) } : {}),
+  };
+  return json(detail, { cacheControl: 'public, max-age=300' });
+}
+
+// ───────────────────────── AI 对战榜：POST/GET /api/duels、GET /api/duels/:id ─────────────────────────
+
+export function duelCacheKey(origin: string, limit: number): string {
+  return `${origin}/api/duels?limit=${limit}`;
+}
+
+async function purgeDuelCache(deps: Deps, origin: string): Promise<void> {
+  if (!deps.cache) return;
+  await Promise.all(LIMIT_PRESETS.map((l) => deps.cache!.delete(duelCacheKey(origin, l)).catch(() => false)));
+}
+
+/** POST /api/duels：AI 对战成绩（与 /api/runs 同一套限流 / 人机验证 / 轻量校验，日志允许 overrideWave） */
+export async function handleDuelSubmit(req: Request, deps: Deps): Promise<Response> {
+  if (req.method !== 'POST') return apiError('method', '请求方式不支持');
+  if (!deps.db) return notConfigured();
+  const now = deps.now();
+  const len = Number(req.headers.get('Content-Length') ?? '0');
+  if (len > MAX_BODY_BYTES) return apiError('too_large', '提交的数据太大了');
+  const text = await req.text();
+  if (text.length > MAX_BODY_BYTES) return apiError('too_large', '提交的数据太大了');
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return apiError('bad_request', '请求格式错误');
+  }
+
+  const ip = clientIp(req);
+  const ipHash = await hashIp(deps.salt, ip);
+  const rawDevice = (body as { deviceId?: unknown } | null)?.deviceId;
+  const deviceHash = isDeviceId(rawDevice) ? await hashDevice(deps.salt, rawDevice) : null;
+  const rate = deps.rate ?? new D1RateLimitStore(deps.db);
+  const rl = await checkRateLimit(rate, [`ip:${ipHash}`, ...(deviceHash ? [`dev:${deviceHash}`] : [])], now, RATE_LIMIT);
+  if (!rl.ok) {
+    return apiError('rate_limited', `提交太频繁了，请 ${Math.ceil(rl.retryAfter / 60)} 分钟后再试`, { retryAfter: rl.retryAfter });
+  }
+
+  const checked = checkDuelSubmission(body, { now, acceptVersions: deps.acceptVersions ?? [GAME_VERSION] });
+  if (!checked.ok) return apiError(checked.message.startsWith('游戏版本') ? 'version' : 'bad_request', checked.message);
+  const sub = checked.value;
+  if (!(await verifyTurnstile(deps, sub.turnstileToken, ip))) return apiError('turnstile', '人机验证未通过，请重试');
+
+  let decoded: { log: unknown; rawBytes: number };
+  try {
+    decoded = await decodeLogPayload(sub.log);
+  } catch (e) {
+    return e instanceof Error && e.message === 'too_large'
+      ? apiError('too_large', '操作记录过长')
+      : apiError('bad_request', '操作记录无法解析');
+  }
+  const logChecked = checkLog(decoded.log, sub.result, sub.opts, { allowOverride: true });
+  if (!logChecked.ok) return apiError('bad_request', logChecked.message);
+  const plans = logChecked.value.filter((e) => e.cmd.type === 'overrideWave').length;
+  const logGz = Array.isArray(sub.log) ? await gzipJsonBase64(logChecked.value) : sub.log.gz;
+  const d = sub.duel;
+  const store = new DuelStore(deps.db);
+  const row = {
+    id: (deps.newId ?? randomId)(),
+    nickname: sub.nickname,
+    device_hash: await hashDuelDevice(deps.salt, sub.deviceId, d),
+    owner_hash: await hashDuelOwner(deps.salt, sub.deviceId),
+    mode: sub.opts.mode,
+    map: sub.opts.map,
+    difficulty: sub.opts.difficulty,
+    abyss: sub.opts.difficulty === 'abyss' ? (sub.opts.abyssLevel ?? 1) : 0,
+    wave: sub.result.wave,
+    score: sub.result.score,
+    kills: sub.result.kills,
+    lives: sub.result.lives,
+    won: sub.result.won ? 1 : 0,
+    stars: sub.stars,
+    plans,
+    seed: sub.seed,
+    game_version: sub.gameVersion,
+    opts_json: JSON.stringify(sub.opts),
+    result_json: JSON.stringify(sub.result),
+    log_gz: logGz,
+    log_bytes: decoded.rawBytes,
+    atk_model: d.attacker.model,
+    atk_effort: d.attacker.effort ?? null,
+    atk_scripted: d.attacker.scripted ? 1 : 0,
+    atk_bot_share: d.attacker.botShare,
+    def_model: d.defender.model,
+    def_effort: d.defender.effort ?? null,
+    def_scripted: d.defender.scripted ? 1 : 0,
+    def_bot_share: d.defender.botShare,
+    // 出题次数以日志为准
+    duel_json: JSON.stringify({ ...d, plans }),
+    created_at: now,
+    ip_hash: ipHash,
+  };
+  const { improved } = await store.upsertBest(row);
+  const best = await store.bestOf(row.device_hash);
+  if (!best) return apiError('internal', '保存成绩失败，请稍后再试');
+  const { rank, total } = await store.rankOf(best);
+  if (improved) await purgeDuelCache(deps, new URL(req.url).origin);
+  const res: SubmitResponse = { id: best.id, rank, total, improved, status: 'pending' };
+  return json(res, { status: improved ? 201 : 200 });
+}
+
+/** GET /api/duels?limit=20[&around=deviceId] */
+export async function handleDuelBoard(req: Request, deps: Deps): Promise<Response> {
+  if (req.method !== 'GET') return apiError('method', '请求方式不支持');
+  if (!deps.db) return notConfigured();
+  const url = new URL(req.url);
+  const limitRaw = Number(url.searchParams.get('limit') ?? '20');
+  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(LEADERBOARD_MAX_LIMIT, Math.floor(limitRaw))) : 20;
+  const around = url.searchParams.get('around');
+  if (around !== null && !isDeviceId(around)) return apiError('bad_request', '设备标识无效');
+  const store = new DuelStore(deps.db);
+  const bucket = LIMIT_PRESETS.find((l) => l >= limit) ?? LEADERBOARD_MAX_LIMIT;
+  const key = duelCacheKey(url.origin, bucket);
+  let base: DuelBoardResponse | null = null;
+  if (deps.cache) {
+    const hit = await deps.cache.match(key).catch(() => undefined);
+    if (hit) base = (await hit.json()) as DuelBoardResponse;
+  }
+  if (!base) {
+    const [rows, total] = await Promise.all([store.top(bucket), store.total()]);
+    base = { board: DUEL_BOARD, rows, total, generatedAt: deps.now() };
+    if (deps.cache) await deps.cache.put(key, json(base, { cacheControl: `public, max-age=${LEADERBOARD_TTL}` })).catch(() => undefined);
+  }
+  if (base.rows.length > limit) base = { ...base, rows: base.rows.slice(0, limit) };
+  if (around === null) return json(base, { cacheControl: `public, max-age=${LEADERBOARD_TTL}` });
+  const best = await store.bestOfOwner(await hashDuelOwner(deps.salt, around));
+  const me = best ? toDuelRow(best, (await store.rankOf(best)).rank) : null;
+  return json({ ...base, me }, { cacheControl: 'private, max-age=10' });
+}
+
+/** GET /api/duels/:id —— 对战详情（回放用；只有模型名 + 档位，不含渠道） */
+export async function handleGetDuel(req: Request, deps: Deps, id: string): Promise<Response> {
+  if (req.method !== 'GET') return apiError('method', '请求方式不支持');
+  if (!deps.db) return notConfigured();
+  const missing = (): Response => apiError('not_found', '找不到这条对战记录（可能已被同一组合的新纪录替换）');
+  if (!RUN_ID_RE.test(id)) return missing();
+  const r = await new DuelStore(deps.db).getRun(id);
+  if (!r) return missing();
+  const detail: DuelDetail = {
+    id: r.id,
+    nickname: r.nickname,
+    opts: JSON.parse(r.opts_json) as DuelDetail['opts'],
+    seed: r.seed,
+    logGz: r.log_gz,
+    result: JSON.parse(r.result_json) as DuelDetail['result'],
+    gameVersion: r.game_version,
+    createdAt: Number(r.created_at),
+    attacker: duelSideOfRow(r.atk_model, r.atk_effort, r.atk_scripted, r.atk_bot_share),
+    defender: duelSideOfRow(r.def_model, r.def_effort, r.def_scripted, r.def_bot_share),
   };
   return json(detail, { cacheControl: 'public, max-age=300' });
 }

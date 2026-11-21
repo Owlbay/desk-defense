@@ -153,6 +153,8 @@ export interface FallbackPolicy {
   decide(reasons: DecisionReason[]): void | Promise<void>;
   /** 每步调用（可选，例如捡硬币） */
   tick?(): void;
+  /** 引擎把规划器状态（中心策略等）交给兜底，让兜底也按策略打（可选） */
+  bindPlanner?(state: import('./planner').PlannerState): void;
   onWaveStart?(wave: number): void;
   onWaveEnd?(wave: number): void;
   onLeak?(enemy: string): void;
@@ -168,7 +170,7 @@ export interface AgentReplay {
   savedAt: number;
   agent: { provider: string; model: string; role: AgentRole };
   /** AI 对战：进攻方模型（防守方在 agent 里）；回放只看指令日志，与它无关 */
-  attacker?: { provider: string; model: string };
+  attacker?: { provider: string; model: string; effort?: string };
 }
 
 export type CommandSink = (cmd: Command) => CommandResult & { queuedFor?: number };
@@ -186,6 +188,8 @@ export interface ToolResult {
   /** act {end:{plan,maze,priorities}}：结构化备忘（跨决策记忆） */
   memo?: Partial<Record<'plan' | 'maze' | 'priorities' | 'note', string>>;
   queuedFor?: number;
+  /** act 的 end.doctrine：中心策略修改的结果（ok = 已生效） */
+  doctrine?: { ok: boolean; text: string };
 }
 
 /** 每波一行（CLI 进度与报告） */

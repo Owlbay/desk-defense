@@ -65,6 +65,8 @@ export interface AiSetupSaved {
   bridgeUrl: string;
   /** 上一次开局用的配置（saveableConfig 之后，不含 Key / 配对码），便于排查 */
   lastConfig?: AgentModelConfig;
+  /** 中心策略（文档 10 §20）：auto = 让模型选；locked = 不让模型改；notes = 玩家原话 */
+  doctrine?: { preset: import('../../agent/doctrine').DoctrinePreset | 'auto'; locked: boolean; notes?: string };
 }
 
 export function defaultSetup(): AiSetupSaved {

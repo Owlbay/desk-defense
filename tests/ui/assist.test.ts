@@ -129,7 +129,9 @@ describe('AI 插槽：对局中挂上 / 摘下', () => {
 
     slot.attach(launch('player'));
     // 启用即标记（不等面板加载完）
-    expect(slot.assist).toMatchObject({ player: true, advisor: false, model: '离线演示' });
+    // 只记模型名（不记界面标签里的渠道）；内置机器人没有思考档位
+    expect(slot.assist).toMatchObject({ player: true, advisor: false, model: 'scripted-v1' });
+    expect(slot.assist.effort).toBeUndefined();
     expect(slot.role).toBe('player');
     expect(slot.loading).toBe(true);
     expect(g.cls.has('ai-run') && g.cls.has('ai-player')).toBe(true);
@@ -172,7 +174,7 @@ describe('AI 插槽：对局中挂上 / 摘下', () => {
     await flush();
     expect(hudLog.destroyed).toBe(1);
     expect(hudLog.mounted.map((l) => l.role)).toEqual(['advisor', 'player']);
-    expect(slot.assist).toMatchObject({ player: true, advisor: true, model: '离线演示' });
+    expect(slot.assist).toMatchObject({ player: true, advisor: true, model: 'scripted-v1' });
     expect(ui.state.inspectOnly).toBe(true);
     slot.attach(launch('advisor', 'realtime'));
     await flush();

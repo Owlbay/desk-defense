@@ -31,6 +31,7 @@ import {
   type TraceExport,
   usageTotal,
 } from '../../agent';
+import type { DoctrinePreset } from '../../agent/doctrine';
 import type { Command, CommandResult } from '../../core/types';
 import type { Speed } from '../../game/Session';
 import { ui } from '../../game/UiStore';
@@ -43,6 +44,7 @@ import { mountComposer } from './composer';
 import { demoAdvisor } from './demoAdvisor';
 import { mountDock } from './dock';
 import { DOCK_SPLIT_W, paneOf } from './dock-state';
+import { doctrineMenu, doctrineName, doctrineTag } from './doctrine-ui';
 import { fmtCost, fmtTokens } from './format';
 import type { AiAttachCtx, AiGameOverHandlers, AiGameOverInfo, AiHudHandle, AiLaunch } from './launch';
 import { botShareOf } from './meta';
@@ -173,12 +175,20 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
   const duelBox = h('div.ai-duel-status', null, duelLines.attack.el, duelLines.defend.el);
   duelBox.hidden = !duel;
   const suggestBox = h('div.ai-suggest', { attrs: { 'aria-live': 'polite' } });
+  // 中心策略（文档 10 §20）：标签（点开换策略 / 锁定 / 修改记录）+ 锁定时 AI 的建议
+  const docTag = h<HTMLButtonElement>('button.badge.ai-doctrine-tag', { attrs: { type: 'button', 'aria-expanded': 'false' } });
+  const docSuggest = h('span.ai-doctrine-suggest.small');
+  const docMenu = h('div.ai-doctrine-pop');
+  docMenu.hidden = true;
+  const docBox = h('div.ai-doctrine-box', null, h('div.ai-doctrine-row', null, docTag, docSuggest), docMenu);
+  docBox.hidden = true;
   // 「AI 状态」页：状态、出错 / 预算询问、军师建议、用量、控制、决策流
   const panel = h(
     'div.ai-panel',
     { attrs: { id: 'ai-panel', role: 'region' } },
     h('div.ai-panel-head', null, h('div.ai-panel-title', null, panelTitle, h('small.muted', null, launch.label))),
     statusLine,
+    docBox,
     duelBox,
     errorBox,
     budgetAsk,
@@ -286,6 +296,18 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
     onSend: (item) => {
       // 一次性指令：尽快触发一次决策（控制器下一次 poll 就会带上，绕过门控与最小间隔）
       if (item.kind === 'once' && ctl?.status === 'running') ctl.poll();
+    },
+    onDoctrine: (d, text) => {
+      const r = ctl?.setDoctrine?.({ ...d, notes: text });
+      audio.play(r?.ok ? 'select' : 'error');
+      if (r?.ok)
+        app.toast(t('agent.doctrine.applied', { name: doctrineName(ctl?.doctrine?.()?.doc.preset ?? d.preset ?? 'custom') }), 'info');
+      paintDoctrine();
+      if (ctl?.status === 'running') ctl.poll();
+    },
+    currentDoctrine: () => {
+      const st = ctl?.doctrine?.();
+      return st?.chosen ? st.doc.preset : null;
     },
   });
   // AI 出题 / AI 对战：不接玩家指令，不显示输入框
@@ -698,6 +720,14 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       case 'suggestion':
         addSuggestion(ev.suggestion);
         break;
+      case 'doctrine': {
+        // 换成内置策略重启控制器时沿用当前策略
+        const d = ev.doctrine;
+        if (d.chosen && d.doc.preset !== 'custom')
+          config = { ...config, doctrine: { preset: d.doc.preset, locked: d.locked, notes: d.doc.notes } };
+        paintDoctrine();
+        break;
+      }
       case 'budget':
         budgetState = ev.budget;
         if (ev.budget.message && ev.budget.stage > 0) app.toast(ev.budget.message, 'info');
@@ -744,11 +774,56 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       paintStatus();
       return;
     }
-    void ctl.start().catch((e: unknown) => {
-      status = 'error';
-      showError(e instanceof Error ? e.message : String(e));
-      paintStatus();
-    });
+    void ctl
+      .start()
+      .then(() => paintDoctrine())
+      .catch((e: unknown) => {
+        status = 'error';
+        showError(e instanceof Error ? e.message : String(e));
+        paintStatus();
+      });
+  };
+
+  function pickDoctrine(p: DoctrinePreset): void {
+    const r = ctl?.setDoctrine?.({ preset: p });
+    audio.play(r?.ok ? 'select' : 'error');
+    if (r?.ok) app.toast(t('agent.doctrine.applied', { name: doctrineName(p) }), 'info');
+    docMenu.hidden = true;
+    docTag.setAttribute('aria-expanded', 'false');
+    paintDoctrine();
+    if (ctl?.status === 'running') ctl.poll();
+  }
+  function paintDoctrine(): void {
+    const st = ctl?.doctrine?.() ?? null;
+    docBox.hidden = !!launch.attack || !st;
+    if (!st) return;
+    setText(docTag, doctrineTag(st));
+    docTag.title = t('agent.doctrine.menu');
+    clear(docSuggest);
+    if (st.suggested && st.locked && st.suggested !== st.doc.preset) {
+      const sug = st.suggested;
+      docSuggest.append(
+        t('agent.doctrine.suggest', { name: doctrineName(sug) }),
+        ' ',
+        h('button.btn.small', { attrs: { type: 'button' }, onclick: () => pickDoctrine(sug) }, t('agent.doctrine.adopt')),
+      );
+    }
+    if (!docMenu.hidden)
+      docMenu.replaceChildren(
+        doctrineMenu(st, {
+          pick: pickDoctrine,
+          lock: (v) => {
+            ctl?.setDoctrine?.({ locked: v });
+            paintDoctrine();
+          },
+        }),
+      );
+  }
+  docTag.onclick = () => {
+    audio.play('click');
+    docMenu.hidden = !docMenu.hidden;
+    docTag.setAttribute('aria-expanded', docMenu.hidden ? 'false' : 'true');
+    paintDoctrine();
   };
 
   function showError(message: string): void {
@@ -945,6 +1020,8 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       replay: rep?.replay ?? null,
       seconds: Math.round((Date.now() - startedAt) / 1000),
       trace: withOps(rep?.trace ?? trace.export({ maxChars: 1_500_000 })),
+      // AI 对战：双方各自的统计（本地记录 + 对战榜上传用）
+      ...(rep?.duel ? { duel: rep.duel } : {}),
     };
   }
 

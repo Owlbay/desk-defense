@@ -6,6 +6,7 @@
  *  - 「一直」：长期方针，钉成可移除的小标签（最多 5 条），本局每次决策都带上；
  *  - 指令只是给 AI 的游戏请求：发给模型的是纯文本（去控制字符、截断），模型能做的仍只有游戏里的操作。
  */
+import { type DoctrinePreset, parseDoctrine } from '../../agent/doctrine';
 import {
   INSTRUCTION_MAX_CHARS,
   type InstructionKind,
@@ -30,6 +31,10 @@ export interface ComposerOptions {
   /** 发送了一条（让宿主立即触发决策 / 打开侧栏等） */
   onSend?: (item: PlayerInstruction) => void;
   toast: (text: string, tone?: 'info' | 'warn') => void;
+  /** 认出「主打范围」「铅笔流」「多绕几圈」这类话：先问要不要改中心策略（§20）；缺省不识别 */
+  onDoctrine?: (d: NonNullable<ReturnType<typeof parseDoctrine>>, text: string) => void;
+  /** 当前策略（认出的就是现在的策略时不再问） */
+  currentDoctrine?: () => DoctrinePreset | 'custom' | null;
 }
 
 export interface ComposerHandle {
@@ -64,12 +69,16 @@ export function mountComposer(o: ComposerOptions): ComposerHandle {
   const standing = h('div.ic-standing', { attrs: { 'aria-live': 'polite' } });
   const recent = h('ol.ic-recent', { attrs: { 'aria-live': 'polite' } });
   const hint = h('small.ic-hint.muted');
+  // 中心策略确认条：[改策略] [当普通指令发送]
+  const docAsk = h('div.ic-doctrine', { attrs: { role: 'group' } });
+  docAsk.hidden = true;
   const count = h('small.ic-count.muted');
   const el = h(
     'div.ai-composer',
     { data: { role: o.role } },
     recent,
     standing,
+    docAsk,
     quick,
     h('div.ic-row', null, kindSeg, input, sendBtn),
     h('div.ic-meta', null, hint, count),
@@ -163,8 +172,51 @@ export function mountComposer(o: ComposerOptions): ComposerHandle {
     recent.hidden = once.length === 0;
   }
 
-  const send = (text: string, k: InstructionKind = kind): boolean => {
+  const clearInput = (): void => {
+    input.value = '';
+    autosize();
+  };
+  const askDoctrine = (text: string, d: NonNullable<ReturnType<typeof parseDoctrine>>, k: InstructionKind): void => {
+    const name = d.preset ? t(`agent.doctrine.p.${d.preset}`) : t('agent.doctrine.p.custom');
+    docAsk.replaceChildren(
+      h('span.small', null, t('agent.doctrine.confirm', { name })),
+      h(
+        'button.btn.primary.small',
+        {
+          attrs: { type: 'button' },
+          onclick: () => {
+            docAsk.hidden = true;
+            o.onDoctrine?.(d, text);
+            clearInput();
+          },
+        },
+        t('agent.doctrine.apply'),
+      ),
+      h(
+        'button.btn.small',
+        {
+          attrs: { type: 'button' },
+          onclick: () => {
+            docAsk.hidden = true;
+            if (send(text, k, true)) clearInput();
+          },
+        },
+        t('agent.doctrine.asText'),
+      ),
+    );
+    docAsk.hidden = false;
+  };
+
+  const send = (text: string, k: InstructionKind = kind, plain = false): boolean => {
     if (!enabled) return false;
+    if (!plain && o.onDoctrine && text.trim()) {
+      const d = parseDoctrine(text);
+      if (d && !(d.preset && !d.maze && !d.focus && o.currentDoctrine?.() === d.preset)) {
+        askDoctrine(text, d, k);
+        return false;
+      }
+    }
+    docAsk.hidden = true;
     const r = queue.add(text, k, o.now());
     if (!r.ok) {
       audio.play('error');

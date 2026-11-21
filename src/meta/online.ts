@@ -24,10 +24,16 @@ import {
   type DailyInfo,
   dailyInfo,
   dayOf,
+  type DuelBoardResponse,
+  type DuelDetail,
+  type DuelMeta,
+  type DuelSubmitBody,
   GAME_VERSION,
+  isAiEffort,
   isDeviceId,
   type LeaderboardResponse,
   type LogEntry,
+  publicModelName,
   type RunDetail,
   sanitizeNickname,
   starsFor,
@@ -356,10 +362,15 @@ export function setTurnstileProvider(fn: (() => Promise<string | null>) | null):
 // ───────────────────────── 离线队列 ─────────────────────────
 
 interface QueueItem {
-  body: Omit<SubmitBody, 'turnstileToken'>;
+  body: Omit<SubmitBody, 'turnstileToken'> | Omit<DuelSubmitBody, 'turnstileToken'>;
   queuedAt: number;
   attempts: number;
+  /** 'duel' = AI 对战成绩（POST /api/duels）；缺省 = 普通成绩（POST /api/runs） */
+  kind?: 'duel';
 }
+
+const RUNS_PATH = '/api/runs';
+const DUELS_PATH = '/api/duels';
 
 function readQueue(): QueueItem[] {
   try {
@@ -416,7 +427,10 @@ export interface SubmitInput {
 
 const RETRYABLE_CODES = new Set(['rate_limited', 'turnstile', 'internal', 'not_configured']);
 
-async function send(body: Omit<SubmitBody, 'turnstileToken'>): Promise<{ outcome: SubmitOutcome; retry: boolean }> {
+async function send(
+  body: Omit<SubmitBody, 'turnstileToken'> | Omit<DuelSubmitBody, 'turnstileToken'>,
+  path: string = RUNS_PATH,
+): Promise<{ outcome: SubmitOutcome; retry: boolean }> {
   let token: string | null = null;
   if (state.turnstileSiteKey && turnstileProvider) {
     try {
@@ -425,8 +439,8 @@ async function send(body: Omit<SubmitBody, 'turnstileToken'>): Promise<{ outcome
       token = null;
     }
   }
-  const full: SubmitBody = { ...body, ...(token ? { turnstileToken: token } : {}) };
-  const r = await call<SubmitResponse>('/api/runs', { method: 'POST', body: JSON.stringify(full) });
+  const full = { ...body, ...(token ? { turnstileToken: token } : {}) };
+  const r = await call<SubmitResponse>(path, { method: 'POST', body: JSON.stringify(full) });
   noteTransport(r);
   if (r.kind === 'ok') return { outcome: { kind: 'ok', res: r.data }, retry: false };
   if (r.kind === 'api') {
@@ -531,8 +545,12 @@ export function submitWorldRun(
     typeof rawShare === 'number' && Number.isFinite(rawShare)
       ? { botShare: Math.round(Math.max(0, Math.min(1, rawShare)) * 1000) / 1000 }
       : {};
+  // 只发模型名 + 思考档位（旧存档里的模型名可能是「服务商 · 模型」的界面标签，这里再清洗一次）
+  const model = publicModelName(o.aiAssist?.model);
   const assist: AiAssistMeta | undefined =
-    !o.agent && isAiAssisted(o.aiAssist) ? { ...(o.aiAssist?.model ? { model: o.aiAssist.model } : {}), ...share } : undefined;
+    !o.agent && isAiAssisted(o.aiAssist)
+      ? { ...(model ? { model } : {}), ...(model && isAiEffort(o.aiAssist?.effort) ? { effort: o.aiAssist.effort } : {}), ...share }
+      : undefined;
   return submitRun({
     opts,
     log: world.log.map((e) => ({ tick: e.tick, cmd: e.cmd })),
@@ -542,6 +560,69 @@ export function submitWorldRun(
     ...(o.agent ? { agent: o.agent } : {}),
     ...(assist ? { aiAssist: assist } : {}),
   });
+}
+
+// ───────────────────────── AI 对战榜 ─────────────────────────
+
+/** 上传一局 AI 对战（独立的对战榜；只带模型名 + 思考档位）。网络 / 服务问题时进离线队列。永不抛异常。 */
+export async function submitDuel(
+  world: {
+    readonly log: readonly LogEntry[];
+    readonly state: Pick<WorldState, 'score' | 'lives' | 'gold' | 'tick' | 'stats' | 'opts' | 'seed'> &
+      Partial<Pick<WorldState, 'phase' | 'maxLives'>>;
+  },
+  o: { wavesSurvived: number; duel: DuelMeta; nickname?: string },
+): Promise<SubmitOutcome> {
+  try {
+    const nick = sanitizeNickname(o.nickname ?? getNickname());
+    if (!nick.ok) return { kind: 'rejected', message: nick.message };
+    if (state.serverVersion && state.serverVersion !== GAME_VERSION) return { kind: 'rejected', message: t('core.online.newVersion') };
+    const st = world.state;
+    const opts: RunOptions = { ...st.opts, seed: st.opts.seed ?? st.seed };
+    const body: Omit<DuelSubmitBody, 'turnstileToken'> = {
+      nickname: nick.value,
+      deviceId: getDeviceId(),
+      opts: JSON.parse(JSON.stringify(opts)) as RunOptions,
+      seed: opts.seed ?? '',
+      log: await encodeLog(world.log.map((e) => ({ tick: e.tick, cmd: e.cmd }))),
+      result: resultFromWorld(st, o.wavesSurvived),
+      gameVersion: GAME_VERSION,
+      duel: o.duel,
+    };
+    if (readQueue().length) await flushQueue();
+    const { outcome, retry } = await send(body, DUELS_PATH);
+    if (retry) {
+      const q = readQueue();
+      q.push({ body, queuedAt: conf().now(), attempts: 1, kind: 'duel' });
+      writeQueue(q);
+    }
+    return outcome;
+  } catch {
+    return { kind: 'rejected', message: t('core.online.uploadFailed') };
+  }
+}
+
+/** AI 对战榜前 N 名；around = true 时附带本设备最好的一条（me） */
+export async function fetchDuelBoard(o: { limit?: number; around?: boolean } = {}): Promise<Fetched<DuelBoardResponse>> {
+  const p = new URLSearchParams({ limit: String(o.limit ?? 20) });
+  if (o.around) p.set('around', getDeviceId());
+  return toFetched(await call<DuelBoardResponse>(`${DUELS_PATH}?${p.toString()}`));
+}
+
+export interface DuelReplay extends DuelDetail {
+  log: LogEntry[];
+}
+
+/** 拉取一条对战记录（解压日志），用于观看回放 */
+export async function fetchDuel(id: string): Promise<Fetched<DuelReplay>> {
+  const r = toFetched(await call<DuelDetail>(`${DUELS_PATH}/${encodeURIComponent(id)}`));
+  if (!r.ok) return r;
+  try {
+    const { log } = await decodeLogPayload({ gz: r.data.logGz });
+    return { ok: true, data: { ...r.data, log: log as LogEntry[] } };
+  } catch {
+    return { ok: false, status: 'online', message: t('core.online.replayCorrupt') };
+  }
 }
 
 let flushing: Promise<number> | null = null;
@@ -559,7 +640,7 @@ export function flushQueue(): Promise<number> {
           q.shift();
           continue;
         }
-        const { outcome, retry } = await send(item.body);
+        const { outcome, retry } = await send(item.body, item.kind === 'duel' ? DUELS_PATH : RUNS_PATH);
         if (retry) {
           item.attempts++;
           break;
