@@ -201,8 +201,8 @@ describe('设置保存与上传标记', () => {
     expect(loadSetup().per.relay?.detected).toEqual({ api: 'openai-responses', for: 'https://relay.test|gpt-5-mini' });
   });
 
-  it('上传标记通过服务端校验；军师 / 接管 / 非无尽的对局不能进 AI 榜', async () => {
-    const { agentMetaOf, aiBoardBlocker, botShareOf } = await import('../../src/ui/ai/meta');
+  it('上传标记通过服务端校验；军师按普通成绩、接管只带 AI 辅助、战役也能上传', async () => {
+    const { agentMetaOf, aiUploadPlan, botShareOf } = await import('../../src/ui/ai/meta');
     const usage = { inputTokens: 1000, outputTokens: 200, cacheReadTokens: 5000, cacheWriteTokens: 300, requests: 9 };
     const share = botShareOf([{ by: 'agent' }, { by: 'agent' }, { by: 'fallback' }, { by: 'agent' }]);
     expect(share).toBe(0.25);
@@ -232,12 +232,12 @@ describe('设置保存与上传标记', () => {
       takenOver: false,
       decisions: 3,
     };
-    expect(aiBoardBlocker(base)).toBeNull();
-    expect(aiBoardBlocker({ ...base, agent: { ...base.agent, role: 'advisor' } })).toContain('军师');
-    expect(aiBoardBlocker({ ...base, takenOver: true })).toContain('接管');
-    expect(aiBoardBlocker({ ...base, opts: { ...OPTS, mode: 'campaign' } })).toContain('无尽');
-    expect(aiBoardBlocker({ ...base, opts: { ...OPTS, fixedLayout: true } })).toBeTruthy();
-    expect(aiBoardBlocker({ ...base, decisions: 0 })).toBeTruthy();
+    expect(aiUploadPlan(base)).toEqual({ kind: 'agent' });
+    expect(aiUploadPlan({ ...base, agent: { ...base.agent, role: 'advisor' } })).toEqual({ kind: 'human' });
+    expect(aiUploadPlan({ ...base, takenOver: true })).toEqual({ kind: 'assist' });
+    expect(aiUploadPlan({ ...base, opts: { ...OPTS, mode: 'campaign', map: 'ch2' } })).toEqual({ kind: 'agent' });
+    expect(aiUploadPlan({ ...base, opts: { ...OPTS, fixedLayout: true } }).kind).toBe('skip');
+    expect(aiUploadPlan({ ...base, decisions: 0 }).kind).toBe('skip');
   });
 
   it('连接诊断：报错且没收到任何 token ⇒ 视为没连通（不建议切 JSON 模式）', async () => {

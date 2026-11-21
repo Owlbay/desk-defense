@@ -1,4 +1,5 @@
 import { getLocale, LOCALES, setLocale, t } from '../../i18n';
+import { getAutoUpload, setAutoUpload } from '../../meta/online';
 import { AI_GLYPH } from '../ai/icon';
 import { type App, applySettings, confirmDialog, type Screen, screenHeader } from '../App';
 import { audio } from '../audio';
@@ -115,6 +116,14 @@ export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLEle
     save(() => (app.store.get().settings.mazeHint = mazeInput.checked));
   };
 
+  // 自动上传成绩：与排行榜页的开关是同一个设置（src/meta/online.ts AUTO_UPLOAD_KEY）
+  const uploadInput = h<HTMLInputElement>('input', { attrs: { type: 'checkbox' } });
+  uploadInput.checked = getAutoUpload();
+  uploadInput.onchange = () => {
+    audio.play('click');
+    setAutoUpload(uploadInput.checked);
+  };
+
   const motionInput = h<HTMLInputElement>('input', { attrs: { type: 'checkbox' } });
   motionInput.checked = s.reduceMotion;
   motionInput.onchange = () => {
@@ -219,6 +228,12 @@ export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLEle
         null,
         h('span', null, h('b', null, t('ui.settings.mazeHint')), h('small.muted', null, t('ui.settings.mazeHintHint'))),
         h('span.switch', null, mazeInput, h('span.knob')),
+      ),
+      h(
+        'label.switch-row',
+        null,
+        h('span', null, h('b', null, t('ui.lb.autoUpload')), h('small.muted', null, t('ui.lb.autoUploadHint'))),
+        h('span.switch', null, uploadInput, h('span.knob')),
       ),
     ),
     // AI 助手：全局模型设置（对局里的 AI 按钮与「AI 参战」共用）；对局里从 AI 按钮的「配置模型…」打开

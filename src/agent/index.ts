@@ -12,13 +12,13 @@
  */
 import type { Command, GameEvent, IWorld } from '../core/types';
 import { makeMidRun } from '../meta/midrun';
+import { boardForOpts } from '../shared/leaderboard';
 import { type AgentModelConfig, agentTag, configErrorMessage, resolveConfig, saveableConfig, validateConfig } from './config';
 import { type BudgetChoice, type BudgetState, DecisionEngine } from './engine';
 import { createProvider } from './factory';
 import type { InstructionQueue } from './instructions';
 import { scriptedFallback } from './providers/scripted';
 import type { LLMProvider } from './providers/types';
-import { aiBoardKey } from './runner';
 import { DecisionDetector } from './scheduler';
 import { AgentTrace, type TraceExport } from './trace';
 import type { AgentReplay, DecisionRecord, FallbackPolicy, Suggestion, TokenUsage } from './types';
@@ -82,7 +82,7 @@ export { systemBlocks, catalogText, catalogEntry, cheatSheet, decisionMessage } 
 export { BUDGET_STAGE_AT, BUDGET_EXTEND, type BudgetStage, type BudgetState, type BudgetChoice } from './engine';
 export { AgentScheduler, DecisionDetector, type SchedulerOptions } from './scheduler';
 export { DecisionEngine } from './engine';
-export { runAgentGame, aiBoardKey, type AgentRunConfig, type AgentRunReport, type PlayStats } from './runner';
+export { runAgentGame, type AgentRunConfig, type AgentRunReport, type PlayStats } from './runner';
 export { createProvider } from './factory';
 export { listModels, testConnection, type ModelListing, type ConnectionDiagnostics } from './models';
 export * from './relay';
@@ -316,7 +316,7 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
       const role = config.role ?? 'player';
       return {
         agent: { ...tag, role },
-        board: aiBoardKey(w.state.opts),
+        board: boardForOpts(w.state.opts),
         usage: engine?.usage ?? { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, requests: 0 },
         costUsd: engine?.costUsd ?? 0,
         decisions: engine?.decisions.slice() ?? [],

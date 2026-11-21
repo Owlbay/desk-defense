@@ -10,9 +10,9 @@ import { SKILL_IDS } from '../config/skills';
 import { createWorld } from '../core';
 import type { DifficultyId, IWorld, MapId, ModeId, RunOptions, SkillId } from '../core/types';
 import { makeMidRun } from '../meta/midrun';
+import { boardForOpts } from '../shared/leaderboard';
 import { renderObservation } from './observation';
 import { runHeader, systemBlocks } from './prompts';
-import { aiBoardKey } from './runner';
 import { AgentScheduler } from './scheduler';
 import { executeTool, type JsonSchema, LEGACY_TOOLS, type ObjectSchema, SLIM_TOOLS, validateAgainst } from './tools';
 import type { AgentReplay, DecisionPoint } from './types';
@@ -175,7 +175,7 @@ export class McpGameServer {
         return text(this.obs(g, args.detail === 'full' ? 'full' : 'compact'));
       case 'get_replay': {
         const replay: AgentReplay = { ...makeMidRun(g.world), agent: { provider: 'mcp', model: g.agentName, role: 'player' } };
-        return text(JSON.stringify({ board: aiBoardKey(g.opts), replay }));
+        return text(JSON.stringify({ board: boardForOpts(g.opts), replay }));
       }
       case 'advance':
         return this.advance(g, args.seconds as number | undefined);

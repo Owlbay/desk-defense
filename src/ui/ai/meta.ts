@@ -42,12 +42,18 @@ export function agentMetaOf(s: AgentMetaInput): AgentMeta {
   };
 }
 
-/** 这局能不能进 AI 榜；不能时返回原因 */
-export function aiBoardBlocker(s: { agent: { role: string }; opts: RunOptions; takenOver: boolean; decisions: number }): string | null {
-  if (s.agent.role !== 'player') return t('agent.setup.block.advisor');
-  if (s.takenOver) return t('agent.setup.block.takenOver');
-  if (s.opts.mode !== 'endless') return t('agent.setup.block.endlessOnly');
-  if (!isEligibleRun(s.opts)) return t('agent.setup.block.params');
-  if (s.decisions <= 0) return t('agent.setup.block.noDecisions');
-  return null;
+/**
+ * 「AI 参战」结算时这局怎么上传（与普通结算同一套榜：无尽 / 每日 / 战役）：
+ *  - agent：AI 玩家全程操作 → 带「AI 辅助」+ 模型标记；
+ *  - assist：中途由你接管过 → 只带「AI 辅助」标记；
+ *  - human：军师模式（你自己在玩）→ 普通成绩；
+ *  - skip：开局参数不参与排行 / AI 还没做过决策（reason 给玩家看）。
+ */
+export type AiUploadPlan = { kind: 'agent' | 'assist' | 'human' } | { kind: 'skip'; reason: string };
+
+export function aiUploadPlan(s: { agent: { role: string }; opts: RunOptions; takenOver: boolean; decisions: number }): AiUploadPlan {
+  if (!isEligibleRun(s.opts)) return { kind: 'skip', reason: t('agent.setup.block.params') };
+  if (s.agent.role !== 'player') return { kind: 'human' };
+  if (s.decisions <= 0) return { kind: 'skip', reason: t('agent.setup.block.noDecisions') };
+  return { kind: s.takenOver ? 'assist' : 'agent' };
 }

@@ -286,7 +286,7 @@ describe('runner', () => {
     expect(a.decisions.every((d) => d.by !== 'fallback')).toBe(true);
     expect(a.decisions.filter((d) => d.by === 'agent').length).toBeGreaterThan(15);
     expect(a.waves.length).toBe(a.result.cleared);
-    expect(a.board).toBe('ai:endless'); // 旧前缀保留，服务端归一到 endless 榜
+    expect(a.board).toBe('endless'); // 与真人同一张榜（boardForOpts）
     expect(a.replay.agent).toEqual({ provider: 'scripted', model: 'scripted-v1', role: 'player' });
 
     const b = await runAgentGame(OPTS, { config: { provider: 'scripted' }, provider: new ScriptedProvider(), maxWaves: 12 });

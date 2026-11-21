@@ -1,7 +1,7 @@
 /**
  * AI 侧栏（dock）：对局 / 回放里 AI 相关内容的唯一容器（状态机见 dock-state.ts）。
  *
- *  - column：宿主（.game-screen / .replay-view）右侧一栏；宿主加 data-dock="column" 与 --dock-occupy，对局容器让出这一栏；
+ *  - column（宿主宽 ≥ 1180）：宿主（.game-screen / .replay-view）右侧一栏；宿主加 data-dock="column" 与 --dock-occupy，对局容器让出这一栏；
  *    左边缘拖动改宽（键盘 ←→），收起时是一条细边（点一下展开）；
  *  - sheet：底部抽屉，左右与棋盘对齐、底边贴着棋盘底边（竖屏手机上塔栏 / 技能 / 开波 / 速度都在棋盘下面，不会被挡）；
  *    peek 只露页签条 + 底部插槽（指令输入），half 约六成棋盘高，full 从屏幕顶到棋盘底。拖动把手或点「展开」切换档位。
@@ -215,8 +215,8 @@ export function mountDock(o: DockOptions): DockHandle {
     el.style.setProperty('--dk-x', `${left}px`);
     el.style.setProperty('--dk-w', `${width}px`);
     el.style.setProperty('--dk-bottom', `${bottom}px`);
-    // half：约八成棋盘高（至少 300，不超过棋盘顶）；full：从屏幕顶（安全区）一直到棋盘底，左右铺满
-    el.style.setProperty('--dk-half', `${Math.round(Math.min(Math.max(300, boardH * 0.8), top + boardH - 8))}px`);
+    // half：矮棋盘（手机）约八成、高棋盘（平板横放）约一半（至少 300，不超过棋盘顶）；full：从屏幕顶（安全区）一直到棋盘底，左右铺满
+    el.style.setProperty('--dk-half', `${Math.round(Math.min(Math.max(300, boardH * (boardH > 600 ? 0.55 : 0.8)), top + boardH - 8))}px`);
     el.style.setProperty('--dk-full', `${Math.round(Math.max(240, vh - bottom))}px`);
   }
   function layout(): void {

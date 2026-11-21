@@ -19,6 +19,8 @@ export const DOCK_MAX_W = 760;
 export const DOCK_DEFAULT_W = 420;
 /** 侧栏至少这么宽时，「思路与请求」页里操作解读可以并排显示 */
 export const DOCK_SPLIT_W = 600;
+/** 宿主至少这么宽才用右侧栏 */
+export const DOCK_COLUMN_MIN_HOST = 1180;
 
 export interface DockState {
   mode: DockMode;
@@ -53,7 +55,7 @@ export type DockAction =
   | { type: 'width'; width: number };
 
 export const clampWidth = (w: number, hostW = Infinity): number =>
-  Math.round(Math.max(DOCK_MIN_W, Math.min(Number.isFinite(w) ? w : DOCK_DEFAULT_W, DOCK_MAX_W, Math.max(DOCK_MIN_W, hostW * 0.55))));
+  Math.round(Math.max(DOCK_MIN_W, Math.min(Number.isFinite(w) ? w : DOCK_DEFAULT_W, DOCK_MAX_W, Math.max(DOCK_MIN_W, hostW * 0.4))));
 
 const isTab = (v: unknown): v is DockTab => (DOCK_TABS as readonly unknown[]).includes(v);
 const isSnap = (v: unknown): v is SheetSnap => (SNAPS as readonly unknown[]).includes(v);
@@ -135,8 +137,11 @@ export function paneOf(s: DockState): { pane: 'status' | 'trace' | null; view: '
   return { pane: 'trace', view: s.mode === 'column' && s.width >= DOCK_SPLIT_W ? 'split' : 'trace' };
 }
 
-/** 宿主尺寸 → 模式：宽 ≥ 960 且宽高比 ≥ 1.25 用右侧栏，否则用底部抽屉 */
+/**
+ * 宿主尺寸 → 模式：宽 ≥ 1180 且宽高比 ≥ 1.25 用右侧栏（让出侧栏后对局仍有 ≥ 760px，棋盘 + 操作栏保持横屏布局），
+ * 否则用底部抽屉（贴着棋盘，不挤占对局宽度）。
+ */
 export function modeFor(width: number, height: number, compact = false): DockMode {
   if (compact) return 'sheet';
-  return width >= 960 && width / Math.max(1, height) >= 1.25 ? 'column' : 'sheet';
+  return width >= DOCK_COLUMN_MIN_HOST && width / Math.max(1, height) >= 1.25 ? 'column' : 'sheet';
 }

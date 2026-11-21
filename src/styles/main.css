@@ -1734,13 +1734,37 @@ textarea.input.code {
 
 .game[data-layout='landscape'] .g-top .stats {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, max-content));
+  grid-template-columns: repeat(2, max-content);
   column-gap: 14px;
   row-gap: 0;
+  /* 数字永远不被挤压重叠：放不下时右边的徽标 / 按钮换到第二行 */
+  flex: 1 0 auto;
+  min-width: max-content;
 }
 
 .game[data-layout='landscape'] .g-top {
   align-items: flex-start;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 6px;
+}
+
+/* 操作栏很窄（AI 侧栏打开 / 小窗口）：塔按钮只留图标 + 价格，名字放到提示里 */
+.game[data-layout='landscape'] .side {
+  container: side / inline-size;
+}
+
+@container side (max-width: 330px) {
+  .build-btn .b-name {
+    display: none;
+  }
+  .stat {
+    font-size: 15px;
+  }
+  .stat .gi {
+    width: 18px;
+    height: 18px;
+  }
 }
 
 .game[data-layout='landscape'] .side > .g-info {

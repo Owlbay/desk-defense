@@ -1131,46 +1131,6 @@
   z-index: 60;
 }
 
-/* ───────────── AI 榜 ───────────── */
-.olb-row.ai-olb-row {
-  min-height: 56px;
-  padding-top: 6px;
-  padding-bottom: 6px;
-}
-
-.olb-row .name.ai-name {
-  flex-wrap: wrap;
-  gap: 2px 6px;
-}
-
-.ai-name .ai-model {
-  max-width: 100%;
-  font-weight: 800;
-}
-
-.ai-row-badges {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.ai-row-badges .badge {
-  padding: 0 6px;
-  font-size: 11px;
-}
-
-.ai-name .ai-owner {
-  flex-basis: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 400;
-}
-
-.ai-lb-note {
-  margin: 0 0 8px;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .ai-spinner,
   .ai-hud[data-status] .ai-dot {

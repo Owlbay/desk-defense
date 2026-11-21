@@ -21,6 +21,9 @@ describe('AI dock state machine', () => {
     expect(modeFor(1440, 900)).toBe('column');
     expect(modeFor(390, 844)).toBe('sheet');
     expect(modeFor(900, 600)).toBe('sheet');
+    expect(modeFor(1280, 720)).toBe('column');
+    // 1024×768：让出侧栏后对局太窄，改用贴着棋盘的抽屉
+    expect(modeFor(1024, 768)).toBe('sheet');
     const col = initialDock('column', ['status', 'trace', 'ops']);
     expect(col.open).toBe(true);
     expect(col.tab).toBe('status');
@@ -101,7 +104,8 @@ describe('AI dock state machine', () => {
     expect(s.snap).toBe('peek');
     expect(clampWidth(10)).toBe(DOCK_MIN_W);
     expect(clampWidth(5000)).toBe(DOCK_MAX_W);
-    expect(clampWidth(700, 1000)).toBe(550);
+    expect(clampWidth(700, 1000)).toBe(400);
+    expect(clampWidth(420, 1024)).toBe(410);
     expect(clampWidth(Number.NaN)).toBeGreaterThanOrEqual(DOCK_MIN_W);
   });
 });

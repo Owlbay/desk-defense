@@ -94,11 +94,6 @@ function pathAvg(w: IWorld): number {
   return ps.length ? Math.round((ps.reduce((a, p) => a + p.length, 0) / ps.length) * 10) / 10 : 0;
 }
 
-/** Agent 成绩的榜键：在真人榜键前加 ai: 前缀（服务端 parseBoard 不认识它 ⇒ 不可能混进真人榜） */
-export function aiBoardKey(opts: RunOptions): string {
-  return `ai:${boardForOpts(opts)}`;
-}
-
 export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Promise<AgentRunReport> {
   const t0 = Date.now();
   const config = resolveConfig(agent.config);
@@ -204,7 +199,7 @@ export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Pro
     waves,
     errors: engine.errors,
     suggestions: engine.suggestions,
-    board: aiBoardKey(opts),
+    board: boardForOpts(opts),
     agent: replay.agent,
     config: saveableConfig(config),
     disabledReason: agent.provider ? engine.disabledReason : null,

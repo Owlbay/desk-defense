@@ -85,7 +85,7 @@
 | `src/agent/scheduler.ts` | `DecisionDetector`（纯判定）与 `AgentScheduler`（无头推进） |
 | `src/agent/trace.ts` / `redact.ts` | 思路与请求：决策追踪事件、环形缓冲 `AgentTrace`、导出；脱敏（§12.1） |
 | `src/agent/engine.ts` | `DecisionEngine`：一次决策的完整流程（观测、调用、记录、预算、超时、熔断、兜底、推进保证） |
-| `src/agent/runner.ts` | `runAgentGame(opts, agent)`；`aiBoardKey()` |
+| `src/agent/runner.ts` | `runAgentGame(opts, agent)`（报告里的 `board` = `boardForOpts(opts)`） |
 | `src/agent/config.ts` | 模型配置 schema、预设、校验、`saveableConfig`（去掉 Key） |
 | `src/agent/factory.ts` | `createProvider(config)`：按需 `import()` 各适配器 |
 | `src/agent/models.ts` | `listModels(config)`、`testConnection(config)` |
@@ -458,7 +458,7 @@ Claude Desktop（`claude_desktop_config.json`，macOS 在 `~/Library/Application
 
 ```ts
 import { createAgentController, listModels, testConnection, validateConfig, resolveConfig,
-         saveableConfig, PRESETS, CLAUDE_MODELS, createKeyStore, BYO_KEY_WARNING, connectBridge, aiBoardKey } from './agent';
+         saveableConfig, PRESETS, CLAUDE_MODELS, createKeyStore, BYO_KEY_WARNING, connectBridge } from './agent';
 
 const errs = validateConfig(cfg);                 // 设置面板实时校验（中文）
 const models = await listModels(cfg);             // 模型下拉框
@@ -479,7 +479,7 @@ ctl.trace.subscribe((ev) => panel.push(ev));      // 思路与请求（§12.1）
 - 控制器订阅 `session.on()` 事件、每 100 ms 检查决策点（`pollMs: 0` 时由 UI 每帧调 `ctl.poll()`）；暂停模式下决策期间 `session.togglePause(true)`，结束后恢复（玩家自己暂停时不会被恢复）。
 - 指令走 `session.command()`，渲染与 UI 事件照常触发。
 - **打包（已验证）**：首屏包只多了 `src/ui/ai/launch.ts` 等几 KB 的入口；Agent 逻辑与模型 SDK 全部在 `dist/assets/ai/` 下的动态分包里（`vite.config.ts` 的 `chunkFileNames`），不进 PWA 预缓存，首次进入「AI 参战」时下载、之后由 Service Worker 缓存。构建产物里没有 undici / proxy-agent / @aws-sdk / ws。以下为最初的设计说明：`src/agent/index.ts` 本身只含纯逻辑；`createProvider` 用 `import()` 加载 `providers/claude.ts`、`providers/pi.ts`、`bridge.ts`，Vite 会拆成独立分包，只在玩家开启 AI 模式时下载。UI 工作需要确认构建产物里 pi 的 Node 专用依赖（undici、proxy-agent、bedrock）没有被打进浏览器包（必要时在 vite 配置里给它们设 `external` 或别名到空模块）。
-- 结算：带 agent 标记的成绩进**同一张**全服榜（2026-11 起，见第 12 章 §4.1），榜上带「AI 辅助」+ 模型名。`aiBoardKey(opts)` 仍返回旧式 `ai:<榜键>`，服务端 `normalizeBoardKey` 会把它归一到新榜。
+- 结算：带 agent 标记的成绩进**同一张**全服榜（2026-11 起，见第 12 章 §4.1），榜上带「AI 辅助」+ 模型名。运行报告里的榜键直接用 `boardForOpts(opts)`（src/shared/leaderboard.ts）；服务端 `normalizeBoardKey` 仍会把旧的 `ai:<榜键>` 归一到新榜。
 
 ### 12.1 透明度：「思路与请求」面板（`src/agent/trace.ts` + `src/ui/ai/trace-panel.ts`）
 

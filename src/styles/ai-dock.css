@@ -10,6 +10,16 @@
   right: var(--dock-occupy, 0px);
 }
 
+/* 侧栏占了宽度：右侧操作栏按对局容器的宽度收窄（不按视口），棋盘优先 */
+.game-screen[data-dock='column'] > .game[data-layout='landscape']:not([data-compact]) {
+  grid-template-columns: minmax(0, 1fr) clamp(240px, 30%, 340px);
+}
+
+/* 紧凑横屏的右栏宽度按「宿主宽 − 侧栏」算（否则按整屏算，棋盘会被挤得很小） */
+.game-screen[data-dock='column'] > .game[data-layout='landscape'][data-compact] {
+  --side-w: clamp(236px, calc(100cqw - var(--dock-occupy, 0px) - 100cqh * 0.857 - var(--strip-w)), 460px);
+}
+
 .replay-view[data-dock='column'] > .replay-bar,
 .replay-view[data-dock='column'] > .replay-stage {
   margin-right: var(--dock-occupy, 0px);
