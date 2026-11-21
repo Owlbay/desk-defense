@@ -1,11 +1,13 @@
 import Phaser from 'phaser';
+import { t } from '../i18n';
 import type { TowerState } from '../core/types';
 import { ui } from '../game/UiStore';
 import { hasArt } from './assets';
 import type { RenderCtx } from './ctx';
 import { CELL, DEPTH } from './layout';
 import { springCos, springSin } from './motion';
-import { C, TOWER_COLOR } from './palette';
+import { LAMP } from '../config/towers';
+import { C, FONT, TOWER_COLOR } from './palette';
 import { PartSet } from './parts';
 import { TEX } from './sprites';
 
@@ -617,6 +619,9 @@ export class TowerLayer {
   private buffs = new Map<number, TowerBuff>();
   /** 刚被出售的塔：视图移除时播放折叠动画 */
   private selling = new Set<number>();
+  /** 台灯联动的汇聚计数（主灯旁的 ×倍率 · 座数），复用 */
+  private prismTexts: Phaser.GameObjects.Text[] = [];
+  private prismN = 0;
 
   constructor(private ctx: RenderCtx) {
     this.g = ctx.scene.add.graphics().setDepth(DEPTH.tower + 0.9);
@@ -681,7 +686,7 @@ export class TowerLayer {
     const idx = Math.max(0, Math.min(2, stars - 1));
     this.flights.push({ uid, idx, t: mythic ? -0.45 : 0 });
     this.ctx.fx.sparkle(v.root.x, v.root.y - 10, C.goldLight, 8, 26);
-    this.ctx.fx.text(v.root.x, v.root.y - 22, mythic ? '神话!' : `★${stars}`, 'level');
+    this.ctx.fx.text(v.root.x, v.root.y - 22, mythic ? t('ui.render.mythic') : `★${stars}`, 'level');
   }
 
   /** 神话能力释放：塔身反馈 + 持续型能力的光环 */
@@ -709,9 +714,44 @@ export class TowerLayer {
     return { x: x + (i - (n - 1) / 2) * 9, y: y + CELL / 2 - 6 };
   }
 
+  private drawPrism(g: Phaser.GameObjects.Graphics, t: TowerState, x: number, y: number): void {
+    const st = this.ctx.session.world.state;
+    const r2 = LAMP.link * LAMP.link + 1e-9;
+    const relaying = !!t.prismLead;
+    for (const o of st.towers.values()) {
+      if (o.id !== 'lamp' || o.uid <= t.uid || o.prism !== t.prism) continue;
+      if ((o.cx - t.cx) ** 2 + (o.cy - t.cy) ** 2 > r2) continue;
+      const ov = this.views.get(o.uid);
+      if (!ov) continue;
+      const hot = relaying && o.prismLead === t.prismLead;
+      g.lineStyle(hot ? 2 : 1.5, C.lampLight, hot ? 0.55 : 0.28);
+      g.lineBetween(x, y, ov.root.x, ov.root.y);
+    }
+    if (t.prismLead !== t.uid || (t.prismRelay ?? 1) <= 1.001) return;
+    // 主灯：棱镜高光 + 汇聚计数
+    let n = 0;
+    for (const o of st.towers.values()) if (o.id === 'lamp' && o.prismLead === t.uid) n++;
+    const pulse = this.ctx.reduced ? 0.8 : 0.6 + 0.4 * Math.sin(this.ctx.vtime * 7 + t.uid);
+    const d = 6 + Math.min(6, n);
+    g.fillStyle(C.white, 0.75 * pulse);
+    g.fillTriangle(x, y - CELL * 0.42 - d, x - d * 0.6, y - CELL * 0.42, x + d * 0.6, y - CELL * 0.42);
+    g.fillStyle(C.lampLight, 0.9);
+    g.fillTriangle(x, y - CELL * 0.42 - d * 0.6, x - d * 0.35, y - CELL * 0.42, x + d * 0.35, y - CELL * 0.42);
+    let tx = this.prismTexts[this.prismN];
+    if (!tx) {
+      tx = this.ctx.scene.add.text(0, 0, '', { fontFamily: FONT, fontSize: '12px', fontStyle: 'bold', color: '#fff6c8', stroke: '#3a2a12', strokeThickness: 3 }).setOrigin(0, 0.5).setDepth(DEPTH.tower + 0.95);
+      this.prismTexts.push(tx);
+    }
+    this.prismN++;
+    const label = `×${(t.prismRelay ?? 1).toFixed(1)} · ${n}`;
+    if (tx.text !== label) tx.setText(label);
+    tx.setPosition(x + CELL * 0.32, y - CELL * 0.42).setVisible(true);
+  }
+
   private drawOverlay(): void {
     const g = this.g;
     g.clear();
+    this.prismN = 0;
     const st = this.ctx.session.world.state;
     const now = st.time;
     const sel = ui.state.selected;
@@ -731,6 +771,8 @@ export class TowerLayer {
         dashed(g, x, y, ov.root.x, ov.root.y, C.ink, 5, 5, 4, off, 0.8);
         dashed(g, x, y, ov.root.x, ov.root.y, C.goldLight, 2.5, 5, 4, off, 1);
       }
+      // 台灯联动：组内相邻台灯之间的细光线；汇聚中的主灯旁显示 ×倍率 · 座数
+      if (t.id === 'lamp' && t.prism) this.drawPrism(g, t, x, y);
       // 瘫痪：棕色咖啡渍
       if (t.disabledUntil > now) {
         const a = Math.min(1, (t.disabledUntil - now) / 0.4);
@@ -816,6 +858,7 @@ export class TowerLayer {
         g.strokeRoundedRect(x - CELL / 2 + 4.5, y - CELL / 2 + 4.5, CELL - 9, CELL - 9, 6);
       }
     }
+    for (let i = this.prismN; i < this.prismTexts.length; i++) if (this.prismTexts[i].visible) this.prismTexts[i].setVisible(false);
     // 飞行中的金星：从塔顶弹出，划一道弧线落到底座
     for (let i = this.flights.length - 1; i >= 0; i--) {
       const f = this.flights[i];

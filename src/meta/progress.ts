@@ -1,5 +1,7 @@
 import type { DifficultyId, MapId, ModeId, RunOptions, SkillId, TalentId } from '../core/types';
 import type { LeaderEntry, Profile } from './profile';
+import { t } from '../i18n';
+import { localize } from '../config/text';
 
 /**
  * 局外进度的纯函数（不依赖 DOM / core 运行时，便于测试）。
@@ -10,13 +12,8 @@ export const DIFFS: DifficultyId[] = ['easy', 'normal', 'hard', 'nightmare', 'ab
 export const CAMPAIGN_DIFFS: DifficultyId[] = ['normal', 'hard'];
 export const ABYSS_MAX = 10;
 
-export const DIFF_NAME: Record<DifficultyId, string> = {
-  easy: '简单',
-  normal: '普通',
-  hard: '困难',
-  nightmare: '噩梦',
-  abyss: '魔境',
-};
+/** 难度名（读取时按当前语言：data.difficulty.<id>） */
+export const DIFF_NAME: Record<DifficultyId, string> = localize({}, 'data.difficulty', DIFFS);
 
 /** 墨水系数（文档 05 §3.1） */
 export const INK_FACTOR: Record<DifficultyId, number> = {
@@ -36,12 +33,12 @@ export function diffKey(d: DifficultyId, abyssLevel = 1): string {
 }
 
 export function diffLabel(d: DifficultyId, abyssLevel = 1): string {
-  return d === 'abyss' ? `魔境 ${roman(abyssLevel)}` : DIFF_NAME[d];
+  return d === 'abyss' ? t('data.difficulty.abyssLevel', { lv: roman(abyssLevel) }) : DIFF_NAME[d];
 }
 
 export function keyLabel(key: string): string {
   const m = /^abyss(\d+)$/.exec(key);
-  if (m) return `魔境 ${roman(Number(m[1]))}`;
+  if (m) return t('data.difficulty.abyssLevel', { lv: roman(Number(m[1])) });
   return DIFF_NAME[key as DifficultyId] ?? key;
 }
 
@@ -157,13 +154,15 @@ export function unlockHint(d: DifficultyId, abyssLevel = 1): string {
   switch (d) {
     case 'easy':
     case 'normal':
-      return '通关战役第一章';
+      return t('core.unlock.clearChapter1');
     case 'hard':
-      return '普通难度撑到第 30 波';
+      return t('core.unlock.reachWave', { diff: DIFF_NAME.normal, n: 30 });
     case 'nightmare':
-      return '困难难度撑到第 40 波';
+      return t('core.unlock.reachWave', { diff: DIFF_NAME.hard, n: 40 });
     case 'abyss':
-      return abyssLevel <= 1 ? '噩梦难度撑到第 35 波' : `魔境 ${roman(abyssLevel - 1)} 撑到第 30 波`;
+      return abyssLevel <= 1
+        ? t('core.unlock.reachWave', { diff: DIFF_NAME.nightmare, n: 35 })
+        : t('core.unlock.reachWaveAbyss', { diff: diffLabel('abyss', abyssLevel - 1), n: 30 });
   }
 }
 
@@ -215,7 +214,7 @@ export function unlockReached(p: Profile, unlock: string | undefined): boolean {
 
 export function unlockText(unlock: string | undefined): string {
   const u = parseUnlock(unlock);
-  return u ? `战役 ${u.chapter}-${u.wave} 解锁` : '默认解锁';
+  return u ? t('core.unlock.campaign', { c: u.chapter, w: u.wave }) : t('core.unlock.default');
 }
 
 export const SKILL_MAX_LEVEL = 3;
@@ -278,9 +277,18 @@ export function insertLeader(p: Profile, key: string, e: LeaderEntry): number {
   const list = (p.leaderboard[key] ?? []).slice();
   list.push(e);
   list.sort((a, b) => b.score - a.score || b.wave - a.wave);
-  const idx = list.indexOf(e);
-  p.leaderboard[key] = list.slice(0, LEADER_SIZE);
-  return idx < LEADER_SIZE ? idx + 1 : 0;
+  // 真人成绩与 AI 协助（ai: true）的成绩各占 LEADER_SIZE 个名额，名次也各算各的
+  const human = list.filter((x) => !x.ai).slice(0, LEADER_SIZE);
+  const ai = list.filter((x) => x.ai).slice(0, LEADER_SIZE);
+  p.leaderboard[key] = [...human, ...ai];
+  const idx = (e.ai ? ai : human).indexOf(e);
+  return idx >= 0 ? idx + 1 : 0;
+}
+
+/** 排行榜显示用：默认只显示真人成绩 */
+export function leaderView(list: readonly LeaderEntry[] | undefined, showAi = false): LeaderEntry[] {
+  const out = (list ?? []).filter((e) => showAi || !e.ai);
+  return showAi ? out.sort((a, b) => b.score - a.score || b.wave - a.wave) : out;
 }
 
 export function today(d = new Date()): string {
@@ -302,6 +310,8 @@ export interface RunResult {
   perks: string[];
   /** 实际是否为自动开波（缺省按 opts.autoWave） */
   autoWave?: boolean;
+  /** 用过「让 AI 替我玩」：本地排行榜条目打上 AI 协助标记（进度 / 星星 / 墨水照常） */
+  aiAssisted?: boolean;
 }
 
 export interface Rewards {
@@ -337,10 +347,12 @@ export function settleRun(p: Profile, opts: RunOptions, r: RunResult, date = tod
         map: opts.map,
         perks: r.perks.slice(),
         kills: r.kills,
+        ...(r.aiAssisted ? { ai: true } : {}),
       });
     } else {
       const b = p.customBest;
-      if (!b || r.score > b.score) {
+      // 自定义最佳是「记录」：AI 协助的对局不刷新
+      if (!r.aiAssisted && (!b || r.score > b.score)) {
         p.customBest = { wave: r.wavesSurvived, score: Math.round(r.score), date };
         res.newRecord = true;
       }

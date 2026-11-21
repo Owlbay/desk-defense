@@ -51,7 +51,7 @@ body {
 
 /* 魔境配色铺满整屏（超宽屏时对局容器会居中，两侧不能露出浅色桌面） */
 .game-screen:has(> .game[data-difficulty='abyss']) {
-  background: linear-gradient(180deg, #2a1f36, #1c1424);
+  background: linear-gradient(180deg, var(--abyss-card), var(--abyss-bg));
 }
 
 /* 新手提示气泡：永远装得进屏幕 */
@@ -185,7 +185,7 @@ body {
 
 @container gamescreen (min-aspect-ratio: 8 / 5) {
   .game[data-layout='landscape']:not([data-compact]) .side {
-    border-right-color: var(--ink);
+    border-right-color: var(--border);
   }
   .game[data-difficulty='abyss'][data-layout='landscape']:not([data-compact]) .side {
     border-right-color: var(--abyss-line);
@@ -294,8 +294,8 @@ body {
 .game[data-layout='landscape'][data-compact] .g-top,
 .game[data-layout='landscape'][data-compact] .g-build,
 .game[data-layout='landscape'][data-compact] .g-wave {
-  background: var(--paper-2);
-  border-left: var(--bw) solid var(--ink);
+  background: var(--surface-2);
+  border-left: var(--bw) solid var(--border);
   min-width: 0;
 }
 
@@ -403,10 +403,10 @@ body {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 12px;
-  background: var(--paper);
-  box-shadow: 0 -4px 14px rgba(59, 47, 42, 0.22);
+  background: var(--surface);
+  box-shadow: 0 -4px 14px rgb(var(--shadow-rgb) / 0.22);
   color: var(--ink);
 }
 
@@ -487,8 +487,8 @@ body {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
-  background: var(--paper-2);
-  border-right: var(--bw) solid var(--ink);
+  background: var(--surface-2);
+  border-right: var(--bw) solid var(--border);
 }
 
 .game[data-layout='landscape'][data-compact] .g-skills::-webkit-scrollbar {
@@ -540,7 +540,7 @@ body {
   align-items: center;
   gap: 8px;
   padding: 5px 8px 6px 10px;
-  border-top: 1.5px solid var(--ink-faint);
+  border-top: 1.5px solid var(--border-faint);
   border-right: 0;
   border-bottom: 0;
   border-radius: 0;
@@ -949,7 +949,7 @@ body {
     contain: size;
     margin: 10px 0 10px 12px;
     padding: 12px;
-    border: var(--bw) solid var(--ink);
+    border: var(--bw) solid var(--border);
     border-radius: var(--radius);
   }
   .game[data-layout='portrait'] .g-build,
@@ -997,8 +997,8 @@ body {
     content: '';
     grid-area: info / 1 / wave / -1;
     z-index: -1;
-    background: var(--paper-2);
-    border-top: var(--bw) solid var(--ink);
+    background: var(--surface-2);
+    border-top: var(--bw) solid var(--border);
   }
   .game[data-difficulty='abyss'][data-layout='portrait']::after {
     background: var(--abyss-bg);
@@ -1186,8 +1186,8 @@ body {
     z-index: 2;
     margin: 0 -20px;
     padding: 10px 20px 16px;
-    background: var(--paper);
-    box-shadow: 0 -10px 10px -10px rgba(59, 47, 42, 0.35);
+    background: var(--surface);
+    box-shadow: 0 -10px 10px -10px rgb(var(--shadow-rgb) / 0.35);
   }
   /* 粘性元素出不了父级的内容盒：卡片自己的下内边距去掉，改由按钮行提供 */
   .gameover {
@@ -1610,5 +1610,42 @@ body {
   .screen-body {
     gap: 10px;
     padding-bottom: 16px;
+  }
+}
+
+/* AI 助手按钮：窄屏竖屏 / 紧凑横屏只留图标（右上角圆点表示 AI 在场 / 本局 AI 协助），顶栏标记收起 */
+@media (max-width: 420px) {
+  .game[data-layout='portrait'] .ai-top-badge {
+    display: none;
+  }
+  .game[data-layout='portrait'] .ai-btn {
+    width: 44px;
+    padding: 0;
+  }
+  .game[data-layout='portrait'] .ai-btn-label {
+    display: none;
+  }
+}
+
+.game[data-layout='landscape'][data-compact] .ai-top-badge {
+  display: none;
+}
+
+.game[data-layout='landscape'][data-compact] .ai-btn {
+  width: 44px;
+  padding: 0;
+}
+
+.game[data-layout='landscape'][data-compact] .ai-btn-label {
+  display: none;
+}
+
+/* 手机上的模型设置弹窗：贴满可用高度 */
+@media (max-width: 520px) {
+  .ai-config-overlay {
+    padding: 8px;
+  }
+  .ai-config-dialog {
+    padding: 12px 10px;
   }
 }

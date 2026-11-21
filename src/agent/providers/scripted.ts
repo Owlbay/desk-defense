@@ -9,6 +9,9 @@
 import type { IWorld, TowerId } from '../../core/types';
 import { CellKind } from '../../core/types';
 import { executeTool } from '../tools';
+import { ENEMIES } from '../../config/enemies';
+import { PURPOSE_CORE, enemyPurposes, type Purpose } from '../purpose';
+import { comboState } from '../board';
 import { emptyUsage, type DecisionReason, type FallbackPolicy, type ToolResult } from '../types';
 import type { DecisionContext, DecisionOutcome, LLMProvider } from './types';
 
@@ -167,7 +170,7 @@ export async function scriptedTurn(w: IWorld, call: Call, reasons: DecisionReaso
  * 意图版脚本策略（确定性）：像模型那样每个决策点只发一次 act，用高层意图（anti_air / spend / 技能），
  * 选位与迷宫全部交给规划器。用于离线评测规划器本身（scripts/agent-eval.ts 的 scripted-intents 变体）。
  */
-export async function scriptedIntentTurn(w: IWorld, call: Call, reasons: DecisionReason[], think?: (line: string) => void): Promise<string> {
+export async function scriptedIntentTurn(w: IWorld, call: Call, reasons: DecisionReason[], think?: (line: string) => void, tactics = false): Promise<string> {
   const s = w.state;
   const say = (line: string): void => think?.(`${line}\n`);
   const actions: Record<string, unknown>[] = [];
@@ -182,6 +185,17 @@ export async function scriptedIntentTurn(w: IWorld, call: Call, reasons: Decisio
   }
   if (s.pickups.length) actions.push({ do: 'collect' });
   if (s.nextWave.tags.includes('air')) actions.push({ do: 'anti_air' });
+  if (tactics && s.phase === 'build') {
+    // §19.8 的新意图：回收无用墙 / 零伤害塔、按克制用途补塔、给落单塔配组合技、早期存钱罐
+    const atk = [...s.towers.values()].filter((t) => t.id !== 'wall');
+    if (s.wave >= 3) actions.push({ do: 'reclaim', target: 'useless_walls', max: 3, replaceWith: 'dps' });
+    if (s.wave >= 4) actions.push({ do: 'reclaim', target: 'idle_towers', max: 2, replaceWith: 'dps' });
+    for (const p of counterNeeds(w)) actions.push({ do: 'build_near', purpose: p });
+    // 组合技只给已有的落单塔配搭档（新建一对 60g 的铅笔 + 橡皮擦不如 spend 的选择）
+    const lone = comboState(w).lonely.find((l) => ['glue', 'stapler', 'lamp', 'pen', 'ruler', 'compass'].includes(l.id) && l.partner !== 'piggy');
+    if (s.wave >= 5 && atk.length >= 6 && lone) actions.push({ do: 'combo', pair: `${lone.id}+${lone.partner}` });
+    if (s.wave >= 2 && s.wave <= 8 && s.lives === s.maxLives) actions.push({ do: 'economy' });
+  }
   actions.push({ do: 'spend', reserve: 0 });
   if (s.phase === 'wave' && s.enemies.length) {
     let near = 0;
@@ -202,6 +216,19 @@ export async function scriptedIntentTurn(w: IWorld, call: Call, reasons: Decisio
   return r.text.split('\n').slice(0, -1).join('; ').slice(0, 200) || 'hold';
 }
 
+/** 意图版 + §19.8 新意图（评测 scripted-tactics） */
+export function scriptedTacticsTurn(w: IWorld, call: Call, reasons: DecisionReason[], think?: (line: string) => void): Promise<string> {
+  return scriptedIntentTurn(w, call, reasons, think, true);
+}
+
+/** CTR 行里"缺"的用途（下一波敌人需要、还没有主力塔），最多 2 个 */
+function counterNeeds(w: IWorld): Purpose[] {
+  const have = new Set([...w.state.towers.values()].map((t) => t.id));
+  const need = new Set<Purpose>();
+  for (const g of w.state.nextWave.groups) for (const p of enemyPurposes(ENEMIES[g.enemy])) need.add(p);
+  return [...need].filter((p) => p !== 'dps' && p !== 'air' && !PURPOSE_CORE[p].some((id) => have.has(id))).slice(0, 2);
+}
+
 const rank = (id: string): number => {
   const i = PERK_PRIORITY.indexOf(id);
   return i < 0 ? 99 : i;
@@ -212,8 +239,8 @@ export class ScriptedProvider implements LLMProvider {
   readonly id = 'scripted';
   readonly model: string;
   /** intents = 意图版（一次 act + 规划器），否则旧版逐个细粒度工具 */
-  constructor(private readonly o: { intents?: boolean } = {}) {
-    this.model = o.intents ? 'scripted-intents' : 'scripted-v1';
+  constructor(private readonly o: { intents?: boolean; tactics?: boolean } = {}) {
+    this.model = o.tactics ? 'scripted-tactics' : o.intents ? 'scripted-intents' : 'scripted-v1';
   }
 
   async decide(ctx: DecisionContext): Promise<DecisionOutcome> {
@@ -235,7 +262,7 @@ export class ScriptedProvider implements LLMProvider {
       if (r.endTurn) { out.ended = true; out.note = r.note; }
       return r;
     };
-    const turn = this.o.intents ? scriptedIntentTurn : scriptedTurn;
+    const turn = this.o.tactics ? scriptedTacticsTurn : this.o.intents ? scriptedIntentTurn : scriptedTurn;
     const note = await turn(ctx.world, call, ctx.point.reasons, tr ? (line) => tr({ k: 'thinking', n: 1, text: line }) : undefined);
     tr?.({ k: 'text', n: 1, text: `本回合：${note}` });
     tr?.({ k: 'response', n: 1, stop: 'end_turn', usage: emptyUsage(), ms: Date.now() - t0, costUsd: 0, raw: { stop_reason: 'end_turn', note, tool_calls: out.toolCalls } });

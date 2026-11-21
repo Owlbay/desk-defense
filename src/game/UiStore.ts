@@ -36,6 +36,10 @@ export interface UiState {
   hoverPickup: number | null;
   /** 文档 10：思路与请求面板里悬停的工具调用涉及的格子（棋盘上描一圈；null = 无） */
   aiFocus: { cx: number; cy: number } | null;
+  /** 文档 10：操作解读里悬停的操作涉及的多个格子（一组意图 / 一行横扫等；null = 无） */
+  aiFocusCells?: { cx: number; cy: number }[] | null;
+  /** AI 玩家操作中：棋盘只允许点选查看（塔 / 空降纸箱），不允许建造、施法、收集等会下指令的操作 */
+  inspectOnly: boolean;
 }
 
 type Fn = (s: UiState) => void;
@@ -57,6 +61,7 @@ class Store {
     spawnerSelected: null,
     hoverPickup: null,
     aiFocus: null,
+    inspectOnly: false,
   };
   private subs = new Set<Fn>();
 
@@ -86,6 +91,7 @@ class Store {
       abilityAngle: null,
       spawnerSelected: null,
       aiFocus: null,
+      aiFocusCells: null,
     });
   }
 

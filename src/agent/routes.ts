@@ -449,7 +449,7 @@ export function previewChanges(w: IWorld, inp: PreviewInput): PreviewResult {
     let reason: string | null = null;
     if (idx === 0 && !removed.size) {
       const chk = w.canPlace(p.tower, p.x, p.y);
-      if (!chk.ok && chk.reason !== '金币不足') reason = chk.reason ?? 'invalid';
+      if (!chk.ok && chk.code !== 'noGold') reason = chk.reason ?? 'invalid';
     } else reason = geomCheck(w, cells, p.x, p.y);
     if (reason) { steps.push(`${tag}: ${reason}`); ok = false; return; }
     if (gold < b.cost) { steps.push(`${tag}: 金币不足 (cost ${b.cost}, gold ${Math.floor(gold)})`); ok = false; }

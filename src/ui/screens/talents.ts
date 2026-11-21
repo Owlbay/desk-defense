@@ -5,6 +5,7 @@ import { TALENT_META, TALENT_ORDER } from '../coreMeta';
 import { clear, h } from '../dom';
 import { G } from '../icons';
 import { burst } from './motion';
+import { fmtNumber, t } from '../../i18n';
 
 const TALENT_GLYPH: Record<string, string> = {
   wallet: G.coin,
@@ -24,7 +25,7 @@ export function talentsScreen(app: App): Screen {
   const render = () => {
     const p = app.store.get();
     clear(el);
-    el.appendChild(screenHeader(app, '书包'));
+    el.appendChild(screenHeader(app, t('ui.talents.title')));
     const grid = h('div.talent-grid');
     for (const id of TALENT_ORDER) {
       const m = TALENT_META[id];
@@ -47,17 +48,17 @@ export function talentsScreen(app: App): Screen {
               });
               if (ok) {
                 audio.play('upgrade');
-                app.toast(`${m.name} 升到 ${lv + 1} 级`, 'good');
+                app.toast(t('ui.talents.upgraded', { name: m.name, n: lv + 1 }), 'good');
                 justBought = id;
                 render();
               } else {
                 audio.play('error');
-                app.toast(cur === 'star' ? '星星不够' : '墨水不够', 'warn');
+                app.toast(cur === 'star' ? t('ui.talents.noStars') : t('ui.talents.noInk'), 'warn');
               }
             },
           },
           h('span.gi', { html: cur === 'star' ? G.star : G.ink }),
-          String(cost),
+          fmtNumber(cost),
         );
       };
       const icoEl = h('span.talent-ico', { html: TALENT_GLYPH[id] ?? G.star });
@@ -67,8 +68,8 @@ export function talentsScreen(app: App): Screen {
           `article.talent-card.card${maxed ? '.maxed' : ''}${up ? '.level-up' : ''}`,
           null,
           h('div.talent-head', null, icoEl, h('div', null, h('h3', null, m.name), pips)),
-          h('p', null, m.desc, m.max > 1 ? h('small.muted', null, `（每级，最高 ${m.max} 级）`) : null),
-          maxed ? h('span.badge.good', null, '已满级') : h('div.row.buy-row', null, buy('star'), h('span.muted.or', null, '或'), buy('ink')),
+          h('p', null, m.desc, m.max > 1 ? h('small.muted', null, t('ui.talents.perLevel', { n: m.max })) : null),
+          maxed ? h('span.badge.good', null, t('ui.talents.maxed')) : h('div.row.buy-row', null, buy('star'), h('span.muted.or', null, t('ui.talents.or')), buy('ink')),
         ),
       );
     }
@@ -80,7 +81,7 @@ export function talentsScreen(app: App): Screen {
         h(
           'p.muted.center',
           null,
-          `永久天赋。星星来自战役评星（已累计获得 ${totalStarsEarned(p)} 颗），墨水来自无尽和自定义模式。天赋都是小幅加成；开局选择「纯净模式」可以关闭它们。`,
+          t('ui.talents.intro', { n: totalStarsEarned(p) }),
         ),
         grid,
       ),

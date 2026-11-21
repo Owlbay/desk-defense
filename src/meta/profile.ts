@@ -9,6 +9,8 @@ import type {
   TalentId,
 } from '../core/types';
 import { safeStorage, type KV } from './storage';
+import { sanitizeAssist, type AiAssist } from './aiAssist';
+import { normalizeLocale, type Locale } from '../i18n';
 
 /** 存档格式（文档 07 §3.3 的扩展） */
 export const PROFILE_KEY = 'desk-defense.profile.v1';
@@ -20,13 +22,16 @@ export interface Settings {
   quality: Quality;
   sfx: number; // 0..1
   music: number; // 0..1
-  lang: 'zh';
+  /** 界面语言：null = 跟随浏览器自动检测；旧存档的 'zh'（当时唯一取值，并非玩家选择）读入时视为 null */
+  lang: Locale | null;
   /** 自动开波偏好（文档 09 §4）：null = 按难度默认（简单 / 新手引导为手动） */
   autoWave: boolean | null;
   /** 战役使用固定杂物布局 */
   fixedLayout: boolean;
   /** 减少动画（界面加上 html.reduce-motion，所有动画近乎瞬时） */
   reduceMotion: boolean;
+  /** 界面主题：跟随系统 / 浅色 / 深色（见 src/ui/theme.ts） */
+  theme: 'system' | 'light' | 'dark';
 }
 
 export interface LeaderEntry {
@@ -39,6 +44,8 @@ export interface LeaderEntry {
   kills: number;
   /** 自动开波成绩（排行榜按开波方式分开） */
   auto?: boolean;
+  /** AI 协助（「让 AI 替我玩」）的成绩：单独占名额，排行榜默认不显示 */
+  ai?: boolean;
 }
 
 export interface MidRun {
@@ -50,6 +57,8 @@ export interface MidRun {
   /** 存档时已结束的波号（展示用） */
   wave: number;
   savedAt: number;
+  /** 本局用过的 AI 助手（公平性标记，见 meta/aiAssist.ts）；没用过时不写 */
+  aiAssist?: AiAssist;
 }
 
 export interface LastEndless {
@@ -93,7 +102,7 @@ export interface Profile {
 export const DEFAULT_LOADOUT: SkillId[] = ['eraser_strike', 'bell', 'whiteout_zone'];
 
 export function defaultSettings(): Settings {
-  return { quality: 'high', sfx: 0.8, music: 0.5, lang: 'zh', autoWave: null, fixedLayout: false, reduceMotion: false };
+  return { quality: 'high', sfx: 0.8, music: 0.5, lang: null, autoWave: null, fixedLayout: false, reduceMotion: false, theme: 'system' };
 }
 
 export function defaultProfile(): Profile {
@@ -149,9 +158,11 @@ function leaderEntries(x: unknown): LeaderEntry[] {
       perks: Array.isArray(e.perks) ? e.perks.filter((p): p is string => typeof p === 'string') : [],
       kills: num(e.kills, 0),
       ...(typeof e.auto === 'boolean' ? { auto: e.auto } : {}),
+      ...(e.ai === true ? { ai: true } : {}),
     });
   }
-  return out.slice(0, 10);
+  // 真人与 AI 协助的成绩各占 10 个名额
+  return [...out.filter((e) => !e.ai).slice(0, 10), ...out.filter((e) => e.ai).slice(0, 10)];
 }
 
 function midRunOf(x: unknown): MidRun | null {
@@ -161,7 +172,8 @@ function midRunOf(x: unknown): MidRun | null {
   const log = (x.log as unknown[]).filter(
     (e): e is { tick: number; cmd: Command } => isObj(e) && typeof e.tick === 'number' && isObj(e.cmd),
   );
-  return { v: 1, opts, tick: num(x.tick, 0), log, wave: num(x.wave, 0), savedAt: num(x.savedAt, 0) };
+  const aiAssist = sanitizeAssist(x.aiAssist);
+  return { v: 1, opts, tick: num(x.tick, 0), log, wave: num(x.wave, 0), savedAt: num(x.savedAt, 0), ...(aiAssist ? { aiAssist } : {}) };
 }
 
 /** 把任意 JSON 规范化为合法存档（缺失字段补默认值） */
@@ -204,6 +216,8 @@ export function normalizeProfile(raw: unknown): Profile {
     p.settings.autoWave = typeof s.autoWave === 'boolean' ? s.autoWave : null;
     p.settings.fixedLayout = s.fixedLayout === true;
     p.settings.reduceMotion = s.reduceMotion === true;
+    p.settings.theme = s.theme === 'light' || s.theme === 'dark' ? s.theme : 'system';
+    p.settings.lang = s.lang === 'zh' ? null : normalizeLocale(s.lang);
   }
   if (isObj(raw.lastEndless)) {
     const l = raw.lastEndless;

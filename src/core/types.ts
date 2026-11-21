@@ -194,6 +194,13 @@ export interface TowerState {
   damage: number;                       // 累计伤害（结算 MVP）
   /** 相邻组合技是否激活（用于画连线）：与之配对的塔 uid 列表 */
   comboWith: number[];
+  /** 台灯联动（文档 02 §2.5）：所在联动组编号（组内最小 uid；单独为 0）、组内座数 */
+  prism?: number;
+  prismSize?: number;
+  /** 正在汇聚的主灯 uid（主灯和正在并入的辅灯上为同一值；没有汇聚为 0） */
+  prismLead?: number;
+  /** 主灯上：当前汇聚倍率（1 + Σ 辅灯加成）；其他为 1 */
+  prismRelay?: number;
 }
 
 export interface EnemyState {
@@ -429,8 +436,10 @@ export type Command =
 
 export interface CommandResult {
   ok: boolean;
-  /** 失败原因（中文短句，直接展示给玩家） */
+  /** 失败原因（当前语言的短句，直接展示给玩家；i18n key 为 core.reason.<code>） */
   reason?: string;
+  /** 失败原因的稳定标识（与语言无关，程序判断请用它，不要比较 reason 文本） */
+  code?: string;
 }
 
 // ───────────────────────── 事件（core → render/ui，每步产出，调用 drainEvents 取走） ─────────────────────────
@@ -440,7 +449,10 @@ export type GameEvent =
   | { type: 'sell'; uid: number; tower: TowerId; cx: number; cy: number; refund: number }
   | { type: 'levelUp'; uid: number; level: number; tier: Tier; tierChanged: boolean; byXp: boolean }
   | { type: 'fire'; uid: number; tower: TowerId; x: number; y: number; tx: number; ty: number }
-  | { type: 'beam'; uid: number; x: number; y: number; tx: number; ty: number; color: 'warm' | 'cyan' | 'magenta'; width: number }
+  /** 光束；台灯另带 ramp（递增进度 0..1）、relay（汇聚倍率）、group（参与汇聚的座数，含主灯） */
+  | { type: 'beam'; uid: number; x: number; y: number; tx: number; ty: number; color: 'warm' | 'cyan' | 'magenta'; width: number; ramp?: number; relay?: number; group?: number }
+  /** 台灯联动：辅灯 from 把光并入主灯 to（每跳一次） */
+  | { type: 'prismLink'; from: number; to: number; x: number; y: number; tx: number; ty: number }
   | { type: 'pulse'; x: number; y: number; r: number; color: 'steel' | 'cyan' | 'magenta' | 'gold' | 'ink' }
   | { type: 'sweep'; uid: number; x: number; y: number; r0: number; r1: number; angle: number; arc: number }
   | { type: 'hit'; enemyUid: number; x: number; y: number; amount: number; crit: boolean; kind: 'normal' | 'shield' | 'true' | 'dot' }
@@ -460,7 +472,8 @@ export type GameEvent =
   | { type: 'perkOffer'; cards: PerkCard[] }
   | { type: 'perkChosen'; id: string }
   | { type: 'gameOver'; won: boolean; wave: number; score: number }
-  | { type: 'toast'; text: string; tone: 'info' | 'warn' | 'good' }
+  /** text 为发出时按当前语言生成的文本；key / params 供需要换语言重新生成的消费者（如 AI 参战用源语言） */
+  | { type: 'toast'; text: string; tone: 'info' | 'warn' | 'good'; key?: string; params?: Record<string, string | number> }
   /** 苍蝇拍：拍击（x,y 为落点，r 为拍击半径） / 电蚊拍连锁闪电（points 依次连接） */
   | { type: 'swat'; uid: number; x: number; y: number; r: number }
   | { type: 'chain'; uid: number; points: { x: number; y: number }[] }
@@ -551,7 +564,10 @@ export interface TowerInfo {
 
 export interface PlaceCheck {
   ok: boolean;
+  /** 当前语言的原因文本 */
   reason?: string;
+  /** 稳定的原因标识（core.reason.<code>） */
+  code?: string;
 }
 
 // ───────────────────────── World 接口 ─────────────────────────

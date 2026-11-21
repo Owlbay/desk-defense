@@ -5,10 +5,11 @@
 import { fetchDaily } from '../../meta/online';
 import { diffLabel, resolveLoadout } from '../../meta/progress';
 import { dailyInfo, dailyRunOptions, dayOf, type DailyInfo, type LeaderboardResponse } from '../../shared/leaderboard';
+import { fmtNumber, t } from '../../i18n';
 import { screenHeader, type App, type Screen } from '../App';
 import { audio } from '../audio';
 import { MAP_META } from '../coreMeta';
-import { clear, copyText, fmtNum, h, setText } from '../dom';
+import { clear, copyText, h, setText } from '../dom';
 import { G } from '../icons';
 import { nicknameChip } from '../online/nickname';
 import { onlineBoard } from '../online/table';
@@ -26,7 +27,7 @@ export function dailyScreen(app: App): Screen {
   const srcNote = h('small.muted');
   const list = onlineBoard(app, {
     limit: 20,
-    emptyHint: '今天还没有人上榜，第一个就是你！',
+    emptyHint: t('ui.daily.empty'),
     onLoaded: (d) => paintBest(d),
   });
 
@@ -35,9 +36,12 @@ export function dailyScreen(app: App): Screen {
     clear(bestBox);
     const me = d?.me ?? null;
     bestBox.append(
-      stat('我的最佳', me ? `${fmtNum(me.score)} 分` : '—'),
-      stat('波数', me ? `${me.wave} 波` : '—'),
-      stat('名次', me ? `${me.rank} / ${fmtNum(d?.total ?? 0)}` : d ? `共 ${fmtNum(d.total)} 人` : '—'),
+      stat(t('ui.daily.myBest'), me ? t('ui.daily.points', { n: me.score, score: fmtNumber(me.score) }) : '—'),
+      stat(t('ui.daily.wave'), me ? t('ui.daily.waves', { n: me.wave }) : '—'),
+      stat(
+        t('ui.daily.rank'),
+        me ? `${fmtNumber(me.rank)} / ${fmtNumber(d?.total ?? 0)}` : d ? t('ui.daily.players', { n: d.total, total: fmtNumber(d.total) }) : '—',
+      ),
     );
   }
   paintBest(null);
@@ -52,33 +56,33 @@ export function dailyScreen(app: App): Screen {
         h(
           'div',
           null,
-          h('small.muted', null, `第 ${info.day} 期`),
+          h('small.muted', null, t('ui.daily.issue', { day: info.day })),
           h('h2', null, `${mapName} · ${diffLabel(info.difficulty, info.abyssLevel ?? 1)}`),
           h(
             'div.daily-meta',
             null,
-            h('span.badge', null, '纯净模式'),
-            h('span.badge', null, '自动开波'),
-            h('span.badge', null, '技能 Lv1'),
+            h('span.badge', null, t('ui.daily.badgePure')),
+            h('span.badge', null, t('ui.daily.badgeAuto')),
+            h('span.badge', null, t('ui.daily.badgeLv1')),
             h(
               'button.seed-btn',
               {
                 attrs: { type: 'button' },
-                title: '复制种子',
+                title: t('ui.daily.copySeed'),
                 onclick: async () => {
                   const ok = await copyText(info.seed);
-                  app.toast(ok ? `种子 ${info.seed} 已复制` : '复制失败', ok ? 'good' : 'warn');
+                  app.toast(ok ? t('ui.daily.seedCopied', { seed: info.seed }) : t('ui.daily.copyFailed'), ok ? 'good' : 'warn');
                 },
               },
-              `种子 ${info.seed}`,
+              t('ui.daily.seed', { seed: info.seed }),
             ),
           ),
         ),
-        h('div.daily-count', { attrs: { title: '北京时间零点换新挑战' } }, h('small.muted', null, '距下一期'), countEl),
+        h('div.daily-count', { attrs: { title: t('ui.daily.resetTip') } }, h('small.muted', null, t('ui.daily.nextIn')), countEl),
       ),
     );
     layoutBox.replaceChildren(layoutThumb(info.map, info.seed));
-    setText(srcNote, source === 'local' ? '在线功能暂不可用：挑战内容由本地推算，成绩会在联网后上传。' : '');
+    setText(srcNote, source === 'local' ? t('ui.daily.offlineNote') : '');
     el.dataset.difficulty = info.difficulty;
   };
 
@@ -105,13 +109,13 @@ export function dailyScreen(app: App): Screen {
       },
     },
     h('span.gi', { html: G.play }),
-    '开始挑战',
+    t('ui.daily.start'),
   );
 
   const el = h(
     'div.screen.daily-screen',
     null,
-    screenHeader(app, '每日挑战'),
+    screenHeader(app, t('ui.daily.title')),
     h(
       'div.screen-body',
       null,
@@ -119,19 +123,19 @@ export function dailyScreen(app: App): Screen {
       h(
         'section.card.section',
         null,
-        h('h3', null, '规则'),
+        h('h3', null, t('ui.daily.rules')),
         h(
           'ul.daily-rules',
           null,
-          h('li', null, '每天北京时间零点换一期，所有人同一张地图、同一个种子。'),
-          h('li', null, '固定纯净模式（不带天赋）、自动开波，技能按 1 级计算。'),
-          h('li', null, '可以反复挑战，排行榜只保留你的最好成绩。'),
+          h('li', null, t('ui.daily.rule1')),
+          h('li', null, t('ui.daily.rule2')),
+          h('li', null, t('ui.daily.rule3')),
         ),
         bestBox,
       ),
       loadoutStrip(app, { name: 'daily' }),
       h('div.start-bar', null, startBtn),
-      h('section.card.section', null, h('div.online-bar', null, h('h3', null, '今日排行'), nicknameChip(() => list.reload()), h('button.btn.small', { attrs: { type: 'button' }, onclick: () => (audio.play('click'), list.reload()) }, h('span.gi', { html: G.refresh }), '刷新')), list.el),
+      h('section.card.section', null, h('div.online-bar', null, h('h3', null, t('ui.daily.todayBoard')), nicknameChip(() => list.reload()), h('button.btn.small', { attrs: { type: 'button' }, onclick: () => (audio.play('click'), list.reload()) }, h('span.gi', { html: G.refresh }), t('ui.daily.refresh'))), list.el),
     ),
   );
 

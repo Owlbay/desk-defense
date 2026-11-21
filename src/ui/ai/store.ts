@@ -96,6 +96,15 @@ export function loadSetup(): AiSetupSaved {
   }
 }
 
+/** 玩家是否保存过模型设置（从没打开过设置时，对局里的 AI 按钮先问要不要用离线演示） */
+export function hasSavedSetup(): boolean {
+  try {
+    return !!safeStorage().get(AI_SETUP_KEY);
+  } catch {
+    return false;
+  }
+}
+
 export function saveSetup(s: AiSetupSaved): void {
   try {
     // 双保险：即使调用方传错，也绝不把 Key / 配对码写进去

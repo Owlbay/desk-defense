@@ -3,6 +3,7 @@ import { ui } from '../../game/UiStore';
 import { abilityIcon, enemyIcon, svgUrl, towerIcon } from '../assets';
 import { audio } from '../audio';
 import { ENEMY_META, SKILL_META, spawnerName } from '../coreMeta';
+import { getLocale, t } from '../../i18n';
 import { fmtNum, h, img, setText, toggle } from '../dom';
 import { G } from '../icons';
 import { ABILITY_TARGET_TEXT, castTowerAbility } from './abilities';
@@ -70,6 +71,7 @@ export class InfoPanel {
   private ident = '';
   /** 最近一次花钱升级 / 进化成功的时间（用来区分经验升级） */
   private paidAt = 0;
+  private locale = getLocale();
 
   constructor(private ctx: GameCtx) {
     this.body = h('div.info-body');
@@ -86,6 +88,13 @@ export class InfoPanel {
 
   private render(info: TowerInfo | null, buildOpt: BuildOption | null): void {
     this.info = info;
+    // 语言切换后：丢掉缓存的结构，按当前状态用新语言重建（身份不变，所以不播切换动画）
+    if (this.locale !== getLocale()) {
+      this.locale = getLocale();
+      this.mode = '';
+      this.refs = null;
+      this.spRefs = null;
+    }
     // 空降出生点（文档 09 §2.2）
     const spId = ui.state.spawnerSelected;
     if (spId !== null) {
@@ -106,18 +115,18 @@ export class InfoPanel {
       return;
     }
     this.refs = null;
-    if (ui.state.perkTargeting) return this.setSimple('perk', h('div.info-hint', null, h('span.gi', { html: G.target }), '在棋盘上点一座塔，作为增益的目标。'));
+    if (ui.state.perkTargeting) return this.setSimple('perk', h('div.info-hint', null, h('span.gi', { html: G.target }), t('ui.info.perkTarget')));
     if (ui.state.abilityAiming !== null) {
       const ti = this.ctx.world.getTowerInfo(ui.state.abilityAiming);
       const ab = ti?.ability;
-      const what = ab ? `「${ab.name}」：${ABILITY_TARGET_TEXT[ab.target] ?? '选择目标'}` : '选择目标';
-      return this.setSimple(`abil:${ui.state.abilityAiming}`, h('div.info-hint', null, h('span.gi', { html: G.sparkle }), `${what}。${ui.state.touch ? '点能力按钮取消。' : '右键或 Esc 取消。'}`));
+      const what = ab ? t('ui.info.abilWhat', { name: ab.name, target: ABILITY_TARGET_TEXT[ab.target] ?? t('ui.info.pickTarget') }) : t('ui.info.pickTarget');
+      return this.setSimple(`abil:${ui.state.abilityAiming}`, h('div.info-hint', null, h('span.gi', { html: G.sparkle }), t('ui.info.abilHint', { what, cancel: ui.state.touch ? t('ui.info.cancelAbilTouch') : t('ui.info.cancelMouse') })));
     }
     if (buildOpt) {
       const key = `build:${buildOpt.id}:${buildOpt.cost}:${buildOpt.affordable}`;
       const ident = `build:${buildOpt.id}`;
       if (this.mode === key) return;
-      const air = buildOpt.hitsAir && buildOpt.hitsGround ? '可打空中和地面' : buildOpt.hitsAir ? '只打空中' : buildOpt.hitsGround ? '只打地面' : '不攻击';
+      const air = t(buildOpt.hitsAir && buildOpt.hitsGround ? 'ui.info.hitsBoth' : buildOpt.hitsAir ? 'ui.info.hitsAir' : buildOpt.hitsGround ? 'ui.info.hitsGround' : 'ui.info.noAttack');
       const touch = ui.state.touch;
       this.setSimple(
         key,
@@ -126,7 +135,7 @@ export class InfoPanel {
           null,
           h('div.info-head', null, h('span.info-ico', null, img(towerIcon(buildOpt.id), 'ico')), h('div', null, h('h3', null, buildOpt.name), h('div.tags', null, h('span.tag', null, buildOpt.role), h('span.tag', null, air)))),
           h('p.info-desc', null, buildOpt.desc),
-          h('p.muted.small', null, touch ? '点格子预览，再点同一格放下。再点一次塔栏按钮取消。' : '点击格子放下，可连续放置；右键或 Esc 取消。'),
+          h('p.muted.small', null, touch ? t('ui.info.buildTouch') : t('ui.info.buildMouse')),
         ),
         ident,
       );
@@ -140,11 +149,11 @@ export class InfoPanel {
           'div.info-hint',
           null,
           h('span.gi', { html: G.target }),
-          spawnerAim ? '点一个空降出生点（纸箱）把它封掉。' : ui.state.touch ? '点棋盘预览范围，再点一次释放；点技能按钮取消。' : '点击棋盘释放技能；右键或 Esc 取消。',
+          spawnerAim ? t('ui.info.aimSpawner') : ui.state.touch ? t('ui.info.aimTouch') : t('ui.info.aimMouse'),
         ),
       );
     }
-    this.setSimple('hint', h('div.info-hint.muted', null, '选择塔栏里的塔来建造，或点棋盘上的塔查看详情。'));
+    this.setSimple('hint', h('div.info-hint.muted', null, t('ui.info.idle')));
   }
 
   private setSimple(key: string, node: HTMLElement, ident = key): void {
@@ -199,13 +208,13 @@ export class InfoPanel {
     if (!r) return;
     // 状态行
     let status = '';
-    if (sp.warnUntil !== undefined && sp.warnUntil > st.time) status = `预警中 · ${Math.ceil(sp.warnUntil - st.time)} 秒后落地`;
+    if (sp.warnUntil !== undefined && sp.warnUntil > st.time) status = t('ui.info.sp.warn', { n: Math.ceil(sp.warnUntil - st.time) });
     else if (sp.kind === 'drop' || sp.kind === 'hidden') {
       if (sp.expiresAfterWave !== undefined) {
         const left = sp.expiresAfterWave - st.wave;
-        status = `第 ${sp.expiresAfterWave} 波结束后关闭${left > 0 ? `（还剩 ${left} 波）` : '（本波结束）'}`;
-      } else status = sp.active ? '开放中' : '已关闭';
-    } else status = sp.active ? '开放中' : '尚未开放';
+        status = left > 0 ? t('ui.info.sp.closesIn', { wave: sp.expiresAfterWave, n: left }) : t('ui.info.sp.closesNow', { wave: sp.expiresAfterWave });
+      } else status = sp.active ? t('ui.info.sp.open') : t('ui.info.sp.closed');
+    } else status = sp.active ? t('ui.info.sp.open') : t('ui.info.sp.notOpen');
     setText(r.status, status);
     if (r.demolish && sp.demolishCost !== undefined) {
       toggle(r.demolish, 'poor', st.gold < sp.demolishCost);
@@ -213,7 +222,7 @@ export class InfoPanel {
     if (r.seal) {
       const sk = st.skills.find((s) => s.id === 'seal_tape');
       r.seal.disabled = !sk?.ready;
-      setText(r.seal.querySelector('.act-sub') ?? r.seal, sk?.ready ? '立即封掉' : `冷却 ${fmtSec(sk?.cd ?? 0)} 秒`);
+      setText(r.seal.querySelector('.act-sub') ?? r.seal, sk?.ready ? t('ui.info.sp.sealNow') : t('ui.info.cooldownSec', { s: fmtSec(sk?.cd ?? 0) }));
     }
   }
 
@@ -221,12 +230,12 @@ export class InfoPanel {
     this.mode = 'spawner';
     const drop = sp.kind === 'drop';
     const status = h('p.sp-status');
-    const kindName = drop ? '空降出生点' : sp.kind === 'hidden' ? '隐藏出生点' : '桌边入口';
+    const kindName = t(drop ? 'ui.info.sp.drop' : sp.kind === 'hidden' ? 'ui.info.sp.hidden' : 'ui.info.sp.edge');
     let demolish: HTMLButtonElement | null = null;
     let demolishSub: HTMLElement | null = null;
     let seal: HTMLButtonElement | null = null;
     if (drop && sp.demolishCost !== undefined) {
-      demolishSub = h('span.act-sub', null, `${fmtNum(sp.demolishCost)} 金`);
+      demolishSub = h('span.act-sub', null, t('ui.info.gold', { n: fmtNum(sp.demolishCost) }));
       demolish = h<HTMLButtonElement>(
         'button.btn.act.demolish',
         {
@@ -236,7 +245,7 @@ export class InfoPanel {
           },
         },
         h('span.gi', { html: G.hammer }),
-        h('span.act-text', null, h('span.act-label', null, '拆除'), demolishSub),
+        h('span.act-text', null, h('span.act-label', null, t('ui.info.sp.demolish')), demolishSub),
       );
     }
     if (drop && hasSeal) {
@@ -249,7 +258,7 @@ export class InfoPanel {
           },
         },
         h('span.gi', { html: G.tape }),
-        h('span.act-text', null, h('span.act-label', null, '封箱胶带'), h('span.act-sub', null, '')),
+        h('span.act-text', null, h('span.act-label', null, SKILL_META.seal_tape?.name ?? t('ui.info.sp.seal')), h('span.act-sub', null, '')),
       );
     }
     const icon = sp.icon ? img(enemyIcon(sp.icon), 'ico') : img(svgUrl(drop ? G.parachute : G.warn), 'ico');
@@ -264,7 +273,7 @@ export class InfoPanel {
         h(
           'button.btn.icon-btn.close-info',
           {
-            attrs: { 'aria-label': '关闭' },
+            attrs: { 'aria-label': t('common.close') },
             onclick: () => {
               audio.play('click');
               ui.set({ spawnerSelected: null });
@@ -273,10 +282,10 @@ export class InfoPanel {
           h('span.gi', { html: G.close }),
         ),
       ),
-      sp.icon ? h('p.muted.small', null, `纸箱上画着「${ENEMY_META[sp.icon]?.name ?? sp.icon}」，部分敌人会从这里出来。`) : null,
+      sp.icon ? h('p.muted.small', null, t('ui.info.sp.boxIcon', { name: ENEMY_META[sp.icon]?.name ?? sp.icon })) : null,
       demolish || seal ? h('div.actions', null, demolish, seal) : null,
-      drop && !hasSeal ? h('p.muted.small', null, '小提示：技能「封箱胶带」可以直接封掉空降点（在技能页带入）。') : null,
-      !drop ? h('p.muted.small', null, '入口无法拆除。') : null,
+      drop && !hasSeal ? h('p.muted.small', null, t('ui.info.sp.sealTip', { skill: SKILL_META.seal_tape?.name ?? t('ui.info.sp.seal') })) : null,
+      !drop ? h('p.muted.small', null, t('ui.info.sp.edgeFixed')) : null,
     );
     this.swap(node, `sp:${sp.id}`);
     this.spRefs = { key, status, demolish, demolishSub, seal };
@@ -316,8 +325,8 @@ export class InfoPanel {
     const stars: HTMLElement[] = [];
     let starRow: HTMLElement | null = null;
     if (legend) {
-      for (let k = 1; k <= 3; k++) stars.push(h(`span.evo-star${k === 3 ? '.mythic' : ''}`, { title: k === 3 ? '★3 神话' : `★${k}` }));
-      starRow = h('span.evo-stars', { attrs: { 'aria-label': `进化 ${i.stars ?? 0} 星` } }, ...stars);
+      for (let k = 1; k <= 3; k++) stars.push(h(`span.evo-star${k === 3 ? '.mythic' : ''}`, { title: k === 3 ? t('ui.info.mythicStar') : `★${k}` }));
+      starRow = h('span.evo-stars', { attrs: { 'aria-label': t('ui.info.evoStars', { n: i.stars ?? 0 }) } }, ...stars);
     }
     const xpFill = h('span.xp-fill');
     const xpBar = h(`span.xp-bar${legend ? '.evo' : ''}`, null, xpFill);
@@ -329,7 +338,7 @@ export class InfoPanel {
         ? h(
             'div.target-row',
             null,
-            h('span.muted.small', null, '目标'),
+            h('span.muted.small', null, t('ui.info.target')),
             h(
               'div.seg-mini',
               null,
@@ -394,7 +403,7 @@ export class InfoPanel {
         h(
           'div.ability-main',
           null,
-          h('div.ability-name', null, h('b', null, ab.name), h('span.tag', null, ABILITY_TARGET_TEXT[ab.target] ?? ''), h('span.muted.small', null, ab.maxCharges !== undefined ? '充能制' : `冷却 ${Math.round(ab.cdMax)}s`)),
+          h('div.ability-name', null, h('b', null, ab.name), h('span.tag', null, ABILITY_TARGET_TEXT[ab.target] ?? ''), h('span.muted.small', null, ab.maxCharges !== undefined ? t('ui.info.charged') : t('ui.info.cdMax', { n: Math.round(ab.cdMax) }))),
           h('p.ability-desc', null, ab.desc),
         ),
         btn,
@@ -421,7 +430,7 @@ export class InfoPanel {
         h(
           'button.btn.icon-btn.close-info',
           {
-            attrs: { 'aria-label': '取消选中' },
+            attrs: { 'aria-label': t('ui.info.deselect') },
             onclick: () => {
               audio.play('click');
               ui.set({ selected: null });
@@ -492,18 +501,18 @@ export class InfoPanel {
     if (legend) {
       if (stars >= 3 || (i.evoXpNext ?? 0) <= 0) {
         this.setFill(r, 1, true);
-        setText(r.xpText, stars >= 3 ? '神话 · 已满星' : '进化');
+        setText(r.xpText, stars >= 3 ? t('ui.info.mythicMax') : t('ui.info.evo'));
       } else {
         const pct = Math.min(100, (i.evoXp / i.evoXpNext) * 100);
         this.setFill(r, pct / 100, false);
-        setText(r.xpText, stars === 2 && i.evoXp >= i.evoXpNext ? '经验已满 · 神话需花金币' : `进化 ${fmtNum(Math.floor(i.evoXp))}/${fmtNum(Math.ceil(i.evoXpNext))}`);
+        setText(r.xpText, stars === 2 && i.evoXp >= i.evoXpNext ? t('ui.info.evoFullGold') : t('ui.info.evoXp', { a: fmtNum(Math.floor(i.evoXp)), b: fmtNum(Math.ceil(i.evoXpNext)) }));
       }
     } else if (i.level >= i.maxLevel) {
       this.setFill(r, 1, true);
-      setText(r.xpText, '满级');
+      setText(r.xpText, t('ui.info.maxLevel'));
     } else if (i.xpCapped) {
       this.setFill(r, 1, true);
-      setText(r.xpText, '经验已满 · 需花钱升级');
+      setText(r.xpText, t('ui.info.xpFullGold'));
     } else {
       const pct = i.xpNext > 0 ? Math.min(100, (i.xp / i.xpNext) * 100) : 0;
       this.setFill(r, pct / 100, false);
@@ -515,22 +524,22 @@ export class InfoPanel {
     const evolving = i.upgradeCost === null && i.evolveCost !== null && i.evolveCost !== undefined;
     if (evolving) {
       r.upBtn.disabled = false;
-      setText(r.upLabel, stars >= 2 ? '神话进化' : `进化 ★${stars + 1}`);
-      setText(r.upPrice, `${fmtNum(i.evolveCost!)} 金`);
+      setText(r.upLabel, stars >= 2 ? t('ui.info.mythicEvolve') : t('ui.info.evolveStar', { n: stars + 1 }));
+      setText(r.upPrice, t('ui.info.gold', { n: fmtNum(i.evolveCost!) }));
       const d = i.evolveDiscount ?? 0;
-      setText(r.upDisc, d > 0.005 ? `经验 −${Math.round(d * 100)}%` : '');
+      setText(r.upDisc, d > 0.005 ? t('ui.info.xpDisc', { n: Math.round(d * 100) }) : '');
       toggle(r.upDisc, 'show', d > 0.005);
     } else if (i.upgradeCost === null) {
-      setText(r.upLabel, legend ? (stars >= 3 ? '已是神话' : '已满级') : '已满级');
+      setText(r.upLabel, legend && stars >= 3 ? t('ui.info.isMythic') : t('ui.info.maxed'));
       setText(r.upPrice, '');
       setText(r.upDisc, '');
       toggle(r.upDisc, 'show', false);
       r.upBtn.disabled = true;
     } else {
       r.upBtn.disabled = false;
-      setText(r.upLabel, i.needsBranch ? '选择传奇分支' : '升级');
-      setText(r.upPrice, `${fmtNum(i.upgradeCost)} 金`);
-      setText(r.upDisc, i.upgradeDiscount > 0.005 ? `经验 −${Math.round(i.upgradeDiscount * 100)}%` : '');
+      setText(r.upLabel, i.needsBranch ? t('ui.info.chooseBranch') : t('ui.info.upgrade'));
+      setText(r.upPrice, t('ui.info.gold', { n: fmtNum(i.upgradeCost) }));
+      setText(r.upDisc, i.upgradeDiscount > 0.005 ? t('ui.info.xpDisc', { n: Math.round(i.upgradeDiscount * 100) }) : '');
       toggle(r.upDisc, 'show', i.upgradeDiscount > 0.005);
     }
     toggle(r.upBtn, 'poor', evolving ? !i.canAffordEvolve : i.upgradeCost !== null && !i.canAffordUpgrade);
@@ -549,7 +558,7 @@ export class InfoPanel {
       setText(a.secs, !ab.ready && ab.cd > 0 && !hasCharge ? fmtSec(ab.cd) : '');
       if (a.charges) setText(a.charges, `${ab.charges ?? 0}/${ab.maxCharges ?? 0}`);
       const aiming = ui.state.abilityAiming === i.uid;
-      setText(a.btnText, aiming ? '取消' : ab.ready ? '释放' : charged && !hasCharge ? '无充能' : '冷却中');
+      setText(a.btnText, aiming ? t('common.cancel') : ab.ready ? t('ui.info.cast') : charged && !hasCharge ? t('ui.info.noCharge') : t('ui.info.cooling'));
       a.btn.disabled = !ab.ready && !aiming;
       toggle(a.card, 'ready', ab.ready);
       if (ab.ready && a.wasReady === false) replay(a.card, 'ding', 600);
@@ -559,18 +568,18 @@ export class InfoPanel {
     // 出售 / 撤销
     const armed = this.sellArmed > performance.now();
     if (i.canUndo) {
-      setText(r.sellLabel, `撤销 (${Math.ceil(i.undoRemaining)}s)`);
-      setText(r.sellSub, `全额退 ${fmtNum(i.sellValue)}`);
+      setText(r.sellLabel, t('ui.info.undo', { n: Math.ceil(i.undoRemaining) }));
+      setText(r.sellSub, t('ui.info.undoRefund', { n: fmtNum(i.sellValue) }));
     } else if (armed) {
-      setText(r.sellLabel, '再点确认');
-      setText(r.sellSub, `+${fmtNum(i.sellValue)} 金`);
+      setText(r.sellLabel, t('ui.info.sellConfirm'));
+      setText(r.sellSub, t('ui.info.goldPlus', { n: fmtNum(i.sellValue) }));
     } else {
-      setText(r.sellLabel, '出售');
+      setText(r.sellLabel, t('ui.info.sell'));
       setText(r.sellSub, `+${fmtNum(i.sellValue)} · ${Math.round(i.refundRate * 100)}%`);
     }
     toggle(r.sellBtn, 'undo', i.canUndo);
     toggle(r.sellBtn, 'armed', armed && !i.canUndo);
-    setText(r.record, `击杀 ${fmtNum(i.kills)} · 伤害 ${fmtNum(i.damage)}`);
+    setText(r.record, t('ui.info.record', { kills: fmtNum(i.kills), dmg: fmtNum(i.damage) }));
   }
 
   /** 经验条：用 scaleX 表示进度（不改 width，不触发布局） */

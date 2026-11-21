@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { C, FONT, hex } from './palette';
+import { B, C, FONT, hex } from './palette';
 import { DEPTH } from './layout';
 
 /**
@@ -474,7 +474,7 @@ export class Fx {
         fontSize: `${st.size}px`,
         fontStyle: st.bold ? 'bold' : 'normal',
         color: hex(st.color),
-        stroke: hex(st.stroke),
+        stroke: hex(st.stroke === C.ink ? B.textStroke : st.stroke),
         strokeThickness: kind === 'toast' ? 4 : 3,
       });
     }

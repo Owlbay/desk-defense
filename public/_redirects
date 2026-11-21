@@ -1,0 +1,5 @@
+# Cloudflare Pages 重定向 / 重写
+#
+# 介绍页 /about 不需要规则：Pages 会自动把 about.html 以 /about 提供，并把 /about.html 永久重定向到 /about。
+# 不要写 `/about /about.html 200` —— 重写目标带 .html 会被 Pages 再重定向回 /about，形成死循环
+# （用 `npx wrangler pages dev dist` 实测：/about 返回 308 → /about）。

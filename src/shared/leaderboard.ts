@@ -10,6 +10,7 @@
 import type { Command, DifficultyId, MapId, RunOptions, SkillId, TalentId } from '../core/types';
 import { ABYSS_MAX_LEVEL, PRESETS, abyssParams } from '../config/difficulty';
 import { version as PACKAGE_VERSION } from '../../package.json';
+import { stDef } from './text';
 
 // ───────────────────────── 版本 ─────────────────────────
 
@@ -331,17 +332,34 @@ export function boardForOpts(opts: RunOptions, dailyDay?: string | null): string
   return endlessBoardKey(opts.difficulty, opts.abyssLevel, !!opts.pure, effectiveAutoWave(opts));
 }
 
+// 榜单名称文本。src/shared 不能依赖 i18n（Pages Functions 也会引用），用 stDef 注册 key + 简体中文回退；
+// 浏览器里由 i18n 注入翻译（见 src/shared/text.ts）。
+const BOARD_TEXT = {
+  ai: stDef('core.board.ai', 'AI 榜 · {label}'),
+  daily: stDef('core.board.daily', '每日挑战 {day}'),
+  pure: stDef('core.board.pure', '纯净'),
+  auto: stDef('core.board.auto', '自动开波'),
+  manual: stDef('core.board.manual', '手动开波'),
+  abyss: stDef('data.difficulty.abyssLevel', '魔境 {lv}'),
+};
+const DIFF_TEXT: Record<DifficultyId, () => string> = {
+  easy: stDef('data.difficulty.easy', '简单'),
+  normal: stDef('data.difficulty.normal', '普通'),
+  hard: stDef('data.difficulty.hard', '困难'),
+  nightmare: stDef('data.difficulty.nightmare', '噩梦'),
+  abyss: stDef('data.difficulty.abyss', '魔境'),
+};
+
 export function boardLabel(key: string): string {
-  if (isAiBoardKey(key)) return parseAiBoard(key) ? `AI 榜 · ${boardLabel(key.slice(AI_BOARD_PREFIX.length))}` : key;
+  if (isAiBoardKey(key)) return parseAiBoard(key) ? BOARD_TEXT.ai({ label: boardLabel(key.slice(AI_BOARD_PREFIX.length)) }) : key;
   const b = parseBoard(key);
   if (!b) return key;
-  if (b.kind === 'daily') return `每日挑战 ${b.day}`;
-  const names: Record<DifficultyId, string> = { easy: '简单', normal: '普通', hard: '困难', nightmare: '噩梦', abyss: '魔境' };
+  if (b.kind === 'daily') return BOARD_TEXT.daily({ day: b.day });
   const roman = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
-  let s = b.difficulty === 'abyss' ? `魔境 ${roman[b.abyssLevel ?? 1]}` : names[b.difficulty];
-  if (b.pure) s += ' · 纯净';
-  s += b.auto ? ' · 自动开波' : ' · 手动开波';
-  return s;
+  const parts = [b.difficulty === 'abyss' ? BOARD_TEXT.abyss({ lv: roman[b.abyssLevel ?? 1] }) : DIFF_TEXT[b.difficulty]()];
+  if (b.pure) parts.push(BOARD_TEXT.pure());
+  parts.push(b.auto ? BOARD_TEXT.auto() : BOARD_TEXT.manual());
+  return parts.join(' · ');
 }
 
 // ───────────────────────── 得分 ─────────────────────────
@@ -453,17 +471,23 @@ const NORMALIZE_FOR_BLOCK_RE = /[\s\p{P}\p{S}_]/gu;
 
 export type Checked<T> = { ok: true; value: T } | { ok: false; message: string };
 
+const NICK_TEXT = {
+  empty: stDef('core.nick.empty', '请填写昵称'),
+  tooLong: stDef('core.nick.tooLong', '昵称最多 {n} 个字'),
+  blocked: stDef('core.nick.blocked', '昵称包含不合适的内容，换一个吧'),
+};
+
 export function sanitizeNickname(raw: unknown): Checked<string> {
-  if (typeof raw !== 'string') return { ok: false, message: '请填写昵称' };
-  if (raw.length > 64) return { ok: false, message: `昵称最多 ${NICK_MAX} 个字` };
+  if (typeof raw !== 'string') return { ok: false, message: NICK_TEXT.empty() };
+  if (raw.length > 64) return { ok: false, message: NICK_TEXT.tooLong({ n: NICK_MAX }) };
   const s = raw.normalize('NFKC').replace(CONTROL_RE, '').replace(/\s+/g, ' ').trim();
   const len = Array.from(s).length;
-  if (len < NICK_MIN) return { ok: false, message: '请填写昵称' };
-  if (len > NICK_MAX) return { ok: false, message: `昵称最多 ${NICK_MAX} 个字` };
+  if (len < NICK_MIN) return { ok: false, message: NICK_TEXT.empty() };
+  if (len > NICK_MAX) return { ok: false, message: NICK_TEXT.tooLong({ n: NICK_MAX }) };
   const flat = s.toLowerCase().replace(NORMALIZE_FOR_BLOCK_RE, '');
   for (const w of NICK_BLOCKLIST) {
     // 两个字母的短词（gm / sb）只在整名匹配时拦截，避免误伤
-    if (w.length <= 2 && /^[a-z]+$/.test(w) ? flat === w : flat.includes(w)) return { ok: false, message: '昵称包含不合适的内容，换一个吧' };
+    if (w.length <= 2 && /^[a-z]+$/.test(w) ? flat === w : flat.includes(w)) return { ok: false, message: NICK_TEXT.blocked() };
   }
   return { ok: true, value: s };
 }

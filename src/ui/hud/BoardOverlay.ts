@@ -1,4 +1,5 @@
 import type { CrateChoice, GameEvent, RandomEventState, WavePreview, WorldState } from '../../core/types';
+import { t } from '../../i18n';
 import { enemyIcon } from '../assets';
 import { ENEMY_META } from '../coreMeta';
 import { fmtNum, h, img, setText } from '../dom';
@@ -90,7 +91,7 @@ export class BoardOverlay {
       `div.event-card.tone-${ev.tone}.ph-${ev.phase}`,
       { attrs: { role: 'status' } },
       h('span.ev-ico', { html: TONE_GLYPH[ev.tone] ?? G.warn }),
-      h('div.ev-main', null, h('div.ev-name', null, h('b', null, ev.name), h('span.ev-phase', null, ev.phase === 'warn' ? '即将发生' : '发生了')), h('div.ev-desc', null, ev.desc)),
+      h('div.ev-main', null, h('div.ev-name', null, h('b', null, ev.name), h('span.ev-phase', null, ev.phase === 'warn' ? t('ui.board.eventSoon') : t('ui.board.eventNow'))), h('div.ev-desc', null, ev.desc)),
       secs,
     );
     while (this.cards.size >= 2) {
@@ -168,7 +169,7 @@ export class BoardOverlay {
       let chip = this.chips.get(e.uid);
       if (!chip) {
         const secs = h('b');
-        const el = h(`div.event-chip.tone-${e.tone}`, { title: `${e.name}：${e.desc}` }, h('span.gi', { html: TONE_GLYPH[e.tone] ?? G.warn }), h('span.chip-name', null, e.name), secs);
+        const el = h(`div.event-chip.tone-${e.tone}`, { title: t('ui.board.nameDesc', { name: e.name, desc: e.desc }) }, h('span.gi', { html: TONE_GLYPH[e.tone] ?? G.warn }), h('span.chip-name', null, e.name), secs);
         this.chipBox.appendChild(el);
         chip = { el, secs };
         this.chips.set(e.uid, chip);
@@ -205,8 +206,8 @@ export class BoardOverlay {
     }
     const card = h(
       'div.crate-card',
-      { attrs: { role: 'dialog', 'aria-label': '补给箱：选一个奖励' } },
-      h('div.crate-head', null, h('span.gi', { html: G.crate }), h('b', null, '补给箱'), h('small.muted', null, '选一个奖励')),
+      { attrs: { role: 'dialog', 'aria-label': t('ui.board.crateLabel') } },
+      h('div.crate-head', null, h('span.gi', { html: G.crate }), h('b', null, t('ui.board.crate')), h('small.muted', null, t('ui.board.cratePick'))),
       h(
         'div.crate-opts',
         null,
@@ -225,6 +226,16 @@ export class BoardOverlay {
       ),
     );
     this.crateBox.replaceChildren(card);
+  }
+
+  /** 切换语言：补给箱卡片与事件小图标下一帧按新语言重建 */
+  relabel(): void {
+    if (this.crateUid !== null) {
+      this.crateUid = null;
+      this.crateBox.replaceChildren();
+    }
+    for (const chip of this.chips.values()) chip.el.remove();
+    this.chips.clear();
   }
 
   update(st: WorldState): void {
@@ -293,22 +304,22 @@ export class BoardOverlay {
     if (now - last < 900) return; // 去重
     this.recent.set(text, now);
     while (this.toastBox.children.length >= 3) this.toastBox.firstElementChild?.remove();
-    const t = h(`div.toast.tone-${tone}`, null, text);
-    this.toastBox.appendChild(t);
-    setTimeout(() => t.classList.add('out'), 2000);
-    setTimeout(() => t.remove(), 2400);
+    const el = h(`div.toast.tone-${tone}`, null, text);
+    this.toastBox.appendChild(el);
+    setTimeout(() => el.classList.add('out'), 2000);
+    setTimeout(() => el.remove(), 2400);
   }
 
   banner(wave: number, tags: WavePreview['tags'], total: number): void {
     const boss = tags.includes('boss');
     const sub = tags
-      .map((t) => (t === 'boss' ? 'Boss 来袭' : t === 'air' ? '空袭波 · 小心飞行敌人' : '冲锋波 · 敌人更快'))
+      .map((tag) => t(tag === 'boss' ? 'ui.board.tagBoss' : tag === 'air' ? 'ui.board.tagAir' : 'ui.board.tagRush'))
       .join(' · ');
     const el = h(
       `div.banner.sweep${boss ? '.boss' : ''}`,
       null,
       boss ? h('span.gi.banner-ico', { html: G.skull }) : null,
-      h('div.banner-title', null, total > 0 ? `第 ${wave} / ${total} 波` : `第 ${wave} 波`),
+      h('div.banner-title', null, total > 0 ? t('ui.board.waveOf', { wave, total }) : t('ui.board.wave', { wave })),
       sub ? h('div.banner-sub', null, sub) : null,
     );
     // 横幅身后扫过整个棋盘的色带

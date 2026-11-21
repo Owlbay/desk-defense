@@ -8,6 +8,7 @@ import { generateLayout, SKILL_META, SKILL_ORDER, spawnerName } from '../coreMet
 import { h, img } from '../dom';
 import { G } from '../icons';
 import { anim, DUR, EASE_IN, EASE_SPRING } from './motion';
+import { t } from '../../i18n';
 
 export function unlockedSkills(p: Profile): SkillId[] {
   return SKILL_ORDER.filter((id) => unlockReached(p, SKILL_META[id]?.unlock));
@@ -96,7 +97,7 @@ const OBST_COLOR: Record<string, string> = {
 /** 布局缩略图（文档 09 §5.2）：杂物、出生点、出口 */
 export function layoutThumb(map: MapId, seed: string, fixedLayout = false): HTMLElement {
   const lay = generateLayout(map, seed, fixedLayout);
-  if (!lay) return h('div.layout-thumb.empty', null, h('small.muted', null, '布局预览暂不可用'));
+  if (!lay) return h('div.layout-thumb.empty', null, h('small.muted', null, t('ui.screen.layoutUnavailable')));
   const W = GRID_COLS;
   const H = GRID_ROWS;
   const parts: string[] = [];
@@ -115,7 +116,7 @@ export function layoutThumb(map: MapId, seed: string, fixedLayout = false): HTML
     }
   }
   for (const e of lay.exits) parts.push(`<rect x="${e.x + 0.1}" y="${e.y + 0.1}" width=".8" height=".8" rx=".15" fill="#2E4A7D" stroke="#3B2F2A" stroke-width=".07"/>`);
-  const svg = `<svg viewBox="-0.2 -0.2 ${W + 0.4} ${H + 0.4}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="布局缩略图">${parts.join('')}</svg>`;
+  const svg = `<svg viewBox="-0.2 -0.2 ${W + 0.4} ${H + 0.4}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${t('ui.screen.layoutThumb')}">${parts.join('')}</svg>`;
   const names = lay.spawners.filter((s) => s.kind !== 'hidden').map((s) => spawnerName(s.id, lay.spawners));
   return h(
     'div.layout-thumb',
@@ -124,10 +125,10 @@ export function layoutThumb(map: MapId, seed: string, fixedLayout = false): HTML
     h(
       'div.layout-legend',
       null,
-      h('span', null, h('i.lg.spawn'), names.length > 1 ? `入口 ×${names.length}` : '入口'),
-      lay.spawners.some((s) => s.kind === 'hidden') ? h('span', null, h('i.lg.hidden'), '暗门') : null,
-      h('span', null, h('i.lg.exit'), '作业本'),
-      h('span', null, h('i.lg.obst'), `杂物 ${lay.obstacles.length}`),
+      h('span', null, h('i.lg.spawn'), names.length > 1 ? t('ui.screen.spawnN', { n: names.length }) : t('ui.screen.spawn')),
+      lay.spawners.some((s) => s.kind === 'hidden') ? h('span', null, h('i.lg.hidden'), t('ui.screen.hiddenDoor')) : null,
+      h('span', null, h('i.lg.exit'), t('ui.screen.exit')),
+      h('span', null, h('i.lg.obst'), t('ui.screen.clutterN', { n: lay.obstacles.length })),
     ),
   );
 }
@@ -172,9 +173,9 @@ export function layoutPicker(o: { map: () => MapId; seed: () => string; onReroll
       },
     },
     icon,
-    '换一个',
+    t('ui.screen.reroll'),
   );
-  const el = h('div.layout-picker', null, host, h('div.layout-side', null, h('p.muted.small', null, '杂物按种子随机摆放，同一个种子布局完全相同。'), btn));
+  const el = h('div.layout-picker', null, host, h('div.layout-side', null, h('p.muted.small', null, t('ui.screen.seedHint')), btn));
   refresh();
   return { el, refresh };
 }
@@ -186,7 +187,7 @@ export function loadoutStrip(app: App, from: Route): HTMLElement {
   return h(
     'div.loadout-strip.card',
     null,
-    h('span.strip-label', null, '带入技能'),
+    h('span.strip-label', null, t('ui.screen.loadout')),
     h(
       'div.strip-skills',
       null,
@@ -202,7 +203,7 @@ export function loadoutStrip(app: App, from: Route): HTMLElement {
           app.go({ name: 'skills', from });
         },
       },
-      '调整',
+      t('ui.screen.adjust'),
     ),
   );
 }
@@ -211,7 +212,7 @@ export function loadoutStrip(app: App, from: Route): HTMLElement {
  * 星级。earnedFrom：从第几颗星开始是"刚刚获得"的 —— 这些星先显示空星，再依次盖上实心星（.earn-fill）。
  */
 export function starRow(n: number, max = 3, earnedFrom = n): HTMLElement {
-  const wrap = h('span.stars', { attrs: { role: 'img', 'aria-label': `${n} 星` } });
+  const wrap = h('span.stars', { attrs: { role: 'img', 'aria-label': t('ui.screen.starsAria', { n, max }) } });
   for (let i = 0; i < max; i++) {
     if (i < n && i >= earnedFrom) wrap.appendChild(h('span.star.earn', { style: `--i:${i - earnedFrom}` }, h('span.star.on.earn-fill')));
     else wrap.appendChild(h(`span.star${i < n ? '.on' : ''}`));

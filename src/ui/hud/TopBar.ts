@@ -1,4 +1,5 @@
 import type { WorldState } from '../../core/types';
+import { t } from '../../i18n';
 import { diffLabel } from '../../meta/progress';
 import { audio } from '../audio';
 import { fmtNum, h, setText } from '../dom';
@@ -21,17 +22,23 @@ export class TopBar {
   private popUntil = 0;
   private last = { lives: -1, gold: -1, wave: -1, total: -1, score: -1 };
   readonly pauseBtn: HTMLButtonElement;
+  private statBoxes: { box: HTMLElement; key: string }[] = [];
+  private diffChip: HTMLElement;
 
-  constructor(ctx: GameCtx, onPause: () => void) {
+  constructor(
+    private ctx: GameCtx,
+    onPause: () => void,
+  ) {
     const stat = (glyph: string, cls: string, label: string) => {
       const v = h('b.stat-v');
-      const box = h(`div.stat.${cls}`, { title: label, attrs: { 'aria-label': label } }, h('span.gi', { html: glyph }), v);
+      const box = h(`div.stat.${cls}`, null, h('span.gi', { html: glyph }), v);
+      this.statBoxes.push({ box, key: label });
       return { box, v };
     };
-    const l = stat(G.heart, 'lives', '生命');
-    const g = stat(G.coin, 'gold', '金币');
-    const w = stat(G.wave, 'wave', '波次');
-    const s = stat(G.score, 'score', '得分');
+    const l = stat(G.heart, 'lives', 'ui.topbar.lives');
+    const g = stat(G.coin, 'gold', 'ui.topbar.gold');
+    const w = stat(G.wave, 'wave', 'ui.topbar.wave');
+    const s = stat(G.score, 'score', 'ui.topbar.score');
     this.lives = l.v;
     this.wave = w.v;
     this.livesBox = l.box;
@@ -44,8 +51,6 @@ export class TopBar {
     this.pauseBtn = h<HTMLButtonElement>(
       'button.btn.icon-btn.pause-btn',
       {
-        attrs: { 'aria-label': '暂停 (P)' },
-        title: '暂停 (P)',
         onclick: () => {
           audio.play('click');
           onPause();
@@ -53,15 +58,24 @@ export class TopBar {
       },
       h('span.gi', { html: G.pause }),
     );
-    const o = ctx.opts;
-    const diff = o.mode === 'custom' ? '自定义' : diffLabel(o.difficulty, o.abyssLevel ?? 1);
-    this.el = h(
-      'div.topbar',
-      null,
-      h('div.stats', null, l.box, g.box, w.box, s.box),
-      h('span.diff-chip', { title: o.pure ? '纯净模式' : '' }, diff, o.pure ? ' · 纯净' : ''),
-      this.pauseBtn,
-    );
+    this.diffChip = h('span.diff-chip');
+    this.el = h('div.topbar', null, h('div.stats', null, l.box, g.box, w.box, s.box), this.diffChip, this.pauseBtn);
+    this.relabel();
+  }
+
+  /** 按当前语言刷新标签文字（切换语言时调用） */
+  relabel(): void {
+    for (const { box, key } of this.statBoxes) {
+      box.title = t(key);
+      box.setAttribute('aria-label', t(key));
+    }
+    const pause = t('ui.topbar.pause');
+    this.pauseBtn.title = pause;
+    this.pauseBtn.setAttribute('aria-label', pause);
+    const o = this.ctx.opts;
+    const diff = o.mode === 'custom' ? t('ui.topbar.custom') : diffLabel(o.difficulty, o.abyssLevel ?? 1);
+    this.diffChip.title = o.pure ? t('ui.topbar.pureMode') : '';
+    this.diffChip.textContent = o.pure ? t('ui.topbar.diffPure', { diff }) : diff;
   }
 
   /** 金币飞入动画的落点（金币图标） */

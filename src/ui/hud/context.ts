@@ -1,4 +1,6 @@
 import type { Command, CommandResult, IWorld, RunOptions, TargetMode } from '../../core/types';
+import type { AiAssist } from '../../meta/aiAssist';
+import { t } from '../../i18n';
 import type { Session } from '../../game/Session';
 import type { App } from '../App';
 
@@ -16,18 +18,25 @@ export interface GameCtx {
   openBranch(uid: number): void;
   /** 当前是否横屏布局 */
   landscape(): boolean;
+  /** 本局的 AI 助手公平性标记（启用 AI 时就地更新） */
+  aiAssist?: AiAssist;
 }
 
+/** 瞄准模式名（getter：每次读取都按当前语言翻译） */
 export const TARGET_NAME: Record<TargetMode, string> = {
-  first: '先头',
-  last: '末尾',
-  strong: '最强',
-  weak: '最弱',
-  close: '最近',
-  air: '对空',
+  get first() { return t('ui.game.target.first'); },
+  get last() { return t('ui.game.target.last'); },
+  get strong() { return t('ui.game.target.strong'); },
+  get weak() { return t('ui.game.target.weak'); },
+  get close() { return t('ui.game.target.close'); },
+  get air() { return t('ui.game.target.air'); },
 };
 
-export const RARITY_NAME = { common: '普通', rare: '稀有', epic: '史诗' } as const;
+export const RARITY_NAME: Readonly<Record<'common' | 'rare' | 'epic', string>> = {
+  get common() { return t('ui.game.rarity.common'); },
+  get rare() { return t('ui.game.rarity.rare'); },
+  get epic() { return t('ui.game.rarity.epic'); },
+};
 
 /** 1–9、0、-、= 对应塔栏第 1..12 个 */
 export const BUILD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '='];

@@ -11,7 +11,12 @@ import { CellKind, type Branch, type Command, type CommandResult, type IWorld, t
 import { COMBOS, TOWERS } from '../config/towers';
 import { computeDist, tracePath } from '../core/flowfield';
 import { threatEstimate } from './battle';
-import { coverage as sampleCov, dropStart, planMaze, targetCells, type MazePlan, type Sample } from './maze';
+import { coverage as sampleCov, dropStart, planMaze, routeLength, targetCells, type MazePlan, type Sample } from './maze';
+import { crowdedCells, idleTowers, refreshStats, shortensRoutes, uselessWalls, wallInfo } from './board';
+import type { BattleIntel } from './intel';
+import { PURPOSES, PURPOSE_TARGET, PURPOSE_TOWERS, type Purpose } from './purpose';
+
+export { PURPOSES, PURPOSE_TOWERS, type Purpose } from './purpose';
 
 export type Send = (cmd: Command) => CommandResult & { queuedFor?: number };
 
@@ -21,7 +26,11 @@ export interface PlannerState {
   saveUntil?: number;
   /** 存钱目标在第几波设下（过两波自动失效） */
   saveWave?: number;
+  /** 战场情报（零伤害塔等；引擎注入） */
+  intel?: BattleIntel;
 }
+
+export const COMBO_PAIRS = COMBOS.map((c) => `${c.a}+${c.b}`);
 
 export interface IntentOutcome {
   ok: boolean;
@@ -63,7 +72,8 @@ export interface RSample extends Sample { sp: string; f: number }
 
 interface Slot { x: number; y: number; i: number; wallUid: number; plan: boolean }
 
-const FIXABLE = new Set(['有敌人在这里', '这里不能建造', '已经有塔了', '会堵死道路', '会困住敌人']);
+// 可自动挪位的放置失败原因（CommandResult.code，与界面语言无关）
+const FIXABLE = new Set(['enemyHere', 'cantBuild', 'occupied', 'blocksPath', 'trapsEnemy']);
 
 /** 每次 act 新建一个（局面快照），意图之间共享"已排队但未落地"的格子与金币 */
 export class Planner {
@@ -145,7 +155,7 @@ export class Planner {
 
   private wallPlaceable(i: number): boolean {
     const r = this.w.canPlace('wall', i % this.cols, Math.floor(i / this.cols));
-    return r.ok || r.reason === '金币不足' || r.reason === '有敌人在这里';
+    return r.ok || r.code === 'noGold' || r.code === 'enemyHere';
   }
 
   /** 迷宫完成度：规划格里已被占用（墙或塔）的比例 */
@@ -238,6 +248,17 @@ export class Planner {
       case 'early': ground = ground.filter((s) => s.f <= 0.4); break;
       case 'exit': ground = ground.filter((s) => s.f >= 0.6); air = air.filter((s) => s.f >= 0.5); break;
       case 'route': if (arg) { ground = ground.filter((s) => s.sp === arg); air = air.filter((s) => s.sp === arg); } break;
+      case 'seg': {
+        // seg:x1,y1-x2,y2 → 只看这个矩形（外扩半格）里的路线采样（漏怪缺口）
+        const m = /^(\d+),(\d+)-(\d+),(\d+)$/.exec(arg ?? '');
+        if (m) {
+          const [x1, y1, x2, y2] = [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])];
+          const inBox = (q: RSample) => q.x >= Math.min(x1, x2) - 0.5 && q.x <= Math.max(x1, x2) + 1.5 && q.y >= Math.min(y1, y2) - 0.5 && q.y <= Math.max(y1, y2) + 1.5;
+          ground = ground.filter(inBox);
+          air = air.filter(inBox);
+        }
+        break;
+      }
       case 'air': case 'airline': {
         air = def.hitsAir ? this.aS.filter((s) => !arg || s.sp === arg) : [];
         ground = ground.map((s) => ({ ...s, w: s.w * 0.1 }));
@@ -263,7 +284,7 @@ export class Planner {
       for (const t of this.attackers()) {
         if ((t.cx - sl.x) ** 2 + (t.cy - sl.y) ** 2 <= 4 + 1e-6) v += 1.19 ** (t.level - 1) * (POWER[t.id] || 10);
       }
-      return v;
+      return this.adjacent(sl.x, sl.y, 'piggy') ? v * 1.15 : v;
     }
     if (id === 'piggy') return 100 - sampleCov(sl.x, sl.y, 2.5, 0, this.gS) + (this.adjacent(sl.x, sl.y, 'calculator') ? 50 : 0);
     const { r, inner } = this.range(id);
@@ -296,7 +317,7 @@ export class Planner {
         if (v <= bv + 1e-9) continue;
         if (!sl.wallUid) {
           const r = this.w.canPlace(id, sl.x, sl.y);
-          if (!r.ok && r.reason !== '金币不足') continue;
+          if (!r.ok && r.code !== 'noGold') continue;
         }
         best = sl;
         bv = v;
@@ -336,9 +357,12 @@ export class Planner {
   // ───────────── 意图 ─────────────
 
   /** maze：按规划逐格放墙（serpentine）或贪心放能让路线变长最多的墙（funnel），最多花 budget */
-  maze(style: 'serpentine' | 'funnel' = 'serpentine', budget?: number, route?: string): IntentOutcome {
+  maze(style: 'serpentine' | 'funnel' = 'serpentine', budget?: number, route?: string, exact = false): IntentOutcome {
     const wallCost = this.cost('wall');
-    const cap = Math.min(budget ?? Infinity, this.gold());
+    // 预算（模型的意图）：不给 = 建到路线 ≥ 2.5× 直线（或至少下一道挡板）；给了也至少补完正在建的这道挡板（半道挡板不拉长路线）。
+    // exact：spend 内部调用，按给的预算
+    const want = style === 'serpentine' && !exact ? this.mazeBudget(budget) : budget;
+    const cap = Math.min(want ?? Infinity, this.gold());
     const before = this.pathLens();
     let spent = 0;
     let done = 0;
@@ -371,6 +395,31 @@ export class Planner {
       ? `maze ${style}: +${done} walls -${spent}g path ${before.join('/')}→${after.join('/')}${sk}${tail}`
       : `maze ${style}: nothing built (${this.gold() < wallCost ? `gold ${this.gold()}` : pg.left === 0 && style === 'serpentine' ? 'plan complete' : 'no useful wall'})${sk}${tail}`;
     return { ok: done > 0 || (style === 'serpentine' && pg.left === 0), text, spent, done };
+  }
+
+  /** serpentine 的预算：见 maze() */
+  private mazeBudget(budget?: number): number | undefined {
+    const g = this.w.state.grid;
+    const wallCost = this.cost('wall');
+    const segLeft = this.plan.segments.map((seg) => seg.filter((i) => g.cells[i] === CellKind.Empty && !this.reserved.has(i)).length);
+    const k = segLeft.findIndex((n) => n > 0);
+    if (k < 0) return budget;
+    const finishCur = segLeft[k] * wallCost;
+    if (budget !== undefined) return Math.max(budget, finishCur);
+    // 按规划顺序累加，直到路线 ≥ 2.5× 直线
+    const cells = g.cells.slice();
+    const target = 2.5 * Math.max(1, this.plan.baseLength);
+    let need = 0;
+    for (let j = k; j < this.plan.segments.length; j++) {
+      if (routeLength(this.w, cells, this.scratch) >= target && need >= finishCur) break;
+      for (const i of this.plan.segments[j]) {
+        if (cells[i] !== CellKind.Empty || this.reserved.has(i)) continue;
+        cells[i] = CellKind.Tower;
+        if (routeLength(this.w, cells, this.scratch) < 0) cells[i] = CellKind.Empty;
+        else need += wallCost;
+      }
+    }
+    return Math.max(need, finishCur);
   }
 
   /** 让（指定 / 全部）路线变长最多的单格墙（只看当前路线旁边的格子；用 previewPath，与真实放置同规则） */
@@ -550,7 +599,7 @@ export class Planner {
       const towerInv = atk.reduce((x, t) => x + t.invested, 0);
       if (atk.length >= 3 && this.mazeProgress().left > 0 && (focus === 'maze' || wallInv < WALL_SHARE * towerInv + 25)) {
         const cap = focus === 'maze' ? budget : Math.max(this.cost('wall'), Math.min(budget, WALL_SHARE * towerInv + 25 - wallInv));
-        const o = this.maze('serpentine', cap);
+        const o = this.maze('serpentine', cap, undefined, true);
         if (o.done) { spent += o.spent; done += o.done; walls += o.done; wallGold += o.spent; continue; }
       }
       const id = this.nextRotation();
@@ -621,6 +670,316 @@ export class Planner {
     return null;
   }
 
+  // ───────────── 用途 / 组合技 / 增益 / 经济 ─────────────
+
+  /** 用途 → 这次该买哪座塔（买得起的里面 覆盖 × 威力 × 适配 ÷ 价格 最高；同类已多的打折，鼓励多样） */
+  towerForPurpose(purpose: Purpose, target?: string): { id: TowerId; v: number; why: string } | null {
+    const cand = PURPOSE_TOWERS[purpose];
+    if (!cand) return null;
+    const have = new Map<TowerId, number>();
+    for (const t of this.attackers()) have.set(t.id, (have.get(t.id) ?? 0) + 1);
+    let best: { id: TowerId; v: number; why: string; score: number } | null = null;
+    const skipped: string[] = [];
+    for (const [id, fit] of Object.entries(cand) as [TowerId, number][]) {
+      if (!this.unlocked(id)) continue;
+      if (this.cost(id) > this.gold()) { skipped.push(`${id} ${this.cost(id)}g`); continue; }
+      const b = this.bestSlot(id, target ?? PURPOSE_TARGET[purpose] ?? 'route');
+      if (!b || b.v < 0.5) continue;
+      const score = (b.v * (POWER[id] || 10) * fit) / this.cost(id) / (1 + 0.12 * (have.get(id) ?? 0));
+      if (!best || score > best.score + 1e-9) best = { id, v: b.v, score, why: `${id} cov${Math.round(b.v * 10) / 10}` };
+    }
+    if (!best) return null;
+    return { id: best.id, v: best.v, why: best.why + (skipped.length ? ` (afford later: ${skipped.join(',')})` : '') };
+  }
+
+  /** build_near 的用途版：按用途挑塔，逐座重新挑（第二座可能换成别的类型） */
+  buildPurpose(purpose: Purpose, target = '', count = 1): IntentOutcome {
+    const lines: string[] = [];
+    let spent = 0;
+    let done = 0;
+    for (let k = 0; k < Math.min(6, Math.max(1, count)); k++) {
+      const pick = this.towerForPurpose(purpose, target || undefined);
+      if (!pick) { lines.push(`stop: no affordable ${purpose} tower with a useful cell (gold ${this.gold()})`); break; }
+      const o = this.buildNear(pick.id, target || PURPOSE_TARGET[purpose] || 'route', 1);
+      spent += o.spent;
+      done += o.done;
+      lines.push(o.text.replace(/^build_near /, ''));
+      if (!o.done) break;
+    }
+    return { ok: done > 0, text: `build_near purpose=${purpose}: ${lines.join(' / ')}`, spent, done };
+  }
+
+  /** 前 k 个可放格（与 bestSlot 同一打分） */
+  private rankSlots(id: TowerId, target: string, k: number): { slot: Slot; v: number }[] {
+    const near = this.samplesFor(id, target);
+    const cur = this.samplesFor(id, target, 'current');
+    const far = this.samplesFor(id, target, 'final');
+    const out: { slot: Slot; v: number }[] = [];
+    for (const sl of this.slots()) {
+      const v = sl.plan ? 0.5 * this.slotValue(id, sl, near) + 0.5 * this.slotValue(id, sl, cur) : this.slotValue(id, sl, far);
+      if (v <= 0) continue;
+      if (!sl.wallUid) {
+        const r = this.w.canPlace(id, sl.x, sl.y);
+        if (!r.ok && r.code !== 'noGold') continue;
+      }
+      out.push({ slot: sl, v });
+    }
+    return out.sort((a, b) => b.v - a.v || a.slot.i - b.slot.i).slice(0, k);
+  }
+
+  private neighbors(i: number): number[] {
+    const x = i % this.cols;
+    const y = (i - x) / this.cols;
+    const out: number[] = [];
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx >= 0 && ny >= 0 && nx < this.cols && ny < this.rows) out.push(ny * this.cols + nx);
+    }
+    return out;
+  }
+
+  /** combo：把一对组合技塔放成上下左右相邻（优先给已有的落单塔配搭档），near = 目标位置（route / early / seg:… 等） */
+  combo(pair: string, near = 'route'): IntentOutcome {
+    const [pa, pb] = pair.split('+') as TowerId[];
+    const cb = COMBOS.find((c) => (c.a === pa && c.b === pb) || (c.a === pb && c.b === pa));
+    if (!cb) return { ok: false, text: `combo: unknown pair "${pair}" (${COMBO_PAIRS.join(' | ')})`, spent: 0, done: 0 };
+    for (const id of [cb.a, cb.b]) if (!this.unlocked(id)) return { ok: false, text: `combo ${pair}: ${id} locked or at limit`, spent: 0, done: 0 };
+    const slotMap = new Map(this.slots().map((sl) => [sl.i, sl]));
+    const value = (id: TowerId, sl: Slot): number => {
+      if (!sl.wallUid) {
+        const r = this.w.canPlace(id, sl.x, sl.y);
+        if (!r.ok && r.code !== 'noGold') return -1;
+      }
+      const sm = this.samplesFor(id, near, sl.plan ? 'near' : 'final');
+      return this.slotValue(id, sl, sm);
+    };
+    // 搭档格至少要有这种塔最好格 70% 的覆盖（组合技加成 15～30%，换不回明显更差的位置）
+    const bestV = new Map<TowerId, number>();
+    const floor = (id: TowerId): number => {
+      if (!bestV.has(id)) bestV.set(id, this.bestSlot(id, near)?.v ?? 0);
+      return id === 'piggy' || id === 'calculator' ? 0 : 0.7 * bestV.get(id)!;
+    };
+    // 1) 已有的落单塔：在它旁边放搭档
+    refreshStats(this.w);
+    let anchor: { partner: TowerId; sl: Slot; v: number; uid: number } | null = null;
+    for (const t of this.towers()) {
+      if ((t.id !== cb.a && t.id !== cb.b) || t.comboWith.length) continue;
+      const partner = t.id === cb.a ? cb.b : cb.a;
+      for (const ni of this.neighbors(t.cy * this.cols + t.cx)) {
+        const sl = slotMap.get(ni);
+        if (!sl) continue;
+        const v = value(partner, sl);
+        if (v > 0 && v >= floor(partner) && (!anchor || v > anchor.v)) anchor = { partner, sl, v, uid: t.uid };
+      }
+    }
+    // 2) 新的一对：A 的前几个好格 × 相邻的 B 格
+    let fresh: { first: TowerId; s1: Slot; second: TowerId; s2: Slot; v: number } | null = null;
+    if (this.gold() >= this.cost(cb.a) + this.cost(cb.b)) {
+      for (const [first, second] of [[cb.a, cb.b], [cb.b, cb.a]] as [TowerId, TowerId][]) {
+        for (const c1 of this.rankSlots(first, near, 8)) {
+          if (c1.v < floor(first)) continue;
+          for (const ni of this.neighbors(c1.slot.i)) {
+            const sl = slotMap.get(ni);
+            if (!sl) continue;
+            const v2 = value(second, sl);
+            if (v2 < 0 || v2 < floor(second)) continue;
+            const v = (c1.v + v2) / 2;
+            if (!fresh || v > fresh.v) fresh = { first, s1: c1.slot, second, s2: sl, v };
+          }
+        }
+      }
+    }
+    const lines: string[] = [];
+    let spent = 0;
+    let done = 0;
+    if (anchor && (!fresh || anchor.v >= 0.6 * fresh.v) && this.gold() >= this.cost(anchor.partner)) {
+      const r = this.placeAt(anchor.partner, anchor.sl);
+      if (r.ok) { spent += r.spent; done++; lines.push(`${r.line} next to #${anchor.uid}`); }
+      else lines.push(`skip ${r.line}`);
+    } else if (fresh) {
+      const r1 = this.placeAt(fresh.first, fresh.s1);
+      if (r1.ok) {
+        spent += r1.spent;
+        done++;
+        lines.push(r1.line);
+        // 第二座：首选格被拒（放了第一座后会堵路等）就换第一座的其他邻格
+        const alts = [fresh.s2, ...this.neighbors(fresh.s1.i).map((ni) => slotMap.get(ni)).filter((x): x is Slot => !!x && x.i !== fresh!.s2.i)];
+        let ok2 = false;
+        for (const sl of alts) {
+          if (this.gold() < this.cost(fresh.second)) { lines.push(`stop: 金币不足 for ${fresh.second}`); break; }
+          if (!sl.wallUid && !this.w.canPlace(fresh.second, sl.x, sl.y).ok) continue;
+          const r2 = this.placeAt(fresh.second, sl);
+          if (r2.ok) { spent += r2.spent; done++; lines.push(r2.line); ok2 = true; break; }
+        }
+        if (!ok2) lines.push(`${fresh.second}: no adjacent cell left`);
+      } else lines.push(`skip ${r1.line}`);
+    } else {
+      const need = this.cost(cb.a) + this.cost(cb.b);
+      return { ok: false, text: `combo ${cb.a}+${cb.b}: ${this.gold() < need && !anchor ? `金币不足 (pair ${need}g, gold ${this.gold()})` : 'no adjacent pair of good cells (each ≥70% of its best spot)'}`, spent: 0, done: 0 };
+    }
+    return { ok: done > 0, text: `combo ${cb.a}+${cb.b} (${cb.name}): ${lines.join('; ')}`, spent, done };
+  }
+
+  /** support：计算器放在光环（2 格）覆盖输出最多的位置；覆盖太少就不放 */
+  support(): IntentOutcome {
+    if (!this.unlocked('calculator')) return { ok: false, text: 'support: calculator locked or at limit', spent: 0, done: 0 };
+    const b = this.bestSlot('calculator');
+    const min = 2.2 * POWER.pencil;
+    if (!b || b.v < min) return { ok: false, text: `support: no cell where the aura covers ≥2 strong towers (best ${Math.round(b?.v ?? 0)} < ${Math.round(min)}); build more towers close together first`, spent: 0, done: 0 };
+    if (this.gold() < this.cost('calculator')) return { ok: false, text: `support: 金币不足 (calculator ${this.cost('calculator')}g, gold ${this.gold()})`, spent: 0, done: 0 };
+    const r = this.placeAt('calculator', b.slot);
+    return { ok: r.ok, text: `support: ${r.line} aura covers ≈${Math.round(b.v)} dps-units`, spent: r.ok ? r.spent : 0, done: r.ok ? 1 : 0 };
+  }
+
+  /** economy：安全时（满血、下一波没有"危险"、已有 ≥4 座攻击塔）早放存钱罐，挨着计算器更好 */
+  economy(count = 1): IntentOutcome {
+    const s = this.w.state;
+    if (!this.unlocked('piggy')) return { ok: false, text: 'economy: piggy locked or at limit (max 3)', spent: 0, done: 0 };
+    // 存钱罐 100g ≈ 5 支铅笔，回本要 ~12 波：只有防线明显有余量时才放（脚本评测：宽松条件下困难难度失守 2 局）
+    const th = threatEstimate(this.w);
+    const why = s.lives < s.maxLives ? 'lives lost — defend first'
+      : this.attackers().length < 6 ? 'fewer than 6 attack towers'
+        : th.some((t) => t.ratio < 3) ? `next wave not comfortably safe (min ×${Math.min(...th.map((t) => t.ratio))} < 3)`
+          : s.wave >= 40 ? 'too late for payback' : '';
+    if (why) return { ok: false, text: `economy: not safe (${why})`, spent: 0, done: 0 };
+    const lines: string[] = [];
+    let spent = 0;
+    let done = 0;
+    for (let k = 0; k < Math.min(3, Math.max(1, count)); k++) {
+      if (!this.unlocked('piggy')) break;
+      if (this.gold() < this.cost('piggy')) { lines.push(`stop: 金币不足 (piggy ${this.cost('piggy')}g)`); break; }
+      const b = this.bestSlot('piggy');
+      if (!b) { lines.push('stop: no cell'); break; }
+      const r = this.placeAt('piggy', b.slot);
+      if (!r.ok) { lines.push(`skip ${r.line}`); break; }
+      spent += r.spent;
+      done++;
+      lines.push(r.line);
+    }
+    return { ok: done > 0, text: `economy: ${lines.join('; ')}`, spent, done };
+  }
+
+  // ───────────── 回收 / 重建 ─────────────
+
+  /** replaceWith：塔 id 或用途 → 这次买哪座 */
+  private resolveTower(spec: string | undefined, target = 'route'): TowerId | null {
+    if (!spec) return null;
+    if ((TOWERS as Record<string, unknown>)[spec] && spec !== 'wall') return this.unlocked(spec as TowerId) ? (spec as TowerId) : null;
+    if ((PURPOSES as readonly string[]).includes(spec)) return this.towerForPurpose(spec as Purpose, target)?.id ?? null;
+    return null;
+  }
+
+  /**
+   * reclaim：回收没用的墙 / 塔 / 被墙挤占的好格，并可在腾出的格上换成更好的塔。
+   *  - useless_walls：拆掉后没有任何路线变短、不在规划里、不是加成墙的墙（每拆一座都用真实流场复核；万一变短立刻补回）；
+   *  - idle_towers：最近 2 波 0 伤害或够不着任何路线的攻击塔（卖掉会缩短路线的换成墙）；
+   *  - cells：Lv1 墙占着的好格直接换成塔（塔也是墙，路线不变）。
+   * dry = 只列出会做什么。墙退款很少（5g 墙退 3g），腾出的好格价值高。
+   */
+  reclaim(target: 'useless_walls' | 'idle_towers' | 'cells', max = 4, replaceWith?: string, dry = false): IntentOutcome {
+    const lines: string[] = [];
+    let spent = 0;
+    let done = 0;
+    const cap = Math.min(12, Math.max(1, max));
+    if (target === 'useless_walls') {
+      const freed: { x: number; y: number; i: number; cov: number }[] = [];
+      if (dry) {
+        const list = uselessWalls(this.w, this.plan).slice(0, cap);
+        return { ok: true, text: `reclaim useless_walls (dry): ${list.length ? list.map((x) => `#${x.uid}@${x.x},${x.y} cov${x.cov}`).join(' ') : 'none'}`, spent: 0, done: 0 };
+      }
+      for (let k = 0; k < cap; k++) {
+        const c = uselessWalls(this.w, this.plan).find((x) => !this.reserved.has(x.y * this.cols + x.x));
+        if (!c) break;
+        const before = this.pathLens();
+        const g0 = this.w.state.gold;
+        const r = this.exec({ type: 'sell', uid: c.uid });
+        if (!r.ok) { lines.push(`#${c.uid} ${r.reason}`); break; }
+        const after = this.pathLens();
+        if (after.some((l, j) => l < (before[j] ?? 0))) {
+          // 复核失败：补回去，停
+          this.exec({ type: 'place', tower: 'wall', cx: c.x, cy: c.y });
+          lines.push(`#${c.uid}@${c.x},${c.y} shortened the route → restored`);
+          break;
+        }
+        spent -= Math.round(this.w.state.gold - g0);
+        done++;
+        freed.push({ x: c.x, y: c.y, i: c.y * this.cols + c.x, cov: c.cov });
+      }
+      if (freed.length) lines.push(`sold ${freed.length} walls ${freed.map((f) => `${f.x},${f.y}`).join(' ')}`);
+      else lines.push('no useless walls');
+      if (replaceWith && freed.length) {
+        const built: string[] = [];
+        for (const f of freed.sort((a, b) => b.cov - a.cov)) {
+          const id = this.resolveTower(replaceWith);
+          if (!id || this.gold() < this.cost(id)) break;
+          const sl: Slot = { x: f.x, y: f.y, i: f.i, wallUid: 0, plan: false };
+          const v = this.slotValue(id, sl, this.samplesFor(id, 'route', 'current'));
+          if (v < 1 || !this.w.canPlace(id, f.x, f.y).ok) continue;
+          const r = this.placeAt(id, sl);
+          if (r.ok) { spent += r.spent; done++; built.push(r.line); }
+        }
+        if (built.length) lines.push(`rebuilt ${built.join(' ')}`);
+      }
+      return { ok: done > 0, text: `reclaim useless_walls: ${lines.join('; ')} → path ${this.pathLens().join('/')}`, spent, done };
+    }
+    if (target === 'idle_towers') {
+      const list = idleTowers(this.w, this.state.intel).slice(0, cap);
+      if (dry) return { ok: true, text: `reclaim idle_towers (dry): ${list.length ? list.map((u) => `#${u}${this.w.state.towers.get(u)?.id ?? ''}`).join(' ') : 'none'}`, spent: 0, done: 0 };
+      let sold = 0;
+      for (const uid of list) {
+        const t = this.w.state.towers.get(uid);
+        if (!t) continue;
+        const i = t.cy * this.cols + t.cx;
+        const keepWall = shortensRoutes(this.w, [i]);
+        const g0 = this.w.state.gold;
+        const r = this.exec({ type: 'sell', uid });
+        if (!r.ok) { lines.push(`#${uid} ${r.reason}`); continue; }
+        if (keepWall) this.exec({ type: 'place', tower: 'wall', cx: t.cx, cy: t.cy });
+        const got = Math.round(this.w.state.gold - g0);
+        spent -= got;
+        sold++;
+        done++;
+        lines.push(`sold #${uid}${t.id}@${t.cx},${t.cy} +${got}g${keepWall ? ' (wall kept the maze)' : ''}`);
+      }
+      if (!sold) lines.push('no idle towers');
+      if (replaceWith && sold) {
+        const id = this.resolveTower(replaceWith);
+        if (id) {
+          const o = this.buildNear(id, 'route', sold);
+          spent += o.spent;
+          done += o.done;
+          lines.push(o.text);
+        }
+      }
+      return { ok: done > 0, text: `reclaim idle_towers: ${lines.join('; ')}`, spent, done };
+    }
+    // cells：被挤占的好格换成塔
+    const list = crowdedCells(this.w, wallInfo(this.w, this.plan)).slice(0, cap);
+    if (dry) return { ok: true, text: `reclaim cells (dry): ${list.length ? list.map((x) => `${x.x},${x.y}:${x.cov}`).join(' ') : 'none'}`, spent: 0, done: 0 };
+    for (const c of list) {
+      const id = this.resolveTower(replaceWith ?? 'dps');
+      if (!id) { lines.push('stop: no affordable tower'); break; }
+      if (this.gold() + 3 < this.cost(id)) { lines.push(`stop: 金币不足 (${id} ${this.cost(id)}g)`); break; }
+      const r = this.placeAt(id, { x: c.x, y: c.y, i: c.y * this.cols + c.x, wallUid: c.uid, plan: true });
+      if (r.ok) { spent += r.spent; done++; lines.push(`${r.line} cov${c.cov}`); }
+      else lines.push(`skip ${r.line}`);
+    }
+    if (!list.length) lines.push('no crowded cells');
+    return { ok: done > 0, text: `reclaim cells: ${lines.join('; ')}`, spent, done };
+  }
+
+  /** rebuild_maze：路线变了（空降点没了 / 入口变了）→ 拆掉不再有用的旧墙，再按规划重建 */
+  rebuildMaze(style: 'serpentine' | 'funnel' = 'serpentine', route?: string, budget?: number): IntentOutcome {
+    const before = this.pathLens();
+    const r1 = this.reclaim('useless_walls', 12);
+    const r2 = this.maze(style, budget, route);
+    return {
+      ok: r1.done + r2.done > 0, done: r1.done + r2.done, spent: r1.spent + r2.spent,
+      text: `rebuild_maze: ${r1.text.replace(/^reclaim useless_walls: /, 'cleared ')} | ${r2.text} | path ${before.join('/')}→${this.pathLens().join('/')}`,
+    };
+  }
+
   save(until: number): IntentOutcome {
     this.state.saveUntil = until;
     this.state.saveWave = this.w.state.wave;
@@ -631,8 +990,8 @@ export class Planner {
    * 被拒的放置（格子被敌人 / 障碍 / 塔占着、或会堵路）→ 2 格内覆盖最好的可放空格（不在当前 / 规划路线上，不改路线）。
    * 返回 null = 不可自动修正（原因不在可修正之列 / 附近没有合适的格）。
    */
-  relocate(id: TowerId, x: number, y: number, reason: string): { x: number; y: number } | null {
-    if (id === 'wall' || !FIXABLE.has(reason)) return null;
+  relocate(id: TowerId, x: number, y: number, code: string): { x: number; y: number } | null {
+    if (id === 'wall' || !FIXABLE.has(code)) return null;
     this.refresh();
     const onRoute = new Set<number>();
     for (const p of this.w.currentPaths()) for (const c of p) onRoute.add(c.y * this.cols + c.x);

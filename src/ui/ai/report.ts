@@ -6,6 +6,7 @@ import { usageTotal, type AgentReplay, type TokenUsage, type TraceExport } from 
 import type { IWorld, RunOptions } from '../../core/types';
 import { getNickname, initOnline, submitWorldRun } from '../../meta/online';
 import { AI_BOARD_PREFIX, AI_BOT_SHARE_FLAG, boardForOpts, boardLabel } from '../../shared/leaderboard';
+import { t } from '../../i18n';
 import type { App } from '../App';
 import { audio } from '../audio';
 import { copyText, fmtNum, h, setText } from '../dom';
@@ -42,7 +43,12 @@ export interface AiRunSummary {
   trace?: TraceExport;
 }
 
-const fmtDuration = (sec: number): string => (sec >= 3600 ? `${Math.floor(sec / 3600)} 小时 ${Math.floor((sec % 3600) / 60)} 分` : sec >= 60 ? `${Math.floor(sec / 60)} 分 ${sec % 60} 秒` : `${sec} 秒`);
+const fmtDuration = (sec: number): string =>
+  sec >= 3600
+    ? t('agent.report.durHM', { h: Math.floor(sec / 3600), m: Math.floor((sec % 3600) / 60) })
+    : sec >= 60
+      ? t('agent.report.durMS', { m: Math.floor(sec / 60), s: sec % 60 })
+      : t('agent.report.durS', { n: sec });
 
 export function reportCard(app: App, s: AiRunSummary, hd: AiGameOverHandlers): HTMLElement {
   const st = s.world.state;
@@ -52,8 +58,12 @@ export function reportCard(app: App, s: AiRunSummary, hd: AiGameOverHandlers): H
   const botPct = Math.round(s.botShare * 100);
   const scripted = s.switchedToBot || s.agent.provider === 'scripted';
   const flagged = !scripted && s.botShare > AI_BOT_SHARE_FLAG;
-  const title = s.info.won ? '防线守住了！' : '防线被突破';
-  const sub = campaign ? (s.info.won ? `撑过全部 ${st.totalWaves} 波` : `倒在第 ${s.info.wave} / ${st.totalWaves} 波`) : `撑过 ${s.info.wavesSurvived} 波`;
+  const title = s.info.won ? t('agent.report.won') : t('agent.report.lost');
+  const sub = campaign
+    ? s.info.won
+      ? t('agent.report.subAll', { n: st.totalWaves })
+      : t('agent.report.subFell', { wave: s.info.wave, total: st.totalWaves })
+    : t('agent.report.subSurvived', { n: s.info.wavesSurvived });
 
   let k = 0;
   const stat = (label: string, value: string, title?: string) => h('div.go-stat', { style: `--i:${k++}`, title }, h('span.muted', null, label), h('b', null, value));
@@ -61,23 +71,27 @@ export function reportCard(app: App, s: AiRunSummary, hd: AiGameOverHandlers): H
   const stats = h(
     'div.go-stats.ai-report-stats',
     null,
-    stat('波数', String(s.info.wavesSurvived)),
-    stat('得分', fmtNum(s.info.score)),
-    stat('击杀', fmtNum(st.stats.kills)),
-    stat('剩余生命', `${st.lives}/${st.maxLives}`),
-    stat('token', fmtTokens(total), `输入 ${fmtNum(s.usage.inputTokens)} · 输出 ${fmtNum(s.usage.outputTokens)} · 缓存读 ${fmtNum(s.usage.cacheReadTokens)} · 缓存写 ${fmtNum(s.usage.cacheWriteTokens)} · ${s.usage.requests} 次请求`),
-    stat('费用（估算）', fmtCost(s.costUsd), '按公开价格估算，以服务商账单为准'),
-    stat('决策', fmtNum(s.decisions), `${fmtNum(s.toolCalls)} 次工具调用${s.errors ? ` · ${s.errors} 次出错` : ''}`),
-    isPlayer ? stat('机器人代做', `${botPct}%`, '模型超时 / 出错 / 预算用完时由内置机器人代做的决策占比') : stat('建议 / 采纳', `${s.suggestions} / ${s.adopted}`),
+    stat(t('agent.report.waves'), String(s.info.wavesSurvived)),
+    stat(t('agent.report.score'), fmtNum(s.info.score)),
+    stat(t('agent.report.kills'), fmtNum(st.stats.kills)),
+    stat(t('agent.report.lives'), `${st.lives}/${st.maxLives}`),
+    stat(
+      t('agent.report.tokens'),
+      fmtTokens(total),
+      t('agent.report.tokensTip', { input: fmtNum(s.usage.inputTokens), output: fmtNum(s.usage.outputTokens), cacheRead: fmtNum(s.usage.cacheReadTokens), cacheWrite: fmtNum(s.usage.cacheWriteTokens), n: s.usage.requests }),
+    ),
+    stat(t('agent.report.cost'), fmtCost(s.costUsd), t('agent.report.costTip')),
+    stat(t('agent.report.decisions'), fmtNum(s.decisions), t('agent.report.toolCalls', { n: s.toolCalls }) + (s.errors ? ` · ${t('agent.report.errors', { n: s.errors })}` : '')),
+    isPlayer ? stat(t('agent.report.botShare'), `${botPct}%`, t('agent.report.botShareTip')) : stat(t('agent.report.adopted'), `${s.suggestions} / ${s.adopted}`),
   );
 
   const badges = h(
     'div.ai-report-badges',
     null,
     h('span.badge.ai-model-badge', null, s.launch.label),
-    h('span.badge', null, s.mode === 'pause' ? '暂停等待' : '实时'),
-    s.switchedToBot ? h('span.badge.ai-bot-badge', null, '已改用内置策略') : flagged && isPlayer ? h('span.badge.ai-bot-badge', { title: `机器人代做了 ${botPct}% 的决策` }, '机器人代打较多') : null,
-    s.takenOver ? h('span.badge.pending', null, '中途接管') : null,
+    h('span.badge', null, s.mode === 'pause' ? t('agent.report.modePause') : t('agent.report.modeRealtime')),
+    s.switchedToBot ? h('span.badge.ai-bot-badge', null, t('agent.report.switchedToBot')) : flagged && isPlayer ? h('span.badge.ai-bot-badge', { title: t('agent.report.botPctTip', { pct: botPct }) }, t('agent.report.botHeavy')) : null,
+    s.takenOver ? h('span.badge.pending', null, t('agent.report.takenOver')) : null,
   );
 
   // ── AI 榜 ──
@@ -89,13 +103,13 @@ export function reportCard(app: App, s: AiRunSummary, hd: AiGameOverHandlers): H
   } else {
     const status = h('span.os-status', { attrs: { role: 'status', 'aria-live': 'polite' } });
     const nick = h('b.nick-name');
-    const paintNick = (): void => setText(nick, getNickname() || '未设置');
+    const paintNick = (): void => setText(nick, getNickname() || t('agent.report.nickUnset'));
     let view: SubmitView = { kind: 'idle' };
-    const submitBtn = h<HTMLButtonElement>('button.btn.small.primary', { attrs: { type: 'button' } }, h('span.gi', { html: G.up }), '提交到 AI 榜');
+    const submitBtn = h<HTMLButtonElement>('button.btn.small.primary', { attrs: { type: 'button' } }, h('span.gi', { html: G.up }), t('agent.report.submit'));
     const paint = (): void => {
-      const t = submitText(view);
-      setText(status, t.text);
-      status.className = `os-status${t.tone ? ` ${t.tone}` : ''}`;
+      const st = submitText(view);
+      setText(status, st.text);
+      status.className = `os-status${st.tone ? ` ${st.tone}` : ''}`;
       submitBtn.hidden = !(view.kind === 'idle' || view.kind === 'rejected');
     };
     let busy = false;
@@ -118,7 +132,7 @@ export function reportCard(app: App, s: AiRunSummary, hd: AiGameOverHandlers): H
         if (view.kind === 'done') audio.play('select');
       } catch (e) {
         console.warn('[ai] submit failed', e);
-        view = { kind: 'rejected', message: '上传失败' };
+        view = { kind: 'rejected', message: t('agent.report.uploadFailed') };
       } finally {
         busy = false;
         paint();
@@ -135,18 +149,18 @@ export function reportCard(app: App, s: AiRunSummary, hd: AiGameOverHandlers): H
         },
       },
       h('span.gi', { html: G.trophy }),
-      '查看 AI 榜',
+      t('agent.report.viewBoard'),
     );
-    const nickBtn = h('button.btn.small', { attrs: { type: 'button', 'aria-label': '修改昵称' }, onclick: async () => (audio.play('click'), (await askNickname()) && paintNick()) }, '改名');
+    const nickBtn = h('button.btn.small', { attrs: { type: 'button', 'aria-label': t('agent.report.editNick') }, onclick: async () => (audio.play('click'), (await askNickname()) && paintNick()) }, t('agent.report.rename'));
     online = h(
       'div.online-submit.ai-submit',
       null,
       h('div.os-line', null, h('span', null, boardLabel(board)), status),
-      h('div.os-line', null, h('span.online-nick', null, h('span.muted.small', null, '昵称'), nick, nickBtn), h('span.os-actions', null, submitBtn, viewBtn)),
+      h('div.os-line', null, h('span.online-nick', null, h('span.muted.small', null, t('agent.report.nick')), nick, nickBtn), h('span.os-actions', null, submitBtn, viewBtn)),
       scripted
-        ? h('p.muted.small', null, '这局由内置策略完成，上榜后会标注为“内置策略”。')
+        ? h('p.muted.small', null, t('agent.report.scriptedNote'))
         : flagged
-          ? h('p.muted.small', null, `机器人代做了 ${botPct}% 的决策（超过 ${Math.round(AI_BOT_SHARE_FLAG * 100)}%），上榜后会带“机器人代打”标记。`)
+          ? h('p.muted.small', null, t('agent.report.flaggedNote', { pct: botPct, limit: Math.round(AI_BOT_SHARE_FLAG * 100) }))
           : null,
     );
     paintNick();
@@ -167,11 +181,11 @@ export function reportCard(app: App, s: AiRunSummary, hd: AiGameOverHandlers): H
           onclick: () => {
             audio.play('click');
             const r = s.replay!;
-            openLocalReplay(app, { opts: { ...r.opts, seed: r.opts.seed ?? st.seed }, log: r.log, tick: st.tick }, { title: `${s.launch.label} 的回放`, subtitle: campaign ? '战役' : boardLabel(boardForOpts(s.opts, null)), wave: s.info.wavesSurvived, score: Math.round(s.info.score), trace: s.trace });
+            openLocalReplay(app, { opts: { ...r.opts, seed: r.opts.seed ?? st.seed }, log: r.log, tick: st.tick }, { title: t('agent.report.replayTitle', { name: s.launch.label }), subtitle: campaign ? t('agent.report.campaign') : boardLabel(boardForOpts(s.opts, null)), wave: s.info.wavesSurvived, score: Math.round(s.info.score), trace: s.trace });
           },
         },
         h('span.gi', { html: G.eye }),
-        '观看回放',
+        t('agent.report.watchReplay'),
       )
     : null;
 
@@ -180,12 +194,12 @@ export function reportCard(app: App, s: AiRunSummary, hd: AiGameOverHandlers): H
     null,
     h(
       'div.dialog.card.gameover.ai-report',
-      { attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'AI 对局报告' } },
-      h('div.go-head', null, h('span.go-ico', { html: s.info.won ? G.crown : G.skull }), h('h2', null, title), h('p.muted', null, `${isPlayer ? 'AI 玩家' : '你 + AI 军师'} · ${sub} · 用时 ${fmtDuration(s.seconds)}`)),
+      { attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-label': t('agent.report.aria') } },
+      h('div.go-head', null, h('span.go-ico', { html: s.info.won ? G.crown : G.skull }), h('h2', null, title), h('p.muted', null, `${isPlayer ? t('agent.report.rolePlayer') : t('agent.report.roleAdvisor')} · ${sub} · ${t('agent.report.time', { time: fmtDuration(s.seconds) })}`)),
       badges,
       stats,
       online,
-      isPlayer ? h('p.muted.small.center', null, 'AI 代打的对局不发放墨水 / 星星，也不进本地排行榜。') : null,
+      isPlayer ? h('p.muted.small.center', null, t('agent.report.noRewards')) : null,
       h(
         'div.go-actions',
         null,
@@ -200,17 +214,17 @@ export function reportCard(app: App, s: AiRunSummary, hd: AiGameOverHandlers): H
             },
           },
           h('span.gi', { html: G.refresh }),
-          '再来一局',
+          t('agent.report.again'),
         ),
         replayBtn,
-        h('button.btn.big', { attrs: { type: 'button' }, onclick: () => (audio.play('click'), app.go({ name: 'ai' })) }, h('span.gi', { html: G.sliders }), '换模型 / 设置'),
-        h('button.btn.big', { attrs: { type: 'button' }, onclick: hd.menu }, h('span.gi', { html: G.back }), '返回菜单'),
+        h('button.btn.big', { attrs: { type: 'button' }, onclick: () => (audio.play('click'), app.go({ name: 'ai' })) }, h('span.gi', { html: G.sliders }), t('agent.report.changeModel')),
+        h('button.btn.big', { attrs: { type: 'button' }, onclick: hd.menu }, h('span.gi', { html: G.back }), t('agent.report.menu')),
       ),
       h(
         'p.muted.small.center',
         null,
-        `种子 ${st.seed} `,
-        h('button.seed-btn', { attrs: { type: 'button' }, title: '复制种子', onclick: async () => app.toast((await copyText(st.seed)) ? '种子已复制' : '复制失败', 'info') }, '复制'),
+        `${t('agent.report.seed', { seed: st.seed })} `,
+        h('button.seed-btn', { attrs: { type: 'button' }, title: t('agent.report.copySeed'), onclick: async () => app.toast((await copyText(st.seed)) ? t('agent.report.seedCopied') : t('agent.report.copyFailed'), 'info') }, t('agent.report.copy')),
       ),
     ),
   );

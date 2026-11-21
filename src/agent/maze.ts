@@ -89,6 +89,13 @@ function rowSets(minRow: number, maxRow: number): number[][] {
   return out;
 }
 
+/** 行 / 列组是否"塞满"：首尾离边界 ≤1，相邻间隔 ≤3（再也插不进一道间隔 ≥2 的挡板） */
+function maximal(set: number[], lo: number, hi: number): boolean {
+  if (set[0] - lo > 1 || hi - set[set.length - 1] > 1) return false;
+  for (let k = 1; k < set.length; k++) if (set[k] - set[k - 1] > 3) return false;
+  return true;
+}
+
 /** 依次尝试堵格，跳过会断路的格子；返回实际堵上的格子 */
 function applySeq(w: IWorld, cells: Uint8Array, list: number[], scratch: Float32Array): number[] {
   const done: number[] = [];
@@ -101,6 +108,45 @@ function applySeq(w: IWorld, cells: Uint8Array, list: number[], scratch: Float32
   return done;
 }
 
+/** 一种挡板布局：每道挡板 = 一行（横向）或一列（纵向）上除缺口外的空格，缺口在两端交替 */
+function barrierLayout(w: IWorld, base: Uint8Array, lines: number[], vertical: boolean, startFar: boolean, scratch: Float32Array): { segs: number[][]; len: number; n: number } | null {
+  const g = w.state.grid;
+  const { cols, rows } = g;
+  const cells = base.slice();
+  const segs: number[][] = [];
+  let far = startFar;
+  const span = vertical ? rows : cols;
+  const at = (line: number, k: number): number => (vertical ? k * cols + line : line * cols + k);
+  for (const line of lines) {
+    // 缺口：靠一侧的第一个空格（障碍物 / 出生格 / 出口当作墙的一部分，不另花钱）
+    let gap = -1;
+    if (far) { for (let k = span - 1; k >= 0; k--) if (base[at(line, k)] === CellKind.Empty) { gap = k; break; } }
+    else { for (let k = 0; k < span; k++) if (base[at(line, k)] === CellKind.Empty) { gap = k; break; } }
+    if (gap < 0) return null;
+    const list: number[] = [];
+    for (let k = 0; k < span; k++) if (k !== gap && base[at(line, k)] === CellKind.Empty) list.push(at(line, k));
+    for (const i of list) cells[i] = CellKind.Tower;
+    if (routeLength(w, cells, scratch) < 0) {
+      for (const i of list) cells[i] = CellKind.Empty;
+      segs.push(applySeq(w, cells, list, scratch));
+    } else segs.push(list);
+    far = !far;
+  }
+  const len = routeLength(w, cells, scratch);
+  return { segs, len, n: segs.reduce((a, b) => a + b.length, 0) };
+}
+
+/**
+ * 迷宫规划的取舍：每多 1 格墙要多换来这么多格路线。试过 0.08（≈5 金币一格墙）：路线略短、生命不变，
+ * 所以保持 0（路线最长，同长取墙少的）。
+ */
+const CELL_COST = 0;
+
+/**
+ * 迷宫规划（障碍物感知）：枚举横向（行）与纵向（列）蛇形挡板布局——障碍物、出生格、出口、棋盘边都当免费的墙
+ * （挡板经过障碍物的格不花钱），用真实流场算路线长度，取最长的一组（同长取墙少的）；再贪心补格堵残余捷径。
+ * 段按挡板顺序（入口一侧先建），任意前缀仍连通。
+ */
 export function planMaze(w: IWorld): MazePlan {
   // 杂物每局不同：按地图 + 障碍布局缓存
   const key = `${w.state.opts.map as MapId}|${w.state.grid.obstacles.map((o) => `${o.x},${o.y},${o.w},${o.h}`).join(';')}`;
@@ -112,36 +158,18 @@ export function planMaze(w: IWorld): MazePlan {
   for (let i = 0; i < base.length; i++) base[i] = g.cells[i] === CellKind.Tower ? CellKind.Empty : g.cells[i];
   const scratch = new Float32Array(cols * rows);
   const baseLength = routeLength(w, base, scratch);
-  let best: { segs: number[][]; len: number; n: number } | null = null;
-  for (const rs of rowSets(1, rows - 2)) {
-    for (const startRight of [false, true]) {
-      const cells = base.slice();
-      const segs: number[][] = [];
-      let right = startRight;
-      let ok = true;
-      for (const y of rs) {
-        // 缺口：靠一侧的第一个非障碍格
-        let gap = -1;
-        if (right) { for (let x = cols - 1; x >= 0; x--) if (base[y * cols + x] === CellKind.Empty) { gap = x; break; } }
-        else { for (let x = 0; x < cols; x++) if (base[y * cols + x] === CellKind.Empty) { gap = x; break; } }
-        if (gap < 0) { ok = false; break; }
-        const list: number[] = [];
-        for (let x = 0; x < cols; x++) if (x !== gap && base[y * cols + x] === CellKind.Empty) list.push(y * cols + x);
-        // 先整段尝试，断路再逐格
-        for (const i of list) cells[i] = CellKind.Tower;
-        if (routeLength(w, cells, scratch) < 0) {
-          for (const i of list) cells[i] = CellKind.Empty;
-          segs.push(applySeq(w, cells, list, scratch));
-        } else segs.push(list);
-        right = !right;
-      }
-      if (!ok) continue;
-      const len = routeLength(w, cells, scratch);
-      const n = segs.reduce((s, a) => s + a.length, 0);
-      if (!best || len > best.len + 1e-6 || (Math.abs(len - best.len) < 1e-6 && n < best.n)) best = { segs, len, n };
-    }
-  }
-  const segs = best ? best.segs : [];
+  let best: { segs: number[][]; len: number; n: number; score: number } | null = null;
+  const consider = (r: { segs: number[][]; len: number; n: number } | null) => {
+    if (!r) return;
+    const score = r.len - CELL_COST * r.n;
+    if (!best || score > best.score + 1e-6 || (Math.abs(score - best.score) <= 1e-6 && r.n < best.n)) best = { ...r, score };
+  };
+  for (const rs of rowSets(1, rows - 2)) for (const far of [false, true]) consider(barrierLayout(w, base, rs, false, far, scratch));
+  // 纵向只试"塞满"的列组（相邻挡板间隔 2～3 列、两端顶到边）：横向全枚举已经很贵，纵向全枚举会让规划耗时翻倍
+  for (const cs of rowSets(1, cols - 2).filter((c) => maximal(c, 1, cols - 2))) for (const far of [false, true]) consider(barrierLayout(w, base, cs, true, far, scratch));
+  const chosen = best as { segs: number[][]; len: number; n: number; score: number } | null;
+  // 段按挡板从入口一侧往出口一侧建（试过按"每格墙的路线增量"排序：脚本评测生命 98% → 67%，弃用）
+  const segs = chosen ? chosen.segs.slice() : [];
   const cells = base.slice();
   for (const sgm of segs) for (const i of sgm) cells[i] = CellKind.Tower;
   // 贪心补格：只要能让路线更长就堵上

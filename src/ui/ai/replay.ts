@@ -2,6 +2,7 @@
  * 本地回放：刚结束的 AI 对局不用先上传，直接用「开局参数 + 指令日志」重放一遍。
  * 与 src/ui/online/replay.ts 相同的做法（新建 Session、按帧号喂指令、棋盘只读），样式也复用它的。
  */
+import { t } from '../../i18n';
 import { AgentTrace, type TraceExport } from '../../agent/trace';
 import type { Command, RunOptions } from '../../core/types';
 import { Session, type Speed } from '../../game/Session';
@@ -13,6 +14,7 @@ import { fmtNum, h, setText } from '../dom';
 import { G } from '../icons';
 import { makeFeeder } from '../online/util';
 import { mountTracePanel, type TracePanelHandle } from './trace-panel';
+import { OpsRecorder, type TraceExportWithOps } from './ops';
 
 export interface LocalReplay {
   opts: RunOptions;
@@ -28,12 +30,12 @@ export function openLocalReplay(
 ): () => void {
   const sub = h('small.muted', null, o.subtitle);
   const stage = h('div.replay-stage');
-  const speedBox = h('div.replay-speed', { attrs: { role: 'group', 'aria-label': '回放速度' } });
-  const pauseBtn = h<HTMLButtonElement>('button.btn.small', { attrs: { type: 'button', 'aria-label': '暂停' } }, h('span.gi', { html: G.pause }));
-  const exitBtn = h('button.btn.small', { attrs: { type: 'button' } }, h('span.gi', { html: G.close }), '退出');
+  const speedBox = h('div.replay-speed', { attrs: { role: 'group', 'aria-label': t('agent.replay.speed') } });
+  const pauseBtn = h<HTMLButtonElement>('button.btn.small', { attrs: { type: 'button', 'aria-label': t('agent.replay.pause') } }, h('span.gi', { html: G.pause }));
+  const exitBtn = h('button.btn.small', { attrs: { type: 'button' } }, h('span.gi', { html: G.close }), t('agent.replay.exit'));
   const root = h(
     'div.replay-view.ai-replay',
-    { attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-label': '观看回放' } },
+    { attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-label': t('agent.replay.title') } },
     h('div.replay-bar', null, h('div.replay-title', null, h('b', null, o.title), sub), speedBox, pauseBtn, exitBtn),
     stage,
   );
@@ -87,13 +89,16 @@ export function openLocalReplay(
         anchor: () => stage,
         trace: AgentTrace.fromExport(o.trace),
         live: false,
-        subtitle: '随回放进度显示',
+        subtitle: t('agent.replay.traceSubtitle'),
         onHighlight: (c) => ui.set({ aiFocus: c ? { cx: c.x, cy: c.y } : null }),
+        // 对局时记录的操作解读（旧数据没有就不显示右栏）
+        ops: (o.trace as TraceExportWithOps).ops ? OpsRecorder.fromExport((o.trace as TraceExportWithOps).ops) : undefined,
+        onHighlightCells: (cells) => ui.set({ aiFocusCells: cells?.length ? cells.map((c) => ({ cx: c.x, cy: c.y })) : null }),
       });
       exitBtn.before(tp.toggle);
       tp.setTickLimit(0);
     } catch (e) {
-      console.error('[ai] 思路与请求面板加载失败', e);
+      console.error('[ai] trace panel failed to load', e);
     }
   }
 
@@ -101,7 +106,7 @@ export function openLocalReplay(
     session = new Session(JSON.parse(JSON.stringify(run.opts)) as RunOptions);
   } catch (e) {
     console.error(e);
-    setText(sub, '这条回放无法播放');
+    setText(sub, t('agent.replay.cannotPlay'));
     return close;
   }
   const s = session;
@@ -125,7 +130,7 @@ export function openLocalReplay(
     board = mountBoard(boardHost, s);
   } catch (e) {
     console.error(e);
-    setText(sub, '棋盘加载失败');
+    setText(sub, t('agent.replay.boardFailed'));
     return close;
   }
 
@@ -166,11 +171,11 @@ export function openLocalReplay(
     if (lastPaused !== s.paused) {
       lastPaused = s.paused;
       pauseBtn.replaceChildren(h('span.gi', { html: s.paused ? G.play : G.pause }));
-      pauseBtn.setAttribute('aria-label', s.paused ? '继续' : '暂停');
+      pauseBtn.setAttribute('aria-label', s.paused ? t('agent.replay.resume') : t('agent.replay.pause'));
     }
     tp?.setTickLimit(st.tick);
     const pct = run.tick > 0 ? Math.min(100, Math.round((st.tick / run.tick) * 100)) : 100;
-    setText(sub, `${o.subtitle} · 第 ${st.wave} 波 · ${fmtNum(Math.round(st.score))} 分 · ${pct}%`);
+    setText(sub, t('agent.replay.progress', { sub: o.subtitle, wave: st.wave, score: fmtNum(Math.round(st.score)), pct }));
     const done = st.phase === 'lost' || st.phase === 'won' || (st.tick >= run.tick && feeder.done);
     if (done && !ended) {
       ended = true;
@@ -182,10 +187,10 @@ export function openLocalReplay(
           h(
             'div.card',
             null,
-            h('h3', null, '回放结束'),
-            h('p', null, `撑过 ${o.wave} 波 · ${fmtNum(o.score)} 分`),
-            Math.round(st.score) !== o.score ? h('small.muted', null, '回放结果与原对局不完全一致') : h('small.muted', null, '与原对局完全一致'),
-            h('button.btn.primary', { attrs: { type: 'button' }, onclick: () => (audio.play('click'), close()) }, '退出回放'),
+            h('h3', null, t('agent.replay.ended')),
+            h('p', null, t('agent.replay.result', { n: o.wave, wave: o.wave, score: fmtNum(o.score) })),
+            Math.round(st.score) !== o.score ? h('small.muted', null, t('agent.replay.mismatch')) : h('small.muted', null, t('agent.replay.match')),
+            h('button.btn.primary', { attrs: { type: 'button' }, onclick: () => (audio.play('click'), close()) }, t('agent.replay.exitReplay')),
           ),
         ),
       );

@@ -31,6 +31,10 @@ npm run dev
 
 面向玩家的完整游戏说明（新手入门、模式、塔与敌人图鉴、组合流派、技能天赋、随机事件、进阶技巧、常见问题）见 **[docs/guide/](docs/guide/README.md)**。
 
+- **游戏内图鉴**：主菜单 →「图鉴 / 玩法」（`src/ui/screens/guide.ts` + `src/ui/guide/`，进入页面时才动态加载）。玩法、防御塔、敌人与 Boss、词缀、技能 / 增益 / 天赋、组合技与流派、AI 参战、常见问题，可搜索；支持深链，例如 <https://jjjj.games/#guide/tower/pencil>。塔的数值在浏览器里用临时对局实时读出，名称与说明来自 `*_META`，跟随界面语言。
+- **介绍页**：<https://jjjj.games/about>（`about.html` + `src/about/`，独立的 Vite 入口，不加载游戏代码）。四种语言（`?lang=zh-CN|zh-TW|en|ja`），浅色 / 深色。简体中文直接写在 `about.html` 里，其它语言取 `src/i18n/locales/<语言>/guide.ts` 的 `guide.about.*`；改文案时两处一起改（`tests/guide/guide-i18n.test.ts` 会校验）。
+- **分享图**：`public/og.png` 由 `node scripts/gen-og.mjs` 生成（源文件 `scripts/og/og.svg`）；`public/robots.txt`、`public/sitemap.xml` 为静态文件。
+
 ## 代码结构
 
 | 目录 | 内容 |

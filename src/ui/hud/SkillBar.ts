@@ -1,4 +1,5 @@
 import type { SkillId, SkillState, TowerState, WorldState } from '../../core/types';
+import { t } from '../../i18n';
 import { ui } from '../../game/UiStore';
 import { abilityIcon, skillIcon } from '../assets';
 import { audio } from '../audio';
@@ -30,7 +31,7 @@ function setCharges(el: HTMLElement, n: number, max: number): void {
   if (el.dataset.v === key) return;
   const first = el.dataset.v === undefined;
   el.dataset.v = key;
-  el.setAttribute('aria-label', `充能 ${key}`);
+  el.setAttribute('aria-label', t('ui.skillbar.charges', { v: key }));
   if (max > 5 || max <= 0) {
     el.classList.remove('dots');
     el.textContent = key;
@@ -77,9 +78,26 @@ export class SkillBar {
   constructor(private ctx: GameCtx) {
     this.list = h('div.skill-list');
     this.stripList = h('div.ability-list');
-    this.strip = h('div.ability-strip', { attrs: { 'aria-label': '塔能力' } }, h('span.strip-title', null, '塔能力'), this.stripList);
+    this.stripTitle = h('span.strip-title');
+    this.strip = h('div.ability-strip', null, this.stripTitle, this.stripList);
     this.strip.hidden = true;
-    this.el = h('div.skillbar', { attrs: { role: 'toolbar', 'aria-label': '技能' } }, this.list, this.strip);
+    this.el = h('div.skillbar', { attrs: { role: 'toolbar' } }, this.list, this.strip);
+    this.labelStatic();
+  }
+
+  private stripTitle: HTMLElement;
+
+  private labelStatic(): void {
+    this.strip.setAttribute('aria-label', t('ui.skillbar.towerAbilities'));
+    this.stripTitle.textContent = t('ui.skillbar.towerAbilities');
+    this.el.setAttribute('aria-label', t('ui.skillbar.skills'));
+  }
+
+  /** 切换语言：刷新固定标签，下次 update 时重建按钮（名字 / 说明按新语言） */
+  relabel(): void {
+    this.labelStatic();
+    this.sig = '';
+    this.abilSig = '';
   }
 
   buttonFor(id: SkillId): HTMLElement | null {
@@ -109,7 +127,7 @@ export class SkillBar {
     if (!s.ready) {
       audio.play('error');
       const name = SKILL_META[id]?.name ?? id;
-      this.ctx.toast(s.maxCharges ? `${name}：没有充能了（每 3 波恢复 1 次）` : `${name} 冷却中（${fmtSec(s.cd)} 秒）`, 'warn');
+      this.ctx.toast(s.maxCharges ? t('ui.skillbar.noChargesRegen', { name }) : t('ui.game.cooldown', { name, s: fmtSec(s.cd) }), 'warn');
       return;
     }
     if (s.target === 'none') {
@@ -123,7 +141,7 @@ export class SkillBar {
       const chosen = ui.state.spawnerSelected !== null && drops.some((d) => d.id === ui.state.spawnerSelected) ? ui.state.spawnerSelected : drops.length === 1 ? drops[0].id : null;
       if (drops.length === 0) {
         audio.play('error');
-        this.ctx.toast('场上没有空降出生点', 'warn');
+        this.ctx.toast(t('ui.skillbar.noDrops'), 'warn');
         return;
       }
       if (chosen !== null) {
@@ -202,8 +220,8 @@ export class SkillBar {
   private rebuildAbilities(towers: TowerState[], sig: string): void {
     this.abil = [];
     this.stripList.replaceChildren();
-    for (const t of towers) {
-      const info = this.ctx.world.getTowerInfo(t.uid);
+    for (const tw of towers) {
+      const info = this.ctx.world.getTowerInfo(tw.uid);
       const ab = info?.ability;
       if (!info || !ab) continue;
       const sweep = h('span.cd-sweep');
@@ -212,17 +230,17 @@ export class SkillBar {
       const el = h<HTMLButtonElement>(
         'button.skill-btn.ability-btn',
         {
-          title: `${ab.name} · ${TOWER_META[t.id]?.name ?? t.id}（${info.tierName}）\n${ab.desc}`,
+          title: `${ab.name} · ${t('ui.build.nameRole', { name: TOWER_META[tw.id]?.name ?? tw.id, role: info.tierName })}\n${ab.desc}`,
           attrs: { 'aria-label': ab.name },
-          onclick: () => castTowerAbility(this.ctx, t.uid),
+          onclick: () => castTowerAbility(this.ctx, tw.uid),
         },
-        img(abilityIcon(t.id, t.branch), 'ico'),
+        img(abilityIcon(tw.id, tw.branch), 'ico'),
         sweep,
         secs,
         charges,
       );
       this.stripList.appendChild(el);
-      this.abil.push({ uid: t.uid, el, sweep, secs, charges, cdMax: ab.cdMax, maxCharges: ab.maxCharges, lastPct: -1, wasReady: null });
+      this.abil.push({ uid: tw.uid, el, sweep, secs, charges, cdMax: ab.cdMax, maxCharges: ab.maxCharges, lastPct: -1, wasReady: null });
     }
     // 能力信息还没就绪时下次重试
     this.abilSig = this.abil.length === towers.length ? sig : '';
@@ -238,7 +256,7 @@ export class SkillBar {
         toggle(b.axis, 'show', on);
         b.axis.innerHTML = '';
         b.axis.appendChild(h('span.gi', { html: ui.state.aimAxis === 'row' ? G.axisRow : G.axisCol }));
-        b.axis.title = ui.state.aimAxis === 'row' ? '横向（按 T 切换）' : '纵向（按 T 切换）';
+        b.axis.title = ui.state.aimAxis === 'row' ? t('ui.skillbar.axisRow') : t('ui.skillbar.axisCol');
       }
     }
   }
@@ -256,7 +274,7 @@ export class SkillBar {
       const el = h<HTMLButtonElement>(
         'button.skill-btn',
         {
-          title: `${meta?.name ?? s.id}（${SKILL_KEYS[i] ?? ''}）\n${meta?.desc ?? ''}`,
+          title: `${t('ui.build.nameRole', { name: meta?.name ?? s.id, role: SKILL_KEYS[i] ?? '' })}\n${meta?.desc ?? ''}`,
           attrs: { 'aria-label': meta?.name ?? s.id, 'aria-pressed': 'false' },
           onclick: () => this.pick(s.id),
         },
@@ -270,7 +288,7 @@ export class SkillBar {
       const axis =
         s.target === 'line'
           ? h<HTMLButtonElement>('button.axis-btn', {
-              attrs: { 'aria-label': '切换横竖' },
+              attrs: { 'aria-label': t('ui.skillbar.axisToggle') },
               onclick: (e: MouseEvent) => {
                 e.stopPropagation();
                 this.toggleAxis();

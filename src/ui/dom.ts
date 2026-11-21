@@ -1,3 +1,4 @@
+import { fmtNumber } from '../i18n';
 /** 轻量 DOM 构建工具 */
 export type Child = Node | string | number | null | undefined | false | Child[];
 
@@ -107,7 +108,8 @@ export async function copyText(text: string): Promise<boolean> {
   }
 }
 
-export const fmtNum = (n: number): string => Math.round(n).toLocaleString('zh-CN');
+/** 取整后按当前语言格式化数字 */
+export const fmtNum = (n: number): string => fmtNumber(Math.round(n));
 
 export function isTypingTarget(t: EventTarget | null): boolean {
   if (!(t instanceof HTMLElement)) return false;

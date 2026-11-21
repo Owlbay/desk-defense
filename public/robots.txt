@@ -1,0 +1,6 @@
+# 书桌防线 Desk Defense — https://jjjj.games
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://jjjj.games/sitemap.xml

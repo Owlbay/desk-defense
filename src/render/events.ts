@@ -1,4 +1,5 @@
 import type { GameEvent } from '../core/types';
+import { t as tr } from '../i18n';
 import { abilityFx } from './abilities';
 import type { RenderCtx } from './ctx';
 import type { EnemyLayer } from './enemies';
@@ -89,13 +90,19 @@ export class EventFx {
         }
         break;
       }
-      case 'beam':
-        {
-          // width 为格（<1）或像素
-          const w = ev.width > 0 && ev.width < 1 ? ev.width * CELL : ev.width || 3;
-          fx.beam(P(ev.x), P(ev.y), P(ev.tx), P(ev.ty), BEAM[ev.color] ?? C.lampLight, Math.max(1.5, Math.min(20, w)), 0.12);
-        }
-        fx.disc(P(ev.tx), P(ev.ty), 5, BEAM[ev.color] ?? C.lampLight, 0.12, true, 0.8);
+      case 'beam': {
+        // width 为格（<1）或像素；台灯的 ramp（0..1）让光束更粗更亮，group > 1 时主灯处有棱镜高光
+        const col = BEAM[ev.color] ?? C.lampLight;
+        const w = ev.width > 0 && ev.width < 1 ? ev.width * CELL : ev.width || 3;
+        const r = ev.ramp ?? 0;
+        fx.beam(P(ev.x), P(ev.y), P(ev.tx), P(ev.ty), col, Math.max(1.5, Math.min(20, w)), 0.12);
+        fx.disc(P(ev.tx), P(ev.ty), 5 + 5 * r, r > 0.8 ? C.white : col, 0.12, true, 0.6 + 0.3 * r);
+        if ((ev.group ?? 1) > 1 && !this.ctx.reduced) fx.disc(P(ev.x), P(ev.y), 6 + Math.min(8, ev.group ?? 1), C.white, 0.12, true, 0.55);
+        break;
+      }
+      case 'prismLink':
+        // 辅灯 → 主灯的细光线（低画质 / 减弱动效只画一条细线）
+        fx.beam(P(ev.x), P(ev.y), P(ev.tx), P(ev.ty), C.lampLight, fx.low || this.ctx.reduced ? 1.5 : 2.5, 0.12);
         break;
       case 'pulse': {
         const col = PULSE[ev.color] ?? C.metal;
@@ -145,10 +152,10 @@ export class EventFx {
         break;
       }
       case 'immune':
-        fx.text(P(ev.x), P(ev.y) - 14, '免疫', 'info');
+        fx.text(P(ev.x), P(ev.y) - 14, tr('ui.render.immune'), 'info');
         break;
       case 'dodge':
-        fx.text(P(ev.x), P(ev.y) - 14, '闪避', 'info');
+        fx.text(P(ev.x), P(ev.y) - 14, tr('ui.render.dodge'), 'info');
         break;
       case 'heal':
         fx.plus(P(ev.x) + (Math.random() - 0.5) * 10, P(ev.y) - 8);
@@ -394,7 +401,7 @@ export class EventFx {
             y = P(t.cy + 0.5);
           fx.ring(x, y, 30, 6, C.goldLight, 0.4, 4);
           fx.sparkle(x, y - 6, C.goldLight, 10, 30);
-          fx.text(x, y - 24, '灵感!', 'level');
+          fx.text(x, y - 24, tr('ui.render.inspiration'), 'level');
         }
         break;
       }

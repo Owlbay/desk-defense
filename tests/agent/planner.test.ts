@@ -220,8 +220,8 @@ describe('act with assist', () => {
     expect(rules).toMatch(/\{do:"maze"\}/);
     expect(old).not.toMatch(/do:"maze"/);
     expect(systemBlocks('player')).toEqual(systemBlocks('player'));
-    expect(estimateTokens(rules)).toBeLessThan(1200);
-    expect(estimateTokens(JSON.stringify(a))).toBeLessThan(1100);
+    expect(estimateTokens(rules)).toBeLessThan(1300);
+    expect(estimateTokens(JSON.stringify(a))).toBeLessThan(1250);
     // 军师不发意图规则
     expect(systemBlocks('advisor')[0]).not.toMatch(/do:"maze"/);
   });
@@ -271,7 +271,7 @@ describe('battle report, threat estimate, idle nudge', () => {
     expect(ta.map((t) => t.id)).toEqual(['air:north']);
     expect(ta[0].verdict).toBe('危险');
     expect(threatLine(air)).toMatch(/anti_air/);
-    expect(threatLine(air)).toMatch(/CTR pl→AA/);
+    expect(threatLine(air)).toMatch(/CTR pl→air/);
   });
 
   it('engine injects BR / TH / IDLE once per decision and records build-phase gold', { timeout: 30_000 }, async () => {

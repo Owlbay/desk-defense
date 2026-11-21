@@ -55,7 +55,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--teal);
+  background: var(--accent);
 }
 .fx-sparks i:nth-child(odd) {
   left: -5px;
@@ -70,7 +70,7 @@
   background: var(--gold);
 }
 .fx-sparks.gold i:nth-child(odd) {
-  background: #fff4c2;
+  background: var(--tint-yellow);
 }
 
 /* ───────────── 1. 顶栏 ───────────── */
@@ -99,11 +99,11 @@
   animation: hud-flash var(--dur-l) ease-out;
 }
 .stat.up .stat-v {
-  color: #17786c;
+  color: var(--good-text-strong);
   animation: hud-tick-up var(--dur-m) var(--ease-spring);
 }
 .stat.down .stat-v {
-  color: var(--red);
+  color: var(--bad-text);
   animation: hud-tick-down var(--dur-m) var(--ease-spring);
 }
 .game[data-difficulty='abyss'] .stat.up .stat-v {
@@ -124,7 +124,7 @@
   animation: hud-hurt 450ms ease;
 }
 .stat.hurt .stat-v {
-  color: var(--red);
+  color: var(--bad-text);
 }
 .stat.hurt .gi {
   animation: hud-heart 450ms var(--ease-spring);
@@ -158,7 +158,7 @@
   top: calc(100% - 9px);
   z-index: 6;
   padding: 0 6px;
-  border: 1.5px solid var(--ink);
+  border: 1.5px solid var(--border);
   border-radius: 999px;
   background: var(--gold-l);
   color: var(--ink);
@@ -251,7 +251,7 @@
   bottom: 1px;
   height: 3px;
   border-radius: 3px;
-  background: var(--ink);
+  background: var(--inverse);
   opacity: 0;
   transform: scaleX(0);
   transition:
@@ -277,10 +277,10 @@
   right: 1px;
   z-index: 2;
   padding: 0 4px;
-  border: 1.5px solid var(--ink);
+  border: 1.5px solid var(--border);
   border-radius: 6px;
   background: var(--red);
-  color: var(--white);
+  color: var(--on-color);
   font-size: 9px;
   font-weight: 900;
   line-height: 13px;
@@ -313,7 +313,7 @@
   bottom: -20%;
   left: 0;
   width: 36%;
-  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.9), transparent);
+  background: linear-gradient(100deg, transparent, rgb(var(--hi-rgb) / calc(0.9 * var(--hi-k))), transparent);
   transform: translateX(-140%) skewX(-18deg);
   animation: hud-shine 1.2s var(--ease-in-out) 200ms 3;
 }
@@ -370,7 +370,7 @@
   bottom: 0;
   left: 0;
   width: 40%;
-  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.95), transparent);
+  background: linear-gradient(100deg, transparent, rgb(var(--hi-rgb) / calc(0.95 * var(--hi-k))), transparent);
   transform: translateX(-140%) skewX(-18deg);
   animation: hud-shine var(--dur-xl) var(--ease-out) forwards;
 }
@@ -418,7 +418,7 @@
   bottom: -30%;
   left: 0;
   width: 32%;
-  background: linear-gradient(100deg, transparent, rgba(245, 215, 110, 0.85) 40%, rgba(255, 255, 255, 0.9) 50%, rgba(245, 215, 110, 0.85) 60%, transparent);
+  background: linear-gradient(100deg, transparent, rgba(245, 215, 110, 0.85) 40%, rgb(var(--hi-rgb) / calc(0.9 * var(--hi-k))) 50%, rgba(245, 215, 110, 0.85) 60%, transparent);
   transform: translateX(-140%) skewX(-18deg);
   animation: hud-shine var(--dur-xl) var(--ease-in-out) forwards;
 }
@@ -485,7 +485,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0, rgba(245, 215, 110, 0.7) 45%, transparent 70%);
+  background: radial-gradient(circle, rgb(var(--hi-rgb) / calc(0.95 * var(--hi-k))) 0, rgba(245, 215, 110, 0.7) 45%, transparent 70%);
   opacity: 0;
   pointer-events: none;
 }
@@ -527,7 +527,7 @@
   transform: scale(0.75);
 }
 .charges.dots i.on {
-  background: var(--teal);
+  background: var(--accent);
   transform: scale(1);
 }
 .charges.dots i.gain {
@@ -639,7 +639,7 @@
   top: 50%;
   height: 58px;
   margin-top: -29px;
-  background: linear-gradient(90deg, transparent, rgba(59, 47, 42, 0.22) 20%, rgba(59, 47, 42, 0.22) 80%, transparent);
+  background: linear-gradient(90deg, transparent, rgb(var(--shadow-rgb) / 0.22) 20%, rgb(var(--shadow-rgb) / 0.22) 80%, transparent);
   transform: rotate(-2deg) scaleX(0);
   transform-origin: 0 50%;
   animation: hud-streak 1.1s var(--ease-in-out) both;
@@ -724,7 +724,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  background: #fff1b8;
+  background: var(--tint-yellow);
   transition: transform 420ms var(--ease-in-out);
 }
 .boss-shield {
@@ -827,12 +827,12 @@
 }
 .perk-card.r-rare .perk-shine::before {
   opacity: 1;
-  background: linear-gradient(100deg, transparent, rgba(79, 163, 224, 0.35), rgba(255, 255, 255, 0.8), rgba(79, 163, 224, 0.35), transparent);
+  background: linear-gradient(100deg, transparent, rgba(79, 163, 224, 0.35), rgb(var(--hi-rgb) / calc(0.8 * var(--hi-k))), rgba(79, 163, 224, 0.35), transparent);
   animation: hud-shine 900ms var(--ease-in-out) calc(var(--i, 0) * 90ms + 500ms) 1 backwards;
 }
 .perk-card.r-epic .perk-shine::before {
   opacity: 1;
-  background: linear-gradient(100deg, transparent, rgba(142, 92, 217, 0.4), rgba(255, 255, 255, 0.9), rgba(245, 215, 110, 0.5), transparent);
+  background: linear-gradient(100deg, transparent, rgba(142, 92, 217, 0.4), rgb(var(--hi-rgb) / calc(0.9 * var(--hi-k))), rgba(245, 215, 110, 0.5), transparent);
   animation: hud-shine-loop 2.6s var(--ease-in-out) calc(var(--i, 0) * 90ms + 500ms) infinite backwards;
 }
 @keyframes hud-shine-loop {

@@ -1,4 +1,5 @@
 import type { BuildOption, TowerId } from '../../core/types';
+import { t } from '../../i18n';
 import { ui } from '../../game/UiStore';
 import { parseUnlock } from '../../meta/progress';
 import { towerIcon } from '../assets';
@@ -29,7 +30,7 @@ export class BuildBar {
   private known = new Map<TowerId, boolean>();
 
   constructor(private ctx: GameCtx) {
-    this.list = h('div.build-list', { attrs: { role: 'toolbar', 'aria-label': '建造' } });
+    this.list = h('div.build-list', { attrs: { role: 'toolbar', 'aria-label': t('ui.build.label') } });
     this.el = h('div.buildbar', null, this.list);
   }
 
@@ -55,18 +56,18 @@ export class BuildBar {
     if (!o.unlocked) {
       audio.play('error');
       const u = parseUnlock(TOWER_META[id]?.unlock);
-      this.ctx.toast(u ? `${o.name}：战役 ${u.chapter}-${u.wave} 解锁` : `${o.name} 尚未解锁`, 'warn');
+      this.ctx.toast(u ? t('ui.build.unlockAt', { name: o.name, chapter: u.chapter, wave: u.wave }) : t('ui.build.locked', { name: o.name }), 'warn');
       return;
     }
     if (o.limitReached) {
       audio.play('error');
-      this.ctx.toast(`${o.name} 已达数量上限`, 'warn');
+      this.ctx.toast(t('ui.build.limitReached', { name: o.name }), 'warn');
       return;
     }
     audio.play('select');
     this.clearNew(b);
     ui.set({ build: id, selected: null, aiming: null, relocateFrom: null, pending: null });
-    if (!o.affordable) this.ctx.toast(`金币不够（需要 ${o.cost}）`, 'warn');
+    if (!o.affordable) this.ctx.toast(t('ui.build.needGold', { n: o.cost }), 'warn');
   }
 
   update(opts: BuildOption[]): void {
@@ -76,7 +77,7 @@ export class BuildBar {
       const b = this.btns.get(o.id);
       if (!b) continue;
       b.opt = o;
-      setText(b.price, o.limitReached ? '上限' : String(o.cost));
+      setText(b.price, o.limitReached ? t('ui.build.max') : String(o.cost));
       const wasPoor = b.el.classList.contains('poor');
       toggle(b.el, 'poor', !o.affordable);
       toggle(b.el, 'locked', !o.unlocked);
@@ -115,6 +116,12 @@ export class BuildBar {
     b.el.classList.remove('is-new');
   }
 
+  /** 切换语言：下次 update 时重建按钮（名字 / 说明来自 core，已按新语言给出） */
+  relabel(): void {
+    this.list.setAttribute('aria-label', t('ui.build.label'));
+    this.sig = '';
+  }
+
   syncSelected(): void {
     for (const [id, b] of this.btns) {
       const on = ui.state.build === id;
@@ -131,18 +138,18 @@ export class BuildBar {
     opts.forEach((o, i) => {
       const price = h('span.b-price');
       const airOnly = o.hitsAir && !o.hitsGround;
-      const air = o.hitsAir && o.hitsGround ? '对空/地' : airOnly ? '只打空中' : o.hitsGround ? '对地' : '';
+      const air = o.hitsAir && o.hitsGround ? t('ui.build.airGround') : airOnly ? t('ui.build.airOnly') : o.hitsGround ? t('ui.build.ground') : '';
       const el = h<HTMLButtonElement>(
         'button.build-btn',
         {
-          title: `${o.name}（${o.role}）${air ? ' · ' + air : ''}\n${o.desc}`,
-          attrs: { 'aria-label': `${o.name} ${o.cost} 金币`, 'aria-pressed': 'false' },
+          title: `${t('ui.build.nameRole', { name: o.name, role: o.role })}${air ? ' · ' + air : ''}\n${o.desc}`,
+          attrs: { 'aria-label': t('ui.build.btnLabel', { name: o.name, n: o.cost }), 'aria-pressed': 'false' },
           onclick: () => this.pick(o.id),
         },
         h('span.b-ico', null, img(towerIcon(o.id), 'ico')),
         h('span.b-text', null, h('span.b-name', null, o.name), h('span.b-cost', null, h('span.gi', { html: G.coin }), price)),
         BUILD_KEYS[i] ? h('kbd.key-hint', null, BUILD_KEYS[i]) : null,
-        airOnly ? h('span.b-air', { attrs: { 'aria-hidden': 'true' } }, h('span.gi', { html: G.plane }), '只打空中') : null,
+        airOnly ? h('span.b-air', { attrs: { 'aria-hidden': 'true' } }, h('span.gi', { html: G.plane }), t('ui.build.airOnly')) : null,
         h('span.b-lock.gi', { html: G.lock }),
         h('span.b-sel', { attrs: { 'aria-hidden': 'true' } }),
       );

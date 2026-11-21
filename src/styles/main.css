@@ -1,47 +1,15 @@
 /* 书桌防线 · 界面样式（调色板见 docs/06） */
+@import './tokens.css';
+
 :root {
-  --desk: #e8d5b5;
-  --desk-dark: #d4bc94;
-  --desk-deep: #c9ad80;
-  --ink: #3b2f2a;
-  --ink-soft: rgba(59, 47, 42, 0.62);
-  --ink-faint: rgba(59, 47, 42, 0.18);
-  --paper: #fbf8f1;
-  --paper-2: #f4eddf;
-  --white: #ffffff;
-  --teal: #2a9d8f;
-  --gold: #d4a82c;
-  --gold-l: #f5d76e;
-  --gold-d: #9c7a1c;
-  --red: #e63946;
-  --book: #b23a48;
-  --pencil: #f2c14e;
-  --orange: #f29e4c;
-  --pink: #f28aa0;
-  --sky: #9bd1e5;
-  --blue: #4fa3e0;
-  --navy: #2e4a7d;
-  --purple: #6c5b7b;
-  --epic: #8e5cd9;
-  --cyan: #4fd1c5;
-  --magenta: #d53f8c;
-  --good: #2a9d8f;
-  --bad: #e63946;
-  --abyss-bg: #1c1424;
-  --abyss-card: #2a1f36;
-  --abyss-line: #9b6bd3;
-  --abyss-text: #eadcff;
   --radius: 14px;
   --radius-s: 10px;
   --bw: 2px;
-  --shadow: 0 3px 0 var(--ink);
-  --shadow-soft: 0 6px 18px rgba(59, 47, 42, 0.18);
   --font: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC', 'Helvetica Neue', Arial, sans-serif;
   --sat: env(safe-area-inset-top, 0px);
   --sab: env(safe-area-inset-bottom, 0px);
   --sal: env(safe-area-inset-left, 0px);
   --sar: env(safe-area-inset-right, 0px);
-  color-scheme: light;
 }
 
 *,
@@ -67,11 +35,11 @@ body {
   font-size: 15px;
   line-height: 1.4;
   color: var(--ink);
-  background-color: var(--desk);
+  background-color: var(--bg);
   background-image:
-    radial-gradient(ellipse at 20% 0%, rgba(255, 255, 255, 0.35), transparent 60%),
-    repeating-linear-gradient(92deg, rgba(201, 173, 128, 0.18) 0 2px, transparent 2px 46px),
-    repeating-linear-gradient(88deg, rgba(255, 255, 255, 0.12) 0 1px, transparent 1px 23px);
+    radial-gradient(ellipse at 20% 0%, rgb(var(--hi-rgb) / calc(0.35 * var(--hi-k))), transparent 60%),
+    repeating-linear-gradient(92deg, rgb(var(--grain-rgb) / 0.18) 0 2px, transparent 2px 46px),
+    repeating-linear-gradient(88deg, rgb(var(--hi-rgb) / calc(0.12 * var(--hi-k))) 0 1px, transparent 1px 23px);
   -webkit-tap-highlight-color: transparent;
   -webkit-user-select: none;
   user-select: none;
@@ -116,7 +84,7 @@ kbd {
 }
 
 .muted {
-  color: var(--ink-soft);
+  color: var(--ink-muted);
 }
 
 .small {
@@ -196,9 +164,9 @@ kbd {
   min-height: 44px;
   min-width: 44px;
   padding: 0 16px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 12px;
-  background: var(--paper);
+  background: var(--surface);
   box-shadow: var(--shadow);
   font-weight: 700;
   font-size: 15px;
@@ -211,12 +179,12 @@ kbd {
 }
 
 .btn:hover {
-  background: var(--white);
+  background: var(--surface-hi);
 }
 
 .btn:active:not(:disabled) {
   transform: translateY(2px);
-  box-shadow: 0 1px 0 var(--ink);
+  box-shadow: 0 1px 0 var(--shadow-color);
 }
 
 .btn:focus-visible,
@@ -224,14 +192,14 @@ kbd {
 .menu-btn:focus-visible,
 .build-btn:focus-visible,
 .skill-btn:focus-visible {
-  outline: 3px solid var(--blue);
+  outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
 
 .btn:disabled {
   opacity: 0.5;
   cursor: default;
-  box-shadow: 0 1px 0 var(--ink);
+  box-shadow: 0 1px 0 var(--shadow-color);
   transform: translateY(2px);
 }
 
@@ -240,12 +208,12 @@ kbd {
 }
 
 .btn.primary:hover {
-  background: #f6cd6a;
+  background: var(--pencil-hi);
 }
 
 .btn.danger {
   background: var(--red);
-  color: var(--white);
+  color: var(--on-color);
 }
 
 .btn.big {
@@ -292,9 +260,9 @@ kbd {
 
 .seg {
   min-height: 44px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: var(--radius-s);
-  background: var(--paper);
+  background: var(--surface);
   font-weight: 700;
   display: inline-flex;
   align-items: center;
@@ -307,7 +275,7 @@ kbd {
 
 .seg.on {
   background: var(--pencil);
-  box-shadow: inset 0 -3px 0 rgba(59, 47, 42, 0.25);
+  box-shadow: inset 0 -3px 0 rgb(var(--shadow-rgb) / 0.25);
 }
 
 .seg.locked {
@@ -321,10 +289,10 @@ kbd {
 
 /* 卡片 */
 .card {
-  background: var(--paper);
-  border: var(--bw) solid var(--ink);
+  background: var(--surface);
+  border: var(--bw) solid var(--border);
   border-radius: var(--radius);
-  box-shadow: 0 4px 0 rgba(59, 47, 42, 0.85);
+  box-shadow: 0 4px 0 rgb(var(--shadow-rgb) / 0.85);
 }
 
 .chips {
@@ -338,9 +306,9 @@ kbd {
   gap: 4px;
   min-height: 34px;
   padding: 0 10px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 999px;
-  background: var(--paper);
+  background: var(--surface);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
@@ -350,14 +318,14 @@ kbd {
   align-items: center;
   padding: 2px 8px;
   border-radius: 999px;
-  border: 1.5px solid var(--ink);
-  background: var(--paper-2);
+  border: 1.5px solid var(--border);
+  background: var(--surface-2);
   font-size: 12px;
   font-weight: 700;
 }
 
 .badge.good {
-  background: #bfe7df;
+  background: var(--tint-green-2);
 }
 
 .tag {
@@ -366,8 +334,8 @@ kbd {
   gap: 3px;
   padding: 1px 8px;
   border-radius: 999px;
-  background: var(--paper-2);
-  border: 1.5px solid var(--ink-faint);
+  background: var(--surface-2);
+  border: 1.5px solid var(--border-faint);
   font-size: 12px;
   font-weight: 600;
 }
@@ -382,12 +350,12 @@ kbd {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  border: 1.5px solid var(--ink);
-  background: var(--paper);
+  border: 1.5px solid var(--border);
+  background: var(--surface);
 }
 
 .pip.on {
-  background: var(--teal);
+  background: var(--accent);
 }
 
 .pip.legend.on {
@@ -415,9 +383,9 @@ kbd {
   width: 100%;
   min-height: 44px;
   padding: 8px 12px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: var(--radius-s);
-  background: var(--white);
+  background: var(--surface-hi);
   outline: none;
 }
 
@@ -446,11 +414,11 @@ textarea.input.code {
 }
 
 .form-msg.bad {
-  color: var(--bad);
+  color: var(--bad-text);
 }
 
 .form-msg.good {
-  color: var(--good);
+  color: var(--good-text);
 }
 
 /* 滑块 */
@@ -468,15 +436,15 @@ textarea.input.code {
 .range::-webkit-slider-runnable-track {
   height: 10px;
   border-radius: 999px;
-  border: var(--bw) solid var(--ink);
-  background: linear-gradient(90deg, var(--pencil) var(--fill), var(--paper) var(--fill));
+  border: var(--bw) solid var(--border);
+  background: linear-gradient(90deg, var(--pencil) var(--fill), var(--surface) var(--fill));
 }
 
 .range::-moz-range-track {
   height: 6px;
   border-radius: 999px;
-  border: var(--bw) solid var(--ink);
-  background: linear-gradient(90deg, var(--pencil) var(--fill), var(--paper) var(--fill));
+  border: var(--bw) solid var(--border);
+  background: linear-gradient(90deg, var(--pencil) var(--fill), var(--surface) var(--fill));
 }
 
 .range::-webkit-slider-thumb {
@@ -485,17 +453,17 @@ textarea.input.code {
   height: 26px;
   margin-top: -10px;
   border-radius: 50%;
-  border: var(--bw) solid var(--ink);
-  background: var(--white);
-  box-shadow: 0 2px 0 var(--ink);
+  border: var(--bw) solid var(--border);
+  background: var(--surface-hi);
+  box-shadow: 0 2px 0 var(--shadow-color);
 }
 
 .range::-moz-range-thumb {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: var(--bw) solid var(--ink);
-  background: var(--white);
+  border: var(--bw) solid var(--border);
+  background: var(--surface-hi);
 }
 
 .slider-row {
@@ -504,7 +472,7 @@ textarea.input.code {
   align-items: center;
   column-gap: 12px;
   padding: 6px 0;
-  border-bottom: 1.5px dashed var(--ink-faint);
+  border-bottom: 1.5px dashed var(--border-faint);
 }
 
 .slider-row:last-child {
@@ -563,9 +531,9 @@ textarea.input.code {
 .switch .knob {
   position: absolute;
   inset: 0;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 999px;
-  background: var(--paper-2);
+  background: var(--surface-2);
   transition: background-color 0.15s;
 }
 
@@ -577,13 +545,13 @@ textarea.input.code {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  border: var(--bw) solid var(--ink);
-  background: var(--white);
+  border: var(--bw) solid var(--border);
+  background: var(--surface-hi);
   transition: transform 0.18s cubic-bezier(0.3, 1.4, 0.6, 1);
 }
 
 .switch input:checked + .knob {
-  background: var(--teal);
+  background: var(--accent);
 }
 
 .switch input:checked + .knob::after {
@@ -591,7 +559,7 @@ textarea.input.code {
 }
 
 .switch input:focus-visible + .knob {
-  outline: 3px solid var(--blue);
+  outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
 
@@ -617,7 +585,7 @@ textarea.input.code {
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: linear-gradient(var(--desk) 70%, rgba(232, 213, 181, 0));
+  background: linear-gradient(var(--bg) 70%, rgb(var(--bg-rgb) / 0));
 }
 
 .screen-title {
@@ -674,10 +642,10 @@ textarea.input.code {
 .app-toast,
 .toast {
   padding: 10px 16px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 12px;
-  background: var(--paper);
-  box-shadow: 0 3px 0 var(--ink);
+  background: var(--surface);
+  box-shadow: 0 3px 0 var(--shadow-color);
   font-weight: 700;
   text-align: center;
   animation: toast-in 0.2s cubic-bezier(0.3, 1.4, 0.6, 1);
@@ -687,11 +655,11 @@ textarea.input.code {
 }
 
 .tone-warn {
-  background: #ffe1d6;
+  background: var(--tint-peach);
 }
 
 .tone-good {
-  background: #d8f1ea;
+  background: var(--tint-green);
 }
 
 .app-toast.out,
@@ -707,7 +675,7 @@ textarea.input.code {
   display: grid;
   place-items: center;
   padding: 16px;
-  background: rgba(59, 47, 42, 0.5);
+  background: rgb(var(--shadow-rgb) / 0.5);
   z-index: 50;
   animation: fade-in 0.16s ease-out;
   overflow-y: auto;
@@ -769,17 +737,17 @@ textarea.input.code {
   font-size: clamp(44px, 12vw, 72px);
   font-weight: 900;
   letter-spacing: 0.08em;
-  color: var(--paper);
-  -webkit-text-stroke: 3px var(--ink);
+  color: var(--logo-fill);
+  -webkit-text-stroke: 3px var(--logo-stroke);
   paint-order: stroke fill;
-  text-shadow: 0 5px 0 var(--ink);
+  text-shadow: 0 5px 0 var(--logo-stroke);
   line-height: 1.05;
 }
 
 .logo-en {
   margin-top: 6px;
   padding: 2px 12px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 6px;
   background: var(--pencil);
   font-weight: 900;
@@ -816,9 +784,9 @@ textarea.input.code {
   width: 100%;
   min-height: 60px;
   padding: 8px 16px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 14px;
-  background: var(--paper);
+  background: var(--surface);
   box-shadow: var(--shadow);
   text-align: left;
   transition:
@@ -828,12 +796,12 @@ textarea.input.code {
 }
 
 .menu-btn:hover {
-  background: var(--white);
+  background: var(--surface-hi);
 }
 
 .menu-btn:active {
   transform: translateY(2px);
-  box-shadow: 0 1px 0 var(--ink);
+  box-shadow: 0 1px 0 var(--shadow-color);
 }
 
 .menu-btn > .gi {
@@ -852,7 +820,7 @@ textarea.input.code {
 .menu-label small {
   font-size: 12px;
   font-weight: 600;
-  color: var(--ink-soft);
+  color: var(--ink-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -867,10 +835,10 @@ textarea.input.code {
 }
 
 .menu-btn.locked {
-  background: var(--paper-2);
-  color: var(--ink-soft);
-  box-shadow: 0 2px 0 var(--ink-faint);
-  border-color: rgba(59, 47, 42, 0.45);
+  background: var(--surface-2);
+  color: var(--ink-muted);
+  box-shadow: 0 2px 0 var(--border-faint);
+  border-color: rgb(var(--ink-rgb) / 0.45);
 }
 
 .menu-btn.locked .lock {
@@ -926,11 +894,11 @@ textarea.input.code {
   inset: 0 0 auto 0;
   height: 8px;
   background: var(--tint);
-  border-bottom: var(--bw) solid var(--ink);
+  border-bottom: var(--bw) solid var(--border);
 }
 
 .chapter-card.locked {
-  background: var(--paper-2);
+  background: var(--surface-2);
 }
 
 .chapter-card.locked > :not(.chapter-lock):not(.chapter-head) {
@@ -947,7 +915,7 @@ textarea.input.code {
 .chapter-no {
   font-weight: 800;
   font-size: 13px;
-  color: var(--ink-soft);
+  color: var(--ink-muted);
   letter-spacing: 0.1em;
 }
 
@@ -972,8 +940,8 @@ textarea.input.code {
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  background: var(--paper-2);
-  border: 1.5px solid var(--ink-faint);
+  background: var(--surface-2);
+  border: 1.5px solid var(--border-faint);
 }
 
 .chapter-diffs {
@@ -988,24 +956,24 @@ textarea.input.code {
   gap: 2px;
   min-height: 60px;
   padding: 6px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 12px;
-  background: var(--paper);
+  background: var(--surface);
   box-shadow: var(--shadow);
   font-weight: 900;
 }
 
 .diff-btn.normal {
-  background: #fff3cf;
+  background: var(--tint-yellow);
 }
 
 .diff-btn.hard {
-  background: #ffd9cf;
+  background: var(--tint-peach);
 }
 
 .diff-btn:active {
   transform: translateY(2px);
-  box-shadow: 0 1px 0 var(--ink);
+  box-shadow: 0 1px 0 var(--shadow-color);
 }
 
 .diff-btn.locked {
@@ -1019,10 +987,10 @@ textarea.input.code {
   justify-content: center;
   gap: 6px;
   min-height: 60px;
-  border: 2px dashed var(--ink-faint);
+  border: 2px dashed var(--border-faint);
   border-radius: 12px;
   font-weight: 700;
-  color: var(--ink-soft);
+  color: var(--ink-muted);
 }
 
 .loadout-strip {
@@ -1055,8 +1023,8 @@ textarea.input.code {
   bottom: -4px;
   font-size: 10px;
   font-weight: 800;
-  background: var(--paper);
-  border: 1.5px solid var(--ink);
+  background: var(--surface);
+  border: 1.5px solid var(--border);
   border-radius: 6px;
   padding: 0 3px;
 }
@@ -1067,7 +1035,7 @@ textarea.input.code {
   display: flex;
   justify-content: center;
   padding: 8px 0 calc(4px + var(--sab));
-  background: linear-gradient(rgba(232, 213, 181, 0), var(--desk) 40%);
+  background: linear-gradient(rgb(var(--bg-rgb) / 0), var(--bg) 40%);
 }
 
 .start-bar .btn {
@@ -1089,9 +1057,9 @@ textarea.input.code {
   text-align: left;
   min-height: 92px;
   padding: 12px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 14px;
-  background: var(--paper);
+  background: var(--surface);
   box-shadow: var(--shadow);
   transition: transform 0.1s;
   overflow: hidden;
@@ -1103,7 +1071,7 @@ textarea.input.code {
 }
 
 .diff-card small {
-  color: var(--ink-soft);
+  color: var(--ink-muted);
   font-size: 12px;
 }
 
@@ -1121,23 +1089,23 @@ textarea.input.code {
 }
 
 .diff-card.easy {
-  background: #e3f4ea;
+  background: var(--tint-green);
 }
 
 .diff-card.normal {
-  background: #fff3cf;
+  background: var(--tint-yellow);
 }
 
 .diff-card.hard {
-  background: #ffe0cc;
+  background: var(--tint-peach);
 }
 
 .diff-card.nightmare {
-  background: #f8d0d6;
+  background: var(--tint-red-2);
 }
 
 .diff-card.on {
-  outline: 4px solid var(--teal);
+  outline: 4px solid var(--accent);
   outline-offset: 1px;
   transform: translateY(-2px);
 }
@@ -1202,7 +1170,7 @@ textarea.input.code {
   min-height: 44px;
   border-radius: 10px;
   border: 2px solid rgba(155, 107, 211, 0.6);
-  background: #3a2b4a;
+  background: var(--abyss-card-2);
   color: var(--abyss-text);
   font-weight: 900;
   font-family: Georgia, 'Times New Roman', serif;
@@ -1212,7 +1180,7 @@ textarea.input.code {
 
 .abyss-lv.on {
   background: var(--abyss-line);
-  color: #1c1424;
+  color: var(--abyss-bg);
 }
 
 .abyss-lv.locked {
@@ -1229,12 +1197,12 @@ textarea.input.code {
 .param-list > div {
   padding: 6px 10px;
   border-radius: 10px;
-  background: var(--paper-2);
+  background: var(--surface-2);
 }
 
 .param-list dt {
   font-size: 12px;
-  color: var(--ink-soft);
+  color: var(--ink-muted);
 }
 
 .param-list dd {
@@ -1275,9 +1243,9 @@ textarea.input.code {
   gap: 4px;
   min-height: 92px;
   padding: 8px 4px;
-  border: var(--bw) dashed var(--ink-soft);
+  border: var(--bw) dashed var(--border-soft);
   border-radius: 14px;
-  background: var(--paper-2);
+  background: var(--surface-2);
   font-weight: 700;
 }
 
@@ -1293,8 +1261,8 @@ textarea.input.code {
 
 .slot.filled {
   border-style: solid;
-  border-color: var(--ink);
-  background: var(--paper);
+  border-color: var(--border);
+  background: var(--surface);
   box-shadow: var(--shadow);
 }
 
@@ -1313,7 +1281,7 @@ textarea.input.code {
   left: 6px;
   font-size: 11px;
   font-weight: 900;
-  color: var(--ink-soft);
+  color: var(--ink-muted);
 }
 
 .skill-grid,
@@ -1332,12 +1300,12 @@ textarea.input.code {
 }
 
 .skill-card.picked {
-  outline: 3px solid var(--teal);
+  outline: 3px solid var(--accent);
   outline-offset: 1px;
 }
 
 .skill-card.locked {
-  background: var(--paper-2);
+  background: var(--surface-2);
 }
 
 .skill-card.locked .skill-ico {
@@ -1380,7 +1348,7 @@ textarea.input.code {
   gap: 6px;
   align-items: center;
   font-weight: 700;
-  color: var(--ink-soft);
+  color: var(--ink-muted);
   min-height: 44px;
 }
 
@@ -1391,9 +1359,9 @@ textarea.input.code {
   display: grid;
   place-items: center;
   padding: 8px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 14px;
-  background: var(--paper-2);
+  background: var(--surface-2);
 }
 
 .talent-ico svg {
@@ -1407,7 +1375,7 @@ textarea.input.code {
 }
 
 .talent-card.maxed {
-  background: #eaf6f2;
+  background: var(--tint-green);
 }
 
 .buy-row .or {
@@ -1432,9 +1400,9 @@ textarea.input.code {
   min-height: 40px;
   min-width: 56px;
   padding: 0 12px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 999px;
-  background: var(--paper);
+  background: var(--surface);
   font-weight: 800;
 }
 
@@ -1448,7 +1416,7 @@ textarea.input.code {
 
 .tab.abyss:not(.on) {
   border-color: var(--abyss-line);
-  color: var(--purple);
+  color: var(--purple-text);
 }
 
 .board-table {
@@ -1464,7 +1432,7 @@ textarea.input.code {
   min-height: 44px;
   padding: 0 10px;
   border-radius: 10px;
-  background: var(--paper-2);
+  background: var(--surface-2);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1473,7 +1441,7 @@ textarea.input.code {
   min-height: 28px;
   font-size: 12px;
   font-weight: 800;
-  color: var(--ink-soft);
+  color: var(--ink-muted);
 }
 
 .lb-row .rank {
@@ -1487,22 +1455,22 @@ textarea.input.code {
 }
 
 .lb-row.top1 {
-  background: #fdeeb5;
+  background: var(--tint-yellow);
 }
 
 .lb-row.top2 {
-  background: #ececec;
+  background: var(--tint-silver);
 }
 
 .lb-row.top3 {
-  background: #f3dcc6;
+  background: var(--tint-bronze);
 }
 
 .seed-btn {
   min-height: 36px;
-  border: 1.5px dashed var(--ink-soft);
+  border: 1.5px dashed var(--border-soft);
   border-radius: 8px;
-  background: var(--paper);
+  background: var(--surface);
   font-family: ui-monospace, Menlo, monospace;
   font-size: 12px;
   overflow: hidden;
@@ -1627,21 +1595,21 @@ textarea.input.code {
 
 .game[data-layout='portrait'] .g-top {
   padding: 6px 10px;
-  border-bottom: var(--bw) solid var(--ink);
-  background: var(--paper);
+  border-bottom: var(--bw) solid var(--border);
+  background: var(--surface);
 }
 
 .game[data-layout='portrait'] .g-info {
   height: clamp(104px, 17vh, 168px);
-  border-top: var(--bw) solid var(--ink);
-  background: var(--paper);
+  border-top: var(--bw) solid var(--border);
+  background: var(--surface);
   overflow-y: auto;
   padding: 8px 10px;
 }
 
 .game[data-layout='portrait'] .g-build {
-  background: var(--paper-2);
-  border-top: 1.5px solid var(--ink-faint);
+  background: var(--surface-2);
+  border-top: 1.5px solid var(--border-faint);
 }
 
 .game[data-layout='portrait'] .build-list {
@@ -1685,7 +1653,7 @@ textarea.input.code {
 
 .game[data-layout='portrait'] .g-skills {
   padding: 6px 10px 0;
-  background: var(--paper-2);
+  background: var(--surface-2);
 }
 
 .game[data-layout='portrait'] .skill-name {
@@ -1697,7 +1665,7 @@ textarea.input.code {
   align-items: center;
   gap: 8px;
   padding: 6px 10px 8px;
-  background: var(--paper-2);
+  background: var(--surface-2);
 }
 
 .game[data-layout='portrait'] .preview {
@@ -1728,8 +1696,8 @@ textarea.input.code {
   gap: 10px;
   min-height: 0;
   padding: 10px 12px 12px;
-  border-left: var(--bw) solid var(--ink);
-  background: var(--paper-2);
+  border-left: var(--bw) solid var(--border);
+  background: var(--surface-2);
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
@@ -1776,18 +1744,18 @@ textarea.input.code {
   min-height: 140px;
   overflow-y: auto;
   padding: 10px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: var(--radius);
-  background: var(--paper);
+  background: var(--surface);
 }
 
 .game[data-layout='landscape'] .g-wave {
   display: grid;
   gap: 8px;
   padding: 10px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: var(--radius);
-  background: var(--paper);
+  background: var(--surface);
 }
 
 .game[data-layout='landscape'] .wave-actions {
@@ -1827,7 +1795,7 @@ textarea.input.code {
 }
 
 .stat.lives.low .stat-v {
-  color: var(--red);
+  color: var(--bad-text);
 }
 
 .stat.hurt {
@@ -1847,8 +1815,8 @@ textarea.input.code {
   font-weight: 800;
   padding: 2px 8px;
   border-radius: 999px;
-  border: 1.5px solid var(--ink);
-  background: var(--paper-2);
+  border: 1.5px solid var(--border);
+  background: var(--surface-2);
   white-space: nowrap;
 }
 
@@ -1877,10 +1845,10 @@ textarea.input.code {
   display: flex;
   align-items: center;
   gap: 6px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 12px;
-  background: var(--paper);
-  box-shadow: 0 2px 0 var(--ink);
+  background: var(--surface);
+  box-shadow: 0 2px 0 var(--shadow-color);
   text-align: left;
   transition:
     transform 0.08s,
@@ -1890,7 +1858,7 @@ textarea.input.code {
 
 .build-btn:active {
   transform: translateY(2px);
-  box-shadow: 0 0 0 var(--ink);
+  box-shadow: 0 0 0 var(--border);
 }
 
 .build-btn .b-ico {
@@ -1939,8 +1907,8 @@ textarea.input.code {
 .build-btn.on {
   background: var(--pencil);
   box-shadow:
-    0 0 0 3px var(--paper),
-    0 0 0 5px var(--ink);
+    0 0 0 3px var(--surface),
+    0 0 0 5px var(--border);
   transform: translateY(-1px);
   z-index: 1;
 }
@@ -1950,12 +1918,12 @@ textarea.input.code {
 }
 
 .build-btn.poor .b-cost {
-  color: var(--red);
+  color: var(--bad-text);
 }
 
 .build-btn.locked {
   opacity: 0.45;
-  background: var(--paper-2);
+  background: var(--surface-2);
 }
 
 .build-btn.locked .b-ico {
@@ -1977,8 +1945,8 @@ textarea.input.code {
   gap: 1px;
   padding: 0 4px 0 2px;
   border-radius: 999px;
-  background: #d6efff;
-  border: 1px solid var(--ink-faint);
+  background: var(--tint-blue);
+  border: 1px solid var(--border-faint);
   color: var(--ink);
   font-size: 9px;
   font-weight: 800;
@@ -2012,7 +1980,7 @@ textarea.input.code {
   left: 4px;
   font-size: 10px;
   font-weight: 800;
-  color: var(--ink-soft);
+  color: var(--ink-muted);
   line-height: 1;
 }
 
@@ -2061,19 +2029,19 @@ textarea.input.code {
   width: 48px;
   height: 48px;
   flex: none;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 12px;
-  background: var(--desk);
+  background: var(--bg);
   padding: 2px;
 }
 
 .tower-info.t2 .info-ico {
-  box-shadow: inset 0 -3px 0 var(--teal);
+  box-shadow: inset 0 -3px 0 var(--accent);
 }
 
 .tower-info.t3 .info-ico {
   border-color: var(--gold-d);
-  background: linear-gradient(160deg, var(--gold-l), var(--desk));
+  background: linear-gradient(160deg, var(--gold-l), var(--bg));
 }
 
 .tower-info.t4.br-A .info-ico {
@@ -2106,12 +2074,12 @@ textarea.input.code {
   font-weight: 800;
   padding: 1px 7px;
   border-radius: 999px;
-  border: 1.5px solid var(--ink);
-  background: var(--paper-2);
+  border: 1.5px solid var(--border);
+  background: var(--surface-2);
 }
 
 .t2 .tier-badge {
-  background: #c9ece6;
+  background: var(--tint-green-2);
 }
 
 .t3 .tier-badge {
@@ -2124,7 +2092,7 @@ textarea.input.code {
 
 .t4.br-B .tier-badge {
   background: var(--magenta);
-  color: var(--white);
+  color: var(--on-color);
 }
 
 .lv-row {
@@ -2154,8 +2122,8 @@ textarea.input.code {
   flex: 1;
   height: 8px;
   border-radius: 999px;
-  border: 1.5px solid var(--ink);
-  background: var(--paper-2);
+  border: 1.5px solid var(--border);
+  background: var(--surface-2);
   overflow: hidden;
 }
 
@@ -2163,14 +2131,14 @@ textarea.input.code {
   position: absolute;
   inset: 0 auto 0 0;
   width: 0;
-  background: linear-gradient(90deg, var(--teal), var(--cyan));
+  background: linear-gradient(90deg, var(--accent), var(--cyan));
   transition: width 0.25s ease;
 }
 
 .xp-text {
   font-size: 11px;
   font-weight: 700;
-  color: var(--ink-soft);
+  color: var(--ink-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -2217,7 +2185,7 @@ textarea.input.code {
 .act-sub {
   font-size: 11px;
   font-weight: 700;
-  color: var(--ink-soft);
+  color: var(--ink-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -2227,11 +2195,11 @@ textarea.input.code {
 }
 
 .btn.upgrade {
-  background: #d8f1ea;
+  background: var(--tint-green);
 }
 
 .btn.upgrade.branch {
-  background: linear-gradient(120deg, #c2f2ec, #f7c6df);
+  background: linear-gradient(120deg, var(--tint-green-2), var(--tint-pink));
 }
 
 .btn.upgrade.poor {
@@ -2247,7 +2215,7 @@ textarea.input.code {
   font-weight: 900;
   padding: 1px 6px;
   border-radius: 999px;
-  border: 1.5px solid var(--ink);
+  border: 1.5px solid var(--border);
   background: var(--gold-l);
 }
 
@@ -2256,7 +2224,7 @@ textarea.input.code {
 }
 
 .btn.sell {
-  background: #fff3cf;
+  background: var(--tint-yellow);
 }
 
 .btn.sell.undo {
@@ -2265,11 +2233,11 @@ textarea.input.code {
 
 .btn.sell.armed {
   background: var(--red);
-  color: var(--white);
+  color: var(--on-color);
 }
 
 .btn.sell.armed .act-sub {
-  color: rgba(255, 255, 255, 0.85);
+  color: rgb(255 255 255 / 0.85);
 }
 
 .target-row {
@@ -2291,16 +2259,16 @@ textarea.input.code {
   min-height: 36px;
   min-width: 44px;
   padding: 0 8px;
-  border: 1.5px solid var(--ink);
+  border: 1.5px solid var(--border);
   border-radius: 8px;
-  background: var(--paper);
+  background: var(--surface);
   font-size: 13px;
   font-weight: 800;
 }
 
 .mini.on {
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--inverse);
+  color: var(--on-inverse);
 }
 
 .stats-grid {
@@ -2313,12 +2281,12 @@ textarea.input.code {
 .stats-grid > div {
   padding: 4px 8px;
   border-radius: 8px;
-  background: var(--paper-2);
+  background: var(--surface-2);
 }
 
 .stats-grid dt {
   font-size: 11px;
-  color: var(--ink-soft);
+  color: var(--ink-muted);
 }
 
 .stats-grid dd {
@@ -2354,13 +2322,13 @@ textarea.input.code {
   font-weight: 900;
   padding: 1px 5px;
   border-radius: 6px;
-  border: 1.5px solid var(--ink);
-  background: var(--paper);
+  border: 1.5px solid var(--border);
+  background: var(--surface);
 }
 
 .trait.on .trait-lv {
-  background: var(--teal);
-  color: var(--white);
+  background: var(--accent);
+  color: var(--on-color);
 }
 
 .trait .gi {
@@ -2455,10 +2423,10 @@ textarea.input.code {
   width: 56px;
   height: 56px;
   padding: 0;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 14px;
-  background: var(--paper);
-  box-shadow: 0 3px 0 var(--ink);
+  background: var(--surface);
+  box-shadow: 0 3px 0 var(--shadow-color);
   overflow: hidden;
   transition: transform 0.08s;
 }
@@ -2470,7 +2438,7 @@ textarea.input.code {
 
 .skill-btn:active {
   transform: translateY(2px);
-  box-shadow: 0 1px 0 var(--ink);
+  box-shadow: 0 1px 0 var(--shadow-color);
 }
 
 .skill-btn .ico {
@@ -2482,7 +2450,7 @@ textarea.input.code {
   --cd: 0deg;
   position: absolute;
   inset: 0;
-  background: conic-gradient(from 0deg, transparent calc(360deg - var(--cd)), rgba(59, 47, 42, 0.62) 0);
+  background: conic-gradient(from 0deg, transparent calc(360deg - var(--cd)), rgb(var(--shadow-rgb) / 0.62) 0);
   pointer-events: none;
 }
 
@@ -2495,12 +2463,12 @@ textarea.input.code {
   inset: 0;
   display: grid;
   place-items: center;
-  color: var(--white);
+  color: var(--on-color);
   font-weight: 900;
   font-size: 17px;
   text-shadow:
-    0 0 3px var(--ink),
-    0 1px 0 var(--ink);
+    0 0 3px var(--outline-ink),
+    0 1px 0 var(--outline-ink);
   font-variant-numeric: tabular-nums;
   pointer-events: none;
 }
@@ -2513,8 +2481,8 @@ textarea.input.code {
   font-weight: 900;
   padding: 0 4px;
   border-radius: 6px;
-  background: var(--paper);
-  border: 1.5px solid var(--ink);
+  background: var(--surface);
+  border: 1.5px solid var(--border);
 }
 
 .skill-lv {
@@ -2527,20 +2495,20 @@ textarea.input.code {
   padding: 0 3px;
   border-radius: 6px;
   background: var(--gold-l);
-  border: 1.5px solid var(--ink);
+  border: 1.5px solid var(--border);
 }
 
 .skill-btn .key-hint {
   top: 3px;
   left: 4px;
-  color: var(--white);
-  text-shadow: 0 0 2px var(--ink);
+  color: var(--on-color);
+  text-shadow: 0 0 2px var(--outline-ink);
   z-index: 1;
 }
 
 .skill-btn.aiming {
   box-shadow:
-    0 0 0 3px var(--paper),
+    0 0 0 3px var(--surface),
     0 0 0 6px var(--red);
   animation: aim-pulse 0.9s ease-in-out infinite;
 }
@@ -2557,7 +2525,7 @@ textarea.input.code {
   width: 30px;
   height: 30px;
   padding: 3px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 50%;
   background: var(--sky);
   z-index: 2;
@@ -2588,7 +2556,7 @@ textarea.input.code {
 .preview-title {
   font-size: 11px;
   font-weight: 800;
-  color: var(--ink-soft);
+  color: var(--ink-muted);
   letter-spacing: 0.04em;
 }
 
@@ -2617,8 +2585,8 @@ textarea.input.code {
   gap: 2px;
   padding: 2px 6px 2px 2px;
   border-radius: 10px;
-  background: var(--paper);
-  border: 1.5px solid var(--ink-faint);
+  background: var(--surface);
+  border: 1.5px solid var(--border-faint);
   font-size: 12px;
   font-weight: 800;
 }
@@ -2650,7 +2618,7 @@ textarea.input.code {
   gap: 3px;
   padding: 2px 8px 2px 4px;
   border-radius: 999px;
-  border: 1.5px solid var(--ink);
+  border: 1.5px solid var(--border);
   font-size: 12px;
   font-weight: 900;
 }
@@ -2662,7 +2630,7 @@ textarea.input.code {
 
 .wave-tag.boss {
   background: var(--red);
-  color: var(--white);
+  color: var(--on-color);
 }
 
 .wave-tag.air {
@@ -2670,7 +2638,7 @@ textarea.input.code {
 }
 
 .wave-tag.rush {
-  background: #ffd3b0;
+  background: var(--tint-amber-2);
 }
 
 .wave-actions {
@@ -2693,7 +2661,7 @@ textarea.input.code {
 }
 
 .start-btn.early {
-  background: #ffe2a6;
+  background: var(--tint-amber);
 }
 
 .speed-btn {
@@ -2703,11 +2671,11 @@ textarea.input.code {
 }
 
 .speed-btn[data-speed='2'] {
-  background: #ffe2a6;
+  background: var(--tint-amber);
 }
 
 .speed-btn[data-speed='3'] {
-  background: #ffc58a;
+  background: var(--tint-amber-2);
 }
 
 /* 棋盘叠加：Boss 血条 / 提示 / 横幅 */
@@ -2726,10 +2694,10 @@ textarea.input.code {
   align-items: center;
   gap: 8px;
   padding: 4px 10px 6px 4px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 12px;
-  background: rgba(251, 248, 241, 0.94);
-  box-shadow: 0 3px 0 var(--ink);
+  background: rgb(var(--surface-rgb) / 0.94);
+  box-shadow: 0 3px 0 var(--shadow-color);
   animation: drop-in 0.3s cubic-bezier(0.3, 1.4, 0.6, 1);
   transition:
     opacity 0.3s,
@@ -2770,15 +2738,15 @@ textarea.input.code {
   position: relative;
   height: 12px;
   border-radius: 999px;
-  border: var(--bw) solid var(--ink);
-  background: #f3d4d4;
+  border: var(--bw) solid var(--border);
+  background: var(--tint-red-2);
   overflow: hidden;
 }
 
 .boss-hp {
   position: absolute;
   inset: 0 auto 0 0;
-  background: linear-gradient(180deg, #ff6b6b, var(--red));
+  background: linear-gradient(180deg, var(--red-l), var(--red));
   transition: width 0.15s linear;
 }
 
@@ -2786,7 +2754,7 @@ textarea.input.code {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: repeating-linear-gradient(135deg, var(--sky) 0 4px, #c9e8f3 4px 8px);
+  background: repeating-linear-gradient(135deg, var(--sky) 0 4px, var(--tint-blue-2) 4px 8px);
 }
 
 .toasts {
@@ -2817,10 +2785,10 @@ textarea.input.code {
   justify-items: center;
   gap: 2px;
   padding: 12px 28px;
-  border: 3px solid var(--ink);
+  border: 3px solid var(--border);
   border-radius: 16px;
-  background: var(--paper);
-  box-shadow: 0 5px 0 var(--ink);
+  background: var(--surface);
+  box-shadow: 0 5px 0 var(--shadow-color);
   transform: rotate(-2deg);
   animation: banner-in 0.35s cubic-bezier(0.3, 1.5, 0.6, 1);
   transition:
@@ -2846,7 +2814,7 @@ textarea.input.code {
 
 .banner.boss {
   background: var(--red);
-  color: var(--white);
+  color: var(--on-color);
 }
 
 .banner-ico {
@@ -2859,7 +2827,7 @@ textarea.input.code {
 }
 
 .banner.lose {
-  background: #d9cfc6;
+  background: var(--tint-grey);
 }
 
 .board-hint-host {
@@ -2877,17 +2845,17 @@ textarea.input.code {
   align-items: center;
   gap: 8px;
   padding: 6px 6px 6px 12px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 14px;
   background: var(--pencil);
-  box-shadow: 0 3px 0 var(--ink);
+  box-shadow: 0 3px 0 var(--shadow-color);
   font-weight: 900;
   animation: drop-in 0.3s ease;
 }
 
 /* 增益 */
 .perk-overlay {
-  background: rgba(40, 30, 26, 0.62);
+  background: var(--scrim);
   backdrop-filter: blur(2px);
 }
 
@@ -2901,13 +2869,13 @@ textarea.input.code {
   text-align: center;
   font-size: 26px;
   font-weight: 900;
-  color: var(--paper);
-  -webkit-text-stroke: 1px var(--ink);
-  text-shadow: 0 3px 0 var(--ink);
+  color: var(--on-scrim);
+  -webkit-text-stroke: 1px var(--outline-ink);
+  text-shadow: 0 3px 0 var(--outline-ink);
 }
 
 .perk-dialog > .muted {
-  color: rgba(251, 248, 241, 0.8);
+  color: rgb(251 248 241 / 0.8);
 }
 
 .perk-cards {
@@ -2917,7 +2885,7 @@ textarea.input.code {
 }
 
 .perk-card {
-  --rc: #a0aec0;
+  --rc: var(--rarity-common);
   position: relative;
   display: grid;
   align-content: start;
@@ -2927,10 +2895,10 @@ textarea.input.code {
   text-align: left;
   border: 4px solid var(--rc);
   border-radius: 18px;
-  background: var(--paper);
+  background: var(--surface);
   box-shadow:
-    0 0 0 2px var(--ink),
-    0 6px 0 2px var(--ink);
+    0 0 0 2px var(--border),
+    0 6px 0 2px var(--shadow-color);
   animation: card-in 0.4s cubic-bezier(0.3, 1.4, 0.6, 1) backwards;
   animation-delay: calc(var(--i) * 0.08s);
   transition: transform 0.12s;
@@ -2960,10 +2928,10 @@ textarea.input.code {
 
 .perk-card.r-epic {
   --rc: var(--epic);
-  background: linear-gradient(170deg, #f5edff, var(--paper) 60%);
+  background: linear-gradient(170deg, var(--tint-purple), var(--surface) 60%);
   box-shadow:
-    0 0 0 2px var(--ink),
-    0 6px 0 2px var(--ink),
+    0 0 0 2px var(--border),
+    0 6px 0 2px var(--shadow-color),
     0 0 26px rgba(142, 92, 217, 0.55);
 }
 
@@ -2973,9 +2941,9 @@ textarea.input.code {
   left: 12px;
   padding: 1px 10px;
   border-radius: 999px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   background: var(--rc);
-  color: var(--white);
+  color: var(--on-color);
   font-size: 12px;
   font-weight: 900;
 }
@@ -2986,7 +2954,7 @@ textarea.input.code {
   gap: 4px;
   font-size: 12px;
   font-weight: 800;
-  color: var(--purple);
+  color: var(--purple-text);
 }
 
 .reroll.poor {
@@ -3019,10 +2987,10 @@ textarea.input.code {
   justify-items: center;
   gap: 6px;
   padding: 16px 12px;
-  border: 3px solid var(--ink);
+  border: 3px solid var(--border);
   border-radius: 16px;
   text-align: center;
-  box-shadow: 0 4px 0 var(--ink);
+  box-shadow: 0 4px 0 var(--shadow-color);
   transition: transform 0.1s;
 }
 
@@ -3031,13 +2999,13 @@ textarea.input.code {
 }
 
 .branch-card.br-A {
-  background: linear-gradient(170deg, #d4faf6, var(--paper));
-  border-color: #1d7e75;
+  background: linear-gradient(170deg, var(--tint-green-2), var(--surface));
+  border-color: var(--branch-a-line);
 }
 
 .branch-card.br-B {
-  background: linear-gradient(170deg, #fde0ee, var(--paper));
-  border-color: #a12a66;
+  background: linear-gradient(170deg, var(--tint-pink), var(--surface));
+  border-color: var(--branch-b-line);
 }
 
 .branch-card.poor {
@@ -3054,8 +3022,8 @@ textarea.input.code {
   font-weight: 900;
   padding: 1px 8px;
   border-radius: 999px;
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--inverse);
+  color: var(--on-inverse);
 }
 
 .branch-card h3 {
@@ -3107,8 +3075,8 @@ textarea.input.code {
 .seed-row code {
   padding: 4px 10px;
   border-radius: 8px;
-  background: var(--paper-2);
-  border: 1.5px dashed var(--ink-soft);
+  background: var(--surface-2);
+  border: 1.5px dashed var(--border-soft);
   font-family: ui-monospace, Menlo, monospace;
   -webkit-user-select: all;
   user-select: all;
@@ -3125,7 +3093,7 @@ textarea.input.code {
 }
 
 .gameover-overlay.lost {
-  background: rgba(40, 30, 26, 0.62);
+  background: var(--scrim);
 }
 
 .gameover {
@@ -3167,7 +3135,7 @@ textarea.input.code {
   justify-items: center;
   padding: 8px 4px;
   border-radius: 12px;
-  background: var(--paper-2);
+  background: var(--surface-2);
   font-size: 12px;
 }
 
@@ -3194,7 +3162,7 @@ textarea.input.code {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 999px;
   background: var(--gold-l);
   font-weight: 900;
@@ -3203,7 +3171,7 @@ textarea.input.code {
 
 .go-reward.new {
   background: var(--red);
-  color: var(--white);
+  color: var(--on-color);
 }
 
 .mvp {
@@ -3248,8 +3216,8 @@ textarea.input.code {
 .mvp-bar {
   height: 8px;
   border-radius: 999px;
-  background: var(--paper-2);
-  border: 1.5px solid var(--ink-faint);
+  background: var(--surface-2);
+  border: 1.5px solid var(--border-faint);
   overflow: hidden;
 }
 
@@ -3295,8 +3263,8 @@ textarea.input.code {
 .load-bar {
   height: 14px;
   border-radius: 999px;
-  border: var(--bw) solid var(--ink);
-  background: var(--paper-2);
+  border: var(--bw) solid var(--border);
+  background: var(--surface-2);
   overflow: hidden;
 }
 
@@ -3304,7 +3272,7 @@ textarea.input.code {
   display: block;
   height: 100%;
   width: 0;
-  background: repeating-linear-gradient(135deg, var(--pencil) 0 10px, #f6cd6a 10px 20px);
+  background: repeating-linear-gradient(135deg, var(--pencil) 0 10px, var(--pencil-hi) 10px 20px);
   transition: width 0.1s;
 }
 
@@ -3314,10 +3282,10 @@ textarea.input.code {
   z-index: 25;
   width: min(300px, calc(100% - 20px));
   padding: 12px 14px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 14px;
   background: var(--pencil);
-  box-shadow: 0 4px 0 var(--ink);
+  box-shadow: 0 4px 0 var(--shadow-color);
   display: grid;
   gap: 4px;
   animation: pop-in 0.28s cubic-bezier(0.3, 1.5, 0.6, 1);
@@ -3349,7 +3317,7 @@ textarea.input.code {
   width: 14px;
   height: 14px;
   background: var(--pencil);
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   transform: rotate(45deg);
 }
 
@@ -3392,7 +3360,7 @@ textarea.input.code {
 
 /* ───────────── 魔境对局配色 ───────────── */
 .game[data-difficulty='abyss'] {
-  background: linear-gradient(180deg, #2a1f36, #1c1424);
+  background: linear-gradient(180deg, var(--abyss-card), var(--abyss-bg));
 }
 
 .game[data-difficulty='abyss'][data-layout='landscape'] .side,
@@ -3501,7 +3469,7 @@ textarea.input.code {
 @keyframes glow-pulse {
   50% {
     box-shadow:
-      0 3px 0 var(--ink),
+      0 3px 0 var(--shadow-color),
       0 0 0 5px rgba(242, 193, 78, 0.45);
   }
 }
@@ -3509,7 +3477,7 @@ textarea.input.code {
 @keyframes start-pulse {
   50% {
     box-shadow:
-      0 3px 0 var(--ink),
+      0 3px 0 var(--shadow-color),
       0 0 0 5px rgba(242, 193, 78, 0.55);
   }
 }
@@ -3517,7 +3485,7 @@ textarea.input.code {
 @keyframes aim-pulse {
   50% {
     box-shadow:
-      0 0 0 3px var(--paper),
+      0 0 0 3px var(--surface),
       0 0 0 6px rgba(230, 57, 70, 0.45);
   }
 }
@@ -3543,7 +3511,7 @@ textarea.input.code {
 
 @keyframes gain {
   40% {
-    color: var(--gold-d);
+    color: var(--gold-text);
     transform: scale(1.15);
   }
 }
@@ -3665,7 +3633,7 @@ textarea.input.code {
   width: 120px;
   height: 140px;
   place-items: center;
-  border: 1.5px dashed var(--ink-faint);
+  border: 1.5px dashed var(--border-faint);
   border-radius: var(--radius-s);
   text-align: center;
   padding: 8px;
@@ -3674,10 +3642,10 @@ textarea.input.code {
 .layout-svg {
   width: 120px;
   aspect-ratio: 12 / 14;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 10px;
   overflow: hidden;
-  background: var(--paper-2);
+  background: var(--surface-2);
   animation: pop-in 0.25s ease;
 }
 
@@ -3695,7 +3663,7 @@ textarea.input.code {
   max-width: 160px;
   font-size: 10px;
   font-weight: 700;
-  color: var(--ink-soft);
+  color: var(--ink-muted);
 }
 
 .layout-legend .lg {
@@ -3704,12 +3672,12 @@ textarea.input.code {
   height: 8px;
   margin-right: 3px;
   border-radius: 2px;
-  border: 1px solid var(--ink);
+  border: 1px solid var(--border);
   vertical-align: -1px;
 }
 
 .lg.spawn {
-  background: #e63946;
+  background: var(--red);
 }
 
 .lg.hidden {
@@ -3722,7 +3690,7 @@ textarea.input.code {
 }
 
 .lg.obst {
-  background: #c9ad80;
+  background: var(--legend-obst);
 }
 
 /* —— 自定义：出怪方式 / 事件开关 —— */
@@ -3743,12 +3711,12 @@ textarea.input.code {
   gap: 4px;
   min-height: 38px;
   padding: 4px 8px;
-  border: 1.5px solid var(--ink-faint);
+  border: 1.5px solid var(--border-faint);
   border-radius: var(--radius-s);
-  background: var(--paper-2);
+  background: var(--surface-2);
   font-size: 13px;
   font-weight: 700;
-  color: var(--ink-soft);
+  color: var(--ink-muted);
   text-align: left;
   text-decoration: line-through;
 }
@@ -3767,8 +3735,8 @@ textarea.input.code {
 }
 
 .event-toggle.on {
-  border: var(--bw) solid var(--ink);
-  background: var(--paper);
+  border: var(--bw) solid var(--border);
+  background: var(--surface);
   color: var(--ink);
   text-decoration: none;
 }
@@ -3778,15 +3746,15 @@ textarea.input.code {
 }
 
 .event-toggle.on.tone-bad {
-  background: #fde2e2;
+  background: var(--tint-red);
 }
 
 .event-toggle.on.tone-good {
-  background: #dcf3ea;
+  background: var(--tint-green);
 }
 
 .event-toggle.on.tone-neutral {
-  background: #e3f0f8;
+  background: var(--tint-blue);
 }
 
 /* —— 排行榜 —— */
@@ -3807,16 +3775,16 @@ textarea.input.code {
   margin-left: 4px;
   padding: 0 5px;
   border-radius: 999px;
-  border: 1px solid var(--ink-faint);
+  border: 1px solid var(--border-faint);
   font-size: 10px;
   font-weight: 800;
-  color: var(--ink-soft);
+  color: var(--ink-muted);
 }
 
 .wave-mode.auto {
-  background: #ffe2a6;
+  background: var(--tint-amber);
   color: var(--ink);
-  border-color: var(--ink);
+  border-color: var(--border);
 }
 
 /* —— 开波按钮：倒计时 —— */
@@ -3831,8 +3799,8 @@ textarea.input.code {
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  border: 1.5px solid var(--ink);
-  background: conic-gradient(var(--ink) calc(var(--p) * 360deg), rgba(59, 47, 42, 0.15) 0);
+  border: 1.5px solid var(--border);
+  background: conic-gradient(var(--inverse) calc(var(--p) * 360deg), rgb(var(--shadow-rgb) / 0.15) 0);
 }
 
 .count-ring::after {
@@ -3840,15 +3808,15 @@ textarea.input.code {
   position: absolute;
   inset: 4px;
   border-radius: 50%;
-  background: #ffe2a6;
+  background: var(--tint-amber);
 }
 
 .start-btn.counting {
-  background: #ffe2a6;
+  background: var(--tint-amber);
 }
 
 .start-btn.urgent {
-  background: #ffc58a;
+  background: var(--tint-amber-2);
 }
 
 .start-btn.urgent .count-ring {
@@ -3856,7 +3824,7 @@ textarea.input.code {
 }
 
 .start-btn.urgent .count-ring::after {
-  background: #ffc58a;
+  background: var(--tint-amber-2);
 }
 
 .start-btn.blink {
@@ -3864,14 +3832,14 @@ textarea.input.code {
 }
 
 .start-btn.blocked:disabled {
-  background: #f3d6d6;
+  background: var(--tint-red-2);
   color: var(--ink);
   opacity: 1;
 }
 
 .start-btn.boss-next {
   box-shadow:
-    0 3px 0 var(--ink),
+    0 3px 0 var(--shadow-color),
     inset 0 0 0 2px rgba(230, 57, 70, 0.55);
 }
 
@@ -3883,7 +3851,7 @@ textarea.input.code {
   height: 22px;
   padding: 2px;
   border-radius: 50%;
-  border: 1.5px solid var(--ink);
+  border: 1.5px solid var(--border);
   background: var(--red);
   display: grid;
   place-items: center;
@@ -3916,8 +3884,8 @@ textarea.input.code {
   gap: 4px;
   padding: 2px 4px 2px 2px;
   border-radius: 12px;
-  border: 1.5px dashed var(--ink-soft);
-  background: rgba(255, 255, 255, 0.35);
+  border: 1.5px dashed var(--border-soft);
+  background: rgb(var(--hi-rgb) / calc(0.35 * var(--hi-k)));
 }
 
 .pv-sp-name {
@@ -3925,8 +3893,8 @@ textarea.input.code {
   font-weight: 900;
   padding: 1px 6px;
   border-radius: 8px;
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--inverse);
+  color: var(--on-inverse);
   white-space: nowrap;
 }
 
@@ -3935,15 +3903,18 @@ textarea.input.code {
 }
 
 .pv-spawner.k-drop .pv-sp-name {
-  background: #b5651d;
+  background: var(--drop-brown);
+  color: var(--on-color);
 }
 
 .pv-spawner.k-hidden .pv-sp-name {
   background: var(--purple);
+  color: var(--on-color);
 }
 
 .pv-spawner.k-split .pv-sp-name {
   background: var(--red);
+  color: var(--on-color);
 }
 
 /* —— 即将发生（事件时间轴） —— */
@@ -3964,7 +3935,7 @@ textarea.input.code {
 .up-title {
   font-size: 11px;
   font-weight: 800;
-  color: var(--ink-soft);
+  color: var(--ink-muted);
 }
 
 .up-event {
@@ -3974,10 +3945,10 @@ textarea.input.code {
   gap: 3px;
   padding: 1px 6px 1px 3px;
   border-radius: 999px;
-  border: 1.5px solid var(--ink);
+  border: 1.5px solid var(--border);
   font-size: 12px;
   font-weight: 800;
-  background: var(--paper);
+  background: var(--surface);
   animation: pop-in 0.25s ease;
 }
 
@@ -3987,15 +3958,15 @@ textarea.input.code {
 }
 
 .up-event.tone-bad {
-  background: #fde2e2;
+  background: var(--tint-red);
 }
 
 .up-event.tone-good {
-  background: #dcf3ea;
+  background: var(--tint-green);
 }
 
 .up-event.tone-neutral {
-  background: #e3f0f8;
+  background: var(--tint-blue);
 }
 
 .up-secs {
@@ -4029,10 +4000,10 @@ textarea.input.code {
   align-items: center;
   gap: 10px;
   padding: 8px 12px 8px 8px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 14px;
-  background: var(--paper);
-  box-shadow: 0 4px 0 var(--ink);
+  background: var(--surface);
+  box-shadow: 0 4px 0 var(--shadow-color);
   animation: event-in 0.35s cubic-bezier(0.3, 1.4, 0.6, 1);
   transform-origin: top left;
   transition:
@@ -4046,19 +4017,19 @@ textarea.input.code {
 }
 
 .event-card.tone-bad {
-  background: #fde2e2;
+  background: var(--tint-red);
 }
 
 .event-card.tone-bad.ph-start {
-  background: #f9c3c6;
+  background: var(--tint-red-2);
 }
 
 .event-card.tone-good {
-  background: #dcf3ea;
+  background: var(--tint-green);
 }
 
 .event-card.tone-neutral {
-  background: #e3f0f8;
+  background: var(--tint-blue);
 }
 
 .ev-ico {
@@ -4067,8 +4038,8 @@ textarea.input.code {
   height: 36px;
   padding: 4px;
   border-radius: 10px;
-  border: 1.5px solid var(--ink);
-  background: var(--paper);
+  border: 1.5px solid var(--border);
+  background: var(--surface);
 }
 
 .ev-ico svg {
@@ -4098,7 +4069,7 @@ textarea.input.code {
 .ev-phase {
   font-size: 11px;
   font-weight: 800;
-  color: var(--ink-soft);
+  color: var(--ink-muted);
 }
 
 .ev-desc {
@@ -4135,8 +4106,8 @@ textarea.input.code {
   gap: 3px;
   padding: 2px 8px 2px 3px;
   border-radius: 999px;
-  border: 1.5px solid var(--ink);
-  background: rgba(251, 248, 241, 0.92);
+  border: 1.5px solid var(--border);
+  background: rgb(var(--surface-rgb) / 0.92);
   font-size: 12px;
   font-weight: 800;
   animation: pop-in 0.3s ease;
@@ -4148,11 +4119,11 @@ textarea.input.code {
 }
 
 .event-chip.tone-bad {
-  background: rgba(253, 226, 226, 0.95);
+  background: color-mix(in srgb, var(--tint-red) 95%, transparent);
 }
 
 .event-chip.tone-good {
-  background: rgba(220, 243, 234, 0.95);
+  background: color-mix(in srgb, var(--tint-green) 95%, transparent);
 }
 
 .event-chip b {
@@ -4185,10 +4156,10 @@ textarea.input.code {
   display: grid;
   gap: 8px;
   padding: 10px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 16px;
-  background: var(--paper);
-  box-shadow: 0 4px 0 var(--ink);
+  background: var(--surface);
+  box-shadow: 0 4px 0 var(--shadow-color);
   animation: drop-in 0.3s cubic-bezier(0.3, 1.4, 0.6, 1);
   transition:
     opacity 0.2s,
@@ -4223,10 +4194,10 @@ textarea.input.code {
   gap: 2px;
   min-height: 64px;
   padding: 6px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 12px;
-  background: #fff4d6;
-  box-shadow: 0 3px 0 var(--ink);
+  background: var(--tint-yellow);
+  box-shadow: 0 3px 0 var(--shadow-color);
   text-align: left;
   animation: card-in 0.3s ease backwards;
   animation-delay: calc(var(--i, 0) * 60ms);
@@ -4234,7 +4205,7 @@ textarea.input.code {
 
 .crate-opt:active {
   transform: translateY(2px);
-  box-shadow: 0 1px 0 var(--ink);
+  box-shadow: 0 1px 0 var(--shadow-color);
 }
 
 .crate-opt b {
@@ -4245,7 +4216,7 @@ textarea.input.code {
 .crate-opt small {
   font-size: 11px;
   line-height: 1.25;
-  color: var(--ink-soft);
+  color: var(--ink-muted);
 }
 
 /* —— 信息面板：进化 —— */
@@ -4257,7 +4228,7 @@ textarea.input.code {
 .evo-star {
   width: 15px;
   height: 15px;
-  background: var(--desk-dark);
+  background: var(--bg-2);
   clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
 }
 
@@ -4276,7 +4247,7 @@ textarea.input.code {
 
 .tower-info.t5 .info-ico {
   border-color: var(--gold-d);
-  background: linear-gradient(160deg, #fff4c2, var(--desk));
+  background: linear-gradient(160deg, var(--tint-yellow), var(--bg));
 }
 
 .tower-info.t5.br-A .info-ico {
@@ -4288,7 +4259,7 @@ textarea.input.code {
 }
 
 .t5 .tier-badge {
-  background: linear-gradient(110deg, var(--gold-l), #fff4c2 45%, var(--gold-l));
+  background: linear-gradient(110deg, var(--gold-l), var(--tint-yellow) 45%, var(--gold-l));
   border-color: var(--gold-d);
 }
 
@@ -4301,11 +4272,11 @@ textarea.input.code {
 }
 
 .btn.upgrade.evolve {
-  background: linear-gradient(120deg, #fff1bf, #ffe08a);
+  background: linear-gradient(120deg, var(--tint-yellow), var(--tint-yellow-2));
 }
 
 .btn.upgrade.mythic-up {
-  background: linear-gradient(120deg, #c2f2ec, #fff1bf 50%, #f7c6df);
+  background: linear-gradient(120deg, var(--tint-green-2), var(--tint-yellow) 50%, var(--tint-pink));
 }
 
 .btn.upgrade.evolve.poor {
@@ -4321,14 +4292,14 @@ textarea.input.code {
   align-items: center;
   gap: 8px;
   padding: 6px;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 12px;
-  background: linear-gradient(120deg, #fffaf0, #fff1bf);
+  background: linear-gradient(120deg, var(--tint-cream), var(--tint-yellow));
 }
 
 .ability-card.aiming {
   box-shadow:
-    0 0 0 2px var(--paper),
+    0 0 0 2px var(--surface),
     0 0 0 4px var(--red);
 }
 
@@ -4338,9 +4309,9 @@ textarea.input.code {
   width: 44px;
   height: 44px;
   padding: 0;
-  border: var(--bw) solid var(--ink);
+  border: var(--bw) solid var(--border);
   border-radius: 12px;
-  background: var(--paper);
+  background: var(--surface);
   overflow: hidden;
 }
 
@@ -4377,7 +4348,7 @@ textarea.input.code {
 .ability-desc {
   font-size: 12px;
   line-height: 1.3;
-  color: var(--ink-soft);
+  color: var(--ink-muted);
 }
 
 .ability-cast {
@@ -4402,18 +4373,18 @@ kbd.key-hint.inline {
 }
 
 .spawner-info.k-drop .info-ico {
-  background: #e9c99a;
+  background: var(--tint-tan);
   border-style: dashed;
 }
 
 .sp-status {
   font-size: 12px;
   font-weight: 800;
-  color: var(--ink-soft);
+  color: var(--ink-muted);
 }
 
 .btn.demolish {
-  background: #ffd9b8;
+  background: var(--tint-amber-2);
 }
 
 .btn.demolish.poor {
@@ -4421,7 +4392,7 @@ kbd.key-hint.inline {
 }
 
 .btn.seal {
-  background: #f1e2c4;
+  background: var(--tint-tan-2);
 }
 
 /* —— 技能栏：塔能力 —— */
@@ -4450,7 +4421,7 @@ kbd.key-hint.inline {
 .strip-title {
   font-size: 11px;
   font-weight: 900;
-  color: var(--gold-d);
+  color: var(--gold-text);
   writing-mode: vertical-rl;
   letter-spacing: 0.1em;
 }
@@ -4473,7 +4444,7 @@ kbd.key-hint.inline {
 
 .skill-btn.ability-btn.ready {
   box-shadow:
-    0 3px 0 var(--ink),
+    0 3px 0 var(--shadow-color),
     0 0 10px rgba(212, 168, 44, 0.6);
 }
 
@@ -4504,8 +4475,8 @@ kbd.key-hint.inline {
   gap: 2px 6px;
   padding: 6px 8px;
   border-radius: 10px;
-  border: 1.5px solid var(--ink-faint);
-  background: var(--paper);
+  border: 1.5px solid var(--border-faint);
+  background: var(--surface);
 }
 
 .event-log li .gi {
@@ -4519,16 +4490,137 @@ kbd.key-hint.inline {
 }
 
 .event-log li.tone-bad {
-  background: #fde2e2;
+  background: var(--tint-red);
 }
 
 .event-log li.tone-good {
-  background: #dcf3ea;
+  background: var(--tint-green);
 }
 
 .ev-wave {
   font-size: 11px;
   font-weight: 800;
-  color: var(--ink-soft);
+  color: var(--ink-muted);
   white-space: nowrap;
+}
+
+/* ———————————————— 主题：亮色块 / 图标 / 素材 / 切换过渡 ———————————————— */
+
+/*
+ * 亮色块名单：这些元素的底色在两套主题里都是亮色（铅笔黄、亮金、天蓝…），
+ * 所以把文字 / 图标 / 纸面 / 描边相关的变量在它们内部改回浅色主题的取值（里面嵌套的按钮、徽章也跟着用浅色那套）。
+ * 新增亮底元素时把选择器加进来，或直接给元素加 class="on-bright"。
+ */
+:is(
+    .on-bright,
+    .btn.primary,
+    .btn.on,
+    .seg.on,
+    .logo-en,
+    .menu-btn.primary,
+    .tab.on,
+    .is-paused .pause-btn,
+    .build-btn.on,
+    .t3 .tier-badge,
+    .t4.br-A .tier-badge,
+    .t5 .tier-badge,
+    .btn.upgrade .disc,
+    .btn.sell.undo,
+    .skill-lv,
+    .axis-btn,
+    .wave-tag.air,
+    .banner.win,
+    .board-hint,
+    .go-reward,
+    .coach,
+    .coach-arrow,
+    .evo-traits .trait-lv,
+    .ability-card.ready .ability-cast,
+    .ai-model-chip.on,
+    .stat-pop,
+    .badge.today
+  ) {
+  color-scheme: light;
+  --surface: #fbf8f1;
+  --surface-2: #f4eddf;
+  --surface-hi: #ffffff;
+  --surface-rgb: 251 248 241;
+  --border: var(--ink-fixed);
+  --shadow-color: var(--ink-fixed);
+  --shadow-rgb: 59 47 42;
+  --inverse: var(--ink-fixed);
+  --on-inverse: #fbf8f1;
+  --hi-rgb: 255 255 255;
+  --hi-k: 1;
+  --ink: var(--ink-fixed);
+  --ink-rgb: 59 47 42;
+  --ink-muted: rgba(59, 47, 42, 0.75);
+  --ink-faint: rgba(59, 47, 42, 0.18);
+  --border-soft: rgba(59, 47, 42, 0.62);
+  --border-faint: rgba(59, 47, 42, 0.18);
+  --icon-line: var(--ink-fixed);
+  --art-halo: none;
+  --good-text: #17786c;
+  --good-text-strong: #17786c;
+  --bad-text: #b3202c;
+  --bad-text-strong: #b3202c;
+  --warn-text: #7a3e00;
+  --info-text: #2e4a7d;
+  --purple-text: #5a4a69;
+  --gold-text: #6e5510;
+}
+
+/* 深色主题下，亮色块里没有自己写 color 的元素要改用深色字（特异性压到最低，只盖过 button{color:inherit}） */
+html:where([data-theme='dark']) :where(.on-bright, .btn.primary, .btn.on, .seg.on, .logo-en, .menu-btn.primary, .tab.on, .is-paused .pause-btn, .build-btn.on, .t3 .tier-badge, .t4.br-A .tier-badge, .t5 .tier-badge, .btn.upgrade .disc, .btn.sell.undo, .skill-lv, .axis-btn, .wave-tag.air, .banner.win, .board-hint, .go-reward, .coach, .coach-arrow, .evo-traits .trait-lv, .ability-card.ready .ability-cast, .ai-model-chip.on, .stat-pop, .badge.today) {
+  color: var(--ink);
+}
+
+@media (prefers-color-scheme: dark) {
+  html:where(:not([data-theme='light'])) :where(.on-bright, .btn.primary, .btn.on, .seg.on, .logo-en, .menu-btn.primary, .tab.on, .is-paused .pause-btn, .build-btn.on, .t3 .tier-badge, .t4.br-A .tier-badge, .t5 .tier-badge, .btn.upgrade .disc, .btn.sell.undo, .skill-lv, .axis-btn, .wave-tag.air, .banner.win, .board-hint, .go-reward, .coach, .coach-arrow, .evo-traits .trait-lv, .ability-card.ready .ability-cast, .ai-model-chip.on, .stat-pop, .badge.today) {
+    color: var(--ink);
+  }
+}
+
+/* 内联 SVG 图标：描边写死成墨色（#3B2F2A），用 CSS 改成跟随主题（CSS 规则优先于 SVG 表现属性） */
+svg[stroke='#3B2F2A' i] {
+  stroke: var(--icon-line);
+}
+
+svg[stroke='#3B2F2A' i] [fill='#3B2F2A' i] {
+  fill: var(--icon-line);
+}
+
+/* 美术素材（<img> 引用的 SVG，自带墨色描边）：深色主题下加一圈很淡的浅色勾边，轮廓才看得清 */
+img {
+  filter: var(--art-halo);
+}
+
+/* 切换主题时的 150ms 颜色过渡（由 theme.ts 临时加上 html.theme-fade；减少动画时不加） */
+html.theme-fade,
+html.theme-fade *,
+html.theme-fade *::before,
+html.theme-fade *::after {
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease,
+    fill 150ms ease,
+    stroke 150ms ease !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.theme-fade,
+  html.theme-fade *,
+  html.theme-fade *::before,
+  html.theme-fade *::after {
+    transition: none !important;
+  }
+}
+
+html.reduce-motion.theme-fade,
+html.reduce-motion.theme-fade *,
+html.reduce-motion.theme-fade *::before,
+html.reduce-motion.theme-fade *::after {
+  transition: none !important;
 }

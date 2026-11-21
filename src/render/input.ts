@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
+import { t } from '../i18n';
 import type { Command, EnemyState, PlaceCheck, SkillState, TowerId, TowerInfo, TowerState } from '../core/types';
 import { ui } from '../game/UiStore';
 import type { RenderCtx } from './ctx';
 import type { FieldLayer } from './field';
 import { BOARD_H, BOARD_W, CELL, DEPTH } from './layout';
-import { C } from './palette';
+import { B, C } from './palette';
 import { PartSet } from './parts';
 import { branchColor, dashed, towerAsset } from './towers';
 
@@ -164,6 +165,13 @@ export class BoardInput {
   private click(cell: Cell | null, pos: { x: number; y: number }, touch: boolean): void {
     const s = ui.state;
     const session = this.ctx.session;
+    // AI 玩家操作中：只能点选查看塔 / 空降纸箱，不发任何指令
+    if (s.inspectOnly) {
+      const uid = this.towerAt(cell);
+      const drop = !uid && cell ? this.field.dropAt(cell.cx, cell.cy) : null;
+      ui.set({ selected: uid || null, spawnerSelected: drop ? drop.id : null, pending: null, build: null, aiming: null, abilityAiming: null });
+      return;
+    }
     if (s.abilityAiming !== null) {
       this.clickAbility(cell, pos, touch);
       return;
@@ -185,7 +193,7 @@ export class BoardInput {
     if (s.perkTargeting) {
       const uid = this.towerAt(cell);
       if (!uid) {
-        if (cell) this.fail(cell, '请选择一座塔');
+        if (cell) this.fail(cell, t('ui.render.pickTower'));
         return;
       }
       const r = session.command({ type: 'choosePerk', id: s.perkTargeting, uid });
@@ -313,7 +321,7 @@ export class BoardInput {
       case 'direction': {
         if (!cell) return outside();
         if (cell.cx === tower.cx && cell.cy === tower.cy) {
-          this.fail(cell, '请点击要射击的方向');
+          this.fail(cell, t('ui.render.pickDirection'));
           return;
         }
         if (needConfirm(cell)) {
@@ -335,7 +343,7 @@ export class BoardInput {
         if (!cell) return outside();
         const e = this.enemyNear(pos, touch ? 0.9 : 0.7);
         if (!e) {
-          this.fail(cell, '请选择一个敌人');
+          this.fail(cell, t('ui.render.pickEnemy'));
           this.pendingEnemy = null;
           return;
         }
@@ -350,7 +358,7 @@ export class BoardInput {
       case 'tower': {
         const uid = this.towerAt(cell);
         if (!uid) {
-          if (cell) this.fail(cell, '请选择一座塔');
+          if (cell) this.fail(cell, t('ui.render.pickTower'));
           else outside();
           return;
         }
@@ -427,7 +435,7 @@ export class BoardInput {
       case 'tower': {
         const uid = this.towerAt(cell);
         if (!uid) {
-          if (cell) this.fail(cell, '请选择一座塔');
+          if (cell) this.fail(cell, t('ui.render.pickTower'));
           else if (touch) ui.set({ aiming: null, pending: null });
           return;
         }
@@ -439,7 +447,7 @@ export class BoardInput {
         // 封箱胶带：点一个已落地的空降纸箱
         const sp = cell ? this.field.dropAt(cell.cx, cell.cy, true) : null;
         if (!sp) {
-          if (cell) this.fail(cell, '请选择一个空降纸箱');
+          if (cell) this.fail(cell, t('ui.render.pickDrop'));
           else if (touch) ui.set({ aiming: null, pending: null });
           return;
         }
@@ -451,7 +459,7 @@ export class BoardInput {
         const uid = this.towerAt(cell);
         if (s.relocateFrom === null) {
           if (!uid) {
-            if (cell) this.fail(cell, '先选择要搬的塔');
+            if (cell) this.fail(cell, t('ui.render.pickMoveFirst'));
             else if (touch) ui.set({ aiming: null, pending: null });
             return;
           }
@@ -583,7 +591,7 @@ export class BoardInput {
         }
       }
       const pv = focus ? this.cache.preview : null;
-      for (const p of this.cache.current) this.drawPath(ug, p, C.ink, pv ? 0.22 : 0.4, true, rt);
+      for (const p of this.cache.current) this.drawPath(ug, p, B.line, pv ? 0.22 : 0.4, true, rt);
       if (pv) for (const p of pv) this.drawPath(ug, p, C.teal, 0.85, false, rt);
       if (focus) {
         const ok = !!this.cache.check?.ok;
@@ -613,6 +621,11 @@ export class BoardInput {
       const pulse = this.ctx.reduced ? 1 : 0.5 + 0.5 * Math.sin(rt * 6);
       og.lineStyle(3, C.magenta, 0.55 + 0.45 * pulse);
       og.strokeRoundedRect(f.cx * CELL - 1, f.cy * CELL - 1, CELL + 2, CELL + 2, 9);
+    }
+    if (s.aiFocusCells?.length) {
+      const pulse = this.ctx.reduced ? 1 : 0.5 + 0.5 * Math.sin(rt * 6);
+      og.lineStyle(3, C.magenta, 0.55 + 0.45 * pulse);
+      for (const f of s.aiFocusCells) og.strokeRoundedRect(f.cx * CELL - 1, f.cy * CELL - 1, CELL + 2, CELL + 2, 9);
     }
 
     // 幽灵塔
@@ -677,9 +690,9 @@ export class BoardInput {
     }
     if (inner && inner > 0) {
       const r = inner * CELL;
-      g.fillStyle(C.ink, 0.1 * alpha);
+      g.fillStyle(B.line, 0.1 * alpha);
       g.fillCircle(x, y, r);
-      dashCircle(g, x, y, r, C.ink, 1.5, 0.6 * alpha, rt * 0.3);
+      dashCircle(g, x, y, r, B.line, 1.5, 0.6 * alpha, rt * 0.3);
     }
     if (aura && aura > 0) {
       const r = aura * CELL;

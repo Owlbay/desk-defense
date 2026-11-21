@@ -7,13 +7,15 @@ import { MAP_META } from '../coreMeta';
 import { h, img } from '../dom';
 import { G } from '../icons';
 import { AI_GLYPH } from '../ai/icon';
+import { getLocale, t } from '../../i18n';
 
-const MODE_NAME = { campaign: '战役', endless: '无尽', custom: '自定义' } as const;
+const modeName = (m: RunOptions['mode']): string => t(`ui.menu.mode.${m}`);
 
 export function runSummary(opts: RunOptions): string {
   const map = MAP_META[opts.map]?.name ?? opts.map;
-  const diff = opts.mode === 'custom' ? '自定义' : diffLabel(opts.difficulty, opts.abyssLevel ?? 1);
-  return `${MODE_NAME[opts.mode]} · ${map} · ${diff}${opts.autoWave === true ? ' · 自动开波' : opts.autoWave === false ? ' · 手动开波' : ''}`;
+  const diff = opts.mode === 'custom' ? t('ui.menu.mode.custom') : diffLabel(opts.difficulty, opts.abyssLevel ?? 1);
+  const wave = opts.autoWave === true ? t('ui.menu.autoWave') : opts.autoWave === false ? t('ui.menu.manualWave') : '';
+  return [modeName(opts.mode), map, diff, wave].filter(Boolean).join(' · ');
 }
 
 export function menuScreen(app: App): Screen {
@@ -27,7 +29,7 @@ export function menuScreen(app: App): Screen {
   const lockedBtn = (label: string, glyph: string, hint: string) =>
     h(
       'button.menu-btn.locked',
-      { onclick: () => (audio.play('error'), app.toast(`${label}：${hint}`, 'warn')), attrs: { 'aria-disabled': 'true' } },
+      { onclick: () => (audio.play('error'), app.toast(t('ui.menu.lockedToast', { label, hint }), 'warn')), attrs: { 'aria-disabled': 'true' } },
       h('span.gi', { html: glyph }),
       h('span.menu-label', null, label, h('small', null, hint)),
       h('span.gi.lock', { html: G.lock }),
@@ -66,18 +68,18 @@ export function menuScreen(app: App): Screen {
 
   const dailyBtn = endlessOk
     ? btn(
-        '每日挑战',
+        t('ui.menu.daily'),
         G.target,
         () => {
           audio.play('click');
           app.go({ name: 'daily' });
-          if (app.route.name !== 'daily') app.toast('每日挑战即将开放', 'info');
+          if (app.route.name !== 'daily') app.toast(t('ui.menu.dailySoon'), 'info');
         },
-        '每天一张新桌面',
+        t('ui.menu.dailySub'),
         '.daily',
       )
-    : lockedBtn('每日挑战', G.target, '通关战役第一章解锁');
-  if (endlessOk) dailyBtn.appendChild(h('span.badge.today', null, '今日'));
+    : lockedBtn(t('ui.menu.daily'), G.target, t('ui.menu.unlockCh1'));
+  if (endlessOk) dailyBtn.appendChild(h('span.badge.today', null, t('ui.menu.today')));
 
   const el = h(
     'div.screen.menu-screen',
@@ -91,8 +93,15 @@ export function menuScreen(app: App): Screen {
         'div.logo',
         null,
         // 标题逐字落下；读屏只读整词
-        h('span.logo-zh', { attrs: { role: 'img', 'aria-label': '书桌防线' } }, [...'书桌防线'].map((ch, i) => h('span.logo-ch', { style: `--i:${i}`, attrs: { 'aria-hidden': 'true' } }, ch))),
-        h('span.logo-en', null, 'DESK DEFENSE'),
+        h(
+          'span.logo-zh',
+          {
+            // 西文标题字母多：缩小字号、不换行（样式表按 4 个汉字设计；data-long 供主题样式接管）
+            ...(t('ui.menu.logo').length > 6 ? { style: 'font-size: clamp(30px, 9vw, 60px); white-space: nowrap; letter-spacing: 0.02em' } : {}),
+            attrs: { role: 'img', 'aria-label': t('ui.menu.logo'), 'data-long': String(t('ui.menu.logo').length > 6) },
+          }, [...t('ui.menu.logo')].map((ch, i) => h('span.logo-ch', { style: `--i:${i}`, attrs: { 'aria-hidden': 'true' } }, ch === ' ' ? '\u00a0' : ch))),
+        // 英文界面里主标题已是英文，不再重复副标题
+        getLocale() === 'en' ? null : h('span.logo-en', null, 'DESK DEFENSE'),
       ),
       parade,
     ),
@@ -101,31 +110,32 @@ export function menuScreen(app: App): Screen {
       null,
       mid
         ? btn(
-            '继续游戏',
+            t('ui.menu.continue'),
             G.play,
             () => {
               audio.play('select');
               app.go({ name: 'game', opts: mid.opts, resume: mid });
             },
-            `${runSummary(mid.opts)} · 第 ${mid.wave} 波后`,
+            t('ui.menu.continueSub', { summary: runSummary(mid.opts), n: mid.wave }),
             '.primary.continue',
           )
         : null,
-      btn('战役', G.book, go({ name: 'campaign' }), `已通关 ${clearedCount} / 3 章`),
-      endlessOk ? btn('无尽', G.infinity, go({ name: 'endless' }), '撑得越久，墨水越多') : lockedBtn('无尽', G.infinity, '通关战役第一章解锁'),
+      btn(t('ui.menu.mode.campaign'), G.book, go({ name: 'campaign' }), t('ui.menu.campaignSub', { n: clearedCount, total: 3 })),
+      endlessOk ? btn(t('ui.menu.mode.endless'), G.infinity, go({ name: 'endless' }), t('ui.menu.endlessSub')) : lockedBtn(t('ui.menu.mode.endless'), G.infinity, t('ui.menu.unlockCh1')),
       dailyBtn,
-      customUnlocked(p) ? btn('自定义', G.sliders, go({ name: 'custom' }), '拖动滑块，自己定难度') : lockedBtn('自定义', G.sliders, '通关战役第一章解锁'),
-      btn('AI 参战', AI_GLYPH, go({ name: 'ai' }), '让大模型来玩，或者给你当军师', '.ai-entry'),
+      customUnlocked(p) ? btn(t('ui.menu.mode.custom'), G.sliders, go({ name: 'custom' }), t('ui.menu.customSub')) : lockedBtn(t('ui.menu.mode.custom'), G.sliders, t('ui.menu.unlockCh1')),
+      btn(t('ui.menu.ai'), AI_GLYPH, go({ name: 'ai' }), t('ui.menu.aiSub'), '.ai-entry'),
+      btn(t('guide.menu.label'), G.list, go({ name: 'guide' }), t('guide.menu.sub'), '.guide-entry'),
       h(
         'div.menu-grid',
         null,
-        btn('书包', G.bag, go({ name: 'talents' }), '永久天赋'),
-        btn('技能', G.bolt, go({ name: 'skills' }), '带入与升级'),
-        btn('排行榜', G.trophy, go({ name: 'leaderboard' }), '本地前 10'),
-        btn('设置', G.gear, go({ name: 'settings' }), '画质与声音'),
+        btn(t('ui.menu.talents'), G.bag, go({ name: 'talents' }), t('ui.menu.talentsSub')),
+        btn(t('ui.menu.skills'), G.bolt, go({ name: 'skills' }), t('ui.menu.skillsSub')),
+        btn(t('ui.menu.leaderboard'), G.trophy, go({ name: 'leaderboard' }), t('ui.menu.leaderboardSub', { n: 10 })),
+        btn(t('ui.menu.settings'), G.gear, go({ name: 'settings' }), t('ui.menu.settingsSub')),
       ),
     ),
-    h('footer.menu-foot.muted', null, app.store.kv.persistent ? '进度自动保存在本机' : '当前浏览器无法保存进度（隐私模式？）'),
+    h('footer.menu-foot.muted', null, app.store.kv.persistent ? t('ui.menu.savedLocal') : t('ui.menu.noSave')),
   );
   return { el };
 }

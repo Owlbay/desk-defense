@@ -48,6 +48,18 @@ export interface Tower extends TowerState {
   laserTime: number;
   laserAcc: number;
   laserBeamT: number;
+  /** 台灯：主光束当前递增倍率（1..上限） */
+  beamRamp: number;
+  /** 台灯镀金·双灯头：第二道光束的目标 / 递增 / 累积伤害 */
+  beam2Uid: number;
+  beam2Ramp: number;
+  beam2Acc: number;
+  /** 台灯：过载（激光阵列 ★3，整组生效）截止时间 */
+  overUntil: number;
+  /** 台灯联动：本步的角色 0 单独 / 1 主灯 / 2 辅灯 / 3 组内独立开火 */
+  prismRole: number;
+  /** 台灯联动分组用的访问标记（代数） */
+  prismMark: number;
   sweepPhase: number;
   colorGold: number;
   halfLegend: boolean;

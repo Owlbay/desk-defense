@@ -1,4 +1,5 @@
 import type { Command, IWorld, RunOptions } from '../core/types';
+import { cloneAssist, type AiAssist } from './aiAssist';
 import type { MidRun } from './profile';
 
 /**
@@ -11,8 +12,9 @@ export type ReplayWorld = Pick<IWorld, 'step' | 'command' | 'drainEvents'> & {
   readonly state: { tick: number; phase: string; wave: number; seed: string };
 };
 
-export function makeMidRun(world: Pick<IWorld, 'log'> & { state: { tick: number; seed: string; wave: number; opts: RunOptions } }): MidRun {
+export function makeMidRun(world: Pick<IWorld, 'log'> & { state: { tick: number; seed: string; wave: number; opts: RunOptions } }, aiAssist?: AiAssist | null): MidRun {
   const opts: RunOptions = { ...world.state.opts, seed: world.state.opts.seed ?? world.state.seed };
+  const assist = cloneAssist(aiAssist);
   return {
     v: 1,
     opts: JSON.parse(JSON.stringify(opts)) as RunOptions,
@@ -20,6 +22,8 @@ export function makeMidRun(world: Pick<IWorld, 'log'> & { state: { tick: number;
     log: world.log.map((e) => ({ tick: e.tick, cmd: JSON.parse(JSON.stringify(e.cmd)) as Command })),
     wave: world.state.wave,
     savedAt: Date.now(),
+    // AI 助手的公平性标记随存档保存（读档后本局仍是「AI 协助」）
+    ...(assist ? { aiAssist: assist } : {}),
   };
 }
 

@@ -8,6 +8,7 @@ import { clear, copyText, h } from '../dom';
 import { G } from '../icons';
 import { buildRunOptions, layoutPicker, loadoutStrip, randomSeed, switchRow } from './common';
 import { pop, popSelected } from './motion';
+import { t } from '../../i18n';
 
 const TONE_GLYPH = { bad: G.warn, good: G.gift, neutral: G.swirl } as const;
 
@@ -43,8 +44,8 @@ export function customScreen(app: App): Screen {
   const dynBox = h('div.slider-list');
   const spawnModeBox = h('div.seg-grid.spawn-modes');
   const eventBox = h('div.event-toggles');
-  const codeOut = h<HTMLTextAreaElement>('textarea.input.code', { attrs: { readonly: true, rows: 2, 'aria-label': '分享码' } });
-  const codeIn = h<HTMLTextAreaElement>('textarea.input.code', { attrs: { rows: 2, placeholder: '粘贴朋友发来的分享码', 'aria-label': '导入分享码' } });
+  const codeOut = h<HTMLTextAreaElement>('textarea.input.code', { attrs: { readonly: true, rows: 2, 'aria-label': t('ui.custom.shareCode') } });
+  const codeIn = h<HTMLTextAreaElement>('textarea.input.code', { attrs: { rows: 2, placeholder: t('ui.custom.pastePlaceholder'), 'aria-label': t('ui.custom.importAria') } });
   const importMsg = h('small.form-msg');
 
   const updateCode = () => {
@@ -127,7 +128,7 @@ export function customScreen(app: App): Screen {
               persist();
             },
           },
-          id === 'abyss' ? '魔境 I' : DIFF_NAME[id],
+          id === 'abyss' ? t('ui.custom.abyss1') : DIFF_NAME[id],
         ),
       );
     }
@@ -188,7 +189,7 @@ export function customScreen(app: App): Screen {
   for (const f of CUSTOM_FIELDS) addSlider(f, f.group === 'dyn' ? dynBox : sliderBox);
 
   const seedInput = h<HTMLInputElement>('input.input', {
-    attrs: { type: 'text', placeholder: '留空随机', maxlength: 24, autocomplete: 'off', spellcheck: 'false' },
+    attrs: { type: 'text', placeholder: t('ui.custom.seedPlaceholder'), maxlength: 24, autocomplete: 'off', spellcheck: 'false' },
   });
   const runSeed = () => seedInput.value.trim() || state.layoutSeed;
   const layout = layoutPicker({
@@ -205,7 +206,7 @@ export function customScreen(app: App): Screen {
     clearTimeout(seedTimer);
     seedTimer = window.setTimeout(() => layout.refresh(), 250);
   });
-  const autoSw = switchRow('自动开波', '第一波由你开始，之后按倒计时自动开波', state.autoWave, (v) => {
+  const autoSw = switchRow(t('ui.custom.autoWave'), t('ui.custom.autoWaveHint'), state.autoWave, (v) => {
     state.autoWave = v;
     updateCode();
     persist();
@@ -214,40 +215,40 @@ export function customScreen(app: App): Screen {
   const el = h(
     'div.screen.custom-screen',
     null,
-    screenHeader(app, '自定义'),
+    screenHeader(app, t('ui.custom.title')),
     h(
       'div.screen-body',
       null,
-      h('section.card.section', null, h('h3', null, '从预设开始'), presetBox, h('h3', null, '地图'), mapBox, layout.el),
-      h('section.card.section', null, h('h3', null, '成长比例'), sliderBox),
+      h('section.card.section', null, h('h3', null, t('ui.custom.preset')), presetBox, h('h3', null, t('ui.custom.map')), mapBox, layout.el),
+      h('section.card.section', null, h('h3', null, t('ui.custom.growth')), sliderBox),
       h(
         'section.card.section',
         null,
-        h('h3', null, '动态战场'),
-        h('div.field-label', null, h('b', null, '出怪方式'), h('small.muted', null, '每组敌人从哪个出生点出来')),
+        h('h3', null, t('ui.custom.dynamic')),
+        h('div.field-label', null, h('b', null, t('ui.custom.spawnMode')), h('small.muted', null, t('ui.custom.spawnModeHint'))),
         spawnModeBox,
         dynBox,
         autoSw.el,
-        h('h3', null, '随机事件'),
-        h('p.muted.small', null, '点一下关闭 / 开启单个事件。事件频率为 0 时全部关闭。'),
+        h('h3', null, t('ui.custom.events')),
+        h('p.muted.small', null, t('ui.custom.eventsHint')),
         eventBox,
       ),
       h(
         'section.card.section',
         null,
-        h('h3', null, '分享码'),
+        h('h3', null, t('ui.custom.shareCode')),
         h('div.code-row', null, codeOut, h(
           'button.btn.icon-text',
           {
             onclick: async () => {
               const ok = await copyText(codeOut.value);
               audio.play(ok ? 'select' : 'error');
-              app.toast(ok ? '分享码已复制' : '复制失败，请手动选中复制', ok ? 'good' : 'warn');
+              app.toast(ok ? t('ui.custom.copied') : t('ui.custom.copyFailed'), ok ? 'good' : 'warn');
               if (!ok) codeOut.select();
             },
           },
           h('span.gi', { html: G.copy }),
-          '复制',
+          t('ui.custom.copy'),
         )),
         h('div.code-row', null, codeIn, h(
           'button.btn.icon-text',
@@ -277,15 +278,15 @@ export function customScreen(app: App): Screen {
               layout.refresh();
               updateCode();
               persist();
-              importMsg.textContent = '已导入';
+              importMsg.textContent = t('ui.custom.imported');
               importMsg.className = 'form-msg good';
             },
           },
-          '导入',
+          t('ui.custom.import'),
         )),
         importMsg,
       ),
-      h('section.card.section', null, h('label.field', null, h('span', null, '随机种子'), seedInput), h('p.muted', null, '自定义成绩不进排行榜，只记录个人最佳。墨水按所选预设的系数结算。')),
+      h('section.card.section', null, h('label.field', null, h('span', null, t('ui.custom.seed')), seedInput), h('p.muted', null, t('ui.custom.footHint'))),
       loadoutStrip(app, { name: 'custom' }),
       h(
         'div.start-bar',
@@ -315,7 +316,7 @@ export function customScreen(app: App): Screen {
             },
           },
           h('span.gi', { html: G.play }),
-          '开始自定义',
+          t('ui.custom.start'),
         ),
       ),
     ),

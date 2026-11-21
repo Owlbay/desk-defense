@@ -1,0 +1,1015 @@
+/*
+ * 图鉴与玩法（游戏内）。只用 tokens.css 的语义变量，浅色 / 深色自动适配。
+ * 随 src/ui/guide 动态加载；外壳（.guide-screen / .guide-body）在这里一起定义，加载前只显示占位。
+ */
+.guide-screen {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.guide-screen > .screen-head {
+  flex: none;
+}
+
+.guide-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.guide {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* ───────────── 搜索 + 分类标签 ───────────── */
+.guide-bar {
+  flex: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  padding: 0 16px 8px;
+}
+
+.guide-search {
+  position: relative;
+  display: flex;
+}
+
+.guide-search-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 44px 0 14px;
+  border: var(--bw) solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-hi);
+  color: var(--ink);
+  font-size: 16px; /* iOS：小于 16px 聚焦时会放大页面 */
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.guide-search-input::placeholder {
+  color: var(--ink-muted);
+}
+
+.guide-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.guide-search-input:focus-visible,
+.guide-tab-btn:focus-visible,
+.guide-search-clear:focus-visible,
+.guide a:focus-visible,
+.guide summary:focus-visible,
+.guide-table-wrap:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.guide-search-clear {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.guide-search-clear .gi {
+  width: 18px;
+  height: 18px;
+}
+
+.guide-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px 2px 6px;
+  margin: 0 -2px;
+  scroll-snap-type: x proximity;
+}
+
+.guide-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.guide-tab-btn {
+  flex: none;
+  min-height: 44px;
+  padding: 0 14px;
+  border: var(--bw) solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  scroll-snap-align: center;
+  transition: background-color 0.15s ease;
+}
+
+.guide-tab-btn:hover {
+  background: var(--surface-hi);
+}
+
+.guide-tab-btn.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* ───────────── 内容区 ───────────── */
+.guide-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 4px 16px calc(32px + var(--sab, 0px));
+}
+
+.guide-status {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+
+.guide-status:empty {
+  display: none;
+}
+
+.guide-content:focus {
+  outline: none;
+}
+
+.guide-tab {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.guide p,
+.guide ul,
+.guide ol,
+.guide dl,
+.guide h2,
+.guide h3,
+.guide h4,
+.guide figure {
+  margin: 0;
+}
+
+.guide p,
+.guide li,
+.guide dd {
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.guide strong {
+  font-weight: 800;
+}
+
+.guide a {
+  color: inherit;
+}
+
+.guide-lead {
+  font-size: 16px;
+}
+
+.guide-h1 {
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.guide-h2 {
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.guide-h2.bare {
+  margin-top: 8px;
+}
+
+.guide-h3 {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.guide-h4 {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.guide-kicker {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+}
+
+.guide-section {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  min-width: 0;
+  scroll-margin-top: 8px;
+}
+
+.guide-section:focus,
+.guide-entity:focus,
+.guide-row:focus,
+.guide-mini:focus,
+.guide-detail-head:focus {
+  outline: none;
+}
+
+.is-target {
+  animation: guide-target 1.6s ease-out 1;
+}
+
+@keyframes guide-target {
+  0%,
+  40% {
+    box-shadow: 0 0 0 4px var(--focus);
+  }
+  100% {
+    box-shadow: 0 0 0 4px transparent;
+  }
+}
+
+.guide-list {
+  display: grid;
+  gap: 8px;
+  padding-left: 1.3em;
+}
+
+.guide-list.tight {
+  gap: 4px;
+}
+
+/* 目录（玩法页顶部） */
+.guide-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.guide-toc-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1.5px solid var(--border-faint);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.guide-toc-link:hover {
+  border-color: var(--border);
+}
+
+/* 图标：美术素材是深色描边，深色主题下加一圈浅色勾边 */
+.guide-ico {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  filter: var(--art-halo);
+}
+
+.guide-ico.big {
+  width: 56px;
+  height: 56px;
+}
+
+.guide-ico.hero {
+  width: 88px;
+  height: 88px;
+}
+
+.guide-ico.blank {
+  display: block;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.guide-ico[width='36'] {
+  width: 36px;
+  height: 36px;
+}
+
+.guide-ico[width='44'] {
+  width: 44px;
+  height: 44px;
+}
+
+.guide-ico[width='64'] {
+  width: 64px;
+  height: 64px;
+}
+
+.guide-ico[width='72'] {
+  width: 72px;
+  height: 72px;
+}
+
+.guide-tag {
+  white-space: nowrap;
+}
+
+.guide-tag.boss {
+  background: var(--tint-red);
+}
+
+.guide-tag.flying {
+  background: var(--tint-blue);
+}
+
+.guide-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* 卡片网格（塔列表） */
+.guide-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr));
+  gap: 12px;
+}
+
+.guide-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 80px;
+  padding: 12px;
+  text-decoration: none;
+  transition: transform 0.08s ease;
+}
+
+.guide-card:hover {
+  background: var(--surface-hi);
+}
+
+.guide-card:active {
+  transform: translateY(2px);
+}
+
+.guide-card-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.guide-card-main small {
+  font-size: 13px;
+}
+
+.guide-card-side {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.guide-card-side .gi {
+  width: 18px;
+  height: 18px;
+}
+
+/* 说明小卡（模式、AI 接入方式） */
+.guide-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 10px;
+}
+
+.guide-mini {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding: 12px;
+  border: 1.5px solid var(--border-faint);
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+}
+
+/* 行列表（事件、技能、增益、词缀、特性） */
+.guide-rows {
+  display: grid;
+  min-width: 0;
+}
+
+.guide-rows.card {
+  padding: 4px 16px;
+}
+
+.guide-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  min-width: 0;
+  border-radius: 8px;
+}
+
+.guide-row + .guide-row {
+  border-top: 1.5px solid var(--border-faint);
+}
+
+.guide-row-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.guide-row-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.guide-row.g-rarity-rare .guide-row-title strong {
+  color: var(--info-text);
+}
+
+.guide-row.g-rarity-epic .guide-row-title strong {
+  color: var(--purple-text);
+}
+
+.guide-h3.g-rarity-common,
+.guide-h3.g-rarity-rare,
+.guide-h3.g-rarity-epic,
+.guide-h3.g-tone-bad,
+.guide-h3.g-tone-good,
+.guide-h3.g-tone-neutral {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.guide-h3.g-rarity-common::before,
+.guide-h3.g-rarity-rare::before,
+.guide-h3.g-rarity-epic::before,
+.guide-h3.g-tone-bad::before,
+.guide-h3.g-tone-good::before,
+.guide-h3.g-tone-neutral::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: var(--rarity-common);
+}
+
+.guide-h3.g-rarity-rare::before {
+  background: var(--rarity-rare);
+}
+
+.guide-h3.g-rarity-epic::before {
+  background: var(--rarity-epic);
+}
+
+.guide-h3.g-tone-bad::before {
+  background: var(--bad);
+}
+
+.guide-h3.g-tone-good::before {
+  background: var(--good);
+}
+
+.guide-counter {
+  font-size: 14px;
+}
+
+/* 组合技：两座塔 + 效果 */
+.guide-row.combo {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.guide-pair {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.guide-pair-tower {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 64px;
+  padding: 4px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  text-align: center;
+}
+
+.guide-pair-tower:hover {
+  background: var(--surface-2);
+}
+
+.guide-plus {
+  font-weight: 900;
+  color: var(--ink-muted);
+}
+
+.guide-row.combo .guide-row-main {
+  flex-basis: 220px;
+}
+
+/* 实体卡片（敌人、流派） */
+.guide-entities {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: 12px;
+}
+
+.guide-entity {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: 14px;
+  min-width: 0;
+  scroll-margin-top: 8px;
+}
+
+.guide-entity.boss {
+  background: var(--tint-cream);
+}
+
+.guide-entity-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.guide-entity-title {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.guide-entity-title .muted {
+  font-size: 13px;
+}
+
+.guide-arch-icons {
+  display: flex;
+  flex: none;
+}
+
+.guide-arch-icons .guide-ico + .guide-ico {
+  margin-left: -8px;
+}
+
+.guide-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: 6px;
+}
+
+.guide-stat {
+  display: grid;
+  gap: 1px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  min-width: 0;
+}
+
+.guide-stat-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+
+.guide-stat-value {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.guide-dl {
+  display: grid;
+  gap: 2px;
+}
+
+.guide-dl dt {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+}
+
+.guide-dl dd {
+  margin: 0 0 6px;
+}
+
+.guide-dl dd:last-child {
+  margin-bottom: 0;
+}
+
+/* 表格 */
+.guide-table-wrap {
+  overflow-x: auto;
+  border: 1.5px solid var(--border-faint);
+  border-radius: var(--radius-s);
+  -webkit-overflow-scrolling: touch;
+}
+
+.guide-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.guide-table th,
+.guide-table td {
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1.5px solid var(--border-faint);
+}
+
+.guide-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.guide-table thead th {
+  background: var(--surface-2);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+.guide-table tbody th {
+  font-weight: 700;
+}
+
+.guide-table.num td,
+.guide-table.num thead th:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.guide-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+}
+
+.guide-keys {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.guide kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  padding: 2px 7px;
+  border: 1.5px solid var(--border);
+  border-bottom-width: 3px;
+  border-radius: 6px;
+  background: var(--surface-hi);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+/* 塔详情 */
+.guide-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  justify-self: start;
+  min-height: 44px;
+  padding: 0 8px 0 0;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.guide-back .gi {
+  width: 18px;
+  height: 18px;
+}
+
+.guide-detail-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px;
+}
+
+.guide-detail-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.guide-role {
+  font-weight: 800;
+  color: var(--good-text-strong);
+}
+
+.guide-forms {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: 8px;
+}
+
+.guide-form-fig {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 10px 4px;
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+  border: 1.5px solid transparent;
+  text-align: center;
+}
+
+.guide-form-fig figcaption {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.guide-form-fig.branch-a,
+.guide-branch.branch-a {
+  border-color: var(--branch-a-line);
+}
+
+.guide-form-fig.branch-b,
+.guide-branch.branch-b {
+  border-color: var(--branch-b-line);
+}
+
+.guide-branches {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 12px;
+}
+
+.guide-branch {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 12px;
+  border: 2px solid var(--border-faint);
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+  min-width: 0;
+}
+
+.guide-branch-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.guide-ability {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1.5px solid var(--border-faint);
+}
+
+.guide-pager {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.guide-pager .btn {
+  text-decoration: none;
+}
+
+/* 常见问题 */
+.guide-faq {
+  display: grid;
+  gap: 10px;
+}
+
+.guide-qa {
+  padding: 0;
+}
+
+.guide-qa summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 10px 16px;
+  font-weight: 800;
+  cursor: pointer;
+  list-style: none;
+  border-radius: var(--radius);
+}
+
+.guide-qa summary::-webkit-details-marker {
+  display: none;
+}
+
+.guide-qa summary::after {
+  content: '+';
+  flex: none;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+
+.guide-qa[open] summary::after {
+  content: '−';
+}
+
+.guide-qa > p {
+  padding: 0 16px 14px;
+}
+
+.guide-more a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 700;
+}
+
+/* 搜索结果 */
+.guide-results {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.guide-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  text-decoration: none;
+}
+
+.guide-result:hover {
+  background: var(--surface-hi);
+}
+
+.guide-result-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.guide-result-main small {
+  font-size: 13px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* ───────────── 宽屏：分类标签放到左侧 ───────────── */
+@media (min-width: 960px) {
+  .guide {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .guide-bar {
+    align-content: start;
+    padding: 4px 0 16px 16px;
+    overflow-y: auto;
+  }
+
+  .guide-tabs {
+    flex-direction: column;
+    overflow: visible;
+    padding: 2px;
+  }
+
+  .guide-tab-btn {
+    border-radius: 12px;
+    text-align: left;
+    white-space: normal;
+    padding: 8px 14px;
+  }
+
+  .guide-scroll {
+    padding-left: 20px;
+  }
+}
+
+/* ───────────── 窄屏 ───────────── */
+@media (max-width: 520px) {
+  .guide-bar {
+    padding: 0 12px 6px;
+  }
+
+  .guide-scroll {
+    padding: 4px 12px calc(28px + var(--sab, 0px));
+  }
+
+  .guide-section,
+  .guide-detail-head {
+    padding: 14px 12px;
+  }
+
+  .guide-detail-head {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .guide-detail-main {
+    justify-items: center;
+    width: 100%;
+  }
+
+  .guide-stats {
+    width: 100%;
+    text-align: left;
+  }
+
+  .guide-ability {
+    flex-wrap: wrap;
+  }
+
+  .guide-ability > .guide-ico.big {
+    display: none;
+  }
+}
+
+/* 矮屏（手机横屏）：标题栏压扁一点 */
+@media (max-height: 480px) {
+  .guide-bar {
+    grid-template-columns: minmax(140px, 240px) minmax(0, 1fr);
+    align-items: center;
+  }
+}
+
+@media (max-height: 480px) and (min-width: 960px) {
+  .guide-bar {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .is-target {
+    animation: none;
+    box-shadow: 0 0 0 4px var(--focus);
+  }
+
+  .guide-card,
+  .guide-tab-btn {
+    transition: none;
+  }
+}
+
+html.reduce-motion .is-target {
+  animation: none;
+  box-shadow: 0 0 0 4px var(--focus);
+}

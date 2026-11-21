@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { t } from '../i18n';
 import type { EnemyState, GameEvent } from '../core/types';
 import type { RenderCtx } from './ctx';
 import type { EnemyLayer } from './enemies';
@@ -293,7 +294,7 @@ export class SwatterLayer {
     const ctx = this.ctx;
     const fx = ctx.fx;
     this.shake(220, 0.08);
-    fx.text(BOARD_W / 2, BOARD_H * 0.42, '天网!', 'toast');
+    fx.text(BOARD_W / 2, BOARD_H * 0.42, t('ui.render.skynet'), 'toast');
     const st = ctx.session.world.state;
     let n = 0;
     for (const e of st.enemies) {

@@ -122,6 +122,7 @@ export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Pro
   let leaks = 0;
   let cleared = 0;
   sched.onEvent = (ev) => {
+    engine.onWorldEvent(ev);
     if (ev.type === 'waveStart') fallback.onWaveStart?.(ev.wave);
     else if (ev.type === 'leak') { leaks++; fallback.onLeak?.(ev.enemy); }
     else if (ev.type === 'waveEnd') {

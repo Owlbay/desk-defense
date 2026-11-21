@@ -1,7 +1,9 @@
 import type { RunOptions } from '../core/types';
 import type { MidRun, ProfileStore, Settings } from '../meta/profile';
 import { setRenderQuality } from '../render';
+import { onLocaleChange, t } from '../i18n';
 import { audio } from './audio';
+import { normalizeTheme, setTheme } from './theme';
 import { h } from './dom';
 import { G } from './icons';
 import { countTo, DUR, EASE_IN, EASE_OUT, flip, motionOK, shake } from './screens/motion';
@@ -11,6 +13,8 @@ export interface Screen {
   destroy?(): void;
   /** 屏幕上的 Esc 处理；返回 true 表示已处理 */
   onEsc?(): boolean;
+  /** 切换语言时调用；返回 true 表示页面已就地刷新文字（如对局 HUD），否则 App 会重新渲染当前页面 */
+  onLocaleChange?(): boolean;
 }
 
 export type Route =
@@ -24,6 +28,10 @@ export type Route =
   | { name: 'settings' }
   | { name: 'daily' }
   | { name: 'ai' }
+  /** 设置 →「AI 助手」：全局的 AI 模型设置（src/ui/screens/aiAssistant.ts） */
+  | { name: 'aiAssistant' }
+  /** 图鉴 / 介绍页（src/ui/screens/guide.ts）；path 是页面内的子路径 */
+  | { name: 'guide'; path?: string }
   | { name: 'game'; opts: RunOptions; resume?: MidRun; userSeed?: boolean };
 
 export type ScreenFactory = (app: App, route: Route) => Screen;
@@ -33,6 +41,8 @@ export function applySettings(s: Settings): void {
   audio.setVolumes(s.sfx, s.music);
   // 动画小组约定：html.reduce-motion 表示设置里开启了"减少动画"
   if (typeof document !== 'undefined') document.documentElement.classList.toggle('reduce-motion', !!s.reduceMotion);
+  // 浅色 / 深色主题（界面 + 棋盘）
+  setTheme(normalizeTheme(s.theme));
   try {
     setRenderQuality(s.quality);
   } catch {
@@ -41,7 +51,7 @@ export function applySettings(s: Settings): void {
 }
 
 /** 页面层级：数字变大 = 前进（新页面从右侧进入），变小 = 返回（当前页面向右退出） */
-const DEPTH: Record<string, number> = { menu: 0, skills: 2, game: 3 };
+const DEPTH: Record<string, number> = { menu: 0, skills: 2, aiAssistant: 2, game: 3 };
 const depthOf = (name: string): number => DEPTH[name] ?? 1;
 
 const MAX_TOASTS = 4;
@@ -74,6 +84,8 @@ export class App {
     const onVis = () => document.documentElement.classList.toggle('tab-hidden', document.hidden);
     document.addEventListener('visibilitychange', onVis);
     onVis();
+    // 切换语言：当前页面能就地刷新（对局）就交给它，否则重新渲染当前路由
+    onLocaleChange(() => this.refreshLocale());
     // 菜单页面里被锁住 / 买不起的按钮：点一下摇一摇（提示文字和音效仍由各页面给出）
     root.addEventListener('click', (e) => {
       const t = e.target instanceof Element ? e.target.closest('.locked, .poor, [aria-disabled="true"]') : null;
@@ -136,6 +148,25 @@ export class App {
 
     audio.setMusic(this.store.get().settings.music > 0);
     audio.setIntensity(route.name === 'game' ? 0.4 : 0);
+  }
+
+  /** 语言切换后刷新当前页面：对局页就地更新文字，其他页面无动画地重新渲染 */
+  refreshLocale(): void {
+    const cur = this.current;
+    if (cur?.onLocaleChange?.()) return;
+    const f = this.factories.get(this.route.name);
+    if (!f || !cur) return;
+    this.settleTransition();
+    const focusSel = document.activeElement instanceof HTMLElement ? document.activeElement.dataset.focusKey : undefined;
+    try {
+      cur.destroy?.();
+    } catch (e) {
+      console.error(e);
+    }
+    const s = f(this, this.route);
+    this.current = s;
+    cur.el.replaceWith(s.el);
+    if (focusSel) s.el.querySelector<HTMLElement>(`[data-focus-key="${focusSel}"]`)?.focus({ preventScroll: true });
   }
 
   /** 立即结束正在进行的页面切换 */
@@ -208,7 +239,7 @@ export function currencyChips(store: ProfileStore): HTMLElement {
   shownCurrency = now;
   const chip = (key: 'star' | 'ink', glyph: string, title: string) => {
     const num = h('span.chip-num', null, String(now[key]));
-    const el = h('span.chip', { title, attrs: { 'aria-label': `${key === 'star' ? '星星' : '墨水'} ${now[key]}` } }, h('span.gi', { html: glyph }), num);
+    const el = h('span.chip', { title, attrs: { 'aria-label': t(key === 'star' ? 'common.starsN' : 'common.inkN', { n: now[key] }) } }, h('span.gi', { html: glyph }), num);
     if (was[key] !== now[key]) {
       el.classList.add(now[key] > was[key] ? 'gain' : 'spend');
       countTo(num, was[key], now[key]);
@@ -218,8 +249,8 @@ export function currencyChips(store: ProfileStore): HTMLElement {
   return h(
     'div.chips',
     null,
-    chip('star', G.star, '星星：战役评星获得，用于解锁天赋'),
-    chip('ink', G.ink, '墨水：无尽 / 自定义模式每撑过 1 波获得'),
+    chip('star', G.star, t('ui.chips.starTip')),
+    chip('ink', G.ink, t('ui.chips.inkTip')),
   );
 }
 
@@ -230,7 +261,7 @@ export function screenHeader(app: App, title: string, opts: { back?: Route; chip
     h(
       'button.btn.icon-btn.back',
       {
-        attrs: { 'aria-label': '返回' },
+        attrs: { 'aria-label': t('common.back') },
         onclick: () => {
           audio.play('click');
           app.go(opts.back ?? { name: 'menu' });
@@ -276,7 +307,7 @@ export function confirmDialog(parent: HTMLElement, o: ConfirmOptions): Promise<b
         close(true);
       }
     };
-    const okBtn = h(`button.btn.${o.danger ? 'danger' : 'primary'}`, { onclick: () => close(true) }, o.ok ?? '确定');
+    const okBtn = h(`button.btn.${o.danger ? 'danger' : 'primary'}`, { onclick: () => close(true) }, o.ok ?? t('common.ok'));
     const overlay = h(
       'div.overlay.confirm-overlay',
       { onclick: (e: MouseEvent) => e.target === overlay && close(false) },
@@ -285,7 +316,7 @@ export function confirmDialog(parent: HTMLElement, o: ConfirmOptions): Promise<b
         { attrs: { role: 'alertdialog', 'aria-modal': 'true' } },
         h('h2', null, o.title),
         o.text ? h('p.muted', null, o.text) : null,
-        h('div.row.end', null, h('button.btn', { onclick: () => close(false) }, o.cancel ?? '取消'), okBtn),
+        h('div.row.end', null, h('button.btn', { onclick: () => close(false) }, o.cancel ?? t('common.cancel')), okBtn),
       ),
     );
     document.addEventListener('keydown', onKey, true);

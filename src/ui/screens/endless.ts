@@ -13,6 +13,7 @@ import {
   roman,
   unlockHint,
 } from '../../meta/progress';
+import { fmtNumber, t } from '../../i18n';
 import { screenHeader, type App, type Screen } from '../App';
 import { audio } from '../audio';
 import { DIFFICULTY_PRESETS, MAP_META, resolveParams } from '../coreMeta';
@@ -22,13 +23,7 @@ import { buildRunOptions, layoutPicker, loadoutStrip, randomSeed, switchRow } fr
 import { popSelected } from './motion';
 
 const DIFF_ORDER: DifficultyId[] = ['easy', 'normal', 'hard', 'nightmare', 'abyss'];
-const DIFF_BLURB: Record<DifficultyId, string> = {
-  easy: '敌人更弱，金币更多',
-  normal: '标准体验',
-  hard: '精英从第 20 波出现',
-  nightmare: '精英成群，生命只有 10',
-  abyss: '紫黑深渊，十个等级',
-};
+const diffBlurb = (d: DifficultyId): string => t(`ui.endless.blurb.${d}`);
 
 export function endlessScreen(app: App): Screen {
   const p = app.store.get();
@@ -61,7 +56,7 @@ export function endlessScreen(app: App): Screen {
           `button.seg${state.map === m ? '.on' : ''}${ok ? '' : '.locked'}`,
           {
             onclick: () => {
-              if (!ok) return audio.play('error'), app.toast('通关该章战役后可选', 'warn');
+              if (!ok) return audio.play('error'), app.toast(t('ui.endless.mapLocked'), 'warn');
               audio.play('click');
               state.map = m;
               renderAll();
@@ -84,7 +79,7 @@ export function endlessScreen(app: App): Screen {
           `button.diff-card.${d}${state.diff === d ? '.on' : ''}${ok ? '' : '.locked'}`,
           {
             onclick: () => {
-              if (!ok) return audio.play('error'), app.toast(`解锁条件：${unlockHint(d, 1)}`, 'warn');
+              if (!ok) return audio.play('error'), app.toast(t('ui.endless.unlockCond', { hint: unlockHint(d, 1) }), 'warn');
               audio.play('click');
               state.diff = d;
               renderAll();
@@ -92,8 +87,8 @@ export function endlessScreen(app: App): Screen {
             },
           },
           h('span.diff-title', null, DIFF_NAME[d]),
-          h('small', null, ok ? DIFF_BLURB[d] : unlockHint(d, 1)),
-          ok ? h('span.diff-meta', null, bw > 0 ? `最佳 ${bw} 波` : '尚无记录', ` · 墨水 ×${INK_FACTOR[d]}`) : h('span.gi.lock', { html: G.lock }),
+          h('small', null, ok ? diffBlurb(d) : unlockHint(d, 1)),
+          ok ? h('span.diff-meta', null, bw > 0 ? t('ui.endless.bestWave', { n: bw }) : t('ui.endless.noRecord'), ` · ${t('ui.endless.inkMul', { x: INK_FACTOR[d] })}`) : h('span.gi.lock', { html: G.lock }),
         ),
       );
     }
@@ -107,9 +102,9 @@ export function endlessScreen(app: App): Screen {
           h(
             `button.abyss-lv${state.abyss === i ? '.on' : ''}${ok ? '' : '.locked'}`,
             {
-              title: ok ? `魔境 ${roman(i)} · 最佳 ${bestWave(p, `abyss${i}`)} 波` : unlockHint('abyss', i),
+              title: ok ? t('ui.endless.abyssTip', { lv: roman(i), n: bestWave(p, `abyss${i}`) }) : unlockHint('abyss', i),
               onclick: () => {
-                if (!ok) return audio.play('error'), app.toast(`解锁条件：${unlockHint('abyss', i)}`, 'warn');
+                if (!ok) return audio.play('error'), app.toast(t('ui.endless.unlockCond', { hint: unlockHint('abyss', i) }), 'warn');
                 audio.play('click');
                 state.abyss = i;
                 renderAll();
@@ -120,7 +115,7 @@ export function endlessScreen(app: App): Screen {
           ),
         );
       }
-      abyssBox.appendChild(h('div.abyss-panel', null, h('div.label', null, '魔境等级'), row));
+      abyssBox.appendChild(h('div.abyss-panel', null, h('div.label', null, t('ui.endless.abyssLevel')), row));
     }
     // 参数预览
     clear(infoBox);
@@ -130,11 +125,11 @@ export function endlessScreen(app: App): Screen {
           ? resolveParams({ mode: 'endless', map: state.map, difficulty: 'abyss', abyssLevel: state.abyss, skills: [] })
           : DIFFICULTY_PRESETS[state.diff];
       const lines: [string, string][] = [
-        ['初始金币', String(params.startGold)],
-        ['生命', String(params.lives)],
-        ['敌人生命', `×${params.hpMul.toFixed(2)}`],
-        ['精英', params.eliteStart > 999 || params.eliteStart <= 0 ? '不出现' : `第 ${Math.round(params.eliteStart)} 波起`],
-        ['得分', `×${params.scoreMul}`],
+        [t('ui.endless.param.gold'), fmtNumber(params.startGold)],
+        [t('ui.endless.param.lives'), fmtNumber(params.lives)],
+        [t('ui.endless.param.hp'), `×${fmtNumber(params.hpMul, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+        [t('ui.endless.param.elite'), params.eliteStart > 999 || params.eliteStart <= 0 ? t('ui.endless.param.eliteNone') : t('ui.endless.param.eliteFrom', { n: Math.round(params.eliteStart) })],
+        [t('ui.endless.param.score'), `×${fmtNumber(params.scoreMul)}`],
       ];
       infoBox.appendChild(h('dl.param-list', null, lines.map(([a, b]) => h('div', null, h('dt', null, a), h('dd', null, b)))));
     } catch {
@@ -146,7 +141,7 @@ export function endlessScreen(app: App): Screen {
   };
 
   const seedInput = h<HTMLInputElement>('input.input', {
-    attrs: { type: 'text', placeholder: '留空随机', maxlength: 24, inputmode: 'text', autocomplete: 'off', spellcheck: 'false' },
+    attrs: { type: 'text', placeholder: t('ui.endless.seedPlaceholder'), maxlength: 24, inputmode: 'text', autocomplete: 'off', spellcheck: 'false' },
   });
   const runSeed = () => seedInput.value.trim() || state.layoutSeed;
   const layout = layoutPicker({
@@ -163,7 +158,7 @@ export function endlessScreen(app: App): Screen {
     clearTimeout(seedTimer);
     seedTimer = window.setTimeout(() => layout.refresh(), 250);
   });
-  const autoSw = switchRow('自动开波', '第一波由你开始，之后按倒计时自动开波；排行榜按开波方式分开记录', true, (v) => {
+  const autoSw = switchRow(t('ui.endless.autoWave'), t('ui.endless.autoWaveHint'), true, (v) => {
     app.store.update((pp) => (pp.settings.autoWave = v));
   });
   const pureToggle = h<HTMLInputElement>('input', { attrs: { type: 'checkbox' } });
@@ -199,27 +194,27 @@ export function endlessScreen(app: App): Screen {
       },
     },
     h('span.gi', { html: G.play }),
-    '开始无尽',
+    t('ui.endless.start'),
   );
 
   const el = h(
     'div.screen.endless-screen',
     null,
-    screenHeader(app, '无尽模式'),
+    screenHeader(app, t('ui.endless.title')),
     h(
       'div.screen-body',
       null,
-      h('section.card.section', null, h('h3', null, '地图'), mapBox, layout.el),
-      h('section.card.section', null, h('h3', null, '难度'), diffBox, abyssBox, infoBox),
+      h('section.card.section', null, h('h3', null, t('ui.endless.map')), mapBox, layout.el),
+      h('section.card.section', null, h('h3', null, t('ui.endless.difficulty')), diffBox, abyssBox, infoBox),
       h(
         'section.card.section',
         null,
-        h('h3', null, '选项'),
-        h('label.field', null, h('span', null, '随机种子'), seedInput),
+        h('h3', null, t('ui.endless.options')),
+        h('label.field', null, h('span', null, t('ui.endless.seed')), seedInput),
         h(
           'label.switch-row',
           null,
-          h('span', null, h('b', null, '纯净模式'), h('small.muted', null, '关闭所有永久天赋，成绩进入纯净排行榜')),
+          h('span', null, h('b', null, t('ui.endless.pure')), h('small.muted', null, t('ui.endless.pureHint'))),
           h('span.switch', null, pureToggle, h('span.knob')),
         ),
         autoSw.el,

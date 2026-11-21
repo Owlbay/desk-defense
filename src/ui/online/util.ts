@@ -2,6 +2,7 @@
  * 在线功能的纯函数（无 DOM、无网络），便于单测。
  */
 import type { Command, RunOptions } from '../../core/types';
+import { getLocale } from '../../i18n';
 import { boardForOpts, DAILY_TZ_OFFSET_MIN, dailyInfo, isValidDay, sanitizeNickname } from '../../shared/leaderboard';
 
 const DAILY_SEED_RE = /^d(\d{4})(\d{2})(\d{2})[0-9a-z]{7}$/;
@@ -52,12 +53,19 @@ export function nicknameError(raw: string): string | null {
   return r.ok ? null : r.message;
 }
 
-/** 11-20 14:05 */
+/** 按当前语言格式化的「月-日 时:分」，例如 11/20 14:05 */
 export function fmtTime(ms: number): string {
   const d = new Date(ms);
   if (!Number.isFinite(d.getTime())) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return new Intl.DateTimeFormat(getLocale(), { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
+}
+
+/** 存档里的日期（YYYY-MM-DD）按当前语言显示；格式不对就原样返回 */
+export function fmtDay(day: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  if (!m) return day;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return new Intl.DateTimeFormat(getLocale(), { year: 'numeric', month: 'numeric', day: 'numeric' }).format(d);
 }
 
 /** 回放驱动：world.step 前执行该帧的指令（与 midrun.replayChunk 同规则） */
@@ -77,7 +85,7 @@ export function makeFeeder(world: { state: { tick: number }; command(c: Command)
         try {
           world.command(log[next].cmd);
         } catch (e) {
-          console.warn('[replay] 指令执行失败', e);
+          console.warn('[replay] command failed', e);
         }
         next++;
       }

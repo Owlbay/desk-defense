@@ -3,6 +3,7 @@
  * 解析很宽松（位置参数 / key=value / JSON 都认），但最终都要过 Agent 工具的同一份 Schema 校验，
  * 执行仍走玩家的 session.command —— 与手动点击完全同一套规则。
  */
+import { t } from '../../i18n';
 import { ACT_TO_LEGACY, AGENT_TOOLS, toCommand, validateToolInput, type ToolCallRecord } from '../../agent';
 import type { Command, CommandResult, IWorld } from '../../core/types';
 import { SKILL_META, TOWER_META } from '../coreMeta';
@@ -106,45 +107,47 @@ export function applyAction(world: IWorld, send: (c: Command) => CommandResult, 
   if (a.name === 'collect_pickup' && a.input.uid === undefined) {
     let any = false;
     for (const p of world.state.pickups.slice()) any = send({ type: 'collect', uid: p.uid }).ok || any;
-    return any ? { ok: true } : { ok: false, reason: '没有可以拾取的东西' };
+    return any ? { ok: true } : { ok: false, reason: t('agent.actions.nothingToCollect') };
   }
   const cmd = toCommand(world, a.name, a.input);
-  if ('error' in cmd) return { ok: false, reason: '这条建议缺少必要的参数' };
+  if ('error' in cmd) return { ok: false, reason: t('agent.actions.missingArgs') };
   const r = send(cmd);
-  return r.ok ? { ok: true } : { ok: false, reason: r.reason ?? '现在不能这样做' };
+  return r.ok ? { ok: true } : { ok: false, reason: r.reason ?? t('agent.actions.cannotNow') };
 }
 
-// ───────────── 中文短描述 ─────────────
+// ───────────── 动作短描述（界面显示，跟随语言） ─────────────
 
-const towerName = (id: unknown): string => (typeof id === 'string' ? (TOWER_META[id as keyof typeof TOWER_META]?.name ?? id) : '塔');
-const skillName = (id: unknown): string => (typeof id === 'string' ? (SKILL_META[id as keyof typeof SKILL_META]?.name ?? id) : '技能');
-const TARGET_NAME: Record<string, string> = { first: '最前', last: '最后', strong: '最强', weak: '最弱', close: '最近', air: '优先飞行' };
-const CRATE_NAME: Record<string, string> = { gold: '金币', lives: '生命', cooldown: '冷却', xp: '经验', caffeine: '咖啡因', charge: '充能' };
+const towerName = (id: unknown): string => (typeof id === 'string' ? (TOWER_META[id as keyof typeof TOWER_META]?.name ?? id) : t('agent.actions.tower'));
+const skillName = (id: unknown): string => (typeof id === 'string' ? (SKILL_META[id as keyof typeof SKILL_META]?.name ?? id) : t('agent.actions.skill'));
+const TARGET_MODES = new Set(['first', 'last', 'strong', 'weak', 'close', 'air']);
+const CRATE_OPTIONS = new Set(['gold', 'lives', 'cooldown', 'xp', 'caffeine', 'charge']);
+const targetName = (m: string): string => (TARGET_MODES.has(m) ? t(`agent.actions.target.${m}`) : m);
+const crateName = (o: string): string => (CRATE_OPTIONS.has(o) ? t(`agent.actions.crate.${o}`) : o);
 
 function towerRef(world: IWorld | null, uid: unknown): string {
   const t = typeof uid === 'number' ? world?.state.towers.get(uid) : undefined;
   return t ? `${towerName(t.id)} #${t.uid}` : `#${String(uid)}`;
 }
 
-/** 一次工具调用的中文短描述；只读 / 控制类工具返回 null（决策流里不逐条显示） */
+/** 一次工具调用的短描述（当前语言）；只读 / 控制类工具返回 null（决策流里不逐条显示） */
 export function describeCall(world: IWorld | null, name: string, input: unknown): string | null {
   const i = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
-  const at = i.x !== undefined && i.y !== undefined ? `（${String(i.x)},${String(i.y)}）` : '';
+  const at = i.x !== undefined && i.y !== undefined ? t('agent.actions.at', { x: String(i.x), y: String(i.y) }) : '';
   switch (name) {
-    case 'place_tower': return `建造 ${towerName(i.tower)}${at}`;
-    case 'upgrade_tower': return `升级 ${towerRef(world, i.uid)}`;
-    case 'choose_branch': return `${towerRef(world, i.uid)} 走传奇分支 ${String(i.branch)}`;
-    case 'evolve_tower': return `进化 ${towerRef(world, i.uid)}`;
-    case 'sell_tower': return `出售 ${towerRef(world, i.uid)}`;
-    case 'set_target_mode': return `${towerRef(world, i.uid)} 目标改为${TARGET_NAME[String(i.mode)] ?? String(i.mode)}`;
-    case 'cast_skill': return `释放技能 ${skillName(i.skill)}${at}`;
-    case 'tower_ability': return `${towerRef(world, i.uid)} 发动神话技能${at}`;
-    case 'choose_perk': return `选择增益 ${String(i.id)}`;
-    case 'reroll_perks': return '重抽增益';
-    case 'collect_pickup': return i.uid === undefined ? '拾取全部掉落' : '拾取掉落';
-    case 'choose_crate': return `补给箱选 ${CRATE_NAME[String(i.option)] ?? String(i.option)}`;
-    case 'demolish_spawner': return `拆除空降点 ${String(i.id)}`;
-    case 'start_wave': return '开始下一波';
+    case 'place_tower': return t('agent.actions.place', { tower: towerName(i.tower), at });
+    case 'upgrade_tower': return t('agent.actions.upgrade', { tower: towerRef(world, i.uid) });
+    case 'choose_branch': return t('agent.actions.branch', { tower: towerRef(world, i.uid), branch: String(i.branch) });
+    case 'evolve_tower': return t('agent.actions.evolve', { tower: towerRef(world, i.uid) });
+    case 'sell_tower': return t('agent.actions.sell', { tower: towerRef(world, i.uid) });
+    case 'set_target_mode': return t('agent.actions.targetMode', { tower: towerRef(world, i.uid), mode: targetName(String(i.mode)) });
+    case 'cast_skill': return t('agent.actions.cast', { skill: skillName(i.skill), at });
+    case 'tower_ability': return t('agent.actions.ability', { tower: towerRef(world, i.uid), at });
+    case 'choose_perk': return t('agent.actions.perk', { id: String(i.id) });
+    case 'reroll_perks': return t('agent.actions.reroll');
+    case 'collect_pickup': return i.uid === undefined ? t('agent.actions.collectAll') : t('agent.actions.collect');
+    case 'choose_crate': return t('agent.actions.crate', { option: crateName(String(i.option)) });
+    case 'demolish_spawner': return t('agent.actions.demolish', { id: String(i.id) });
+    case 'start_wave': return t('agent.actions.startWave');
     default: return null;
   }
 }
@@ -155,14 +158,14 @@ export function failReason(c: Pick<ToolCallRecord, 'result'>): string {
   return (m ? m[1] : c.result).trim().slice(0, 60);
 }
 
-export const REASON_NAME: Record<string, string> = {
-  game_start: '开局',
-  build: '建造阶段',
-  wave_interval: '波次中',
-  event_warn: '事件预警',
-  drop_warn: '空降预警',
-  boss_spawn: 'Boss 出场',
-  perk: '选增益',
-  crate: '补给箱',
-  leak: '有漏怪',
-};
+const REASONS = ['game_start', 'build', 'wave_interval', 'event_warn', 'drop_warn', 'boss_spawn', 'perk', 'crate', 'leak'] as const;
+
+/** 决策时机的名称（当前语言）；未知时机返回 undefined */
+export function reasonName(reason: string): string | undefined {
+  return (REASONS as readonly string[]).includes(reason) ? t(`agent.actions.reason.${reason}`) : undefined;
+}
+
+/** 兼容旧用法 `REASON_NAME[r] ?? r`：每次读取都按当前语言翻译 */
+export const REASON_NAME: Readonly<Record<string, string | undefined>> = new Proxy({} as Record<string, string | undefined>, {
+  get: (_, k) => (typeof k === 'string' ? reasonName(k) : undefined),
+});

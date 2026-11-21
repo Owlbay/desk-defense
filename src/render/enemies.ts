@@ -3,7 +3,7 @@ import type { EnemyId, EnemyState } from '../core/types';
 import type { RenderCtx } from './ctx';
 import { CELL, DEPTH } from './layout';
 import { easeOutBack } from './motion';
-import { C, FONT, hex } from './palette';
+import { B, C, FONT, hex } from './palette';
 import { PartSet } from './parts';
 import { TEX } from './sprites';
 
@@ -73,6 +73,8 @@ class EnemyView {
   /** 易伤准星锁定动画（秒） */
   private markT = -1;
   // 标记
+  /** 深色主题下垫在身下的一圈浅色光晕（深色敌人在深色桌面上才看得清） */
+  private halo: Phaser.GameObjects.Image;
   private eliteRing: Phaser.GameObjects.Image;
   private rootBlob: Phaser.GameObjects.Image;
   private slowFill: Phaser.GameObjects.Image;
@@ -90,11 +92,12 @@ class EnemyView {
     const sc = ctx.scene;
     this.root = sc.add.container(0, 0);
     const img = (key: string, tint: number) => sc.add.image(0, 0, key).setTint(tint).setVisible(false);
+    this.halo = img(TEX.glow, C.lampLight);
     this.eliteRing = img(TEX.ring, C.white);
     this.rootBlob = img(TEX.disc, C.glue);
     this.slowFill = img(TEX.disc, C.blueCap).setAlpha(0.15);
     this.slowRing = img(TEX.ring, C.blueCap);
-    this.root.add([this.eliteRing, this.rootBlob, this.slowFill, this.slowRing]);
+    this.root.add([this.halo, this.eliteRing, this.rootBlob, this.slowFill, this.slowRing]);
     this.parts = new PartSet(sc, this.root, UNDER_COUNT);
     for (let i = 0; i < 5; i++) this.inks.push(img(TEX.disc, C.inkBlue));
     this.markRing = img(TEX.reticle, C.alarmRed).setAlpha(0.85);
@@ -409,6 +412,9 @@ class EnemyView {
     const r = this.rpx(e); // 世界像素
     const liftW = this.lift * s;
     const bodyY = -liftW * k;
+    // 深色主题：身下的浅色光晕
+    if (B.haloAlpha > 0) this.halo.setVisible(true).setPosition(0, bodyY).setDisplaySize(r * 3.4 * k, r * 3.4 * k).setAlpha(B.haloAlpha);
+    else this.halo.setVisible(false);
     // 精英环
     if (e.elite) {
       // 精英环：缓慢呼吸的微光

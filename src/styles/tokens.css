@@ -1,0 +1,344 @@
+/*
+ * 书桌防线 · 设计变量（浅色 / 深色两套）
+ *
+ * 写样式时只用这里的「语义变量」，不要直接写色值：
+ *   背景      --bg（桌面） --bg-2 --bg-3     --surface（纸张卡片） --surface-2（凹下去的格子） --surface-hi（悬停 / 输入框）
+ *   文字      --ink  --ink-muted  --ink-faint          反色块：--inverse 底 + --on-inverse 字
+ *   描边      --border（所有 2px 描边） --border-soft --border-faint     硬投影：--shadow-color / --shadow
+ *   强调      --accent（青） --accent-ink（青底上的字）   --good --bad --warn   文字用 --good-text --bad-text --warn-text --info-text
+ *   亮色块    --pencil --gold-l --sky --orange --pink --cyan：两套主题里都是亮色，上面的字必须是深色，
+ *             选择器要登记到本文件末尾的「亮色块」名单里，或者直接给元素加 class="on-bright"
+ *   淡色底    --tint-yellow / amber / peach / red / green / blue / pink / purple（各有 -2 加深档）：浅色下是粉彩，深色下是压暗的同色相
+ *   稀有度    --rarity-common --rarity-rare --rarity-epic      形态：--tier-2 --tier-3 --branch-a --branch-b
+ *   深渊      --abyss-bg --abyss-card --abyss-card-2 --abyss-line --abyss-text（两套主题都是紫色夜景，深色下更深一档）
+ *
+ * 主题切换：<html data-theme="light|dark">；不写 data-theme 时跟随系统（prefers-color-scheme）。
+ * 由 src/ui/theme.ts 负责写这个属性。深色那一段写了两遍（属性选择器 + 媒体查询），改的时候两处一起改。
+ *
+ * 旧变量名（--desk --paper --white --teal …）保留为别名，新代码请用语义名。
+ */
+:root {
+  color-scheme: light;
+
+  /* —— 背景 —— */
+  --bg: #e8d5b5;
+  --bg-2: #d4bc94;
+  --bg-3: #c9ad80;
+  --surface: #fbf8f1;
+  --surface-2: #f4eddf;
+  --surface-hi: #ffffff;
+  --bg-rgb: 232 213 181;
+  --surface-rgb: 251 248 241;
+  --grain-rgb: 201 173 128;
+  /* 高光：白色 × 系数（深色下压低，避免刺眼） */
+  --hi-rgb: 255 255 255;
+  --hi-k: 1;
+
+  /* —— 文字 —— */
+  --ink: #3b2f2a;
+  --ink-rgb: 59 47 42;
+  --ink-muted: rgba(59, 47, 42, 0.62);
+  --ink-faint: rgba(59, 47, 42, 0.18);
+  --inverse: #3b2f2a;
+  --on-inverse: #fbf8f1;
+  /* 彩色底（红 / 青 / 紫…）上的字、半透明遮罩上的字：两套主题都是浅色 */
+  --on-color: #ffffff;
+  --on-scrim: #fbf8f1;
+  /* 浅色字外面那圈描边 / 投影：两套主题都是深色 */
+  --outline-ink: #3b2f2a;
+  /* 不随主题变的墨色（亮色块里用） */
+  --ink-fixed: #3b2f2a;
+
+  /* —— 描边与投影 —— */
+  --border: #3b2f2a;
+  --border-soft: rgba(59, 47, 42, 0.62);
+  --border-faint: rgba(59, 47, 42, 0.18);
+  --shadow-color: #3b2f2a;
+  --shadow-rgb: 59 47 42;
+  --shadow: 0 3px 0 var(--shadow-color);
+  --shadow-soft: 0 6px 18px rgb(var(--shadow-rgb) / 0.18);
+  --scrim: rgba(40, 30, 26, 0.62);
+  /* 内联 SVG 图标的描边色 */
+  --icon-line: #3b2f2a;
+  /* 美术素材（<img> SVG，深色描边）在深色底上的浅色勾边 */
+  --art-halo: none;
+
+  /* —— 强调色 —— */
+  --accent: #2a9d8f;
+  --accent-ink: #ffffff;
+  --good: #2a9d8f;
+  --bad: #e63946;
+  --warn: #f29e4c;
+  --red: #e63946;
+  --red-l: #ff6b6b;
+  --focus: #4fa3e0;
+  /* 当作文字颜色用的强调色（保证在卡片底上读得清） */
+  --good-text: #2a9d8f;
+  --good-text-strong: #17786c;
+  --bad-text: #e63946;
+  --bad-text-strong: #b3202c;
+  --warn-text: #9a4b00;
+  --info-text: #2e4a7d;
+  --purple-text: #6c5b7b;
+  --gold-text: #9c7a1c;
+
+  /* —— 亮色块（上面永远是深色字） —— */
+  --pencil: #f2c14e;
+  --pencil-hi: #f6cd6a;
+  --gold: #d4a82c;
+  --gold-l: #f5d76e;
+  --gold-d: #9c7a1c;
+  --orange: #f29e4c;
+  --pink: #f28aa0;
+  --sky: #9bd1e5;
+  --cyan: #4fd1c5;
+
+  /* —— 其它固定色 —— */
+  --book: #b23a48;
+  --blue: #4fa3e0;
+  --navy: #2e4a7d;
+  --purple: #6c5b7b;
+  --epic: #8e5cd9;
+  --magenta: #d53f8c;
+  --drop-brown: #b5651d;
+  --neutral: #b8aea0;
+  --legend-obst: #c9ad80;
+
+  /* —— 淡色底 —— */
+  --tint-yellow: #fff3cf;
+  --tint-yellow-2: #ffe08a;
+  --tint-cream: #fffaf0;
+  --tint-amber: #ffe2a6;
+  --tint-amber-2: #ffc58a;
+  --tint-peach: #ffe0cc;
+  --tint-red: #fde3e5;
+  --tint-red-2: #f9c3c6;
+  --tint-green: #dcf3ea;
+  --tint-green-2: #c2f2ec;
+  --tint-blue: #dcebf7;
+  --tint-blue-2: #c9e8f3;
+  --tint-pink: #f7c6df;
+  --tint-purple: #f5edff;
+  --tint-silver: #ececec;
+  --tint-bronze: #f3dcc6;
+  --tint-grey: #d9cfc6;
+  --tint-tan: #e9c99a;
+  --tint-tan-2: #f1e2c4;
+
+  /* —— 稀有度 / 形态 —— */
+  --rarity-common: #a0aec0;
+  --rarity-rare: #4fa3e0;
+  --rarity-epic: #8e5cd9;
+  --tier-2: #2a9d8f;
+  --tier-3: #d4a82c;
+  --branch-a: #4fd1c5;
+  --branch-b: #d53f8c;
+  --branch-a-line: #1d7e75;
+  --branch-b-line: #a12a66;
+
+  /* —— 代码 / 日志块（两套主题都是深底浅字） —— */
+  --code-bg: #2b2522;
+  --code-ink: #f4ecdd;
+
+  /* —— 深渊 —— */
+  --abyss-bg: #1c1424;
+  --abyss-card: #2a1f36;
+  --abyss-card-2: #3a2b4a;
+  --abyss-line: #9b6bd3;
+  --abyss-text: #eadcff;
+
+  /* —— 标题字（纸色字 + 墨色描边） —— */
+  --logo-fill: #fbf8f1;
+  --logo-stroke: #3b2f2a;
+
+  /* —— 旧名别名 —— */
+  --desk: var(--bg);
+  --desk-dark: var(--bg-2);
+  --desk-deep: var(--bg-3);
+  --ink-soft: var(--ink-muted);
+  --paper: var(--surface);
+  --paper-2: var(--surface-2);
+  --white: var(--surface-hi);
+  --teal: var(--accent);
+}
+
+/* ———————————————— 深色：夜晚的书桌 ———————————————— */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #2a211c;
+  --bg-2: #3a2e26;
+  --bg-3: #4a3b30;
+  --surface: #3a322d;
+  --surface-2: #312925;
+  --surface-hi: #4a403a;
+  --bg-rgb: 42 33 28;
+  --surface-rgb: 58 50 45;
+  --grain-rgb: 0 0 0;
+  --hi-rgb: 255 236 205;
+  --hi-k: 0.22;
+
+  --ink: #f3e9d7;
+  --ink-rgb: 243 233 215;
+  --ink-muted: rgba(243, 233, 215, 0.7);
+  --ink-faint: rgba(243, 233, 215, 0.16);
+  --inverse: #f3e9d7;
+  --on-inverse: #2a211c;
+  --outline-ink: #1a1310;
+
+  --border: #9d8b77;
+  --border-soft: rgba(243, 233, 215, 0.45);
+  --border-faint: rgba(243, 233, 215, 0.16);
+  --shadow-color: #120d0a;
+  --shadow-rgb: 0 0 0;
+  --shadow-soft: 0 6px 18px rgb(0 0 0 / 0.4);
+  --scrim: rgba(10, 7, 5, 0.72);
+  --icon-line: #f3e9d7;
+  --art-halo: drop-shadow(0 0 0.6px rgba(255, 240, 214, 0.85)) drop-shadow(0 0 2px rgba(255, 240, 214, 0.28));
+
+  --accent: #1f8275;
+  --good: #1f8275;
+  --bad: #d93744;
+  --red: #d93744;
+  --focus: #6cb6ea;
+  --good-text: #62d6c6;
+  --good-text-strong: #7fe0d2;
+  --bad-text: #ff979c;
+  --bad-text-strong: #ffabb0;
+  --warn-text: #ffb866;
+  --info-text: #a9c4f5;
+  --purple-text: #cdb9e2;
+  --gold-text: #ecc95c;
+
+  --pencil: #e6b545;
+  --pencil-hi: #efc25a;
+  --gold-l: #ecce62;
+  --sky: #8cc3d9;
+  --neutral: #7d7166;
+
+  --tint-yellow: #4b3e1d;
+  --tint-yellow-2: #5a481a;
+  --tint-cream: #40372a;
+  --tint-amber: #54401c;
+  --tint-amber-2: #5f3d1c;
+  --tint-peach: #55372a;
+  --tint-red: #4f2c2e;
+  --tint-red-2: #6a3237;
+  --tint-green: #25433c;
+  --tint-green-2: #284c43;
+  --tint-blue: #283e50;
+  --tint-blue-2: #2c4c63;
+  --tint-pink: #55304a;
+  --tint-purple: #3d3058;
+  --tint-silver: #46433f;
+  --tint-bronze: #4d3a2b;
+  --tint-grey: #45403b;
+  --tint-tan: #5a4630;
+  --tint-tan-2: #4a3d2e;
+
+  --branch-a-line: #4fd1c5;
+  --branch-b-line: #e86bab;
+
+  --code-bg: #1a1411;
+  --code-ink: #f1e6d3;
+
+  --abyss-bg: #130d1a;
+  --abyss-card: #241a30;
+  --abyss-card-2: #342644;
+  --abyss-line: #a97be0;
+  --abyss-text: #eadcff;
+
+  --logo-fill: #f3e9d7;
+  --logo-stroke: #120d0a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --bg: #2a211c;
+    --bg-2: #3a2e26;
+    --bg-3: #4a3b30;
+    --surface: #3a322d;
+    --surface-2: #312925;
+    --surface-hi: #4a403a;
+    --bg-rgb: 42 33 28;
+    --surface-rgb: 58 50 45;
+    --grain-rgb: 0 0 0;
+    --hi-rgb: 255 236 205;
+    --hi-k: 0.22;
+
+    --ink: #f3e9d7;
+    --ink-rgb: 243 233 215;
+    --ink-muted: rgba(243, 233, 215, 0.7);
+    --ink-faint: rgba(243, 233, 215, 0.16);
+    --inverse: #f3e9d7;
+    --on-inverse: #2a211c;
+    --outline-ink: #1a1310;
+
+    --border: #9d8b77;
+    --border-soft: rgba(243, 233, 215, 0.45);
+    --border-faint: rgba(243, 233, 215, 0.16);
+    --shadow-color: #120d0a;
+    --shadow-rgb: 0 0 0;
+    --shadow-soft: 0 6px 18px rgb(0 0 0 / 0.4);
+    --scrim: rgba(10, 7, 5, 0.72);
+    --icon-line: #f3e9d7;
+    --art-halo: drop-shadow(0 0 0.6px rgba(255, 240, 214, 0.85)) drop-shadow(0 0 2px rgba(255, 240, 214, 0.28));
+
+    --accent: #1f8275;
+    --good: #1f8275;
+    --bad: #d93744;
+    --red: #d93744;
+    --focus: #6cb6ea;
+    --good-text: #62d6c6;
+    --good-text-strong: #7fe0d2;
+    --bad-text: #ff979c;
+    --bad-text-strong: #ffabb0;
+    --warn-text: #ffb866;
+    --info-text: #a9c4f5;
+    --purple-text: #cdb9e2;
+    --gold-text: #ecc95c;
+
+    --pencil: #e6b545;
+    --pencil-hi: #efc25a;
+    --gold-l: #ecce62;
+    --sky: #8cc3d9;
+    --neutral: #7d7166;
+
+    --tint-yellow: #4b3e1d;
+    --tint-yellow-2: #5a481a;
+    --tint-cream: #40372a;
+    --tint-amber: #54401c;
+    --tint-amber-2: #5f3d1c;
+    --tint-peach: #55372a;
+    --tint-red: #4f2c2e;
+    --tint-red-2: #6a3237;
+    --tint-green: #25433c;
+    --tint-green-2: #284c43;
+    --tint-blue: #283e50;
+    --tint-blue-2: #2c4c63;
+    --tint-pink: #55304a;
+    --tint-purple: #3d3058;
+    --tint-silver: #46433f;
+    --tint-bronze: #4d3a2b;
+    --tint-grey: #45403b;
+    --tint-tan: #5a4630;
+    --tint-tan-2: #4a3d2e;
+
+    --branch-a-line: #4fd1c5;
+    --branch-b-line: #e86bab;
+
+    --code-bg: #1a1411;
+    --code-ink: #f1e6d3;
+
+    --abyss-bg: #130d1a;
+    --abyss-card: #241a30;
+    --abyss-card-2: #342644;
+    --abyss-line: #a97be0;
+    --abyss-text: #eadcff;
+
+    --logo-fill: #f3e9d7;
+    --logo-stroke: #120d0a;
+  }
+}

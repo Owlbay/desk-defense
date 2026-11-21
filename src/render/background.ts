@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import type { GridState, Obstacle, SpawnerState } from '../core/types';
-import { C } from './palette';
+import { B, C } from './palette';
 import { BOARD_H, BOARD_W, CELL } from './layout';
 
 /** 简单可复现的伪随机（只用于装饰） */
@@ -52,14 +52,14 @@ export function drawBoard(
 ): void {
   g.clear();
   // 投影与桌面
-  g.fillStyle(C.ink, 0.18);
+  g.fillStyle(B.shadow, 0.18 * B.shadowK);
   g.fillRoundedRect(4, 6, BOARD_W, BOARD_H, 12);
-  g.fillStyle(C.desk, 1);
+  g.fillStyle(B.desk, 1);
   g.fillRoundedRect(0, 0, BOARD_W, BOARD_H, 12);
 
   // 木纹：几条轻微波动的横线
   const r = rng(7);
-  g.lineStyle(2, C.deskDark, 0.35);
+  g.lineStyle(2, B.grain, 0.35);
   for (let i = 0; i < 18; i++) {
     const y0 = 12 + i * (BOARD_H / 18) + r() * 10;
     const amp = 2 + r() * 4;
@@ -77,17 +77,17 @@ export function drawBoard(
   for (let i = 0; i < 4; i++) {
     const x = 40 + r() * (BOARD_W - 80);
     const y = 40 + r() * (BOARD_H - 80);
-    g.lineStyle(1.5, C.deskDark, 0.4);
+    g.lineStyle(1.5, B.grain, 0.4);
     g.strokeEllipse(x, y, 18 + r() * 10, 7 + r() * 4);
     g.strokeEllipse(x, y, 8, 3);
   }
 
   // 网格
-  g.lineStyle(1, C.deskDark, 0.75);
+  g.lineStyle(1, B.grid, 0.75);
   for (let x = 1; x < grid.cols; x++) g.lineBetween(x * CELL, 2, x * CELL, BOARD_H - 2);
   for (let y = 1; y < grid.rows; y++) g.lineBetween(2, y * CELL, BOARD_W - 2, y * CELL);
   // 格点小十字（更像方格本）
-  g.fillStyle(C.deskDark, 0.9);
+  g.fillStyle(B.grid, 0.9);
   for (let x = 1; x < grid.cols; x++) for (let y = 1; y < grid.rows; y++) g.fillRect(x * CELL - 1.5, y * CELL - 1.5, 3, 3);
 
   if (spawners && spawners.length) {
@@ -100,7 +100,7 @@ export function drawBoard(
   for (const o of grid.obstacles) if (!hidden || !hidden.has(obstacleKey(o))) drawObstacle(g, o);
 
   // 桌沿描边
-  g.lineStyle(3, C.ink, 0.85);
+  g.lineStyle(3, B.edge, 0.85);
   g.strokeRoundedRect(0, 0, BOARD_W, BOARD_H, 12);
 }
 
@@ -156,26 +156,26 @@ function drawHiddenSpawner(g: Phaser.GameObjects.Graphics, cells: { x: number; y
       H = b.h * CELL;
     if (!active) {
       // 若隐若现的方形接缝 + 两颗小铰链
-      g.lineStyle(1.5, C.deskDark, 0.9);
+      g.lineStyle(1.5, B.grid, 0.9);
       g.strokeRoundedRect(X + 6, Y + 6, W - 12, H - 12, 4);
-      g.lineStyle(1, C.ink, 0.12);
+      g.lineStyle(1, B.pit, 0.12 * B.shadowK);
       g.strokeRoundedRect(X + 7.5, Y + 7.5, W - 15, H - 15, 3);
-      g.fillStyle(C.ink, 0.18);
+      g.fillStyle(B.shadow, 0.18 * B.shadowK);
       g.fillCircle(X + 10, Y + H / 2 - 6, 1.6);
       g.fillCircle(X + 10, Y + H / 2 + 6, 1.6);
-      g.lineStyle(1, C.deskDark, 0.7);
+      g.lineStyle(1, B.grid, 0.7);
       g.lineBetween(X + W / 2, Y + 8, X + W / 2, Y + H - 8);
       continue;
     }
     // 开启：深色洞口
-    g.fillStyle(C.ink, 0.18);
+    g.fillStyle(B.shadow, 0.18 * B.shadowK);
     g.fillRoundedRect(X + 3, Y + 4, W - 4, H - 4, 6);
-    g.fillStyle(C.ink, 0.9);
+    g.fillStyle(B.pit, 0.9);
     g.fillRoundedRect(X + 6, Y + 6, W - 12, H - 12, 5);
     g.fillStyle(0x000000, 0.3);
     g.fillRoundedRect(X + 9, Y + 9, W - 18, (H - 18) * 0.5, 4);
     // 两扇翻开的门板（左右）
-    g.fillStyle(C.deskDark, 1);
+    g.fillStyle(B.grid, 1);
     g.lineStyle(OUT, C.ink, 1);
     g.fillRoundedRect(X + 1, Y + 6, 7, H - 12, 2);
     g.strokeRoundedRect(X + 1, Y + 6, 7, H - 12, 2);
@@ -226,9 +226,9 @@ function drawEntrances(g: Phaser.GameObjects.Graphics, grid: GridState, cells: {
       rw = W * depth;
       rh = H - 8;
     }
-    g.fillStyle(C.ink, 0.12);
+    g.fillStyle(B.pit, 0.12 * B.shadowK);
     g.fillRoundedRect(X + 2, Y + 2, W - 4, H - 4, 8);
-    g.fillStyle(C.ink, active ? 0.85 : 0.4);
+    g.fillStyle(B.pit, active ? 0.85 : 0.4);
     g.fillRoundedRect(rx, ry - (edge === 'top' ? 8 : 0), rw, rh + (edge === 'top' || edge === 'bottom' ? 8 : 0), 8);
     g.fillStyle(0x000000, 0.25);
     g.fillRoundedRect(rx + 4, ry + (edge === 'top' ? -4 : 4), rw - 8, rh * 0.6, 6);
@@ -265,7 +265,7 @@ function drawExit(g: Phaser.GameObjects.Graphics, grid: GridState): void {
       W = b.w * CELL - 8,
       H = b.h * CELL - 8;
     // 投影
-    g.fillStyle(C.ink, 0.18);
+    g.fillStyle(B.shadow, 0.18 * B.shadowK);
     g.fillRoundedRect(X + 3, Y + 4, W, H, 4);
     // 封面边（蓝色作业本）
     g.fillStyle(C.penBlue, 1);
@@ -299,7 +299,7 @@ function drawExit(g: Phaser.GameObjects.Graphics, grid: GridState): void {
 }
 
 function shadowRect(g: Phaser.GameObjects.Graphics, x: number, y: number, w: number, h: number, r: number): void {
-  g.fillStyle(C.ink, 0.18);
+  g.fillStyle(B.shadow, 0.18 * B.shadowK);
   g.fillRoundedRect(x + 3, y + 5, w, h, r);
 }
 
@@ -314,7 +314,7 @@ export function drawObstacle(g: Phaser.GameObjects.Graphics, o: Obstacle): void 
   switch (o.kind) {
     case 'cup': {
       const r = Math.min(W, H) / 2 - m;
-      g.fillStyle(C.ink, 0.18);
+      g.fillStyle(B.shadow, 0.18 * B.shadowK);
       g.fillCircle(cx + 3, cy + 5, r + 2);
       // 把手
       g.fillStyle(C.paper, 1);
@@ -402,7 +402,7 @@ export function drawObstacle(g: Phaser.GameObjects.Graphics, o: Obstacle): void 
       g.moveTo(cx, cy - rh / 2);
       g.lineTo(cx + 4, Y + 2);
       g.strokePath();
-      g.fillStyle(C.ink, 0.18);
+      g.fillStyle(B.shadow, 0.18 * B.shadowK);
       g.fillEllipse(cx + 3, cy + 5, rw, rh);
       g.fillStyle(C.metal, 1);
       g.fillEllipse(cx, cy, rw, rh);
@@ -420,14 +420,14 @@ export function drawObstacle(g: Phaser.GameObjects.Graphics, o: Obstacle): void 
     case 'palette': {
       const rw = W - 2 * m,
         rh = H - 2 * m;
-      g.fillStyle(C.ink, 0.18);
+      g.fillStyle(B.shadow, 0.18 * B.shadowK);
       g.fillEllipse(cx + 3, cy + 5, rw, rh);
       g.fillStyle(C.tapeTan, 1);
       g.fillEllipse(cx, cy, rw, rh);
       g.lineStyle(OUT, C.ink, 1);
       g.strokeEllipse(cx, cy, rw, rh);
       // 拇指孔
-      g.fillStyle(C.desk, 1);
+      g.fillStyle(B.desk, 1);
       g.fillEllipse(cx + rw * 0.25, cy + rh * 0.18, rw * 0.16, rh * 0.18);
       g.strokeEllipse(cx + rw * 0.25, cy + rh * 0.18, rw * 0.16, rh * 0.18);
       const blobs = [C.alarmRed, C.pencil, C.blueCap, C.teal, C.magenta, C.paper];
@@ -452,7 +452,7 @@ export function drawObstacle(g: Phaser.GameObjects.Graphics, o: Obstacle): void 
         const tx = X + m + i * tw + 2;
         const ty = Y + m + (i % 2) * 5;
         const th = H - 2 * m - 6;
-        g.fillStyle(C.ink, 0.18);
+        g.fillStyle(B.shadow, 0.18 * B.shadowK);
         g.fillRoundedRect(tx + 3, ty + 5, tw - 4, th, 4);
         g.fillStyle(C.paper, 1);
         g.fillRoundedRect(tx, ty, tw - 4, th, 4);
@@ -498,7 +498,7 @@ export function drawObstacle(g: Phaser.GameObjects.Graphics, o: Obstacle): void 
     case 'pencilcup': {
       // 俯视：深色笔筒 + 几支笔的笔尾
       const r = Math.min(W, H) / 2 - m;
-      g.fillStyle(C.ink, 0.18);
+      g.fillStyle(B.shadow, 0.18 * B.shadowK);
       g.fillCircle(cx + 3, cy + 5, r + 1);
       g.fillStyle(C.slate, 1);
       g.fillCircle(cx, cy, r);
@@ -614,7 +614,7 @@ export function drawObstacle(g: Phaser.GameObjects.Graphics, o: Obstacle): void 
     case 'tape': {
       // 胶带卷：米色圆环 + 露出桌面的中心孔
       const r = Math.min(W, H) / 2 - m;
-      g.fillStyle(C.ink, 0.18);
+      g.fillStyle(B.shadow, 0.18 * B.shadowK);
       g.fillCircle(cx + 3, cy + 5, r);
       g.fillStyle(C.tapeTan, 1);
       g.fillCircle(cx, cy, r);
@@ -627,7 +627,7 @@ export function drawObstacle(g: Phaser.GameObjects.Graphics, o: Obstacle): void 
       g.fillCircle(cx, cy, r * 0.52);
       g.lineStyle(OUT, C.ink, 1);
       g.strokeCircle(cx, cy, r * 0.52);
-      g.fillStyle(C.desk, 1);
+      g.fillStyle(B.desk, 1);
       g.fillCircle(cx, cy, r * 0.42);
       g.lineStyle(1.5, C.ink, 0.6);
       g.strokeCircle(cx, cy, r * 0.42);
@@ -671,7 +671,7 @@ export function drawObstacle(g: Phaser.GameObjects.Graphics, o: Obstacle): void 
       const s0 = Math.min(W, H) - 2 * m - 8;
       const bx = cx - s0 / 2,
         by = cy - s0 * 0.25;
-      g.fillStyle(C.ink, 0.18);
+      g.fillStyle(B.shadow, 0.18 * B.shadowK);
       g.fillRect(bx + 3, by + 5, s0, s0 * 0.55);
       g.lineStyle(3, C.metal, 1);
       g.beginPath();

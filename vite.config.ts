@@ -11,6 +11,8 @@ export default defineConfig({
     target: 'es2022',
     chunkSizeWarningLimit: 2500,
     rollupOptions: {
+      // 两个页面入口：游戏本体（index.html）与介绍页（about.html → /about，纯静态 + 一小段脚本，不加载游戏代码）
+      input: { main: 'index.html', about: 'about.html' },
       // Phaser 单独成包：游戏代码更新时，玩家浏览器里缓存的引擎不用重新下载
       output: {
         manualChunks: (id: string) => (id.includes('node_modules/phaser') ? 'phaser' : undefined),
@@ -48,8 +50,10 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
-        // AI 分包不预缓存；进入「AI 参战」时按需下载，之后离线可用
-        globIgnores: ['**/assets/ai/**'],
+        // AI 分包不预缓存；进入「AI 参战」时按需下载，之后离线可用。介绍页和分享图不属于游戏本体，也不预缓存
+        globIgnores: ['**/assets/ai/**', 'about.html', '**/assets/about-*', 'og.png'],
+        // /about 是独立页面：不要用游戏的 index.html 兜底（否则装过 PWA 的玩家打开 /about 会看到游戏）
+        navigateFallbackDenylist: [/^\/about(?:\.html)?(?:[/?#]|$)/, /^\/api\//],
         runtimeCaching: [
           {
             urlPattern: /\/assets\/ai\/[^/]+\.js$/,

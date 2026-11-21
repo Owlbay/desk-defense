@@ -53,10 +53,10 @@ html.tab-hidden .screen:not(.game-screen) *::after {
   width: 150%;
   z-index: 200;
   pointer-events: none;
-  background-color: var(--paper);
+  background-color: var(--surface);
   background-image: repeating-linear-gradient(0deg, transparent 0 27px, rgba(79, 163, 224, 0.22) 27px 28px);
-  border-right: 3px solid var(--ink);
-  box-shadow: 16px 0 0 rgba(59, 47, 42, 0.14);
+  border-right: 3px solid var(--border);
+  box-shadow: 16px 0 0 rgb(var(--shadow-rgb) / 0.14);
   transform: skewX(-8deg);
   will-change: transform;
 }
@@ -134,8 +134,8 @@ html.tab-hidden .screen:not(.game-screen) *::after {
   position: absolute;
   inset: -48px;
   background-image:
-    repeating-linear-gradient(94deg, rgba(201, 173, 128, 0.2) 0 3px, transparent 3px 71px),
-    repeating-linear-gradient(86deg, rgba(255, 255, 255, 0.14) 0 2px, transparent 2px 37px);
+    repeating-linear-gradient(94deg, rgb(var(--grain-rgb) / 0.2) 0 3px, transparent 3px 71px),
+    repeating-linear-gradient(86deg, rgb(var(--hi-rgb) / calc(0.14 * var(--hi-k))) 0 2px, transparent 2px 37px);
   animation: sm-grain 36s ease-in-out infinite alternate;
   will-change: transform;
 }
@@ -148,7 +148,7 @@ html.tab-hidden .screen:not(.game-screen) *::after {
 
 .crumb {
   position: absolute;
-  border: 1.5px solid rgba(59, 47, 42, 0.55);
+  border: 1.5px solid rgb(var(--ink-rgb) / 0.55);
   border-radius: 42% 58% 55% 45%;
   background: var(--pink);
   opacity: 0.7;
@@ -156,7 +156,7 @@ html.tab-hidden .screen:not(.game-screen) *::after {
   animation-delay: calc(var(--i, 0) * -3.1s);
   will-change: transform;
 }
-.crumb.c1 { background: var(--paper); }
+.crumb.c1 { background: var(--surface); }
 .crumb.c2 { background: var(--sky); }
 
 @keyframes sm-crumb {
@@ -289,7 +289,7 @@ html.tab-hidden .screen:not(.game-screen) *::after {
 
 /* 每日挑战 */
 .menu-btn.daily {
-  background: #e3f0f8;
+  background: var(--tint-blue);
 }
 
 .badge.today {
@@ -346,7 +346,7 @@ html.tab-hidden .screen:not(.game-screen) *::after {
 }
 
 :is(.screen:not(.game-screen), .confirm-overlay) :is(.btn, .menu-btn, .diff-card, .diff-btn, .slot.filled):active:not(:disabled, .locked) {
-  box-shadow: 0 1px 0 var(--ink);
+  box-shadow: 0 1px 0 var(--shadow-color);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -364,19 +364,19 @@ html.tab-hidden .screen:not(.game-screen) *::after {
 }
 
 :is(.tab, .diff-card, .diff-btn, .abyss-lv, .slot.filled, .event-toggle, .seed-btn):focus-visible {
-  outline: 3px solid var(--blue);
+  outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
 
 .range:focus-visible {
-  outline: 3px solid var(--blue);
+  outline: 3px solid var(--focus);
   outline-offset: 2px;
   border-radius: 999px;
 }
 
 /* ───────────── 开关 / 滑块 ───────────── */
 .switch input:checked + .knob {
-  background: var(--paper-2);
+  background: var(--surface-2);
 }
 
 .switch .knob {
@@ -389,7 +389,7 @@ html.tab-hidden .screen:not(.game-screen) *::after {
   position: absolute;
   inset: 0;
   border-radius: 999px;
-  background: var(--teal);
+  background: var(--accent);
   opacity: 0;
   transition: opacity var(--dur-s) linear;
 }
@@ -484,7 +484,7 @@ html.tab-hidden .screen:not(.game-screen) *::after {
   top: -4px;
   width: 8px;
   height: 8px;
-  border: 1.5px solid var(--ink);
+  border: 1.5px solid var(--border);
   border-radius: 50%;
 }
 
@@ -512,7 +512,7 @@ html.tab-hidden .screen:not(.game-screen) *::after {
   left: 0;
   width: 46%;
   pointer-events: none;
-  background: linear-gradient(100deg, transparent, rgba(190, 150, 255, 0.26) 42%, rgba(255, 255, 255, 0.3) 50%, rgba(190, 150, 255, 0.26) 58%, transparent);
+  background: linear-gradient(100deg, transparent, rgba(190, 150, 255, 0.26) 42%, rgb(var(--hi-rgb) / calc(0.3 * var(--hi-k))) 50%, rgba(190, 150, 255, 0.26) 58%, transparent);
   transform: translateX(-140%) skewX(-18deg);
   animation: sm-sheen 4.4s var(--ease-in-out) infinite;
 }
@@ -562,7 +562,7 @@ html.tab-hidden .screen:not(.game-screen) *::after {
   content: '';
   position: absolute;
   inset: -2px;
-  border: 3px solid var(--teal);
+  border: 3px solid var(--accent);
   border-radius: 14px;
   pointer-events: none;
   opacity: 0;

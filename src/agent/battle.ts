@@ -17,6 +17,7 @@ import { generateWave } from '../core/wavegen';
 import { hpScale, speedScale, armorAt } from '../core/scaling';
 import { ENEMY_CODE } from './compact';
 import { counterOf } from './prompts';
+import { PURPOSE_CORE, enemyPurposes, type Purpose } from './purpose';
 import { flightLines, groundRoutes, shooters, type Shooter } from './routes';
 import type { PlannerState } from './planner';
 
@@ -56,8 +57,9 @@ export class BattleLog {
       }
       this.from.set(nw.wave, m);
     }
-    // 新塔从第一次看到时开始计伤害
-    for (const t of s.towers.values()) if (!this.dmg0.has(t.uid)) this.dmg0.set(t.uid, t.damage);
+    // 新塔（引擎开始之后才放的）从 0 开始计伤害：它的累计伤害全部发生在放下之后。
+    // （原来按"第一次看到时"的累计伤害作基线：决策里放的塔要到下一个决策点才看到，整波的伤害被当成基线，战报误报 0dmg）
+    for (const t of s.towers.values()) if (!this.dmg0.has(t.uid)) this.dmg0.set(t.uid, 0);
     let ended = false;
     for (const e of events) {
       if (e.type === 'death') this.acc.kills++;
@@ -238,8 +240,37 @@ export function threatEstimate(w: IWorld): ThreatLine[] {
   return out;
 }
 
+/**
+ * 克制：下一波每种敌人需要的用途 + 最近漏怪的精英词缀带来的用途；缺主力塔的用途给出建议意图。
+ * "CTR pc→armor ik→slow+aoe | 缺 armor,aoe → {do:"build_near",purpose:"armor"} …"
+ */
+export function counterLine(w: IWorld, extra: Purpose[] = []): string | undefined {
+  const nw = w.state.nextWave;
+  const need = new Map<Purpose, string[]>();
+  const per: string[] = [];
+  for (const id of [...new Set(nw.groups.map((g) => g.enemy))]) {
+    const def = ENEMIES[id];
+    const c = counterOf(def);
+    if (c !== 'any') per.push(`${code(id)}→${c}`);
+    for (const p of enemyPurposes(def)) {
+      if (!need.has(p)) need.set(p, []);
+      need.get(p)!.push(code(id));
+    }
+  }
+  for (const p of extra) {
+    if (!need.has(p)) need.set(p, []);
+    need.get(p)!.push('leak');
+  }
+  if (!per.length && !extra.length) return undefined;
+  const have = new Set([...w.state.towers.values()].map((t) => t.id));
+  const missing = [...need.keys()].filter((p) => p !== 'dps' && p !== 'air' && !PURPOSE_CORE[p].some((id) => have.has(id)));
+  const fix = missing.slice(0, 3).map((p) => `{do:"build_near",purpose:"${p}"}`);
+  const ex = extra.length ? ` | leaks need ${[...new Set(extra)].join(',')}` : '';
+  return `CTR ${per.join(' ')}${ex}${missing.length ? ` | 缺 ${missing.join(',')} → ${fix.join(' ')}` : ''}`;
+}
+
 /** 威胁 + 克制 → 一行（给模型）；危险时附带建议的意图 */
-export function threatLine(w: IWorld): string | undefined {
+export function threatLine(w: IWorld, extra: Purpose[] = []): string | undefined {
   const th = threatEstimate(w);
   if (!th.length) return undefined;
   const nw = w.state.nextWave;
@@ -248,10 +279,10 @@ export function threatLine(w: IWorld): string | undefined {
   for (const t of th) {
     if (t.verdict === '安全') continue;
     if (t.id.startsWith('air:')) fix.push(`{do:"anti_air",line:"${t.id.slice(4)}"}`);
-    else fix.push(`{do:"build_near",target:"route${t.id === '*' ? '' : `:${t.id}`}"} / maze / upgrade_best`);
+    else fix.push(`{do:"build_near",purpose:"dps",target:"route${t.id === '*' ? '' : `:${t.id}`}"} / maze / upgrade_best`);
   }
-  const ctr = [...new Set(nw.groups.map((g) => g.enemy))].map((id) => `${code(id)}→${counterOf(ENEMIES[id])}`).filter((x) => !x.endsWith('→any'));
-  return `TH w${nw.wave}: ${parts.join(' | ')}${fix.length ? ` → ${[...new Set(fix)].join(' ')}` : ''}${ctr.length ? `\nCTR ${ctr.join('; ')}` : ''}`;
+  const ctr = counterLine(w, extra);
+  return `TH w${nw.wave}: ${parts.join(' | ')}${fix.length ? ` → ${[...new Set(fix)].join(' ')}` : ''}${ctr ? `\n${ctr}` : ''}`;
 }
 
 /** 建造阶段金币闲置提醒（save 生效时不提醒） */

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { t } from '../i18n';
 import type { Session } from '../game/Session';
 import { Ambience } from './ambience';
 import { ArtAtlas } from './assets';
@@ -11,7 +12,7 @@ import { Fx } from './fx';
 import { BoardInput } from './input';
 import { BOARD_H, BOARD_W, CELL, DEPTH, type Quality } from './layout';
 import { CameraRig, readReducedMotion } from './motion';
-import { C, FONT, hex } from './palette';
+import { B, C, FONT, hex, onBoardTheme } from './palette';
 import { ShotLayer } from './shots';
 import { SwatterLayer } from './swatter';
 import { TowerLayer } from './towers';
@@ -50,6 +51,7 @@ export class Board {
   private tint: Phaser.GameObjects.Graphics | null = null;
   private loading: Phaser.GameObjects.Text | null = null;
   private unsub: (() => void) | null = null;
+  private unsubTheme: (() => void) | null = null;
   private cssW = 1;
   private cssH = 1;
   private dpr = 1;
@@ -131,15 +133,19 @@ export class Board {
     this.events.swatter = this.swatter;
     this.input = new BoardInput(ctx, canvas, (cx, cy) => this.clientToWorld(cx, cy), this.field);
     this.loading = scene.add
-      .text(BOARD_W / 2, BOARD_H / 2, '加载中…', {
+      .text(BOARD_W / 2, BOARD_H / 2, t('ui.render.loading'), {
         fontFamily: FONT,
         fontSize: '16px',
         fontStyle: 'bold',
-        color: hex(C.ink),
+        color: hex(B.line),
       })
       .setOrigin(0.5)
       .setDepth(DEPTH.loading);
     this.unsub = this.session.on((ev) => this.events?.handle(ev));
+    // 浅色 / 深色主题切换：桌面颜色变了，重画并重新烘焙底图
+    this.unsubTheme = onBoardTheme(() => {
+      if (!this.destroyed) this.checkBackground(true);
+    });
     this.resize();
     this.drawBackground();
     ctx.atlas.request(CELL * this.boardScale * this.dpr);
@@ -332,6 +338,7 @@ export class Board {
     this.destroyed = true;
     this.ro.disconnect();
     this.unsub?.();
+    this.unsubTheme?.();
     this.input?.destroy();
     this.towers?.destroy();
     this.enemies?.destroy();

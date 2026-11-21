@@ -17,6 +17,7 @@ import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { setLocale } from '../src/i18n';
 import * as core from '../src/core';
 import * as cfgTowers from '../src/config/towers';
 import * as cfgEnemies from '../src/config/enemies';
@@ -347,7 +348,7 @@ function genTowers(): { md: string; summary: TowerData[] } {
     if (d.id === 'wall') continue;
     const m = TM[d.id];
     const l1 = d.levels[0];
-    const dps1 = parseNum(statMap(l1.info)['秒伤']);
+    const dps1 = parseNum(statMap(l1.info)['秒伤'] ?? statMap(l1.info)['持续伤害']);
     const cell = (r: LevelRow | undefined) => {
       if (!r) return ['—', '—', '—'];
       const sm = statMap(r.info);
@@ -363,7 +364,7 @@ function genTowers(): { md: string; summary: TowerData[] } {
       a10, b10, aInv, aPer, bPer,
     ]);
   }
-  const sumMd = '数值来自下方各塔的逐级表。"秒伤/金"= 秒伤 ÷ 累计投入。范围塔（×N）的秒伤按单目标计；辅助与经济塔没有秒伤。钢笔的秒伤只含直击，不含墨迹持续伤害（见其逐级表"伤害"列）；台灯 A（激光笔）为持续光束，显示的是起始每秒伤害。\n\n'
+  const sumMd = '数值来自下方各塔的逐级表。"秒伤/金"= 秒伤 ÷ 累计投入。范围塔（×N）的秒伤按单目标计；辅助与经济塔没有秒伤。钢笔的秒伤只含直击，不含墨迹持续伤害（见其逐级表"伤害"列）；台灯为持续光束，显示的是未递增、未联动的起始每秒伤害（同一目标最多 ×3，激光笔 ×5）。\n\n'
     + table(['', '塔', '造价', 'Lv1 秒伤', 'Lv1 秒伤/金', 'Lv10·A 秒伤', 'Lv10·B 秒伤', 'Lv10 累计投入', 'Lv10·A 秒伤/金', 'Lv10·B 秒伤/金'], sumRows);
   md = md.replace('<!--SUMMARY-->', sumMd);
   return { md, summary: all };
@@ -988,6 +989,8 @@ function genIndex(files: { file: string; title: string; desc: string }[]): strin
 
 async function main(): Promise<void> {
   const t0 = Date.now();
+  // 文档固定输出简体中文（数据表的名称 / 说明走 i18n，源语言即简体中文）
+  await setLocale('zh-CN');
   try { optionalMods['../src/meta/progress'] = await import('../src/meta/progress'); } catch (e) { warn(`无法导入 src/meta/progress：${(e as Error).message}`); }
   mkdirSync(OUT, { recursive: true });
   const pages: { file: string; title: string; desc: string; gen: () => string }[] = [

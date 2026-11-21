@@ -1,6 +1,8 @@
 import type { GameEvent } from '../../core/types';
 import { audio } from '../audio';
-import { h } from '../dom';
+import { SKILL_META } from '../coreMeta';
+import { onLocaleChange, t } from '../../i18n';
+import { h, setText } from '../dom';
 import type { GameCtx } from './context';
 
 /**
@@ -17,7 +19,9 @@ export type TutorialStep =
   // 所有模式通用的一次性提示（文档 09 / 11）
   | 'tip-event'
   | 'tip-drop'
-  | 'tip-evolve';
+  | 'tip-evolve'
+  // 对局里的 AI 按钮（第一次出现时）
+  | 'tip-ai';
 
 interface Targets {
   build(id: 'pencil' | 'wall'): HTMLElement | null;
@@ -28,6 +32,8 @@ interface Targets {
   skills(): HTMLElement | null;
   /** 随机事件横幅 / 即将发生时间轴 */
   events(): HTMLElement | null;
+  /** 顶栏的 AI 按钮 */
+  ai(): HTMLElement | null;
 }
 
 interface Active {
@@ -37,30 +43,40 @@ interface Active {
   target: () => HTMLElement | null;
 }
 
-const TEXT: Record<TutorialStep, { title: string; body: string }> = {
-  'ch1-place': { title: '放一座铅笔塔', body: '点塔栏里的「铅笔」，再点棋盘上路线旁边的空格放下它。手机上点一次预览，再点同一格确认。' },
-  'ch1-start': { title: '开始第 1 波', body: '准备好了就点这里。敌人会从顶部入口出发，沿路线走向底部的作业本。' },
-  'ch1-wall': { title: '用书本墙改路线', body: '书本墙很便宜。放置前会高亮新的路线——把路绕长，塔就能多打几下。注意不能把路完全堵死。' },
-  'ch1-upgrade': { title: '让塔成长', body: '点选一座塔：经验条会随击杀上涨，也可以直接花金币升级，攒的经验越多，升级越便宜。' },
-  'ch1-sell': { title: '出售与撤销', body: '不需要的塔可以出售。等级越高，返还比例越低（70% → 25%）；刚放下 5 秒内可以全额撤销。' },
-  'ch1-boss': { title: 'Boss 来了！', body: '点「大橡皮」，再点棋盘上的位置释放，对范围内的敌人造成大量伤害。' },
-  'tip-event': { title: '随机事件', body: '书桌上会突然发生事件：红色是坏事，绿色是好事。顶部横幅会提前预警并倒计时；硬币和补给箱要点一下才能收集。' },
-  'tip-drop': { title: '空降纸箱！', body: '虚线圈里很快会落下一个纸箱，变成新的出生点，路线也会跟着改变。点纸箱可以花金币拆除，技能「封箱胶带」也能直接封掉。' },
-  'tip-evolve': { title: '传奇进化', body: '传奇塔之后获得的经验会计入进化。攒经验或花金币升星：★1、★2 解锁分支特性，★3 成为神话并获得主动能力（选中后按 A 释放）。' },
+/** 气泡文字：ui.tutorial.<step>.title / .body */
+const text = (step: TutorialStep): { title: string; body: string } => {
+  // 技能名来自数据层（已翻译），文案里用占位符引用
+  const p = { eraser: SKILL_META.eraser_strike?.name ?? 'eraser_strike', tape: SKILL_META.seal_tape?.name ?? 'seal_tape' };
+  return { title: t(`ui.tutorial.${step}.title`, p), body: t(`ui.tutorial.${step}.body`, p) };
 };
 
 export class Tutorial {
   private active: Active | null = null;
   private queue: TutorialStep[] = [];
   private raf = 0;
+  private offLocale: () => void;
   readonly enabled: boolean;
 
   constructor(
     private ctx: GameCtx,
-    private t: Targets,
+    private tg: Targets,
   ) {
     const o = ctx.opts;
     this.enabled = o.mode === 'campaign' && o.map === 'ch1';
+    // 语言切换：正在显示的气泡就地换成新语言
+    this.offLocale = onLocaleChange(() => this.relabel());
+  }
+
+  private relabel(): void {
+    const a = this.active;
+    if (!a) return;
+    const tx = text(a.step);
+    const title = a.bubble.querySelector<HTMLElement>('.coach-title');
+    const body = a.bubble.querySelector<HTMLElement>('.coach-body');
+    const ok = a.bubble.querySelector<HTMLElement>('.coach-ok');
+    if (title) setText(title, tx.title);
+    if (body) setText(body, tx.body);
+    if (ok) setText(ok, t('ui.tutorial.ok'));
   }
 
   private seen(s: TutorialStep): boolean {
@@ -74,6 +90,8 @@ export class Tutorial {
   }
 
   start(): void {
+    // AI 按钮的一次性提示：第一章新手引导期间不打扰（第 1 波结束后再出现）
+    if (!this.enabled || this.seen('ch1-start')) this.show('tip-ai');
     if (!this.enabled) return;
     const st = this.ctx.world.state;
     if (st.wave === 0 && st.phase === 'build') {
@@ -98,6 +116,9 @@ export class Tutorial {
         break;
       case 'evolve':
         if (cur === 'tip-evolve') this.done();
+        break;
+      case 'waveEnd':
+        this.show('tip-ai');
         break;
     }
     if (!this.enabled) return;
@@ -135,22 +156,24 @@ export class Tutorial {
   private targetFor(s: TutorialStep): () => HTMLElement | null {
     switch (s) {
       case 'ch1-place':
-        return () => this.t.build('pencil');
+        return () => this.tg.build('pencil');
       case 'ch1-start':
-        return () => this.t.start();
+        return () => this.tg.start();
       case 'ch1-wall':
-        return () => this.t.build('wall');
+        return () => this.tg.build('wall');
       case 'ch1-upgrade':
       case 'ch1-sell':
-        return () => this.t.info() ?? this.t.board();
+        return () => this.tg.info() ?? this.tg.board();
       case 'ch1-boss':
-        return () => this.t.skill('eraser_strike') ?? this.t.skills();
+        return () => this.tg.skill('eraser_strike') ?? this.tg.skills();
       case 'tip-event':
-        return () => this.t.events() ?? this.t.board();
+        return () => this.tg.events() ?? this.tg.board();
       case 'tip-drop':
-        return () => this.t.board();
+        return () => this.tg.board();
       case 'tip-evolve':
-        return () => this.t.info() ?? this.t.board();
+        return () => this.tg.info() ?? this.tg.board();
+      case 'tip-ai':
+        return () => this.tg.ai();
     }
   }
 
@@ -161,12 +184,12 @@ export class Tutorial {
       if (!this.queue.includes(s)) this.queue.push(s);
       return;
     }
-    const text = TEXT[s];
+    const tx = text(s);
     const bubble = h(
       'div.coach',
       { attrs: { role: 'note' } },
-      h('div.coach-title', null, text.title),
-      h('div.coach-body', null, text.body),
+      h('div.coach-title', null, tx.title),
+      h('div.coach-body', null, tx.body),
       h(
         'button.btn.small.coach-ok',
         {
@@ -175,7 +198,7 @@ export class Tutorial {
             this.done();
           },
         },
-        '知道了',
+        t('ui.tutorial.ok'),
       ),
       h('span.coach-arrow'),
     );
@@ -230,7 +253,7 @@ export class Tutorial {
     // 否则会盖住同一面板里的其他按钮（塔栏、顶栏数值）
     let edgeL = x;
     let edgeR = x + r.width;
-    const board = this.ctx.landscape() ? this.t.board() : null;
+    const board = this.ctx.landscape() ? this.tg.board() : null;
     if (board && board !== tgt) {
       const br = board.getBoundingClientRect();
       if (r.left >= br.right - 1) edgeL = br.right - root.left;
@@ -259,7 +282,7 @@ export class Tutorial {
     const big = r.width * r.height > root.width * root.height * 0.3;
     // 大目标里只有棋盘（或四周都放不下时）才把气泡放进目标内部；
     // 横置手机上的塔信息卡也很大，但气泡放进去会盖住「升级 / 出售」
-    if (big && (tgt === this.t.board() || !order.some((s) => room[s] >= 0))) {
+    if (big && (tgt === this.tg.board() || !order.some((s) => room[s] >= 0))) {
       // 目标是整块棋盘之类的大区域：放在它里面靠上，不带箭头
       left = clampX(cx - bw / 2);
       top = clampY(y + Math.min(72, r.height * 0.18));
@@ -283,6 +306,15 @@ export class Tutorial {
     a.bubble.style.setProperty('--ay', `${Math.max(14, Math.min(bh - 14, cy - top))}px`);
   }
 
+  /** 玩家已经用过对应的按钮：正在显示就收起，否则直接记为已看过 */
+  ack(s: TutorialStep): void {
+    if (this.active?.step === s) this.done();
+    else if (!this.seen(s)) {
+      this.queue = this.queue.filter((q) => q !== s);
+      this.markSeen(s);
+    }
+  }
+
   private done(): void {
     const a = this.active;
     if (!a) return;
@@ -304,6 +336,7 @@ export class Tutorial {
   }
 
   destroy(): void {
+    this.offLocale();
     this.queue = [];
     this.hide();
   }

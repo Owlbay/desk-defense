@@ -4,7 +4,11 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { DifficultyId, IWorld, MapId, ModeId, RunOptions } from '../src/core';
+import type { Command, DifficultyId, GameEvent, IWorld, MapId, ModeId, RunOptions } from '../src/core';
+import { createWorld } from '../src/core';
+import { TOWERS } from '../src/config/towers';
+import { replaySync } from '../src/meta/midrun';
+import { passesPerTower } from '../src/agent/board';
 import { BOTS, StrategyBot } from './bots';
 import { createProvider } from '../src/agent/factory';
 import { parseContextMode, parseThinking, type AgentModelConfig } from '../src/agent/config';
@@ -59,6 +63,74 @@ export interface EvalRow {
   fallbacks: number;
   errors: number;
   wallMs: number;
+  /** 打法多样性（回放统计，与引擎版本无关）：建过的不同攻击塔种类数 */
+  types: number;
+  /** 结束时激活的组合技对数 */
+  combos: number;
+  /** 卖掉的墙 / 攻击塔 */
+  wallsSold: number;
+  towersSold: number;
+  /** 卖出后又在同一格放了攻击塔的格数（腾格重建） */
+  reclaimed: number;
+  /** 第一次漏怪那一波之后，平均每波漏怪数（学习效果；没漏过 = 0） */
+  leakAfter: number;
+  /** 回放终局得分与报告一致（指标可信） */
+  replayOk: boolean;
+  /** 终局路线长度 / 不建迷宫时的路线长度 */
+  pathRatio: number;
+  /** 攻击塔平均覆盖几段路线（迷宫里夹在两条通道之间的塔 ≥2） */
+  passes: number;
+}
+
+export interface PlayMetrics { types: number; combos: number; wallsSold: number; towersSold: number; reclaimed: number; replayOk: boolean; passes: number }
+
+/**
+ * 回放一局（种子 + 指令序列，确定性）统计打法指标：只依赖 core 与回放日志，不依赖 Agent 实现，
+ * 因而新旧版本（含 git HEAD）用同一口径。
+ */
+export function playMetrics(rep: Pick<AgentRunReport, 'replay' | 'result'>): PlayMetrics {
+  const w = createWorld(rep.replay.opts);
+  const placed = new Set<string>();
+  const freed = new Set<number>();
+  let wallsSold = 0;
+  let towersSold = 0;
+  let reclaimed = 0;
+  const cols = w.state.grid.cols;
+  const onEv = (e: GameEvent): void => {
+    if (e.type === 'place') {
+      if (TOWERS[e.tower]?.attacks) {
+        placed.add(e.tower);
+        const i = e.cy * cols + e.cx;
+        if (freed.has(i)) { reclaimed++; freed.delete(i); }
+      }
+    } else if (e.type === 'sell') {
+      if (e.tower === 'wall') wallsSold++;
+      else towersSold++;
+      freed.add(e.cy * cols + e.cx);
+    }
+  };
+  const rw = {
+    step: () => w.step(),
+    command: (c: Command) => w.command(c),
+    drainEvents: () => {
+      const evs = w.drainEvents();
+      for (const e of evs) onEv(e);
+      return evs;
+    },
+    get state() { return w.state; },
+  };
+  replaySync(rw, rep.replay);
+  let pairs = 0;
+  for (const t of w.state.towers.values()) pairs += t.comboWith.length;
+  return { types: placed.size, combos: pairs / 2, wallsSold, towersSold, reclaimed, replayOk: w.state.score === rep.result.score, passes: passesPerTower(w) };
+}
+
+/** 第一次漏怪那一波之后的平均每波漏怪 */
+export function leaksAfterFirst(waves: readonly { wave: number; leaks: number }[]): number {
+  const k = waves.findIndex((x) => x.leaks > 0);
+  if (k < 0 || k === waves.length - 1) return 0;
+  const rest = waves.slice(k + 1);
+  return Math.round((rest.reduce((a, x) => a + x.leaks, 0) / rest.length) * 100) / 100;
 }
 
 export function rowOf(variant: string, kind: 'agent' | 'bot', r: AgentRunReport): EvalRow {
@@ -75,6 +147,7 @@ export function rowOf(variant: string, kind: 'agent' | 'bot', r: AgentRunReport)
     requests: r.usage.requests, modelDecisions: called, reqPerDecision: called ? Math.round((r.usage.requests / called) * 100) / 100 : 0,
     rejected: r.play.rejected, recovered: r.play.recovered,
     fallbacks: kind === 'bot' ? 0 : r.decisions.filter((d) => d.by === 'fallback').length, errors: r.errors.length, wallMs: r.wallMs,
+    ...playMetrics(r), leakAfter: leaksAfterFirst(r.waves), pathRatio: Math.round((r.play.pathLen / Math.max(1, r.play.pathLen0)) * 100) / 100,
   };
 }
 
@@ -98,6 +171,13 @@ export interface EvalSummary {
   rejected: number;
   recovered: number;
   fallbacks: number;
+  types: number;
+  combos: number;
+  wallsSold: number;
+  reclaimed: number;
+  leakAfter: number;
+  pathRatio: number;
+  passes: number;
 }
 
 const mean = (a: number[]): number => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
@@ -120,6 +200,9 @@ export function summarize(rows: EvalRow[]): EvalSummary[] {
       reqPerDecision: agentRows.length ? Math.round((agentRows.reduce((a, r) => a + r.requests, 0) / agentRows.reduce((a, r) => a + r.modelDecisions, 0)) * 100) / 100 : 0,
       rejected: rs.reduce((a, r) => a + r.rejected, 0), recovered: rs.reduce((a, r) => a + r.recovered, 0),
       fallbacks: rs.reduce((a, r) => a + r.fallbacks, 0),
+      types: r1(mean(rs.map((r) => r.types))), combos: r1(mean(rs.map((r) => r.combos))), wallsSold: r1(mean(rs.map((r) => r.wallsSold))),
+      reclaimed: r1(mean(rs.map((r) => r.reclaimed))), leakAfter: Math.round(mean(rs.map((r) => r.leakAfter)) * 100) / 100,
+      pathRatio: Math.round(mean(rs.map((r) => r.pathRatio)) * 100) / 100, passes: Math.round(mean(rs.map((r) => r.passes)) * 100) / 100,
     };
   });
 }
@@ -128,6 +211,7 @@ const COLS: [keyof EvalSummary, string][] = [
   ['variant', 'variant'], ['runs', 'runs'], ['lost', 'lost'], ['wave', 'wave'], ['lives', 'lives'], ['livesPct', 'lives%'], ['leaks', 'leaks'],
   ['score', 'score'], ['idleGold', 'idle g'], ['towers', 'towers'], ['walls', 'walls'], ['pathLen', 'path'], ['rawPerWave', 'raw/wave'],
   ['weightedPerWave', 'wtd/wave'], ['reqPerDecision', 'req/dec'], ['rejected', 'rejected'], ['recovered', 'moved'], ['fallbacks', 'fallback'],
+  ['types', 'types'], ['combos', 'combos'], ['wallsSold', 'w.sold'], ['reclaimed', 'reclaim'], ['leakAfter', 'leak/w>1st'], ['pathRatio', 'path×'], ['passes', 'passes'],
 ];
 
 export function markdownTable(sum: EvalSummary[]): string {
@@ -139,7 +223,7 @@ export function markdownTable(sum: EvalSummary[]): string {
 export function evalHtml(title: string, sum: EvalSummary[], rows: EvalRow[]): string {
   const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
   const t1 = sum.map((s) => `<tr>${COLS.map((c) => `<td>${esc(String(s[c[0]]))}</td>`).join('')}</tr>`).join('');
-  const rc: (keyof EvalRow)[] = ['variant', 'seed', 'map', 'difficulty', 'outcome', 'wave', 'lives', 'leaks', 'score', 'idleGold', 'towers', 'walls', 'pathLen', 'rawPerWave', 'weightedPerWave', 'reqPerDecision', 'rejected', 'recovered'];
+  const rc: (keyof EvalRow)[] = ['variant', 'seed', 'map', 'difficulty', 'outcome', 'wave', 'lives', 'leaks', 'score', 'idleGold', 'towers', 'walls', 'pathLen', 'rawPerWave', 'weightedPerWave', 'reqPerDecision', 'rejected', 'recovered', 'types', 'combos', 'wallsSold', 'towersSold', 'reclaimed', 'leakAfter', 'pathRatio', 'passes', 'replayOk'];
   const t2 = rows.map((r) => `<tr>${rc.map((k) => `<td>${esc(String(r[k]))}</td>`).join('')}</tr>`).join('');
   const maxL = Math.max(1, ...sum.map((s) => s.livesPct));
   const bars = sum.map((s) => `<div class="bar"><span>${esc(s.variant)}</span><i style="width:${(s.livesPct / maxL) * 100}%"></i><b>${s.livesPct}%</b></div>`).join('');
@@ -217,9 +301,15 @@ export async function runEval(argvIn: string[], log: (s: string) => void = conso
         config.budget = { tokens: Number(arg('budget-tokens', '1000000')), mode: 'soft' };
         const provider = await createProvider(config);
         const rep = await runAgentGame(opts, { config, provider, fallback: botFallback('medium', mode, map), maxWaves });
-        writeFileSync(join(OUT, `decisions-${v.name}-${seed}-${map}-${difficulty}.jsonl`), rep.decisions.map((d) => JSON.stringify(d)).join('\n'));
+        const tag = `${v.name}-${seed}-${map}-${difficulty}`.replace(/[^\w.-]+/g, '_');
+        try {
+          writeFileSync(join(OUT, `decisions-${tag}.jsonl`), rep.decisions.map((d) => JSON.stringify(d)).join('\n'));
+          writeFileSync(join(OUT, `replay-${tag}.json`), JSON.stringify({ replay: rep.replay, result: rep.result }));
+        } catch (e) {
+          console.error(`write failed (${tag}): ${e instanceof Error ? e.message : e}`);
+        }
         const row = rowOf(v.name, 'agent', rep);
-        log(`  ${v.name} ${seed} ${map} ${difficulty}: ${row.outcome} w${row.wave} lives ${row.lives}/${row.maxLives} leaks ${row.leaks} idle ${row.idleGold}g path ${row.pathLen} raw/w ${row.rawPerWave} req/d ${row.reqPerDecision} rej ${row.rejected}`);
+        log(`  ${v.name} ${seed} ${map} ${difficulty}: ${row.outcome} w${row.wave} lives ${row.lives}/${row.maxLives} leaks ${row.leaks} idle ${row.idleGold}g path ${row.pathLen} raw/w ${row.rawPerWave} req/d ${row.reqPerDecision} rej ${row.rejected} types ${row.types} combos ${row.combos} wsold ${row.wallsSold} reclaim ${row.reclaimed}${row.replayOk ? '' : ' (replay≠)'}`);
         return row;
       });
     }
@@ -227,7 +317,7 @@ export async function runEval(argvIn: string[], log: (s: string) => void = conso
       jobs.push(async () => {
         const rep = await runAgentGame(opts, { config: { provider: 'scripted' }, provider: null, fallback: botFallback(b, mode, map), maxWaves });
         const row = rowOf(`bot:${b}`, 'bot', rep);
-        log(`  bot:${b} ${seed} ${map} ${difficulty}: ${row.outcome} w${row.wave} lives ${row.lives}/${row.maxLives} leaks ${row.leaks} idle ${row.idleGold}g path ${row.pathLen}`);
+        log(`  bot:${b} ${seed} ${map} ${difficulty}: ${row.outcome} w${row.wave} lives ${row.lives}/${row.maxLives} leaks ${row.leaks} idle ${row.idleGold}g path ${row.pathLen} types ${row.types} combos ${row.combos}`);
         return row;
       });
     }

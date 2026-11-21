@@ -10,6 +10,8 @@
  * UI 用法：启动时 initOnline()；subscribeOnline(fn) 订阅状态；结算时 submitWorldRun(world, {...})。
  */
 import type { RunOptions, WorldState } from '../core/types';
+import { getLocale, t } from '../i18n';
+import { localize } from '../config/text';
 import { decodeLogPayload, encodeLog } from '../shared/codec';
 import {
   AI_BOARD_PREFIX,
@@ -31,6 +33,7 @@ import {
   type SubmitBody,
   type SubmitResponse,
 } from '../shared/leaderboard';
+import { isAiAssisted, type AiAssist } from './aiAssist';
 import type { MidRun } from './profile';
 import { safeStorage, type KV } from './storage';
 
@@ -61,12 +64,8 @@ export interface OnlineState {
   daily: DailyInfo | null;
 }
 
-const STATUS_TEXT: Record<OnlineStatus, string> = {
-  unknown: '正在连接…',
-  online: '已连接',
-  offline: '网络未连接，成绩会在联网后自动上传',
-  unavailable: '在线功能不可用',
-};
+/** 联网状态文本（读取时按当前语言：core.online.status.<status>） */
+const STATUS_TEXT: Record<OnlineStatus, string> = localize({}, 'core.online.status', ['unknown', 'online', 'offline', 'unavailable'] as const);
 
 interface Config {
   fetch: typeof fetch;
@@ -189,6 +188,17 @@ type CallResult<T> =
   | { kind: 'offline'; message: string }
   | { kind: 'unavailable'; message: string };
 
+/**
+ * 服务端（Pages Functions）没有 i18n，错误信息固定是简体中文。
+ * 简体中文界面直接用服务端的原文（更具体）；其他语言按错误码换成本地化的通用说明（core.api.<code>）。
+ */
+const API_CODES = ['bad_request', 'version', 'too_large', 'rate_limited', 'turnstile', 'forbidden', 'not_found', 'method', 'not_configured', 'internal'];
+function apiMessage(code: string, serverMessage: string | undefined, retryAfter?: number): string | undefined {
+  if (getLocale() === 'zh-CN' && serverMessage) return serverMessage;
+  if (API_CODES.includes(code)) return t(`core.api.${code}`, { min: Math.max(1, Math.ceil((retryAfter ?? 60) / 60)) });
+  return serverMessage;
+}
+
 async function call<T>(path: string, init?: RequestInit): Promise<CallResult<T>> {
   const c = conf();
   let res: Response;
@@ -212,8 +222,9 @@ async function call<T>(path: string, init?: RequestInit): Promise<CallResult<T>>
   if (res.ok) return { kind: 'ok', status: res.status, data: data as T };
   const err = data as Partial<ApiError>;
   if (typeof err?.error !== 'string') return { kind: 'unavailable', message: STATUS_TEXT.unavailable };
-  if (err.error === 'not_configured') return { kind: 'unavailable', message: err.message ?? STATUS_TEXT.unavailable };
-  return { kind: 'api', status: res.status, error: { error: err.error, message: err.message ?? '请求失败', ...(err.retryAfter ? { retryAfter: err.retryAfter } : {}) } };
+  if (err.error === 'not_configured') return { kind: 'unavailable', message: apiMessage(err.error, err.message, err.retryAfter) ?? STATUS_TEXT.unavailable };
+  const message = apiMessage(err.error, err.message, err.retryAfter) ?? t('core.online.requestFailed');
+  return { kind: 'api', status: res.status, error: { error: err.error, message, ...(err.retryAfter ? { retryAfter: err.retryAfter } : {}) } };
 }
 
 function noteTransport<T>(r: CallResult<T>): void {
@@ -241,7 +252,7 @@ export async function probeOnline(): Promise<OnlineState> {
   noteTransport(r);
   if (r.kind === 'ok') {
     setState({ serverVersion: r.data.gameVersion, turnstileSiteKey: r.data.turnstileSiteKey, daily: r.data.daily });
-    if (r.data.gameVersion !== GAME_VERSION) setState({ message: '游戏有新版本，刷新页面后才能上传成绩' });
+    if (r.data.gameVersion !== GAME_VERSION) setState({ message: t('core.online.newVersion') });
     await flushQueue();
   } else if (!state.daily) {
     setState({ daily: dailyInfo(dayOf(conf().now())) });
@@ -382,7 +393,7 @@ export async function submitRun(input: SubmitInput): Promise<SubmitOutcome> {
     const built = await buildSubmitBody(input);
     if (!built.ok) return { kind: 'rejected', message: built.message };
     if (state.serverVersion && state.serverVersion !== GAME_VERSION) {
-      return { kind: 'rejected', message: '游戏有新版本，刷新页面后才能上传成绩' };
+      return { kind: 'rejected', message: t('core.online.newVersion') };
     }
     // 先把队列里更早的成绩传掉，保证顺序
     if (readQueue().length) await flushQueue();
@@ -394,7 +405,7 @@ export async function submitRun(input: SubmitInput): Promise<SubmitOutcome> {
     }
     return outcome;
   } catch {
-    return { kind: 'rejected', message: '上传失败' };
+    return { kind: 'rejected', message: t('core.online.uploadFailed') };
   }
 }
 
@@ -419,8 +430,10 @@ export function resultFromWorld(
 /** 结算时的便捷入口：world 结束后直接调用 */
 export function submitWorldRun(
   world: { readonly log: readonly LogEntry[]; readonly state: Pick<WorldState, 'score' | 'lives' | 'gold' | 'tick' | 'stats' | 'opts' | 'seed'> },
-  o: { wavesSurvived: number; dailyDay?: string | null; nickname?: string; agent?: AgentMeta },
+  o: { wavesSurvived: number; dailyDay?: string | null; nickname?: string; agent?: AgentMeta; aiAssist?: AiAssist | null },
 ): Promise<SubmitOutcome> {
+  // 公平性：用过「让 AI 替我玩」的对局不进真人榜 / 每日挑战榜（AI 参战的对局带 agent 标记，只进 AI 榜）
+  if (isAiAssisted(o.aiAssist) && !o.agent) return Promise.resolve({ kind: 'rejected', message: t('ui.assist.blockedShort') });
   const st = world.state;
   const opts: RunOptions = { ...st.opts, seed: st.opts.seed ?? st.seed };
   return submitRun({
@@ -499,7 +512,7 @@ export async function fetchRun(id: string): Promise<Fetched<RunReplay>> {
     const { log } = await decodeLogPayload({ gz: r.data.logGz });
     return { ok: true, data: { ...r.data, log: log as LogEntry[] } };
   } catch {
-    return { ok: false, status: 'online', message: '回放数据损坏' };
+    return { ok: false, status: 'online', message: t('core.online.replayCorrupt') };
   }
 }
 

@@ -8,6 +8,7 @@ import { h, img } from '../dom';
 import { G } from '../icons';
 import { buildRunOptions, loadoutStrip, starRow, switchRow } from './common';
 import { burst, motionOK } from './motion';
+import { t } from '../../i18n';
 
 /** 上次在战役页看到的星数：赢了一局回来时，新得的星星依次弹出 */
 const SEEN_KEY = 'dd.ui.seenStars';
@@ -64,7 +65,7 @@ export function campaignScreen(app: App): Screen {
           onclick: () => {
             if (!ok) {
               audio.play('error');
-              app.toast(unlocked ? '先通关本章普通难度' : '先通关上一章', 'warn');
+              app.toast(unlocked ? t('ui.campaign.needNormal') : t('ui.campaign.needPrev'), 'warn');
               return;
             }
             start(map, d);
@@ -87,36 +88,36 @@ export function campaignScreen(app: App): Screen {
       h(
         'div.chapter-head',
         null,
-        h('span.chapter-no', null, `第${['一', '二', '三'][i]}章`),
-        chapterCleared(p, map) ? h('span.badge.good', null, '已通关') : wave > 0 ? h('span.badge', null, `最远 ${wave} 波`) : null,
+        h('span.chapter-no', null, t('ui.campaign.chapterNo', { n: i + 1 })),
+        chapterCleared(p, map) ? h('span.badge.good', null, t('ui.campaign.cleared')) : wave > 0 ? h('span.badge', null, t('ui.campaign.bestWave', { n: wave })) : null,
       ),
       h('h2.chapter-name', null, meta?.name ?? map),
       h('p.chapter-desc.muted', null, meta?.desc ?? ''),
       h(
         'div.chapter-towers',
         null,
-        h('small.muted', null, '新塔'),
+        h('small.muted', null, t('ui.campaign.newTowers')),
         NEW_TOWERS[map].map((t) => h('span.mini-tower', { title: TOWER_META[t]?.name ?? t }, img(towerIcon(t), 'ico'))),
       ),
       unlocked
-        ? h('div.chapter-diffs', null, diffBtn('normal', '普通'), diffBtn('hard', '困难'))
-        : h('div.chapter-lock', null, h('span.gi', { html: G.lock }), '通关上一章后解锁'),
+        ? h('div.chapter-diffs', null, diffBtn('normal', t('ui.campaign.normal')), diffBtn('hard', t('ui.campaign.hard')))
+        : h('div.chapter-lock', null, h('span.gi', { html: G.lock }), t('ui.campaign.unlockPrev')),
     );
   });
 
   const autoSw = switchRow(
-    '自动开波',
-    p.settings.autoWave === null ? '第一波由你开始，之后按倒计时自动开波（未通关第一章时默认手动）' : '第一波由你开始，之后按倒计时自动开波',
+    t('ui.campaign.autoWave'),
+    p.settings.autoWave === null ? t('ui.campaign.autoWaveHintDefault') : t('ui.campaign.autoWaveHint'),
     p.settings.autoWave ?? effectiveAutoWave(p, 'campaign', 'ch2', 'normal'),
     (v) => app.store.update((pp) => (pp.settings.autoWave = v)),
   );
-  const fixedSw = switchRow('固定布局', '桌上的杂物每局都摆在同一个位置', p.settings.fixedLayout, (v) => app.store.update((pp) => (pp.settings.fixedLayout = v)));
+  const fixedSw = switchRow(t('ui.campaign.fixedLayout'), t('ui.campaign.fixedLayoutHint'), p.settings.fixedLayout, (v) => app.store.update((pp) => (pp.settings.fixedLayout = v)));
 
   const el = h(
     'div.screen.campaign-screen',
     null,
-    screenHeader(app, '战役'),
-    h('div.screen-body', null, h('div.chapter-list', null, cards), h('section.card.section.run-options', null, autoSw.el, fixedSw.el), h('p.muted.center', null, '剩余生命 ≥90% 得 3 星，≥50% 得 2 星，通关得 1 星。星星可以在书包里兑换天赋。'), loadoutStrip(app, { name: 'campaign' })),
+    screenHeader(app, t('ui.campaign.title')),
+    h('div.screen-body', null, h('div.chapter-list', null, cards), h('section.card.section.run-options', null, autoSw.el, fixedSw.el), h('p.muted.center', null, t('ui.campaign.starRule')), loadoutStrip(app, { name: 'campaign' })),
   );
   saveSeen(nowSeen);
   // 新得星的那张卡片滚到可见处，最后一颗星落定时撒一把纸屑

@@ -263,7 +263,7 @@ export class StrategyBot {
   private wallPlaceable(i: number): boolean {
     const g = this.w.state.grid;
     const r = this.w.canPlace('wall', i % g.cols, Math.floor(i / g.cols));
-    return r.ok || r.reason === '金币不足' || r.reason === '有敌人在这里';
+    return r.ok || r.code === 'noGold' || r.code === 'enemyHere';
   }
 
   private refreshSamples(): void {

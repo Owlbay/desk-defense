@@ -42,6 +42,84 @@ export const C = {
   bad: 0xe63946,
 } as const;
 
+/**
+ * 棋盘主题色：桌面本身和直接画在桌面上的标记（网格、路径、范围圈、飘字描边…）随浅色 / 深色主题变化。
+ * 塔、敌人、杂物等「物件」的颜色（上面的 C）不变。
+ * B 是同一个对象，切换主题时就地改值；所以绘制代码要在画的时候读 B.xxx，不要把值存起来。
+ */
+export type BoardTheme = 'light' | 'dark';
+
+export interface BoardPalette {
+  /** 桌面底色 */
+  desk: number;
+  /** 木纹、木节 */
+  grain: number;
+  /** 网格线、格点、暗门接缝 */
+  grid: number;
+  /** 桌沿描边 */
+  edge: number;
+  /** 投影颜色与浓度倍数 */
+  shadow: number;
+  shadowK: number;
+  /** 入口缺口、暗门洞口的深色填充 */
+  pit: number;
+  /** 直接画在桌面上的墨线（当前路径、内圈范围、组合连线的底线…） */
+  line: number;
+  /** 飘字 / 棋盘文字的描边 */
+  textStroke: number;
+  /** 深色敌人身下的浅色光晕（0 = 不画） */
+  haloAlpha: number;
+}
+
+const BOARD_LIGHT: BoardPalette = {
+  desk: C.desk,
+  grain: C.deskDark,
+  grid: C.deskDark,
+  edge: C.ink,
+  shadow: C.ink,
+  shadowK: 1,
+  pit: C.ink,
+  line: C.ink,
+  textStroke: C.ink,
+  haloAlpha: 0,
+};
+
+/** 夜晚的书桌：深胡桃木桌面，网格线比桌面亮一档，墨线换成米白 */
+const BOARD_DARK: BoardPalette = {
+  desk: 0x574435,
+  grain: 0x473629,
+  grid: 0x806850,
+  edge: 0x1a1310,
+  shadow: 0x000000,
+  shadowK: 1.7,
+  pit: 0x1a1310,
+  line: 0xf3e9d7,
+  textStroke: 0x1a1310,
+  haloAlpha: 0.3,
+};
+
+export const B: BoardPalette = { ...BOARD_LIGHT };
+
+let boardTheme: BoardTheme = 'light';
+const boardThemeSubs = new Set<(t: BoardTheme) => void>();
+
+export function getBoardTheme(): BoardTheme {
+  return boardTheme;
+}
+
+/** 切换棋盘主题（由 src/ui/theme.ts 调用）；已挂载的棋盘会重画桌面 */
+export function setBoardTheme(t: BoardTheme): void {
+  if (t === boardTheme) return;
+  boardTheme = t;
+  Object.assign(B, t === 'dark' ? BOARD_DARK : BOARD_LIGHT);
+  for (const fn of [...boardThemeSubs]) fn(t);
+}
+
+export function onBoardTheme(fn: (t: BoardTheme) => void): () => void {
+  boardThemeSubs.add(fn);
+  return () => boardThemeSubs.delete(fn);
+}
+
 export const ENEMY_COLOR: Record<EnemyId, number> = {
   crumb: 0xf497b6,
   crumbmini: 0xf497b6,

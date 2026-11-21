@@ -6,6 +6,7 @@ import { CellKind, GRID_COLS, GRID_ROWS, type MapId, type Obstacle, type Spawner
 import { Rng } from './rng';
 import { computeDist, tracePath } from './flowfield';
 import { MAPS, spawnerOpenWave, type MapDef } from '../config/maps';
+import { liveText } from '../config/text';
 
 export const LAYOUT_RULES = {
   minRoute: 14,
@@ -36,10 +37,11 @@ function spawnerStates(def: MapDef, campaign: boolean): SpawnerState[] {
   return def.spawners.map((d) => {
     const open = spawnerOpenWave(d, campaign);
     const st: SpawnerState = {
-      id: d.id, name: d.name, kind: d.kind, cells: d.cells.map((c) => ({ x: c.x, y: c.y })),
+      id: d.id, kind: d.kind, cells: d.cells.map((c) => ({ x: c.x, y: c.y })),
       active: d.kind === 'edge' && open === 1,
     };
-    return st;
+    // 显示名按当前语言实时读取（只用于展示）
+    return liveText(st, { name: () => d.name });
   });
 }
 

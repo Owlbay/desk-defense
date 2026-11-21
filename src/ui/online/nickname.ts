@@ -3,6 +3,7 @@
  */
 import { getNickname, setNickname } from '../../meta/online';
 import { NICK_MAX } from '../../shared/leaderboard';
+import { t } from '../../i18n';
 import { audio } from '../audio';
 import { h } from '../dom';
 import { nicknameError } from './util';
@@ -18,12 +19,12 @@ function host(parent?: HTMLElement | null): HTMLElement {
 export function askNickname(o: { parent?: HTMLElement | null; title?: string; hint?: string } = {}): Promise<string | null> {
   return new Promise((resolve) => {
     const input = h<HTMLInputElement>('input.input', {
-      attrs: { type: 'text', maxlength: NICK_MAX * 2, placeholder: `1–${NICK_MAX} 个字`, autocomplete: 'nickname', spellcheck: 'false', enterkeyhint: 'done' },
+      attrs: { type: 'text', maxlength: NICK_MAX * 2, placeholder: t('ui.online.nickPlaceholder', { max: NICK_MAX }), autocomplete: 'nickname', spellcheck: 'false', enterkeyhint: 'done' },
     });
     input.value = getNickname();
     const msg = h('small.form-msg', { attrs: { 'aria-live': 'polite' } });
-    const okBtn = h<HTMLButtonElement>('button.btn.primary', { attrs: { type: 'submit' } }, '保存');
-    const cancelBtn = h<HTMLButtonElement>('button.btn', { attrs: { type: 'button' } }, '取消');
+    const okBtn = h<HTMLButtonElement>('button.btn.primary', { attrs: { type: 'submit' } }, t('ui.online.save'));
+    const cancelBtn = h<HTMLButtonElement>('button.btn', { attrs: { type: 'button' } }, t('common.cancel'));
 
     let done = false;
     const close = (v: string | null) => {
@@ -54,7 +55,7 @@ export function askNickname(o: { parent?: HTMLElement | null; title?: string; hi
     const form = h<HTMLFormElement>(
       'form.dialog.card.nick-dialog',
       {
-        attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-label': '设置昵称', novalidate: true },
+        attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-label': t('ui.online.setNick'), novalidate: true },
         onsubmit: (e: Event) => {
           e.preventDefault();
           if (validate()) return audio.play('error');
@@ -68,9 +69,9 @@ export function askNickname(o: { parent?: HTMLElement | null; title?: string; hi
           close(r.value);
         },
       },
-      h('h2', null, o.title ?? '设置昵称'),
-      h('p.muted.small', null, o.hint ?? '昵称会显示在全服排行榜上，之后可以随时修改。'),
-      h('label.field', null, h('span', null, '昵称'), input, msg),
+      h('h2', null, o.title ?? t('ui.online.setNick')),
+      h('p.muted.small', null, o.hint ?? t('ui.online.nickHint')),
+      h('label.field', null, h('span', null, t('ui.online.nick')), input, msg),
       h('div.nick-actions', null, cancelBtn, okBtn),
     );
     cancelBtn.onclick = () => {
@@ -95,7 +96,7 @@ export function askNickname(o: { parent?: HTMLElement | null; title?: string; hi
 export async function ensureNickname(parent?: HTMLElement | null): Promise<string | null> {
   const n = getNickname();
   if (n && !nicknameError(n)) return n;
-  return askNickname({ parent, title: '第一次上传成绩', hint: '给自己起个昵称吧，它会显示在全服排行榜上。' });
+  return askNickname({ parent, title: t('ui.online.firstUpload'), hint: t('ui.online.firstUploadHint') });
 }
 
 /** 页面头部：昵称 + 修改按钮 */
@@ -103,19 +104,19 @@ export function nicknameChip(onChange?: (n: string) => void): HTMLElement {
   const name = h('span.nick-name');
   const paint = () => {
     const n = getNickname();
-    name.textContent = n || '未设置昵称';
+    name.textContent = n || t('ui.online.noNick');
     name.classList.toggle('muted', !n);
   };
   paint();
   return h(
     'span.online-nick',
     null,
-    h('span.muted.small', null, '昵称'),
+    h('span.muted.small', null, t('ui.online.nick')),
     name,
     h(
       'button.btn.small',
       {
-        attrs: { type: 'button', 'aria-label': '修改昵称' },
+        attrs: { type: 'button', 'aria-label': t('ui.online.editNick') },
         onclick: async () => {
           audio.play('click');
           const n = await askNickname();
@@ -125,7 +126,7 @@ export function nicknameChip(onChange?: (n: string) => void): HTMLElement {
           }
         },
       },
-      '修改',
+      t('ui.online.edit'),
     ),
   );
 }

@@ -1,4 +1,5 @@
 import type { BuildOption, Command, GameEvent, RunOptions } from '../../core/types';
+import { t } from '../../i18n';
 import { Session } from '../../game/Session';
 import { ui } from '../../game/UiStore';
 import { makeMidRun, replayAsync } from '../../meta/midrun';
@@ -19,7 +20,9 @@ import { SkillBar } from './SkillBar';
 import { TopBar } from './TopBar';
 import { Tutorial } from './Tutorial';
 import { WavePanel } from './WavePanel';
-import { attachAi } from '../ai/launch';
+import { createAiSlot, takeAiLaunch } from '../ai/launch';
+import { isAiAssisted } from '../../meta/aiAssist';
+import { AiMenu } from './AiMenu';
 
 export function gameScreen(app: App, route: Route): Screen {
   if (route.name !== 'game') throw new Error('bad route');
@@ -36,7 +39,7 @@ export function gameScreen(app: App, route: Route): Screen {
   } catch (e) {
     console.error(e);
     setTimeout(() => {
-      app.toast('无法开始对局', 'warn');
+      app.toast(t('ui.game.cannotStart'), 'warn');
       if (route.resume) app.store.update((p) => (p.midRun = null));
       app.go({ name: 'menu' });
     }, 0);
@@ -75,7 +78,7 @@ export function gameScreen(app: App, route: Route): Screen {
       dirty = true;
       return r;
     },
-    toast: (t, tone) => overlay.toast(t, tone),
+    toast: (text, tone) => overlay.toast(text, tone),
     openBranch(uid) {
       if (branchEl) return;
       branchEl = branchModal(ctx, uid, () => (branchEl = null));
@@ -112,9 +115,20 @@ export function gameScreen(app: App, route: Route): Screen {
   // 金币飞入顶栏的特效层（不接收输入）
   const goldFx = new GoldFx(boardHost, () => topBar.goldIcon, (n) => topBar.goldArrive(n));
   game.append(boardWrap, side, goldFx.el, modals);
-  // AI 参战（文档 10）：从「AI 参战」页面开的局才有；普通对局返回 null
-  const ai = attachAi({ app, session, opts, game, modals });
-  if (ai) cleanups.push(() => ai.destroy());
+  // AI 助手：每局一个 AI 插槽（任何模式都能中途启用 / 停用）。公平性标记随中途存档恢复
+  const aiSlot = createAiSlot({ app, session, opts, game, modals }, { assist: route.resume?.aiAssist });
+  ctx.aiAssist = aiSlot.assist;
+  cleanups.push(() => aiSlot.destroy());
+  // AI 参战（文档 10）：从「AI 参战」页面开的局，由同一个插槽以「AI 参战」方式挂上（从第 1 波开始）
+  const aiLaunch = takeAiLaunch();
+  if (aiLaunch) aiSlot.attach(aiLaunch, { dedicated: true });
+  const dedicatedAi = aiSlot.dedicated;
+  // 顶栏的 AI 按钮（快捷键 I）与「AI 协助」标记
+  const aiMenu = new AiMenu(ctx, aiSlot, modals, () => tutorial.ack('tip-ai'));
+  topBar.el.insertBefore(aiMenu.badge, topBar.pauseBtn);
+  topBar.el.insertBefore(aiMenu.btn, topBar.pauseBtn);
+  aiMenu.mount(game);
+  cleanups.push(() => aiMenu.destroy());
 
   // 横竖屏切换
   const applyLayout = () => {
@@ -139,11 +153,12 @@ export function gameScreen(app: App, route: Route): Screen {
   cleanups.push(() => ro.disconnect());
 
   // 增益选塔提示
+  const perkHintText = h('span', null, t('ui.game.perkPickTower'));
   const perkHint = h(
     'div.board-hint',
     null,
     h('span.gi', { html: G.target }),
-    h('span', null, '点一座 Lv7–9 的塔'),
+    perkHintText,
     h(
       'button.btn.small',
       {
@@ -154,9 +169,10 @@ export function gameScreen(app: App, route: Route): Screen {
           ui.set({ perkTargeting: null, selected: null });
         },
       },
-      '换一个',
+      t('ui.game.perkSwap'),
     ),
   );
+  const perkSwapBtn = perkHint.lastElementChild as HTMLElement;
   perkHint.hidden = true;
   overlay.hintBox.appendChild(perkHint);
 
@@ -169,6 +185,7 @@ export function gameScreen(app: App, route: Route): Screen {
     skill: (id) => skillBar.buttonFor(id),
     skills: () => skillBar.el,
     events: () => overlay.eventsEl() ?? wavePanel.el,
+    ai: () => aiMenu.btn,
   });
 
   // 补给箱三选一（不暂停）
@@ -176,7 +193,7 @@ export function gameScreen(app: App, route: Route): Screen {
     const r = ctx.cmd({ type: 'chooseCrate', option });
     if (r.ok) {
       audio.play('crateOpen');
-      overlay.toast(`补给箱：${name}`, 'good');
+      overlay.toast(t('ui.game.crateGot', { name }), 'good');
     }
   };
 
@@ -184,7 +201,12 @@ export function gameScreen(app: App, route: Route): Screen {
   function openPause(): void {
     if (pauseEl || ended || destroyed) return;
     session.togglePause(true);
-    pauseEl = pauseMenu(ctx, {
+    pauseEl = makePause();
+    modals.appendChild(pauseEl);
+  }
+
+  function makePause(): HTMLElement {
+    return pauseMenu(ctx, {
       resume: () => resume(),
       restart: () => {
         audio.play('click');
@@ -195,7 +217,6 @@ export function gameScreen(app: App, route: Route): Screen {
         app.go({ name: 'menu' });
       },
     });
-    modals.appendChild(pauseEl);
   }
 
   function resume(): void {
@@ -237,15 +258,16 @@ export function gameScreen(app: App, route: Route): Screen {
         break;
       case 'waveEnd': {
         audio.setIntensity(0.35);
-        const parts = [`第 ${ev.wave} 波完成`];
+        const parts = [t('ui.game.waveDone', { wave: ev.wave })];
         const gain = ev.bonus + ev.interest + ev.piggy;
-        if (gain > 0) parts.push(`+${Math.round(gain)} 金`);
-        if (ev.interest > 0) parts.push(`（利息 ${Math.round(ev.interest)}）`);
+        if (gain > 0) parts.push(t('ui.game.goldGain', { n: Math.round(gain) }));
+        if (ev.interest > 0) parts.push(t('ui.game.interest', { n: Math.round(ev.interest) }));
         overlay.toast(parts.join(' '), 'good');
-        if (!ai && !ended && world.state.phase !== 'won' && world.state.phase !== 'lost') {
+        // AI 参战局不存档；对局中启用过 AI 的局照常存档，并带上公平性标记
+        if (!dedicatedAi && !ended && world.state.phase !== 'won' && world.state.phase !== 'lost') {
           app.store.update((p) => {
             recordWave(p, opts, ev.wave);
-            p.midRun = makeMidRun(world);
+            p.midRun = makeMidRun(world, aiSlot.assist);
           });
         }
         break;
@@ -269,11 +291,11 @@ export function gameScreen(app: App, route: Route): Screen {
         if (ev.phase === 'land') shake();
         else if (ev.phase === 'demolish' || ev.phase === 'close') {
           if (ui.state.spawnerSelected === ev.id) ui.set({ spawnerSelected: null });
-          if (ev.phase === 'demolish') overlay.toast('空降点已拆除', 'good');
+          if (ev.phase === 'demolish') overlay.toast(t('ui.game.dropDemolished'), 'good');
         }
         break;
       case 'terrainChanged':
-        overlay.toast('桌面变了，路线已更新', 'info');
+        overlay.toast(t('ui.game.terrainChanged'), 'info');
         break;
       case 'autoWave':
         wavePanel.onCountdown(ev.secondsLeft);
@@ -281,8 +303,8 @@ export function gameScreen(app: App, route: Route): Screen {
       // ── 文档 11：传奇进化 ──
       case 'evolve': {
         const ti = world.getTowerInfo(ev.uid);
-        const name = ti?.name ?? '塔';
-        overlay.toast(ev.mythic ? `${name} 成为神话「${ti?.tierName ?? ''}」！` : `${name} 进化到 ★${ev.stars}`, 'good');
+        const name = ti?.name ?? t('ui.game.tower');
+        overlay.toast(ev.mythic ? t('ui.game.becameMythic', { name, tier: ti?.tierName ?? '' }) : t('ui.game.evolvedStars', { name, n: ev.stars }), 'good');
         break;
       }
       case 'sell':
@@ -291,7 +313,7 @@ export function gameScreen(app: App, route: Route): Screen {
       case 'levelUp':
         if (ev.tierChanged) {
           const ti = world.getTowerInfo(ev.uid);
-          if (ti) overlay.toast(`${ti.name} 进化为「${ti.tierName}」`, 'good');
+          if (ti) overlay.toast(t('ui.game.evolvedTier', { name: ti.name, tier: ti.tierName }), 'good');
         }
         break;
       case 'perkChosen':
@@ -327,10 +349,10 @@ export function gameScreen(app: App, route: Route): Screen {
   }
 
   function pickPerkTower(perkId: string, uid: number): void {
-    const t = world.state.towers.get(uid);
-    if (!t || t.id === 'wall' || t.level < 7 || t.level >= 10) {
+    const tw = world.state.towers.get(uid);
+    if (!tw || tw.id === 'wall' || tw.level < 7 || tw.level >= 10) {
       audio.play('error');
-      overlay.toast('请选择一座 Lv7–9 的塔', 'warn');
+      overlay.toast(t('ui.game.perkNeedTower'), 'warn');
       ui.set({ selected: null });
       return;
     }
@@ -347,6 +369,9 @@ export function gameScreen(app: App, route: Route): Screen {
     if (branchEl) modals.appendChild(branchEl);
   }
 
+  /** 结算界面按新语言重建（AI 对局的报告卡片由 AI 模块自己处理） */
+  let rebuildGameOver: (() => void) | null = null;
+
   function onGameOver(won: boolean, wave: number, score: number): void {
     if (ended) return;
     ended = true;
@@ -355,8 +380,11 @@ export function gameScreen(app: App, route: Route): Screen {
     branchEl = null;
     const st = world.state;
     const wavesSurvived = won ? wave : Math.max(0, wave - 1);
+    // 对局中启用的 AI：马上停掉（照常结算）；AI 参战局稍后换成 AI 报告卡片
+    aiMenu.end();
+    if (!dedicatedAi) aiSlot.gameOver({ won, wave, wavesSurvived, score }, { again: () => {}, menu: () => {} });
     let rewards: Rewards = { stars: 0, starsBest: 0, ink: 0, rank: 0, newRecord: false };
-    if (!ai?.noSettle) app.store.update((p) => {
+    if (!aiSlot.noSettle) app.store.update((p) => {
       rewards = settleRun(p, opts, {
         won,
         wavesSurvived,
@@ -367,25 +395,29 @@ export function gameScreen(app: App, route: Route): Screen {
         seed: st.seed,
         perks: st.perks.slice(),
         autoWave: st.autoWave ? !!st.autoWave.enabled : undefined,
+        // 用过「让 AI 替我玩」：本地排行榜条目打上 AI 协助标记（进度 / 星星 / 墨水照常发放）
+        aiAssisted: isAiAssisted(aiSlot.assist),
       });
     });
     ui.clear();
     audio.setIntensity(0);
-    overlay.bigText(won ? '胜利！' : '失败', won ? '防线守住了' : '作业本被弄脏了', won ? 'win' : 'lose');
+    overlay.bigText(won ? t('ui.game.victory') : t('ui.game.defeat'), won ? t('ui.game.victorySub') : t('ui.game.defeatSub'), won ? 'win' : 'lose');
     setTimeout(() => {
       if (destroyed) return;
       pauseEl?.remove();
       pauseEl = null;
-      if (ai) {
-        // AI 对局：换成 AI 报告卡片（没有「提交到全服榜」，只能进 AI 榜）
-        gameOverEl = ai.gameOver(
+      if (dedicatedAi) {
+        // AI 参战局：换成 AI 报告卡片（没有「提交到全服榜」，只能进 AI 榜）
+        gameOverEl = aiSlot.gameOver(
           { won, wave, wavesSurvived, score },
           { again: () => (audio.play('select'), app.go({ name: 'game', opts: restartOpts(), userSeed })), menu: () => (audio.play('click'), app.go({ name: 'menu' })) },
         );
-        modals.appendChild(gameOverEl);
-        return;
+        if (gameOverEl) {
+          modals.appendChild(gameOverEl);
+          return;
+        }
       }
-      gameOverEl = gameOverView(ctx, { won, wave, wavesSurvived, score, st, rewards }, {
+      const view = () => gameOverView(ctx, { won, wave, wavesSurvived, score, st, rewards }, {
         again: () => {
           audio.play('select');
           app.go({ name: 'game', opts: restartOpts(), userSeed });
@@ -399,6 +431,12 @@ export function gameScreen(app: App, route: Route): Screen {
           app.go({ name: 'menu' });
         },
       });
+      rebuildGameOver = () => {
+        const next = view();
+        gameOverEl?.replaceWith(next);
+        gameOverEl = next;
+      };
+      gameOverEl = view();
       modals.appendChild(gameOverEl);
     }, 1400);
   }
@@ -475,6 +513,11 @@ export function gameScreen(app: App, route: Route): Screen {
       case 't':
         skillBar.toggleAxis();
         break;
+      case 'i':
+        if (e.repeat) break;
+        e.preventDefault();
+        aiMenu.toggle();
+        break;
     }
   };
   const onKeyUp = (e: KeyboardEvent) => {
@@ -546,18 +589,18 @@ export function gameScreen(app: App, route: Route): Screen {
       board = mountBoard(boardHost, session);
     } catch (e) {
       console.error(e);
-      overlay.toast('棋盘加载失败', 'warn');
+      overlay.toast(t('ui.game.boardFailed'), 'warn');
     }
     applyLayout();
     raf = requestAnimationFrame(loop);
     tutorial.start();
     audio.setIntensity(0.35);
-    if (route.resume) overlay.toast(`已恢复到第 ${world.state.wave} 波结束`, 'good');
+    if (route.resume) overlay.toast(t('ui.game.resumed', { wave: world.state.wave }), 'good');
   };
 
   if (route.resume) {
     const run = route.resume;
-    const ld = loadingOverlay('正在恢复进度…');
+    const ld = loadingOverlay(t('ui.game.resuming'));
     modals.appendChild(ld.el);
     replayAsync(world, run, (p) => ld.set(p))
       .then(() => {
@@ -568,17 +611,34 @@ export function gameScreen(app: App, route: Route): Screen {
         console.error(e);
         ld.el.remove();
         app.store.update((p) => (p.midRun = null));
-        app.toast('存档无法恢复，已清除', 'warn');
+        app.toast(t('ui.game.resumeFailed'), 'warn');
         app.go({ name: 'menu' });
       });
   } else {
     // 开新局即放弃旧的中途存档
-    if (!ai && app.store.get().midRun) app.store.update((p) => (p.midRun = null));
+    if (!dedicatedAi && app.store.get().midRun) app.store.update((p) => (p.midRun = null));
     requestAnimationFrame(begin);
   }
 
+  /** 切换语言：就地刷新 HUD 文字，不重开对局 */
+  const onLocale = (): boolean => {
+    topBar.relabel();
+    aiMenu.relabel();
+    buildBar.relabel();
+    skillBar.relabel();
+    overlay.relabel();
+    perkHintText.textContent = t('ui.game.perkPickTower');
+    perkSwapBtn.textContent = t('ui.game.perkSwap');
+    // 打开着的暂停菜单自己订阅了语言变化（停留在原来的子页面），这里不重建
+    rebuildGameOver?.();
+    dirty = true;
+    tick();
+    return true;
+  };
+
   return {
     el,
+    onLocaleChange: onLocale,
     destroy() {
       destroyed = true;
       cancelAnimationFrame(raf);

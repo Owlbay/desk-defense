@@ -22,37 +22,31 @@ import {
   type SessionLike,
   type Suggestion,
   type TokenUsage,
+  type TraceExport,
 } from '../../agent';
 import type { Command, CommandResult } from '../../core/types';
 import type { Speed } from '../../game/Session';
 import { ui } from '../../game/UiStore';
+import { fmtNumber, onLocaleChange, t } from '../../i18n';
 import { audio } from '../audio';
 import { clear, fmtNum, h, setText } from '../dom';
 import { G } from '../icons';
 import { fmtCost, fmtTokens } from './format';
-import { applyAction, describeCall, failReason, parseAction, REASON_NAME } from './actions';
+import { applyAction, describeCall, failReason, parseAction, reasonName } from './actions';
 import { demoAdvisor } from './demoAdvisor';
 import { botShareOf } from './meta';
 import type { AiAttachCtx, AiGameOverHandlers, AiGameOverInfo, AiHudHandle, AiLaunch } from './launch';
 import { reportCard, type AiRunSummary } from './report';
 import { mountTracePanel, type TracePanelHandle } from './trace-panel';
+import { OpsRecorder, type OpsWorld, type TraceExportWithOps } from './ops';
 
 const FEED_MAX = 40;
 const SUGGEST_MAX = 2;
 
 type Chip = 'loading' | 'thinking' | 'acting' | 'watching' | 'paused' | 'fallback' | 'stopped' | 'error' | 'over';
 
-const CHIP_TEXT: Record<Chip, string> = {
-  loading: '正在加载模型…',
-  thinking: '思考中…',
-  acting: '执行中',
-  watching: '观察中',
-  paused: '已暂停',
-  fallback: '兜底机器人',
-  stopped: '已停止',
-  error: '出错了',
-  over: '对局结束',
-};
+/** 状态徽标文字（当前语言） */
+const chipLabel = (k: Chip): string => t(`agent.hud.chip.${k}`);
 
 export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
   const { session, game, app } = ctx;
@@ -83,6 +77,10 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
   const pauseMenuOpen = (): boolean => !!game.querySelector('.pause-overlay');
   let releasing = false;
 
+  // 操作解读：AI 的每条指令（经下面的代理）与兜底机器人的事件，按决策归档（思路与请求面板右栏 / 导出 / 回放）
+  const opsRec = new OpsRecorder({ world: world as unknown as OpsWorld, eventOps: isPlayer });
+  const offOpsEvents = session.on((ev) => opsRec.onGameEvent(ev));
+
   // ───────────── 控制器用的 Session 代理 ─────────────
   const proxy: SessionLike = {
     world,
@@ -90,7 +88,9 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       return session.paused;
     },
     command(cmd: Command): CommandResult {
-      const r = session.command(cmd);
+      // 停用 / 接管之后还在途的模型回复：不再替玩家下指令
+      if (destroyed || takenOver) return { ok: false, reason: t('agent.hud.line.stoppedPlayer') };
+      const r = opsRec.record(cmd, () => session.command(cmd));
       if (r.ok && cmd.type !== 'collect') actingUntil = Date.now() + 900;
       return r;
     },
@@ -117,11 +117,11 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
   const usageNums = h('div.ai-usage-nums');
   const budgetFill = h('span.ai-budget-fill');
   // 分级刻度：70% 省流 · 90% 低思考 · 100% 最省（或按设置交给机器人 / 询问）
-  const marks = [70, 90].map((p) => h('span.ai-budget-mark', { attrs: { 'aria-hidden': 'true', title: p === 70 ? '70%：切换到省流' : '90%：省流 + 低思考' }, style: { left: `${p}%` } }));
-  const budgetBar = h('div.ai-budget', { attrs: { role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-label': '预算使用（折算）' } }, budgetFill, ...marks);
-  const budgetMode = h('span.badge.ai-mode-chip', { attrs: { title: '当前上下文模式（随预算用量自动收紧）' } });
+  const marks = [70, 90].map((p) => h('span.ai-budget-mark', { attrs: { 'aria-hidden': 'true' }, style: { left: `${p}%` } }));
+  const budgetBar = h('div.ai-budget', { attrs: { role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100 } }, budgetFill, ...marks);
+  const budgetMode = h('span.badge.ai-mode-chip');
   const budgetText = h('small.muted.ai-budget-text');
-  const budgetAsk = h('div.ai-budget-ask', { attrs: { role: 'group', 'aria-label': '预算已用完' } });
+  const budgetAsk = h('div.ai-budget-ask', { attrs: { role: 'group' } });
   budgetAsk.hidden = true;
   let budgetState: BudgetState | null = null;
   const errorBox = h('div.ai-error');
@@ -129,28 +129,45 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
 
   const pauseBtn = h<HTMLButtonElement>('button.btn.small', { attrs: { type: 'button' } });
   const stopBtn = h<HTMLButtonElement>('button.btn.small.ai-stop', { attrs: { type: 'button' } });
-  const speedBtn = h<HTMLButtonElement>('button.btn.small', { attrs: { type: 'button', 'aria-label': '游戏速度' } });
+  const speedBtn = h<HTMLButtonElement>('button.btn.small', { attrs: { type: 'button' } });
   const controls = h('div.ai-controls', null, pauseBtn, stopBtn, speedBtn);
 
   const feedList = h('ol.ai-feed-list');
   const feedCount = h('span.ai-feed-count');
-  const feed = h<HTMLDetailsElement>('details.ai-feed', null, h('summary', null, '决策记录', feedCount), feedList);
+  const feedTitle = h('span.ai-feed-title');
+  const feed = h<HTMLDetailsElement>('details.ai-feed', null, h('summary', null, feedTitle, feedCount), feedList);
   feed.open = true;
 
-  const closeBtn = h('button.btn.icon-btn.ai-close', { attrs: { type: 'button', 'aria-label': '收起 AI 面板' } }, h('span.gi', { html: G.close }));
+  const closeBtn = h('button.btn.icon-btn.ai-close', { attrs: { type: 'button' } }, h('span.gi', { html: G.close }));
+  const panelTitle = h('b');
   const panel = h(
     'div.ai-panel',
-    { attrs: { id: 'ai-panel', role: 'region', 'aria-label': 'AI 面板' } },
-    h('div.ai-panel-head', null, h('div.ai-panel-title', null, h('b', null, isPlayer ? 'AI 玩家' : 'AI 军师'), h('small.muted', null, launch.label)), closeBtn),
+    { attrs: { id: 'ai-panel', role: 'region' } },
+    h('div.ai-panel-head', null, h('div.ai-panel-title', null, panelTitle, h('small.muted', null, launch.label)), closeBtn),
     statusLine,
     errorBox,
     h('div.ai-usage', null, usageNums, budgetBar, h('div.ai-budget-row', null, budgetMode, budgetText), budgetAsk),
     controls,
     feed,
   );
-  const suggestBox = h('div.ai-suggest', { attrs: { 'aria-live': 'polite', 'aria-label': 'AI 军师的建议' } });
+  const suggestBox = h('div.ai-suggest', { attrs: { 'aria-live': 'polite' } });
+  /** 创建后不再变化的文字：切换语言时重新写一遍 */
+  const paintStatic = (): void => {
+    marks.forEach((m, i) => (m.title = t(i === 0 ? 'agent.hud.mark70' : 'agent.hud.mark90')));
+    budgetBar.setAttribute('aria-label', t('agent.hud.budgetBar'));
+    budgetMode.title = t('agent.hud.modeTip');
+    budgetAsk.setAttribute('aria-label', t('agent.hud.budgetOut'));
+    speedBtn.setAttribute('aria-label', t('agent.hud.speed'));
+    setText(feedTitle, t('agent.hud.feed'));
+    closeBtn.setAttribute('aria-label', t('agent.hud.closePanel'));
+    panel.setAttribute('aria-label', t('agent.hud.panel'));
+    setText(panelTitle, isPlayer ? t('agent.hud.player') : t('agent.hud.advisor'));
+    suggestBox.setAttribute('aria-label', t('agent.hud.suggestions'));
+  };
+  paintStatic();
   // 思路与请求（文档 10 §12.1）：同一个缓冲区贯穿整局（换成内置策略重启控制器也不断档）
   const trace = new AgentTrace();
+  const offOpsTrace = trace.subscribe((e) => opsRec.onTrace(e));
   const chipRow = h('div.ai-chip-row', null, chip);
   const root = h('div.ai-hud', { data: { role } }, chipRow, suggestBox, panel);
   board.appendChild(root);
@@ -163,6 +180,8 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       live: true,
       subtitle: launch.label,
       onHighlight: (c) => ui.set({ aiFocus: c ? { cx: c.x, cy: c.y } : null }),
+      ops: opsRec,
+      onHighlightCells: (cells) => ui.set({ aiFocusCells: cells?.length ? cells.map((c) => ({ cx: c.x, cy: c.y })) : null }),
       onOpenChange: (o, mode) => {
         // 抽屉模式：和 AI 面板（同样是抽屉）不同时打开
         if (o && mode === 'drawer' && open && !wide()) {
@@ -173,7 +192,7 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
     });
     chipRow.appendChild(tp.toggle);
   } catch (e) {
-    console.error('[ai] 思路与请求面板加载失败', e);
+    console.error('[ai] trace panel failed to load', e);
   }
 
   const wide = (): boolean => game.dataset.layout === 'landscape' && game.dataset.compact === undefined;
@@ -212,27 +231,34 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
   let shownChip: Chip | null = null;
   const paintStatus = (): void => {
     const k = chipKind();
-    game.classList.toggle('ai-driving', driving());
+    const drv = driving();
+    game.classList.toggle('ai-driving', drv);
+    // AI 操作中：棋盘只能点选查看（信息面板照常显示，按钮禁用）
+    if (ui.state.inspectOnly !== drv) ui.set(drv ? { inspectOnly: true, build: null, aiming: null, abilityAiming: null, pending: null } : { inspectOnly: false });
     if (k !== shownChip) {
       shownChip = k;
       root.dataset.status = k;
-      setText(chipText, switchedToBot && (k === 'watching' || k === 'thinking') ? `内置策略 · ${CHIP_TEXT[k]}` : CHIP_TEXT[k]);
+      setText(chipText, switchedToBot && (k === 'watching' || k === 'thinking') ? t('agent.hud.chipBot', { status: chipLabel(k) }) : chipLabel(k));
     }
     let line: string;
     switch (k) {
-      case 'loading': line = '正在加载模型适配器，首次需要下载一小段代码…'; break;
-      case 'thinking': line = `正在决策：${statusDetail.split(',').map((r) => REASON_NAME[r] ?? r).join('、') || '…'}${pauseMode ? '（游戏已暂停等待）' : ''}`; break;
-      case 'acting': line = '正在下达指令…'; break;
-      case 'paused': line = ctl?.budgetPending ? '预算已用完，等你决定（见下方按钮）。' : 'AI 和游戏都已暂停。'; break;
-      case 'fallback': line = '上一次决策由内置机器人代做（模型超时 / 出错 / 预算用完）。'; break;
-      case 'stopped': line = isPlayer ? 'AI 已停止，现在由你操作。这局不再计入 AI 榜。' : '军师已停止提建议。'; break;
-      case 'error': line = '模型没能启动。'; break;
-      case 'over': line = '对局结束。'; break;
-      default: line = isPlayer ? '等待下一个决策点。' : '军师在观察局面，有想法时会给出建议。';
+      case 'loading': line = t('agent.hud.line.loading'); break;
+      case 'thinking': {
+        const why = statusDetail.split(',').filter(Boolean).map((r) => reasonName(r) ?? r).join(t('agent.hud.listSep')) || '…';
+        line = t(pauseMode ? 'agent.hud.line.thinkingPaused' : 'agent.hud.line.thinking', { reasons: why });
+        break;
+      }
+      case 'acting': line = t('agent.hud.line.acting'); break;
+      case 'paused': line = ctl?.budgetPending ? t('agent.hud.line.budgetPending') : t('agent.hud.line.paused'); break;
+      case 'fallback': line = t('agent.hud.line.fallback'); break;
+      case 'stopped': line = isPlayer ? t('agent.hud.line.stoppedPlayer') : t('agent.hud.line.stoppedAdvisor'); break;
+      case 'error': line = t('agent.hud.line.error'); break;
+      case 'over': line = t('agent.hud.line.over'); break;
+      default: line = isPlayer ? t('agent.hud.line.waitPlayer') : t('agent.hud.line.waitAdvisor');
     }
     setText(statusLine, line);
-    pauseBtn.replaceChildren(h('span.gi', { html: status === 'paused' ? G.play : G.pause }), status === 'paused' ? '继续' : '暂停');
-    pauseBtn.setAttribute('aria-label', status === 'paused' ? '继续 AI 和游戏' : '暂停 AI 和游戏');
+    pauseBtn.replaceChildren(h('span.gi', { html: status === 'paused' ? G.play : G.pause }), status === 'paused' ? t('agent.hud.resume') : t('agent.hud.pause'));
+    pauseBtn.setAttribute('aria-label', status === 'paused' ? t('agent.hud.resumeAll') : t('agent.hud.pauseAll'));
     const dead = over || status === 'stopped' || status === 'error';
     pauseBtn.disabled = dead || status === 'loading' || status === 'idle';
     stopBtn.disabled = dead;
@@ -243,12 +269,12 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
     const weighted = budgetTokens(usage);
     const raw = usageTotal(usage);
     setText(chipUsage, weighted > 0 ? `${fmtTokens(weighted)}${costUsd > 0 ? ` · ${fmtCost(costUsd)}` : ''}` : '');
-    chipUsage.title = weighted > 0 ? `折算预算 ${fmtNum(weighted)}（原始 ${fmtNum(raw)}）` : '';
+    chipUsage.title = weighted > 0 ? t('agent.hud.usageTip', { weighted: fmtNum(weighted), raw: fmtNum(raw) }) : '';
     usageNums.replaceChildren(
-      h('span', { title: usageLine(usage, fmtNum) }, h('b', null, fmtTokens(weighted)), ' 折算'),
-      h('span.muted', { title: '原始 token 总数（含便宜的缓存读）' }, `原始 ${fmtTokens(raw)}`),
-      h('span', { title: '按公开价格估算，以服务商账单为准' }, h('b', null, fmtCost(costUsd)), ' 估算'),
-      h('span', null, h('b', null, String(usage.requests)), ' 次请求'),
+      h('span', { title: usageLine(usage, fmtNum) }, h('b', null, fmtTokens(weighted)), ` ${t('agent.hud.weighted')}`),
+      h('span.muted', { title: t('agent.hud.rawTip') }, t('agent.hud.raw', { n: fmtTokens(raw) })),
+      h('span', { title: t('agent.hud.costTip') }, h('b', null, fmtCost(costUsd)), ` ${t('agent.hud.estimated')}`),
+      h('span', null, h('b', null, String(usage.requests)), ` ${t('agent.hud.requestsUnit', { n: usage.requests })}`),
     );
     const bt = config.budget?.tokens;
     const bu = config.budget?.usd;
@@ -263,14 +289,14 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       budgetFill.style.transform = `scaleX(${Math.min(1, ratio).toFixed(3)})`;
       budgetBar.dataset.level = ratio >= 1 ? 'out' : ratio >= 0.9 ? 'high' : ratio >= 0.7 ? 'mid' : 'ok';
       budgetBar.setAttribute('aria-valuenow', String(Math.min(100, pct)));
-      const parts = [limit ? `折算 ${fmtTokens(weighted)} / ${fmtTokens(limit)}` : '', bu ? `${fmtCost(costUsd)} / ${fmtCost(bu)}` : ''].filter(Boolean);
+      const parts = [limit ? t('agent.hud.weightedOf', { used: fmtTokens(weighted), limit: fmtTokens(limit) }) : '', bu ? `${fmtCost(costUsd)} / ${fmtCost(bu)}` : ''].filter(Boolean);
       const policy = budgetState?.policy ?? config.budget?.mode ?? 'soft';
       const msg = ratio >= 1
         ? policy === 'hard' || ctl?.report().decisions.some((d) => d.fallbackReason?.includes('budget'))
-          ? '预算已用完，余下由内置机器人接管'
-          : '已超出预算，已切换到最省模式继续'
-        : budgetState?.message ?? `预算 ${pct}%`;
-      setText(budgetText, `${msg}（${parts.join(' · ')}）`);
+          ? t('agent.hud.budgetBot')
+          : t('agent.hud.budgetOver')
+        : budgetState?.message ?? t('agent.hud.budgetPct', { pct });
+      setText(budgetText, t('agent.hud.budgetLine', { msg, detail: parts.join(' · ') }));
     }
   };
 
@@ -285,13 +311,13 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       paintStatus();
     };
     budgetAsk.replaceChildren(
-      h('p', null, `预算已用完（折算 ${fmtTokens(b.weighted)}${b.limit ? ` / ${fmtTokens(b.limit)}` : ''}），游戏已暂停。接下来怎么办？`),
+      h('p', null, t('agent.hud.askText', { used: b.limit ? t('agent.hud.weightedOf', { used: fmtTokens(b.weighted), limit: fmtTokens(b.limit) }) : `${fmtTokens(b.weighted)} ${t('agent.hud.weighted')}` })),
       h(
         'div.ai-error-actions',
         null,
-        h('button.btn.small.primary', { attrs: { type: 'button' }, onclick: () => choose('continue') }, '继续（最省模式）'),
-        h('button.btn.small', { attrs: { type: 'button' }, onclick: () => choose('extend') }, '追加预算（+500k）'),
-        h('button.btn.small', { attrs: { type: 'button' }, onclick: () => choose('bot') }, '交给机器人'),
+        h('button.btn.small.primary', { attrs: { type: 'button' }, onclick: () => choose('continue') }, t('agent.hud.askContinue')),
+        h('button.btn.small', { attrs: { type: 'button' }, onclick: () => choose('extend') }, t('agent.hud.askExtend')),
+        h('button.btn.small', { attrs: { type: 'button' }, onclick: () => choose('bot') }, t('agent.hud.askBot')),
       ),
     );
     if (!open) {
@@ -311,7 +337,7 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
     if (rec.by === 'local') {
       // 门控跳过：不刷屏，只计数（思路与请求面板里每条都有）
       skippedCount++;
-      setText(feedCount, `${feedTotal}${skippedCount ? ` · 跳过 ${skippedCount}` : ''}`);
+      paintFeedCount();
       return;
     }
     feedTotal++;
@@ -339,22 +365,30 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       }
       acts.push(h(`li.${c.ok ? 'ok' : 'bad'}`, null, h('span.gi', { html: c.ok ? G.check : G.close }), h('span', null, text, c.ok ? null : h('small', null, ` — ${failReason(c)}`))));
     }
-    const reasons = rec.point.reasons.map((r) => REASON_NAME[r] ?? r).join('、');
+    const reasons = rec.point.reasons.map((r) => reasonName(r) ?? r).join(t('agent.hud.listSep'));
     const tokens = budgetTokens(rec.usage);
-    const meta = [`${(rec.ms / 1000).toFixed(1)} 秒`, tokens ? `${fmtTokens(tokens)} 折算` : '', rec.usage.requests ? `${rec.usage.requests} 次请求` : '', reads ? `查看 ×${reads}` : ''].filter(Boolean).join(' · ');
+    const meta = [
+      t('agent.hud.seconds', { s: fmtNumber(rec.ms / 1000, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }),
+      tokens ? `${fmtTokens(tokens)} ${t('agent.hud.weighted')}` : '',
+      rec.usage.requests ? t('agent.hud.requests', { n: rec.usage.requests }) : '',
+      reads ? t('agent.hud.reads', { n: reads }) : '',
+    ].filter(Boolean).join(' · ');
     const item = h(
       `li.ai-feed-item${rec.by === 'fallback' ? '.by-bot' : ''}`,
       null,
-      h('div.ai-feed-head', null, h('b', null, `第 ${Math.max(1, rec.point.wave)} 波`), h('span.muted', null, reasons), rec.by === 'fallback' ? h('span.badge.ai-bot-badge', null, '机器人') : null),
+      h('div.ai-feed-head', null, h('b', null, t('agent.hud.wave', { n: Math.max(1, rec.point.wave) })), h('span.muted', null, reasons), rec.by === 'fallback' ? h('span.badge.ai-bot-badge', null, t('agent.hud.bot')) : null),
       rec.note ? h('p.ai-feed-note', null, rec.note) : null,
-      acts.length ? h('ul.ai-feed-acts', null, acts) : rec.by === 'agent' && isPlayer ? h('p.muted.small', null, '这次没有下指令') : null,
-      rec.fallbackReason ? h('p.ai-feed-why', null, zhFallback(rec.fallbackReason)) : null,
+      acts.length ? h('ul.ai-feed-acts', null, acts) : rec.by === 'agent' && isPlayer ? h('p.muted.small', null, t('agent.hud.noActions')) : null,
+      rec.fallbackReason ? h('p.ai-feed-why', null, fallbackText(rec.fallbackReason)) : null,
       h('small.muted', null, meta),
     );
     feedList.prepend(item);
     while (feedList.children.length > FEED_MAX) feedList.lastElementChild?.remove();
-    setText(feedCount, `${feedTotal}${skippedCount ? ` · 跳过 ${skippedCount}` : ''}`);
+    paintFeedCount();
   };
+  function paintFeedCount(): void {
+    setText(feedCount, `${feedTotal}${skippedCount ? ` · ${t('agent.hud.skipped', { n: skippedCount })}` : ''}`);
+  }
 
   // ───────────── 军师建议 ─────────────
   const cmdAsPlayer = (c: Command): CommandResult => {
@@ -375,20 +409,20 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       const btn = h<HTMLButtonElement>(
         'button.btn.small.primary',
         {
-          attrs: { type: 'button', 'aria-label': `采纳：${label}` },
+          attrs: { type: 'button', 'aria-label': t('agent.hud.adoptLabel', { action: label }) },
           onclick: () => {
             const r = applyAction(world, cmdAsPlayer, a);
             if (r.ok) {
               audio.play('select');
               adopted++;
               btn.disabled = true;
-              btn.textContent = '已采纳';
+              btn.textContent = t('agent.hud.adopted');
               li.classList.add('done');
               if (!card.querySelector('li:not(.done):not(.unparsed) button')) setTimeout(dismiss, 700);
-            } else app.toast(`没能执行：${r.reason ?? ''}`, 'warn');
+            } else app.toast(t('agent.hud.adoptFailed', { reason: r.reason ?? '' }), 'warn');
           },
         },
-        '采纳',
+        t('agent.hud.adopt'),
       );
       const li = h('li', null, h('span', null, label), btn);
       return li;
@@ -398,9 +432,9 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
         'div.ai-suggest-head',
         null,
         h('span.gi', { html: G.eye }),
-        h('b', null, '军师建议'),
-        h('small.muted', null, `第 ${Math.max(1, s.wave)} 波`),
-        h('button.btn.small.ai-suggest-dismiss', { attrs: { type: 'button', 'aria-label': '忽略这条建议' }, onclick: () => (audio.play('click'), dismiss()) }, '忽略'),
+        h('b', null, t('agent.hud.suggestTitle')),
+        h('small.muted', null, t('agent.hud.wave', { n: Math.max(1, s.wave) })),
+        h('button.btn.small.ai-suggest-dismiss', { attrs: { type: 'button', 'aria-label': t('agent.hud.dismissLabel') }, onclick: () => (audio.play('click'), dismiss()) }, t('agent.hud.dismiss')),
       ),
       h('p', null, s.text),
       rows.length ? h('ul.ai-suggest-acts', null, rows) : '',
@@ -421,7 +455,7 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
         if (ev.status === 'error') {
           // AI 玩家没能启动：先停住游戏，等玩家决定（改用内置策略 / 自己接管）
           if (isPlayer) session.togglePause(true);
-          showError(ev.detail ?? '未知错误');
+          showError(ev.detail ?? t('agent.hud.unknownError'));
         }
         if (ev.status === 'thinking' && !isPlayer) advisorKey = stateKey();
         break;
@@ -483,7 +517,7 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
     errorBox.hidden = false;
     clear(errorBox);
     errorBox.append(
-      h('p', null, `模型没能启动：${message}`),
+      h('p', null, t('agent.hud.startFailed', { message })),
       h(
         'div.ai-error-actions',
         null,
@@ -501,11 +535,11 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
               startController({ ...launch.config, provider: 'scripted', model: 'scripted-v1', apiKey: undefined, bridge: undefined }, isPlayer ? undefined : demoAdvisor(world));
             },
           },
-          '改用内置策略',
+          t('agent.hud.useBot'),
         ),
         isPlayer
-          ? h('button.btn.small', { attrs: { type: 'button' }, onclick: () => (audio.play('click'), (errorBox.hidden = true), takeOver()) }, '我来操作')
-          : h('button.btn.small', { attrs: { type: 'button' }, onclick: () => (audio.play('click'), (errorBox.hidden = true)) }, '知道了'),
+          ? h('button.btn.small', { attrs: { type: 'button' }, onclick: () => (audio.play('click'), (errorBox.hidden = true), stop()) }, t('agent.hud.takeOver'))
+          : h('button.btn.small', { attrs: { type: 'button' }, onclick: () => (audio.play('click'), (errorBox.hidden = true), launch.onStop?.()) }, launch.onStop ? t('ui.assist.stop') : t('agent.hud.gotIt')),
       ),
     );
     if (!open) {
@@ -527,6 +561,12 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
     paintStatus();
   }
 
+  /** 停止：对局中启用的 AI（有 onStop）→ 整个拆掉、交还控制；AI 参战局 → 接管（面板留着，结算出报告） */
+  function stop(): void {
+    if (launch.onStop) launch.onStop();
+    else takeOver();
+  }
+
   pauseBtn.onclick = () => {
     if (!ctl) return;
     audio.play('click');
@@ -537,14 +577,14 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
   const paintStop = (): void => {
     const armed = Date.now() < stopArmed;
     stopBtn.classList.toggle('danger', armed);
-    stopBtn.textContent = armed ? (isPlayer ? '确认接管？' : '确认停止？') : isPlayer ? '停止 AI，我来玩' : '停止建议';
+    stopBtn.textContent = armed ? (isPlayer ? t('agent.hud.confirmTakeOver') : t('agent.hud.confirmStop')) : isPlayer ? t('agent.hud.stopPlayer') : t('agent.hud.stopAdvisor');
   };
   stopBtn.onclick = () => {
     audio.play('click');
     if (Date.now() < stopArmed) {
       stopArmed = 0;
-      takeOver();
-      app.toast(isPlayer ? '已接管：现在由你操作' : '军师已停止', 'info');
+      stop();
+      app.toast(isPlayer ? t('agent.hud.tookOver') : t('agent.hud.advisorStopped'), 'info');
     } else {
       stopArmed = Date.now() + 3000;
       setTimeout(paintStop, 3100);
@@ -589,10 +629,11 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
   const onKey = (e: KeyboardEvent): void => {
     if (!driving() || e.metaKey || e.ctrlKey || e.altKey) return;
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-    if (k === 'p' || k === 'f' || k === 'Escape' || k === 'Tab' || k === 'Enter' || k === 'Shift') return;
+    // I：AI 菜单（随时可以停止 / 切换 AI）
+    if (k === 'p' || k === 'f' || k === 'i' || k === 'Escape' || k === 'Tab' || k === 'Enter' || k === 'Shift') return;
     const t = e.target;
     // 思路与请求面板（搜索框等）：按键原样交给它
-    if (t instanceof HTMLElement && t.closest('.tr-panel')) return;
+    if (t instanceof HTMLElement && t.closest('.tr-panel, .ai-config-overlay, .ai-menu, .confirm-overlay')) return;
     if (t instanceof HTMLElement && t.closest('.ai-hud, .overlay, .replay-view')) {
       if (k === ' ' && t.closest('button, summary')) return;
     }
@@ -605,10 +646,25 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
   paintUsage();
   paintSpeed();
   paintStop();
+  // 切换语言（对局中从暂停菜单切换）：就地刷新面板文字；已有的决策记录 / 建议卡保持原样
+  const offLocale = onLocaleChange(() => {
+    if (destroyed) return;
+    paintStatic();
+    shownChip = null;
+    paintStatus();
+    paintUsage();
+    paintStop();
+    paintFeedCount();
+  });
   // 离线演示 + 军师：脚本策略本身不会提建议，换成「预演后给建议」的演示版
   startController(launch.config, !isPlayer && launch.config.provider === 'scripted' ? demoAdvisor(world) : launch.provider);
 
   // ───────────── 结算 ─────────────
+  /** 导出 / 回放用的追踪数据带上操作解读（只保留仍在导出里的决策） */
+  function withOps(x: TraceExport): TraceExportWithOps {
+    const keep = new Set(x.events.map((e) => e.d));
+    return { ...x, ops: opsRec.export((d) => keep.has(d)) };
+  }
   function summary(d: AiGameOverInfo): AiRunSummary {
     const rep = ctl?.report() ?? null;
     const decisions = rep?.decisions ?? [];
@@ -631,7 +687,7 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       switchedToBot,
       replay: rep?.replay ?? null,
       seconds: Math.round((Date.now() - startedAt) / 1000),
-      trace: rep?.trace ?? trace.export({ maxChars: 1_500_000 }),
+      trace: withOps(rep?.trace ?? trace.export({ maxChars: 1_500_000 })),
     };
   }
 
@@ -651,8 +707,24 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       tp?.setLive(false);
       return reportCard(app, sum, hd);
     },
+    finish() {
+      if (over) return;
+      over = true;
+      try {
+        ctl?.stop();
+      } catch {
+        /* ignore */
+      }
+      clear(suggestBox);
+      paintStatus();
+      tp?.setLive(false);
+    },
+    takeOver() {
+      if (!takenOver && !over) takeOver();
+    },
     destroy() {
       destroyed = true;
+      offLocale();
       clearInterval(timer);
       offChange();
       window.removeEventListener('keydown', onKey, true);
@@ -663,25 +735,27 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       }
       game.classList.remove('ai-driving');
       tp?.destroy();
-      ui.set({ aiFocus: null });
+      offOpsTrace();
+      offOpsEvents();
+      ui.set({ aiFocus: null, aiFocusCells: null, inspectOnly: false });
       root.remove();
     },
   };
 }
 
-/** 兜底原因（引擎里是英文）→ 中文 */
-function zhFallback(reason: string): string {
+/** 兜底原因（引擎里是英文）→ 当前语言 */
+function fallbackText(reason: string): string {
   return reason
     .split('; ')
     .map((r) => {
-      if (r.startsWith('auto perk')) return `自动选了增益 ${r.slice(10)}`;
-      if (r === 'auto start_wave') return '模型没有开波，已自动开波';
-      if (r.startsWith('timeout')) return '模型超时，本次由机器人代做';
-      if (r.startsWith('token budget')) return 'token 预算用完，由机器人接管';
-      if (r.startsWith('cost budget')) return '费用预算用完，由机器人接管';
-      if (r.startsWith('disabled after')) return `连续出错，模型已停用（${r.replace(/^disabled after \d+ consecutive errors \(last: /, '').replace(/\)$/, '')}）`;
-      if (r.includes('advisor: no advice')) return `这次没拿到建议（${r.replace(' (advisor: no advice this time)', '')}）`;
-      return `模型出错：${r}`;
+      if (r.startsWith('auto perk')) return t('agent.hud.fb.autoPerk', { perk: r.slice(10) });
+      if (r === 'auto start_wave') return t('agent.hud.fb.autoWave');
+      if (r.startsWith('timeout')) return t('agent.hud.fb.timeout');
+      if (r.startsWith('token budget')) return t('agent.hud.fb.tokenBudget');
+      if (r.startsWith('cost budget')) return t('agent.hud.fb.costBudget');
+      if (r.startsWith('disabled after')) return t('agent.hud.fb.disabled', { detail: r.replace(/^disabled after \d+ consecutive errors \(last: /, '').replace(/\)$/, '') });
+      if (r.includes('advisor: no advice')) return t('agent.hud.fb.noAdvice', { detail: r.replace(' (advisor: no advice this time)', '') });
+      return t('agent.hud.fb.error', { detail: r });
     })
-    .join('；');
+    .join(t('agent.hud.fb.sep'));
 }

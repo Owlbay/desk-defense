@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title data-i18n="guide.about.meta.title">书桌防线 Desk Defense · 用文具搭迷宫的塔防游戏</title>
+    <meta name="description" data-i18n-attr="content:guide.about.meta.desc" content="书桌防线是一款免费的网页迷宫塔防游戏：用铅笔、订书机、台灯搭出迷宫，对抗橡皮屑、纸飞机和咖啡渍。12 座塔、5 种形态、无尽魔境、全服排行榜与每日挑战，手机和电脑都能玩，可离线。" />
+    <meta name="theme-color" content="#E8D5B5" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="canonical" href="https://jjjj.games/about" />
+    <link rel="alternate" hreflang="zh-Hans" href="https://jjjj.games/about?lang=zh-CN" />
+    <link rel="alternate" hreflang="zh-Hant" href="https://jjjj.games/about?lang=zh-TW" />
+    <link rel="alternate" hreflang="en" href="https://jjjj.games/about?lang=en" />
+    <link rel="alternate" hreflang="ja" href="https://jjjj.games/about?lang=ja" />
+    <link rel="alternate" hreflang="x-default" href="https://jjjj.games/about" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="书桌防线 Desk Defense" />
+    <meta property="og:url" content="https://jjjj.games/about" />
+    <meta property="og:title" data-i18n-attr="content:guide.about.meta.title" content="书桌防线 Desk Defense · 用文具搭迷宫的塔防游戏" />
+    <meta property="og:description" data-i18n-attr="content:guide.about.meta.desc" content="书桌防线是一款免费的网页迷宫塔防游戏：用铅笔、订书机、台灯搭出迷宫，对抗橡皮屑、纸飞机和咖啡渍。12 座塔、5 种形态、无尽魔境、全服排行榜与每日挑战，手机和电脑都能玩，可离线。" />
+    <meta property="og:image" content="https://jjjj.games/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="书桌防线 Desk Defense：文具组成的防御塔与来犯的敌人" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:locale:alternate" content="zh_TW" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <meta property="og:locale:alternate" content="ja_JP" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" data-i18n-attr="content:guide.about.meta.title" content="书桌防线 Desk Defense · 用文具搭迷宫的塔防游戏" />
+    <meta name="twitter:description" data-i18n-attr="content:guide.about.meta.desc" content="书桌防线是一款免费的网页迷宫塔防游戏：用铅笔、订书机、台灯搭出迷宫，对抗橡皮屑、纸飞机和咖啡渍。12 座塔、5 种形态、无尽魔境、全服排行榜与每日挑战，手机和电脑都能玩，可离线。" />
+    <meta name="twitter:image" content="https://jjjj.games/og.png" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <script>
+      // 外观：和游戏用同一个键（dd.theme = light | dark | system）。在样式加载前套上，避免闪一下
+      try {
+        var th = localStorage.getItem('dd.theme');
+        if (th === 'light' || th === 'dark') document.documentElement.setAttribute('data-theme', th);
+      } catch (e) {}
+    </script>
+    <link rel="stylesheet" href="/src/about/about.css" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "VideoGame",
+        "name": "书桌防线 Desk Defense",
+        "alternateName": ["Desk Defense", "書桌防線", "デスクディフェンス"],
+        "url": "https://jjjj.games/",
+        "image": "https://jjjj.games/og.png",
+        "description": "用文具搭迷宫的网页塔防游戏：12 座塔、5 种形态、动态战场、无尽魔境、全服排行榜与每日挑战。",
+        "genre": ["Tower defense", "Strategy"],
+        "gamePlatform": ["Web browser", "PWA"],
+        "applicationCategory": "Game",
+        "operatingSystem": "Any",
+        "inLanguage": ["zh-CN", "zh-TW", "en", "ja"],
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
+  </head>
+  <body>
+    <a class="skip" href="#main" data-i18n="guide.about.skip">跳到正文</a>
+
+    <header class="top">
+      <div class="wrap top-in">
+        <a class="brand" href="./">
+          <img src="./favicon.svg" alt="" width="32" height="32" />
+          <span data-i18n="guide.about.brand">书桌防线</span>
+        </a>
+        <nav class="top-nav" data-i18n-attr="aria-label:guide.about.nav.label" aria-label="页面导航">
+          <a href="#features" data-i18n="guide.about.nav.features">特色</a>
+          <a href="#towers" data-i18n="guide.about.nav.towers">防御塔</a>
+          <a href="#how" data-i18n="guide.about.nav.how">怎么玩</a>
+          <a href="#faq" data-i18n="guide.about.nav.faq">常见问题</a>
+        </nav>
+        <div class="top-tools">
+          <label class="sr-only" for="lang" data-i18n="guide.about.lang.label">语言</label>
+          <select id="lang" class="tool-select" autocomplete="off">
+            <option value="zh-CN" lang="zh-CN">简体中文</option>
+            <option value="zh-TW" lang="zh-TW">繁體中文</option>
+            <option value="en" lang="en">English</option>
+            <option value="ja" lang="ja">日本語</option>
+          </select>
+          <button id="theme" class="tool-btn" type="button" hidden>
+            <svg class="theme-ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <g class="ico-light"><circle cx="12" cy="12" r="4.2" /><path d="M12 2.5v2.4M12 19.1v2.4M2.5 12h2.4M19.1 12h2.4M5.3 5.3 7 7M17 17l1.7 1.7M18.7 5.3 17 7M7 17l-1.7 1.7" /></g>
+              <g class="ico-dark"><path d="M20 14.2A8.3 8.3 0 0 1 9.8 4a8.3 8.3 0 1 0 10.2 10.2Z" /></g>
+              <g class="ico-system"><rect x="3" y="4.5" width="18" height="12" rx="2" /><path d="M8.5 20h7M12 16.5V20" /></g>
+            </svg>
+            <span class="sr-only" id="theme-label"></span>
+          </button>
+          <a class="btn primary small top-play" href="./" data-i18n="guide.about.hero.play">开始游戏</a>
+        </div>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero wrap">
+        <div class="hero-copy">
+          <p class="kicker" data-i18n="guide.about.hero.kicker">免费 · 打开浏览器就能玩</p>
+          <h1 class="hero-title" data-i18n="guide.about.hero.title">书桌防线</h1>
+          <p class="hero-tagline" data-i18n="guide.about.hero.tagline">用文具搭迷宫，守住你的作业本。</p>
+          <p class="hero-lead" data-i18n="guide.about.hero.lead">铅笔、订书机、胶水瓶和台灯组成防线，对抗橡皮屑、纸飞机和咖啡渍。塔就是墙——敌人怎么走，由你决定。</p>
+          <div class="cta-row">
+            <a class="btn primary big" href="./" data-i18n="guide.about.hero.play">开始游戏</a>
+            <a class="btn big" href="./#guide" data-i18n="guide.about.hero.guide">查看图鉴</a>
+          </div>
+          <p class="hero-note" data-i18n="guide.about.hero.note">无需下载和注册，进度保存在本机。</p>
+        </div>
+
+        <figure class="board-fig">
+          <div class="board" role="img" data-i18n-attr="aria-label:guide.about.board.alt" aria-label="示意图：书本墙把敌人的路线绕成之字形">
+            <svg class="board-path" viewBox="0 0 7 6" preserveAspectRatio="none" aria-hidden="true">
+              <path d="M3.5 0V.5H6.5V2.5H.5V4.5H3.5V6" />
+            </svg>
+            <span class="cell gate" style="--c: 4; --r: 1" aria-hidden="true"></span>
+            <span class="cell book" style="--c: 4; --r: 6" aria-hidden="true"></span>
+            <!-- 第一道墙：缺口在最右 -->
+            <img class="cell" style="--c: 1; --r: 2" src="./art/towers/wall_l1.svg" alt="" width="64" height="64" />
+            <img class="cell" style="--c: 2; --r: 2" src="./art/towers/stapler_t2.svg" alt="" width="64" height="64" />
+            <img class="cell" style="--c: 3; --r: 2" src="./art/towers/wall_l2.svg" alt="" width="64" height="64" />
+            <img class="cell" style="--c: 4; --r: 2" src="./art/towers/glue_t2.svg" alt="" width="64" height="64" />
+            <img class="cell" style="--c: 5; --r: 2" src="./art/towers/wall_l1.svg" alt="" width="64" height="64" />
+            <img class="cell" style="--c: 6; --r: 2" src="./art/towers/pencil_t3.svg" alt="" width="64" height="64" />
+            <!-- 第二道墙：缺口在最左 -->
+            <img class="cell" style="--c: 2; --r: 4" src="./art/towers/lamp_t3.svg" alt="" width="64" height="64" />
+            <img class="cell" style="--c: 3; --r: 4" src="./art/towers/wall_l3.svg" alt="" width="64" height="64" />
+            <img class="cell" style="--c: 4; --r: 4" src="./art/towers/compass_t4a.svg" alt="" width="64" height="64" />
+            <img class="cell" style="--c: 5; --r: 4" src="./art/towers/wall_l1.svg" alt="" width="64" height="64" />
+            <img class="cell" style="--c: 6; --r: 4" src="./art/towers/wall_l2.svg" alt="" width="64" height="64" />
+            <img class="cell" style="--c: 7; --r: 4" src="./art/towers/swatter_t2.svg" alt="" width="64" height="64" />
+            <!-- 路上的敌人 -->
+            <img class="cell foe" style="--c: 5; --r: 1" src="./art/enemies/crumb.svg" alt="" width="48" height="48" />
+            <img class="cell foe" style="--c: 6; --r: 1" src="./art/enemies/inkdot.svg" alt="" width="48" height="48" />
+            <img class="cell foe" style="--c: 5; --r: 3" src="./art/enemies/paperclip.svg" alt="" width="48" height="48" />
+            <img class="cell foe" style="--c: 3; --r: 3" src="./art/enemies/paperball.svg" alt="" width="48" height="48" />
+            <img class="cell foe big" style="--c: 2; --r: 5" src="./art/enemies/boss_coffee.svg" alt="" width="64" height="64" />
+            <img class="cell foe fly" style="--c: 4; --r: 3" src="./art/enemies/plane.svg" alt="" width="48" height="48" />
+          </div>
+          <figcaption data-i18n="guide.about.board.caption">塔就是墙：路线越长，每座塔打得越多。</figcaption>
+        </figure>
+      </section>
+
+      <div class="wrap">
+        <dl class="stats">
+          <div><dt data-i18n="guide.about.stats.towers">座防御塔</dt><dd>12</dd></div>
+          <div><dt data-i18n="guide.about.stats.forms">种形态</dt><dd>5</dd></div>
+          <div><dt data-i18n="guide.about.stats.enemies">种敌人与 Boss</dt><dd>16</dd></div>
+          <div><dt data-i18n="guide.about.stats.events">种随机事件</dt><dd>15</dd></div>
+        </dl>
+      </div>
+
+      <section id="features" class="wrap block">
+        <h2 data-i18n="guide.about.features.title">游戏特色</h2>
+        <ul class="features">
+          <li class="card feature">
+            <img src="./art/towers/wall_l3.svg" alt="" width="56" height="56" loading="lazy" />
+            <h3 data-i18n="guide.about.feature.maze.title">迷宫塔防</h3>
+            <p data-i18n="guide.about.feature.maze.desc">在 12 × 14 的棋盘上自由摆塔，塔会挡路。用 5 金币的书本墙把路绕长，让敌人在火力圈里多转几圈。</p>
+          </li>
+          <li class="card feature">
+            <img src="./art/towers/pencil_t5a.svg" alt="" width="56" height="56" loading="lazy" />
+            <h3 data-i18n="guide.about.feature.towers.title">12 座塔，5 种形态</h3>
+            <p data-i18n="guide.about.feature.towers.desc">每座塔从草稿、精良、镀金成长到传奇，再进化为神话。传奇有 A / B 两条分支，神话带主动能力，每个阶段外观都不同。</p>
+          </li>
+          <li class="card feature">
+            <img src="./art/events/drop_box.svg" alt="" width="56" height="56" loading="lazy" />
+            <h3 data-i18n="guide.about.feature.field.title">动态战场</h3>
+            <p data-i18n="guide.about.feature.field.desc">入口会增加，纸箱会空降，台灯会跳闸，咖啡会打翻。15 种随机事件让每一局都不一样。</p>
+          </li>
+          <li class="card feature">
+            <img src="./art/enemies/boss_alarm.svg" alt="" width="56" height="56" loading="lazy" />
+            <h3 data-i18n="guide.about.feature.endless.title">无尽魔境</h3>
+            <p data-i18n="guide.about.feature.endless.desc">战役 3 章之后是无尽模式：简单、普通、困难、噩梦，再到魔境 I～X。精英敌人带着随机词缀，看你能撑到第几波。</p>
+          </li>
+          <li class="card feature">
+            <img src="./art/events/praise.svg" alt="" width="56" height="56" loading="lazy" />
+            <h3 data-i18n="guide.about.feature.online.title">全服排行榜与每日挑战</h3>
+            <p data-i18n="guide.about.feature.online.desc">每天一张固定种子的桌面，所有人同图比拼。无尽模式每个难度都有全服排行榜。</p>
+          </li>
+          <li class="card feature">
+            <svg class="feature-glyph" viewBox="0 0 24 24" width="56" height="56" aria-hidden="true" fill="none" stroke="#3B2F2A" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">
+              <path d="M12 2.8v3" /><circle cx="12" cy="2.6" r="1.1" fill="#F28AA0" />
+              <rect x="4" y="6" width="16" height="12.5" rx="3.5" fill="#9BD1E5" />
+              <circle cx="9" cy="11.5" r="1.7" fill="#3B2F2A" stroke="none" /><circle cx="15" cy="11.5" r="1.7" fill="#3B2F2A" stroke="none" />
+              <path d="M9.5 15.2h5M2 11v3.5M22 11v3.5M8.5 18.5V21M15.5 18.5V21" />
+            </svg>
+            <h3 data-i18n="guide.about.feature.ai.title">AI 参战</h3>
+            <p data-i18n="guide.about.feature.ai.desc">接上你自己的大模型，让它独立打一局，或者在你玩的时候当军师。支持中转服务、本机模型和本地桥接。</p>
+          </li>
+          <li class="card feature">
+            <svg class="feature-glyph" viewBox="0 0 24 24" width="56" height="56" aria-hidden="true" fill="none" stroke="#3B2F2A" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">
+              <rect x="2.5" y="5" width="13" height="9.5" rx="1.6" fill="#FBF8F1" /><path d="M6 18h6M9 14.5V18" />
+              <rect x="14" y="8.5" width="7.5" height="12.5" rx="1.8" fill="#F2C14E" /><path d="M16.8 18.4h1.9" />
+            </svg>
+            <h3 data-i18n="guide.about.feature.pwa.title">多端与离线</h3>
+            <p data-i18n="guide.about.feature.pwa.desc">电脑、平板、手机，横屏竖屏都能玩。添加到主屏幕后全屏运行，没有网络也能玩。</p>
+          </li>
+        </ul>
+      </section>
+
+      <section id="towers" class="wrap block">
+        <h2 data-i18n="guide.about.towers.title">认识你的文具</h2>
+        <p class="lead" data-i18n="guide.about.towers.lead">从一支铅笔开始，一路成长为神话。</p>
+        <div class="card showcase">
+          <h3 data-i18n="guide.about.towers.evolution">铅笔塔的五种形态</h3>
+          <ol class="evo">
+            <li><img src="./art/towers/pencil_t1.svg" alt="" width="72" height="72" loading="lazy" /><span>T1</span></li>
+            <li><img src="./art/towers/pencil_t2.svg" alt="" width="72" height="72" loading="lazy" /><span>T2</span></li>
+            <li><img src="./art/towers/pencil_t3.svg" alt="" width="72" height="72" loading="lazy" /><span>T3</span></li>
+            <li class="split">
+              <img src="./art/towers/pencil_t4a.svg" alt="" width="72" height="72" loading="lazy" />
+              <img src="./art/towers/pencil_t4b.svg" alt="" width="72" height="72" loading="lazy" />
+              <span>T4 · A / B</span>
+            </li>
+            <li class="split">
+              <img src="./art/towers/pencil_t5a.svg" alt="" width="72" height="72" loading="lazy" />
+              <img src="./art/towers/pencil_t5b.svg" alt="" width="72" height="72" loading="lazy" />
+              <span>T5 · A / B</span>
+            </li>
+          </ol>
+          <div class="strip" aria-hidden="true">
+            <img src="./art/towers/wall_l2.svg" alt="" width="56" height="56" loading="lazy" />
+            <img src="./art/towers/stapler_t3.svg" alt="" width="56" height="56" loading="lazy" />
+            <img src="./art/towers/glue_t4b.svg" alt="" width="56" height="56" loading="lazy" />
+            <img src="./art/towers/lamp_t4a.svg" alt="" width="56" height="56" loading="lazy" />
+            <img src="./art/towers/compass_t5a.svg" alt="" width="56" height="56" loading="lazy" />
+            <img src="./art/towers/eraser_t3.svg" alt="" width="56" height="56" loading="lazy" />
+            <img src="./art/towers/ruler_t4a.svg" alt="" width="56" height="56" loading="lazy" />
+            <img src="./art/towers/pen_t5b.svg" alt="" width="56" height="56" loading="lazy" />
+            <img src="./art/towers/calculator_t4a.svg" alt="" width="56" height="56" loading="lazy" />
+            <img src="./art/towers/piggy_t3.svg" alt="" width="56" height="56" loading="lazy" />
+            <img src="./art/towers/swatter_t4b.svg" alt="" width="56" height="56" loading="lazy" />
+          </div>
+        </div>
+        <div class="card showcase foes">
+          <h3 data-i18n="guide.about.enemies.title">还有这些小麻烦</h3>
+          <p data-i18n="guide.about.enemies.lead">橡皮屑成群结队，纸飞机无视迷宫，咖啡渍会让你的塔瘫痪。</p>
+          <div class="strip" aria-hidden="true">
+            <img src="./art/enemies/crumb.svg" alt="" width="48" height="48" loading="lazy" />
+            <img src="./art/enemies/inkdot.svg" alt="" width="48" height="48" loading="lazy" />
+            <img src="./art/enemies/paperclip.svg" alt="" width="48" height="48" loading="lazy" />
+            <img src="./art/enemies/plane.svg" alt="" width="48" height="48" loading="lazy" />
+            <img src="./art/enemies/sticky.svg" alt="" width="48" height="48" loading="lazy" />
+            <img src="./art/enemies/rubberband.svg" alt="" width="48" height="48" loading="lazy" />
+            <img src="./art/enemies/ant.svg" alt="" width="48" height="48" loading="lazy" />
+            <img src="./art/enemies/tape.svg" alt="" width="48" height="48" loading="lazy" />
+            <img src="./art/enemies/moth.svg" alt="" width="48" height="48" loading="lazy" />
+            <img src="./art/enemies/boss_coffee.svg" alt="" width="64" height="64" loading="lazy" />
+            <img src="./art/enemies/boss_shredder.svg" alt="" width="64" height="64" loading="lazy" />
+            <img src="./art/enemies/boss_inkbottle.svg" alt="" width="64" height="64" loading="lazy" />
+            <img src="./art/enemies/boss_alarm.svg" alt="" width="64" height="64" loading="lazy" />
+          </div>
+        </div>
+      </section>
+
+      <section id="how" class="wrap block">
+        <h2 data-i18n="guide.about.how.title">怎么玩</h2>
+        <ol class="steps">
+          <li class="card step">
+            <h3 data-i18n="guide.about.how.1.title">搭迷宫</h3>
+            <p data-i18n="guide.about.how.1.desc">敌人总走最短的路。用书本墙和塔把路绕长，但不能完全堵死。</p>
+          </li>
+          <li class="card step">
+            <h3 data-i18n="guide.about.how.2.title">守住每一波</h3>
+            <p data-i18n="guide.about.how.2.desc">看下一波预告布防：减速、破甲、防空，一样都不能少。</p>
+          </li>
+          <li class="card step">
+            <h3 data-i18n="guide.about.how.3.title">让塔成长</h3>
+            <p data-i18n="guide.about.how.3.desc">塔打怪攒经验，经验越多升级越便宜。升到传奇时选择分支。</p>
+          </li>
+          <li class="card step">
+            <h3 data-i18n="guide.about.how.4.title">挑战更高难度</h3>
+            <p data-i18n="guide.about.how.4.desc">用星星和墨水解锁天赋与技能，向无尽魔境和排行榜进发。</p>
+          </li>
+        </ol>
+      </section>
+
+      <section id="faq" class="wrap block narrow">
+        <h2 data-i18n="guide.about.faq.title">常见问题</h2>
+        <div class="faq">
+          <details class="card qa">
+            <summary data-i18n="guide.about.faq.1.q">需要付费或注册吗？</summary>
+            <p data-i18n="guide.about.faq.1.a">不需要。游戏完全免费，没有广告，打开网页就能玩，进度保存在你的浏览器里。</p>
+          </details>
+          <details class="card qa">
+            <summary data-i18n="guide.about.faq.2.q">手机上能玩吗？</summary>
+            <p data-i18n="guide.about.faq.2.a">能。手机、平板和电脑用的是同一张棋盘，触摸操作都有预览和确认。添加到主屏幕后还可以全屏和离线游玩。</p>
+          </details>
+          <details class="card qa">
+            <summary data-i18n="guide.about.faq.3.q">一局要多久？</summary>
+            <p data-i18n="guide.about.faq.3.a">战役一章 20 波，大约 15～25 分钟。中途退出会自动存档，下次可以接着打。</p>
+          </details>
+          <details class="card qa">
+            <summary data-i18n="guide.about.faq.4.q">AI 参战需要什么？</summary>
+            <p data-i18n="guide.about.faq.4.a">需要你自己的模型服务：中转服务或官方 API Key、本机的 Ollama 或 LM Studio 都可以。没有 Key 也能用离线演示体验。</p>
+          </details>
+          <details class="card qa">
+            <summary data-i18n="guide.about.faq.5.q">支持哪些语言？</summary>
+            <p data-i18n="guide.about.faq.5.a">简体中文、繁體中文、English 和日本語，可以随时切换。</p>
+          </details>
+        </div>
+      </section>
+
+      <section class="wrap block">
+        <div class="card cta">
+          <div>
+            <h2 data-i18n="guide.about.cta.title">书桌已经摆好了</h2>
+            <p data-i18n="guide.about.cta.lead">第一章只要十几分钟。</p>
+          </div>
+          <a class="btn primary big" href="./" data-i18n="guide.about.hero.play">开始游戏</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap foot-in">
+        <p data-i18n="guide.about.footer.note">书桌防线 Desk Defense，一款网页塔防游戏。</p>
+        <nav data-i18n-attr="aria-label:guide.about.footer.label" aria-label="页脚链接">
+          <a href="./" data-i18n="guide.about.footer.play">开始游戏</a>
+          <a href="./#guide" data-i18n="guide.about.footer.guide">图鉴与玩法</a>
+          <a href="./#leaderboard" data-i18n="guide.about.footer.leaderboard">排行榜</a>
+        </nav>
+      </div>
+    </footer>
+
+    <script type="module" src="/src/about/main.ts"></script>
+  </body>
+</html>

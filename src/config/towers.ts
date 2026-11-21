@@ -1,4 +1,5 @@
 import type { TowerId } from '../core/types';
+import { localize, localizedList, nameDesc, part, type TextParams } from './text';
 
 /** 0.25 → "25%" */
 export function pct(v: number): string {
@@ -58,10 +59,10 @@ export const BRANCH = {
     B: { dps: 5.8, s1: 1.5, r: 0.3, dur: 2 },
   },
   lamp: {
-    /** A 激光笔：每秒 dps，每秒递增 ramp，倍率上限 cap；★1 上限 ×s1；★2 折射 refract */
-    A: { dps: 25, ramp: 0.25, cap: 5, s1: 1.5, refract: 0.5 },
-    /** B 护眼灯：照射易伤 vuln；★1 提高到 s1；★2 光照内友方射程 +range */
-    B: { vuln: 0.15, s1: 0.25, range: 0.3 },
+    /** A 激光笔：基础秒伤 ×dmg，每秒递增 ramp（基础秒伤的倍数），倍率上限 cap；作为主灯时汇聚效率 ×relay，且联动组不限座数；★1 上限 ×s1；★2 折射 refract */
+    A: { dmg: 0.6, ramp: 1, cap: 5, relay: 1.1, s1: 1.5, refract: 0.5 },
+    /** B 护眼灯：基础秒伤 ×dmg，照射易伤 vuln；★1 提高到 s1；★2 光照内友方射程 +range；联动时主灯光束在目标处分裂（辅灯数道，splitR 格内，伤害 ×split） */
+    B: { dmg: 0.7, vuln: 0.15, s1: 0.25, range: 0.3, split: 0.35, splitR: 1.5 },
   },
   calculator: {
     /** A 科学计算器：光环内暴击率 +crit、暴击伤害 +critDmg；★1 再 +s1；★2 光环 +aura */
@@ -69,6 +70,32 @@ export const BRANCH = {
     /** B 算盘：光环内经验 +xp、伤害再 +dmg；★1 经验再 +s1；★2 升级费用 −discount */
     B: { xp: 0.5, s1: 0.25, discount: 0.1, dmg: 0.3 },
   },
+};
+
+/**
+ * 台灯（文档 02 §2.5）：持续光束 + 递增 + 联动（棱镜）。台灯的 damage 是 Lv1 秒伤，interval 固定 1（等级 / 进化的间隔成长与攻速加成都换算成秒伤）。
+ */
+export const LAMP = {
+  /** 伤害结算间隔（秒），每跳发一次 beam 事件 */
+  tick: 0.1,
+  /** 递增：同一目标每秒 +ramp（基础秒伤的倍数），最多 ×cap；换目标 / 目标死亡清零 */
+  ramp: 0.6,
+  cap: 3,
+  /** 精良·余温：换目标时保留 keep 的递增 */
+  keep: 0.5,
+  /** 镀金·双灯头：第二道光束的秒伤系数（单独递增） */
+  second: 0.5,
+  /** 侦测隐形半径（护眼灯为整个射程） */
+  detect: 1.5,
+  /** 联动：中心距 link 格以内的台灯连成一组（可链式），普通组最多 maxGroup 座（有传奇 A 激光笔的组不限） */
+  link: 2.5,
+  maxGroup: 4,
+  /** 第 k 座辅灯（按秒伤从高到低）并入主灯的效率 relay × k^-decay：主灯秒伤 × (1 + Σ 效率 × 辅灯秒伤 / 主灯秒伤) */
+  relay: 1.1,
+  decay: 0.25,
+  /** 每座辅灯让主灯递增上限 +capPer，最多 +capMax */
+  capPer: 0.75,
+  capMax: 2.25,
 };
 
 /** 苍蝇拍（文档 02 §2.12）的特性数值 */
@@ -99,126 +126,124 @@ export const SWATTER = {
 /** 每级成长（文档 02 §1.2） */
 export const GROWTH = { damage: 1.15, interval: 0.97, range: 0.06 };
 
+type TowerNumbers = Omit<TowerDef, 'name' | 'role' | 'desc' | 't2' | 't3' | 'A' | 'B'>;
+
+/** 塔定义：数值写在这里，名称 / 定位 / 说明 / 特性文本走 i18n（data.tower.<id>.*） */
+function tower(n: TowerNumbers, p: { desc?: TextParams; A?: TextParams; B?: TextParams; t2?: TextParams; t3?: TextParams } = {}): TowerDef {
+  const k = `data.tower.${n.id}`;
+  const def = localize(n, k, ['name', 'role', 'desc'] as const, { desc: p.desc });
+  return Object.assign(def, {
+    t2: nameDesc(`${k}.t2`, p.t2),
+    t3: nameDesc(`${k}.t3`, p.t3),
+    A: nameDesc(`${k}.A`, p.A),
+    B: nameDesc(`${k}.B`, p.B),
+  });
+}
+
 export const TOWERS: Record<TowerId, TowerDef> = {
-  wall: {
-    id: 'wall', name: '书本墙', cost: 5, role: '造迷宫', desc: '堵路、改路线；升级后给相邻塔加成',
+  wall: tower({
+    id: 'wall', cost: 5,
     hitsAir: false, hitsGround: false, unlock: '1-1', attacks: false,
     damage: 0, interval: 0, range: 0, projSpeed: 0, maxLevel: 3,
-    t2: { name: '精装书', desc: '相邻攻击塔射程 +5%' },
-    t3: { name: '百科全书', desc: '相邻攻击塔射程 +5%，伤害 +5%' },
-    A: { name: '—', desc: '' }, B: { name: '—', desc: '' },
-  },
-  pencil: {
-    id: 'pencil', name: '铅笔塔', cost: 20, role: '单体', desc: '发射追踪笔芯弹，地空皆可',
+  }),
+  pencil: tower({
+    id: 'pencil', cost: 20,
     hitsAir: true, hitsGround: true, unlock: '1-1', attacks: true,
     damage: 8, interval: 0.5, range: 2.5, projSpeed: 10, maxLevel: 10,
-    t2: { name: '削尖', desc: '15% 概率暴击，造成 2 倍伤害' },
-    t3: { name: '双笔齐发', desc: '一次射出 2 发' },
-    A: { name: '自动铅笔', desc: `攻速 ×${pct0(1 / BRANCH.pencil.A.ivl)}，单发伤害 ×${BRANCH.pencil.A.dmg}` },
-    B: { name: '彩色铅笔', desc: `命中随机附带：红色灼烧（每秒 ${BRANCH.pencil.B.burn}）、蓝色减速 ${pct(BRANCH.pencil.B.slow)}、黄色 +1 金币（每波最多 15 次）${BRANCH.pencil.B.dmg !== 1 ? `；单发伤害 ×${BRANCH.pencil.B.dmg}` : ''}` },
-  },
-  stapler: {
-    id: 'stapler', name: '订书机', cost: 45, role: '近身群伤', desc: '咔嚓一下，打到范围内所有地面敌人',
+  }, {
+    A: () => ({ atk: pct0(1 / BRANCH.pencil.A.ivl), dmg: BRANCH.pencil.A.dmg }),
+    B: () => ({
+      burn: BRANCH.pencil.B.burn, slow: pct(BRANCH.pencil.B.slow),
+      extra: part(BRANCH.pencil.B.dmg !== 1, 'data.tower.pencil.B.descDmg', { dmg: BRANCH.pencil.B.dmg }),
+    }),
+  }),
+  stapler: tower({
+    id: 'stapler', cost: 45,
     hitsAir: false, hitsGround: true, unlock: '1-3', attacks: true,
     damage: 12, interval: 1.0, range: 1.6, projSpeed: 0, maxLevel: 10,
-    t2: { name: '钉住', desc: '10% 概率眩晕 0.5 秒（同一目标 3 秒内一次）' },
-    t3: { name: '重型订书机', desc: '范围 +0.3 格，对有护甲的敌人 +4 伤害' },
-    A: { name: '电动订书机', desc: '基础攻击间隔改为 0.4 秒（攻速约 ×2.5，仍随等级缩短），单次伤害 ×0.6' },
-    B: { name: '起钉器', desc: '每次命中 −1 护甲（最多 −5），对 0 护甲敌人伤害 +30%' },
-  },
-  glue: {
-    id: 'glue', name: '胶水瓶', cost: 35, role: '减速', desc: '胶团落点 0.8 格内敌人减速 40%',
+  }),
+  glue: tower({
+    id: 'glue', cost: 35,
     hitsAir: false, hitsGround: true, unlock: '1-2', attacks: true,
     damage: 2, interval: 0.8, range: 2.2, projSpeed: 7, maxLevel: 10,
-    t2: { name: '残胶', desc: '落点留下一滩胶水，持续 3 秒' },
-    t3: { name: '强力胶', desc: '基础减速提高到 55%' },
-    A: { name: '502 胶', desc: `${pct(BRANCH.glue.A.root)} 概率定身 ${BRANCH.glue.A.rootDur} 秒（Boss 0.3 秒）` },
-    B: { name: '热熔胶', desc: `胶滩改为每秒造成 ${BRANCH.glue.B.dps} 点灼烧伤害` },
-  },
-  lamp: {
-    id: 'lamp', name: '台灯', cost: 80, role: '穿甲光束', desc: '瞬发光束，无视护甲，侦测 1.5 格内隐形',
+  }, {
+    A: () => ({ chance: pct(BRANCH.glue.A.root), dur: BRANCH.glue.A.rootDur }),
+    B: () => ({ dps: BRANCH.glue.B.dps }),
+  }),
+  lamp: tower({
+    id: 'lamp', cost: 80,
     hitsAir: true, hitsGround: true, unlock: '1-6', attacks: true,
-    damage: 30, interval: 1.5, range: 3.5, projSpeed: 0, maxLevel: 10,
-    t2: { name: '聚光', desc: '连续打同一目标每次 +20%，最多 3 层' },
-    t3: { name: '双灯头', desc: '同时打 2 个目标' },
-    A: { name: '激光笔', desc: `持续光束每秒 ${BRANCH.lamp.A.dps} 点，每秒递增 ${pct(BRANCH.lamp.A.ramp)}（最多 ×${BRANCH.lamp.A.cap}）` },
-    B: { name: '护眼灯', desc: `整个射程侦测隐形；被照到的敌人受到伤害 +${pct(BRANCH.lamp.B.vuln)}` },
-  },
-  compass: {
-    id: 'compass', name: '圆规', cost: 60, role: '环形切割', desc: '对 0.8–1.8 格环形区域持续伤害',
+    damage: 13, interval: 1, range: 3.5, projSpeed: 0, maxLevel: 10,
+  }, {
+    desc: () => ({ ramp: pct(LAMP.ramp), cap: LAMP.cap, detect: LAMP.detect, link: LAMP.link }),
+    t2: () => ({ keep: pct(LAMP.keep) }),
+    t3: () => ({ v: pct(LAMP.second) }),
+    A: () => ({ dmg: BRANCH.lamp.A.dmg, ramp: pct(BRANCH.lamp.A.ramp), cap: BRANCH.lamp.A.cap, relay: BRANCH.lamp.A.relay }),
+    B: () => ({ dmg: BRANCH.lamp.B.dmg, vuln: pct(BRANCH.lamp.B.vuln), split: pct(BRANCH.lamp.B.split) }),
+  }),
+  compass: tower({
+    id: 'compass', cost: 60,
     hitsAir: false, hitsGround: true, unlock: '2-1', attacks: true,
     damage: 6, interval: 0.25, range: 1.8, inner: 0.8, projSpeed: 0, maxLevel: 10,
-    t2: { name: '加速旋转', desc: '基础攻击间隔从 0.25 秒变为 0.2 秒（攻速 +25%，仍随等级缩短）' },
-    t3: { name: '双脚', desc: '内圈也能打到（0–1.8 格）' },
-    A: { name: '量角器', desc: '范围 2.5 格扇形来回扫射，伤害 ×1.5' },
-    B: { name: '钻头', desc: '命中叠加流血，每层每秒 2 点，最多 10 层' },
-  },
-  eraser: {
-    id: 'eraser', name: '橡皮擦', cost: 40, role: '破甲破盾', desc: '每次命中 −1 护甲，对护盾 3 倍伤害',
+  }),
+  eraser: tower({
+    id: 'eraser', cost: 40,
     hitsAir: false, hitsGround: true, unlock: '2-3', attacks: true,
     damage: 4, interval: 1.0, range: 2.0, projSpeed: 9, maxLevel: 10,
-    t2: { name: '弹跳', desc: '攻击弹到附近第 2 个目标' },
-    t3: { name: '深度擦除', desc: '每次命中 −2 护甲' },
-    A: { name: '修正带', desc: '在目标脚下拉出 3 格修正带，路过敌人受伤 +25%' },
-    B: { name: '电动橡皮', desc: '基础攻击间隔改为 0.35 秒（攻速约 ×2.9，仍随等级缩短），10% 概率清空护盾' },
-  },
-  ruler: {
-    id: 'ruler', name: '尺子', cost: 70, role: '远程穿透', desc: '直线刻度波，穿透路线上所有敌人',
+  }),
+  ruler: tower({
+    id: 'ruler', cost: 70,
     hitsAir: true, hitsGround: true, unlock: '2-6', attacks: true,
     damage: 20, interval: 2.0, range: 4.5, projSpeed: 12, maxLevel: 10,
-    t2: { name: '刻度', desc: '每飞过 1 格伤害 +3%' },
-    t3: { name: '三角尺', desc: '一次射出 3 道，呈 30° 扇形' },
-    A: { name: '钢尺', desc: '被命中的地面敌人后退 0.5 格' },
-    B: { name: '游标卡尺', desc: '处决生命低于 10% 的非 Boss 敌人' },
-  },
-  pen: {
-    id: 'pen', name: '钢笔', cost: 55, role: '持续伤害', desc: '挂墨迹每秒 6 点，减半治疗',
+  }),
+  pen: tower({
+    id: 'pen', cost: 55,
     hitsAir: true, hitsGround: true, unlock: '3-1', attacks: true,
     damage: 3, interval: 1.0, range: 2.8, projSpeed: 9, maxLevel: 10,
-    t2: { name: '溅墨', desc: '0.6 格内其他敌人也挂 1 层墨迹' },
-    t3: { name: '浓墨', desc: '墨迹最多叠 5 层' },
-    A: { name: '毛笔', desc: '大笔画打中 2 格长线上所有敌人，各叠 2 层' },
-    B: { name: '红笔批改', desc: '被标记的敌人受到所有伤害 +20%' },
-  },
-  calculator: {
-    id: 'calculator', name: '计算器', cost: 90, role: '增益', desc: '光环内攻击塔伤害 +10%，分享经验',
+  }),
+  calculator: tower({
+    id: 'calculator', cost: 90,
     hitsAir: false, hitsGround: false, unlock: '3-3', attacks: false,
     damage: 0, interval: 0, range: 0, aura: 2.0, projSpeed: 0, maxLevel: 10,
-    t2: { name: '超频', desc: '光环内额外 +8% 攻速' },
-    t3: { name: '高精度', desc: '额外 +15% 伤害，射程 +0.3' },
-    A: { name: '科学计算器', desc: `光环内暴击率 +${pct(BRANCH.calculator.A.crit)}，暴击伤害 +${pct(BRANCH.calculator.A.critDmg)}` },
-    B: { name: '算盘', desc: `光环内的塔获得经验 +${pct(BRANCH.calculator.B.xp)}${BRANCH.calculator.B.dmg > 0 ? `，伤害再 +${pct(BRANCH.calculator.B.dmg)}` : ''}` },
-  },
-  piggy: {
-    id: 'piggy', name: '存钱罐', cost: 100, role: '经济', desc: '每波结束产出 8 金币（最多 3 个）',
+  }, {
+    A: () => ({ crit: pct(BRANCH.calculator.A.crit), critDmg: pct(BRANCH.calculator.A.critDmg) }),
+    B: () => ({
+      xp: pct(BRANCH.calculator.B.xp),
+      extra: part(BRANCH.calculator.B.dmg > 0, 'data.tower.calculator.B.descDmg', { dmg: pct(BRANCH.calculator.B.dmg) }),
+    }),
+  }),
+  piggy: tower({
+    id: 'piggy', cost: 100,
     hitsAir: false, hitsGround: false, unlock: '3-6', attacks: false,
     damage: 0, interval: 0, range: 0, projSpeed: 0, maxLevel: 10,
-    t2: { name: '定期存款', desc: '利息上限 +5' },
-    t3: { name: '招财', desc: '周围 2.5 格内死亡的敌人额外 +1 金币' },
-    A: { name: '金猪', desc: '每波产出翻倍' },
-    B: { name: '保险箱', desc: '蚂蚁偷不走金币；每漏 1 只怪返还 10 金币' },
-  },
-  swatter: {
-    id: 'swatter', name: '苍蝇拍', cost: 50, role: '专职防空', desc: `只打空中：一拍打中目标和周围 ${SWATTER.splash} 格内的飞行敌人，飞蛾无法闪避`,
+  }),
+  swatter: tower({
+    id: 'swatter', cost: 50,
     hitsAir: true, hitsGround: false, unlock: '1-5', attacks: true,
     damage: 26, interval: 1.2, range: 3.0, projSpeed: 0, maxLevel: 10,
-    t2: { name: '气流', desc: `被拍中的飞行敌人减速 ${pct(SWATTER.airSlow)}，持续 ${SWATTER.airSlowDur} 秒` },
-    t3: { name: '双拍', desc: `一次拍两个不同的目标，拍击范围 +${SWATTER.splashT3} 格` },
-    A: { name: '电蚊拍', desc: `拍中后放出连锁闪电，在飞行敌人之间弹跳 ${SWATTER.chain} 次，每跳伤害 ×${SWATTER.chainMul}，并让目标麻痹 ${SWATTER.chainStun} 秒` },
-    B: { name: '捕虫网', desc: `每第 ${SWATTER.netEvery} 次攻击改为甩网，把 1 个飞行敌人网到地面 ${SWATTER.netDur} 秒（Boss 不受影响）；被网住的敌人按迷宫行走、会被地面塔攻击，受到伤害 +${pct(SWATTER.netVuln)}` },
-  },
+  }, {
+    desc: () => ({ splash: SWATTER.splash }),
+    t2: () => ({ slow: pct(SWATTER.airSlow), dur: SWATTER.airSlowDur }),
+    t3: () => ({ splash: SWATTER.splashT3 }),
+    A: () => ({ chain: SWATTER.chain, mul: SWATTER.chainMul, stun: SWATTER.chainStun }),
+    B: () => ({ every: SWATTER.netEvery, dur: SWATTER.netDur, vuln: pct(SWATTER.netVuln) }),
+  }),
 };
 
 export const WALL_UPGRADE_COST = [0, 15, 30]; // 索引为当前等级：Lv1→2 = 15，Lv2→3 = 30
 export const PIGGY_MAX = 3;
 export const UNDO_SECONDS = 5;
 
+const combo = (a: TowerId, b: TowerId) => localize({ a, b }, `data.combo.${a}_${b}`, ['name', 'desc'] as const);
+
+/** 组合（名称 / 说明：data.combo.<a>_<b>.*） */
 export const COMBOS: { a: TowerId; b: TowerId; name: string; desc: string }[] = [
-  { a: 'pencil', b: 'eraser', name: '带橡皮的铅笔', desc: '铅笔每次命中 −0.5 护甲' },
-  { a: 'glue', b: 'stapler', name: '粘住再钉', desc: '订书机对被减速的敌人伤害 +25%' },
-  { a: 'lamp', b: 'pen', name: '墨迹烤干', desc: '钢笔墨迹持续伤害 +30%' },
-  { a: 'ruler', b: 'compass', name: '尺规作图', desc: '两座塔射程各 +0.3' },
-  { a: 'calculator', b: 'piggy', name: '复利', desc: '存钱罐每波产出 +25%' },
+  combo('pencil', 'eraser'),
+  combo('glue', 'stapler'),
+  combo('lamp', 'pen'),
+  combo('ruler', 'compass'),
+  combo('calculator', 'piggy'),
 ];
 
-export const TIER_NAMES = ['草稿', '精良', '镀金', '传奇', '神话'];
+/** 阶级名：草稿 / 精良 / 镀金 / 传奇 / 神话（data.tier.1..5，读取时按当前语言） */
+export const TIER_NAMES: string[] = localizedList(['data.tier.1', 'data.tier.2', 'data.tier.3', 'data.tier.4', 'data.tier.5']);

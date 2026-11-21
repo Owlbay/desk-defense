@@ -64,7 +64,7 @@ function playBot(opts: RunOptions, maxWave: number, maxTicks = 60 * 60 * 150): {
         const [x, y] = walls[wi];
         const chk = w.canPlace('wall', x, y);
         if (chk.ok) w.command({ type: 'place', tower: 'wall', cx: x, cy: y });
-        else if (chk.reason === '有敌人在这里') break;
+        else if (chk.code === 'enemyHere') break;
         wi++;
       }
       // 攻击塔

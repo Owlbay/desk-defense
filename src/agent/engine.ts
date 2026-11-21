@@ -3,12 +3,17 @@
  * 观测、工具执行与记录、超时、token / 费用预算、连续失败熔断、决策后的推进保证。
  * 无头 runner（CLI / 测试）与浏览器控制器（index.ts）共用。
  */
+import { SOURCE_LOCALE, withLocale } from '../i18n';
 import type { IWorld, RunOptions } from '../core/types';
 import { runHeader, systemBlocks } from './prompts';
 import { executeTool, toolsForRole } from './tools';
 import { CONTEXT_MODES, contextSpec, type AgentModelConfig, type ContextModeSpec, type ThinkingLevel } from './config';
 import { ContextBuilder } from './context';
 import { BattleLog, idleLine, threatLine } from './battle';
+import { BattleIntel, gapLine, killLine, leakLine, type LeakRecord } from './intel';
+import { comboLine, mazeLine, reclaimLine } from './board';
+import { AFFIX_PURPOSE, enemyPurposes, type Purpose } from './purpose';
+import { ENEMIES } from '../config/enemies';
 import type { PlannerState } from './planner';
 import { gateDecision } from './gating';
 import type { LLMProvider } from './providers/types';
@@ -135,6 +140,11 @@ export class DecisionEngine {
   readonly assist: boolean;
   readonly battle: BattleLog;
   readonly plannerState: PlannerState = {};
+  /** 战场情报（漏怪明细 / 缺口 / 击杀分布 / 零伤害塔）：每个世界事件喂一次（onWorldEvent） */
+  readonly intel: BattleIntel;
+  /** 棋盘体检行上次发出的内容与时间（同样的内容隔 3 次建造决策才重发） */
+  private boardSeen = new Map<string, { text: string; n: number }>();
+  private buildSeq = 0;
   /** 建造阶段决策结束时剩下的金币（闲置金币指标；模型 / 机器人 / 跳过都记） */
   readonly buildGoldAfter: number[] = [];
   private lastThreatWave = -1;
@@ -143,8 +153,11 @@ export class DecisionEngine {
     this.role = o.config.role ?? 'player';
     this.assist = o.config.assist !== false;
     this.battle = new BattleLog(o.world);
-    this.system = systemBlocks(this.role, this.assist);
-    this.header = runHeader(o.opts, o.world);
+    this.intel = new BattleIntel(o.world);
+    this.plannerState.intel = this.intel;
+    // 提示词里的目录文本始终用源语言（简体中文），与玩家界面语言无关
+    this.system = withLocale(SOURCE_LOCALE, () => systemBlocks(this.role, this.assist));
+    this.header = withLocale(SOURCE_LOCALE, () => runHeader(o.opts, o.world));
     this.baseSpec = contextSpec(o.config);
     this.budgetLimit = o.config.budget?.tokens ?? null;
     this.ctx = new ContextBuilder(o.world, this.baseSpec, this.header);
@@ -301,7 +314,7 @@ export class DecisionEngine {
       if (why) return this.skipLocal(point, recent, why, t0, compacted);
     }
 
-    const built = this.ctx.build(point, recent, this.assist && this.role !== 'attacker' ? this.extras(buildPhase) : undefined);
+    const built = withLocale(SOURCE_LOCALE, () => this.ctx.build(point, recent, this.assist && this.role !== 'attacker' ? this.extras(buildPhase) : undefined));
     const message = built.text;
     const rec: DecisionRecord = { point, by: 'agent', toolCalls: calls, usage: emptyUsage(), ms: 0, observationTokens: built.observationTokens };
     this.goldAtLastCall = Math.floor(w.state.gold);
@@ -512,17 +525,56 @@ export class DecisionEngine {
     const out: string[] = [];
     const br = this.battle.take();
     if (br) out.push(br);
+    // 漏怪明细 / 缺口热点 / 击杀分布：与战报同一窗口（波末之后的第一次模型决策）；波中漏怪也即时给明细
+    if (this.intel.hasPendingLeaks()) {
+      const leaks = this.intel.takeLeaks();
+      const lk = leakLine(w, leaks);
+      if (lk) { out.push(lk); this.intel.stats.reports++; }
+      const gap = gapLine(w, this.intel);
+      if (gap) out.push(gap);
+    }
+    if (br) {
+      const kh = killLine(w, this.intel.takeKills());
+      if (kh) out.push(kh);
+    }
     const nw = w.state.nextWave.wave;
     if (buildPhase || nw !== this.lastThreatWave) {
-      const th = threatLine(w);
+      const th = threatLine(w, this.leakPurposes());
       if (th) out.push(th);
       this.lastThreatWave = nw;
     }
     if (buildPhase && this.role === 'player') {
+      this.buildSeq++;
+      for (const [k, f] of [['RC', () => reclaimLine(w, this.intel)], ['CB', () => comboLine(w)], ['MZ', () => mazeLine(w)]] as const) {
+        const t = f();
+        if (!t) continue;
+        const seen = this.boardSeen.get(k);
+        if (seen && seen.text === t && this.buildSeq - seen.n < 3) continue;
+        this.boardSeen.set(k, { text: t, n: this.buildSeq });
+        out.push(t);
+      }
       const idle = idleLine(w, this.plannerState);
       if (idle) out.push(idle);
     }
     return out.length ? out.join('\n') : undefined;
+  }
+
+  /** 最近 3 波漏掉的敌人 / 精英词缀需要的用途（CTR 用） */
+  private leakPurposes(): Purpose[] {
+    const cur = this.o.world.state.wave;
+    const out = new Set<Purpose>();
+    for (const l of this.intel.leaks as readonly LeakRecord[]) {
+      if (l.wave <= cur - 3) continue;
+      for (const a of l.affixes) { const p = AFFIX_PURPOSE[a]; if (p) out.add(p); }
+      const def = ENEMIES[l.enemy];
+      if (def) for (const p of enemyPurposes(def)) out.add(p);
+    }
+    return [...out];
+  }
+
+  /** 每个世界事件调用（浏览器控制器 / 无头 runner）：喂给战场情报 */
+  onWorldEvent(ev: import('../core/types').GameEvent): void {
+    this.intel.onEvent(ev);
   }
 
   /** 决策后保证游戏能继续：增益必须选、补给必须选、手动模式必须开波 */

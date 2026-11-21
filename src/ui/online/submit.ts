@@ -2,8 +2,10 @@
  * 结算面板里的「全服排行榜」区：昵称、上传状态、查看全服榜。
  * 只对无尽（非自定义）与每日挑战显示；全部异步，不阻塞结算界面。
  */
+import { isAiAssisted } from '../../meta/aiAssist';
 import { getNickname, initOnline, submitWorldRun, type SubmitOutcome } from '../../meta/online';
 import { boardLabel } from '../../shared/leaderboard';
+import { fmtNumber, t } from '../../i18n';
 import { audio } from '../audio';
 import { h, setText } from '../dom';
 import { G } from '../icons';
@@ -24,20 +26,22 @@ export type SubmitView =
 export function submitText(v: SubmitView): { text: string; tone: '' | 'good' | 'warn' } {
   switch (v.kind) {
     case 'idle':
-      return { text: '尚未上传', tone: '' };
+      return { text: t('ui.online.notUploaded'), tone: '' };
     case 'sending':
-      return { text: '提交中…', tone: '' };
+      return { text: t('ui.online.submitting'), tone: '' };
     case 'done':
       return {
-        text: v.improved ? `已提交 · 第 ${v.rank} 名${v.pending ? '（待验证）' : ''}` : `已提交 · 未超过最佳（第 ${v.rank} 名）`,
+        text: v.improved
+          ? t(v.pending ? 'ui.online.submittedPending' : 'ui.online.submitted', { rank: fmtNumber(v.rank) })
+          : t('ui.online.submittedNoBest', { rank: fmtNumber(v.rank) }),
         tone: 'good',
       };
     case 'queued':
-      return { text: '离线已排队，联网后自动上传', tone: '' };
+      return { text: t('ui.online.queued'), tone: '' };
     case 'rejected':
-      return { text: v.message || '上传失败', tone: 'warn' };
+      return { text: v.message || t('ui.online.uploadFailed'), tone: 'warn' };
     case 'unavailable':
-      return { text: '在线功能不可用', tone: 'warn' };
+      return { text: t('ui.online.unavailableShort'), tone: 'warn' };
   }
 }
 
@@ -54,10 +58,12 @@ export function onlineSubmitPanel(ctx: GameCtx, wavesSurvived: number): HTMLElem
   try {
     if (!isEligibleRun(ctx.opts)) return null;
     const day = dailyDayOfOpts(ctx.opts);
+    // 公平性：用过「让 AI 替我玩」的对局不上传（说明原因，不显示上传按钮）
+    if (isAiAssisted(ctx.aiAssist)) return aiAssistNote(!!day);
     const board = boardOfRun(ctx.opts);
     const status = h('span.os-status', { attrs: { role: 'status', 'aria-live': 'polite' } });
     const nick = h('b.nick-name');
-    const submitBtn = h<HTMLButtonElement>('button.btn.small.primary', { attrs: { type: 'button' } }, h('span.gi', { html: G.up }), '上传成绩');
+    const submitBtn = h<HTMLButtonElement>('button.btn.small.primary', { attrs: { type: 'button' } }, h('span.gi', { html: G.up }), t('ui.online.upload'));
     const viewBtn = h(
       'button.btn.small',
       {
@@ -72,30 +78,30 @@ export function onlineSubmitPanel(ctx: GameCtx, wavesSurvived: number): HTMLElem
         },
       },
       h('span.gi', { html: G.trophy }),
-      day ? '查看每日榜' : '查看全服榜',
+      day ? t('ui.online.viewDaily') : t('ui.online.viewGlobal'),
     );
     const nickBtn = h(
       'button.btn.small',
       {
-        attrs: { type: 'button', 'aria-label': '修改昵称' },
+        attrs: { type: 'button', 'aria-label': t('ui.online.editNick') },
         onclick: async () => {
           audio.play('click');
           const n = await askNickname();
           if (n) paintNick();
         },
       },
-      '改名',
+      t('ui.online.rename'),
     );
 
     let view: SubmitView = { kind: 'idle' };
     const paint = () => {
-      const t = submitText(view);
-      setText(status, t.text);
-      status.className = `os-status${t.tone ? ` ${t.tone}` : ''}`;
+      const st = submitText(view);
+      setText(status, st.text);
+      status.className = `os-status${st.tone ? ` ${st.tone}` : ''}`;
       submitBtn.hidden = !(view.kind === 'idle' || view.kind === 'rejected');
       submitBtn.disabled = false;
     };
-    const paintNick = () => setText(nick, getNickname() || '未设置');
+    const paintNick = () => setText(nick, getNickname() || t('ui.online.notSet'));
 
     let busy = false;
     const doSubmit = async (interactive: boolean) => {
@@ -115,11 +121,11 @@ export function onlineSubmitPanel(ctx: GameCtx, wavesSurvived: number): HTMLElem
         paintNick();
         view = { kind: 'sending' };
         paint();
-        view = outcomeView(await submitWorldRun(ctx.world as Parameters<typeof submitWorldRun>[0], { wavesSurvived, dailyDay: day }));
+        view = outcomeView(await submitWorldRun(ctx.world as Parameters<typeof submitWorldRun>[0], { wavesSurvived, dailyDay: day, aiAssist: ctx.aiAssist }));
         if (view.kind === 'done' || view.kind === 'queued') audio.play(view.kind === 'done' ? 'select' : 'click');
       } catch (e) {
         console.warn('[online] submit failed', e);
-        view = { kind: 'rejected', message: '上传失败' };
+        view = { kind: 'rejected', message: t('ui.online.uploadFailed') };
       } finally {
         busy = false;
         paint();
@@ -133,8 +139,8 @@ export function onlineSubmitPanel(ctx: GameCtx, wavesSurvived: number): HTMLElem
     const panel = h(
       'div.online-submit',
       null,
-      h('div.os-line', null, h('span', null, day ? null : h('span.muted.small', null, '全服榜 · '), boardLabel(board)), status),
-      h('div.os-line', null, h('span.online-nick', null, h('span.muted.small', null, '昵称'), nick, nickBtn), h('span.os-actions', null, submitBtn, viewBtn)),
+      h('div.os-line', null, h('span', null, day ? null : h('span.muted.small', null, t('ui.online.globalPrefix')), boardLabel(board)), status),
+      h('div.os-line', null, h('span.online-nick', null, h('span.muted.small', null, t('ui.online.nick')), nick, nickBtn), h('span.os-actions', null, submitBtn, viewBtn)),
     );
     paintNick();
     paint();
@@ -152,6 +158,16 @@ export function onlineSubmitPanel(ctx: GameCtx, wavesSurvived: number): HTMLElem
     console.warn('[online] panel failed', e);
     return null;
   }
+}
+
+/** AI 协助的对局：结算面板里替代上传区的说明 */
+export function aiAssistNote(daily: boolean): HTMLElement {
+  return h(
+    'div.online-submit.ai-assist-note',
+    { attrs: { role: 'note' } },
+    h('div.os-line', null, h('span.badge.ai-assist-badge', null, t('ui.assist.badge')), h('b', null, daily ? t('ui.assist.notUploadedDaily') : t('ui.assist.notUploaded'))),
+    h('p.muted.small', null, t('ui.assist.notUploadedWhy')),
+  );
 }
 
 /** 兼容「挂载」写法 */

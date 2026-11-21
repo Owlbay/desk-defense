@@ -1,4 +1,6 @@
-/** AI 面板共用的小格式化函数（无依赖） */
+/** AI 面板共用的小格式化函数 */
+import { t } from '../../i18n';
+
 export const fmtTokens = (n: number): string =>
   n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 10_000 ? `${(n / 1000).toFixed(0)}k` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(Math.round(n));
 
@@ -8,8 +10,8 @@ export const fmtCost = (usd: number): string => (usd <= 0 ? '$0' : usd < 0.01 ? 
 export function providerLabel(provider: string): string {
   const map: Record<string, string> = {
     'claude-native': 'Claude',
-    scripted: '内置策略',
-    bridge: '本机桥接',
+    scripted: t('agent.setup.provider.scripted'),
+    bridge: t('agent.setup.provider.bridge'),
     mcp: 'MCP',
     'pi:anthropic': 'Anthropic',
     'pi:openai': 'OpenAI',
@@ -20,8 +22,8 @@ export function providerLabel(provider: string): string {
     'pi:lmstudio': 'LM Studio',
     'pi:llamacpp': 'llama.cpp',
     'pi:vllm': 'vLLM',
-    'pi:relay': '中转服务',
-    'pi:custom': '自定义',
+    'pi:relay': t('agent.setup.provider.relay'),
+    'pi:custom': t('agent.setup.provider.custom'),
   };
   return map[provider] ?? provider.replace(/^(pi|bridge):/, '');
 }

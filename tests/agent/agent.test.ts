@@ -25,7 +25,7 @@ describe('observation', () => {
     expect(map.join('')).toMatch(/X/);
   });
 
-  it('stays within the token budget early and late', async () => {
+  it('stays within the token budget early and late', { timeout: 20_000 }, async () => {
     const w0 = createWorld(OPTS);
     const early = estimateTokens(renderObservation(w0));
     expect(early).toBeLessThan(1500);

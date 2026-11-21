@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { t } from '../i18n';
 import type { EnemyId, GameEvent, Obstacle, PickupState, RandomEventState, SpawnerState, WorldState } from '../core/types';
 import { ui } from '../game/UiStore';
 import { cellBounds, drawObstacle, obstacleKey } from './background';
@@ -6,7 +7,7 @@ import type { RenderCtx } from './ctx';
 import { enemyAsset } from './enemies';
 import { dashCircle } from './input';
 import { BOARD_H, BOARD_W, CELL, DEPTH } from './layout';
-import { C, FONT, hex } from './palette';
+import { B, C, FONT, hex } from './palette';
 import { PartSet } from './parts';
 import { dashed } from './towers';
 
@@ -327,7 +328,7 @@ export class FieldLayer {
     this.ctx.fx.dust(x, y + 8, CELL * 0.6, C.tapeTan);
     if (demolish) {
       this.ctx.fx.shatter(x, y, 0xc89b6a, 8, 5);
-      this.ctx.fx.text(x, y - 18, '拆除!', 'info');
+      this.ctx.fx.text(x, y - 18, t('ui.render.demolish'), 'info');
     }
   }
 
@@ -416,7 +417,7 @@ export class FieldLayer {
     this.first = false;
   }
 
-  private text(x: number, y: number, str: string, color: number, size = 14, stroke: number = C.ink): void {
+  private text(x: number, y: number, str: string, color: number, size = 14, stroke: number = B.textStroke): void {
     let t = this.texts[this.textN];
     if (!t) {
       t = this.ctx.scene.add.text(0, 0, '', { fontFamily: FONT, fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(DEPTH.text - 2);
@@ -491,47 +492,39 @@ export class FieldLayer {
         g.lineStyle(2, C.bad, 0.3 * (1 - bph));
         g.strokeRoundedRect(X - o, Y - o, W + o * 2, H + o * 2, 8 + o * 0.5);
       }
-      // 图标位置：沿"朝向棋盘内部"的方向排开
-      const cx = (b.x + b.w / 2) / st.grid.cols,
-        cy = (b.y + b.h / 2) / st.grid.rows;
-      const n = Math.min(3, mine.length);
-      const step = 0.62;
-      let ox: number, oy: number, dx: number, dy: number;
-      if (sp.kind === 'edge' && (b.y === 0 || b.y + b.h >= st.grid.rows) && !(b.x === 0 || b.x + b.w >= st.grid.cols)) {
-        // 上 / 下边：图标横排在内侧
-        oy = b.y === 0 ? b.y + b.h + 0.42 : b.y - 0.42;
-        ox = b.x + b.w / 2 - ((n - 1) * step) / 2;
-        dx = step;
-        dy = 0;
-      } else if (sp.kind === 'edge') {
-        // 左 / 右边：竖排在内侧
-        ox = cx < 0.5 ? b.x + b.w + 0.42 : b.x - 0.42;
-        oy = b.y + b.h / 2 - ((n - 1) * step) / 2;
-        dx = 0;
-        dy = step;
-      } else {
-        // 棋盘内部（空降 / 暗门）：横排在上方（靠上时放下方）
-        oy = cy < 0.15 ? b.y + b.h + 0.42 : b.y - 0.42;
-        ox = b.x + b.w / 2 - ((n - 1) * step) / 2;
-        dx = step;
-        dy = 0;
-      }
+      // 图标放在出生点自身的格子上（这些格子不能建塔），不再画到相邻的可建造格上——
+      // 之前画在入口内侧一格，会和建在那里的塔互相遮挡（见玩家反馈截图）。
+      // 沿出生点的长边排开；放不下的用「+N」收尾。
+      const horizontal = b.w >= b.h;
+      const span = horizontal ? b.w : b.h; // 可用长度（格）
+      const step = 0.9; // 图标间距（格）：图标 + 下方数量标签互不重叠
+      const cap = Math.max(1, Math.floor((span - 0.1) / step));
+      const n = Math.min(cap, mine.length);
+      const more = mine.length - n;
+      const slots = n + (more > 0 ? 1 : 0);
+      const ox0 = horizontal ? b.x + b.w / 2 - ((slots - 1) * step) / 2 : b.x + b.w / 2;
+      const oy0 = horizontal ? b.y + b.h / 2 - 0.08 : b.y + b.h / 2 - ((slots - 1) * step) / 2;
+      const at = (i: number): { x: number; y: number } => ({
+        x: (horizontal ? ox0 + step * i : ox0) * CELL,
+        y: (horizontal ? oy0 : oy0 + step * i) * CELL,
+      });
+      const bg = this.badgeG;
+      // 一条底板把同一出生点的图标收在一起，读起来像一个整体
+      const p0 = at(0),
+        p1 = at(slots - 1);
+      bg.fillStyle(C.paper, 0.9);
+      bg.fillRoundedRect(Math.min(p0.x, p1.x) - 15, Math.min(p0.y, p1.y) - 15, Math.abs(p1.x - p0.x) + 30, Math.abs(p1.y - p0.y) + 30, 14);
       for (let i = 0; i < n; i++) {
         const q = mine[i];
-        const x = Phaser.Math.Clamp(ox + dx * i, 0.35, st.grid.cols - 0.35) * CELL;
-        const y = Phaser.Math.Clamp(oy + dy * i, 0.35, st.grid.rows - 0.35) * CELL;
-        const bg = this.badgeG;
-        bg.fillStyle(C.paper, 0.92);
-        bg.fillCircle(x, y, 12);
+        const { x, y } = at(i);
         bg.lineStyle(2, q.elite > 0 ? C.gold : C.bad, 0.95);
         bg.strokeCircle(x, y, 12);
         const cnt = q.spawner === '*' ? Math.ceil(q.count / Math.max(1, st.spawners.filter((s) => s.active).length)) : q.count;
-        this.icon(q.enemy, x, y, 0.42, `×${cnt}`, 0.95);
+        this.icon(q.enemy, x, y, 0.4, `×${cnt}`, 0.95);
       }
-      if (mine.length > 3) {
-        const x = Phaser.Math.Clamp(ox + dx * 3, 0.35, st.grid.cols - 0.35) * CELL;
-        const y = Phaser.Math.Clamp(oy + dy * 3, 0.35, st.grid.rows - 0.35) * CELL;
-        this.text(x, y, '…', C.paper, 12);
+      if (more > 0) {
+        const { x, y } = at(n);
+        this.text(x, y, `+${more}`, C.ink, 12);
       }
     }
   }

@@ -1,7 +1,7 @@
 /**
  * 塔的性价比基准（文档 02 §3 "平衡靠模拟脚本验证"）
  *
- *   npx vite-node scripts/bench.ts -- [--waves 35] [--budget 600] [--seeds 3] [--maps ch1,ch2,ch3] [--only solo|support|branch|mythic] [--towers pencil,glue]
+ *   npx vite-node scripts/bench.ts -- [--waves 35] [--budget 600] [--seeds 3] [--maps ch1,ch2,ch3] [--only solo|support|branch|mythic|prism] [--towers pencil,glue]
  *
  * 1) 单塔性价比：完整蛇形迷宫（墙免费），用同样的金币只买某一种塔放在最佳位置，不升级（经验照常），
  *    无限生命跑若干波，比较"打掉的敌人总生命 / 金币"。
@@ -10,9 +10,11 @@
  * 4) 神话（文档 11 §5）：同样的布置但 3 座塔进化到 ★3（苍蝇拍：1 座，配 8 座 Lv5 订书机），只有第一座自动释放主动能力，统计 40～52 波：
  *    A / B 的"打掉的生命占比"之比（目标 ±15%），以及能力单次释放的价值 ÷ 大橡皮单次释放的价值（目标 1～1.5）。
  *    价值 = 开 / 关能力（或大橡皮）两局的漏掉生命之差 ÷ 释放次数。
+ * 5) 台灯联动（文档 02 §2.5）：同样的位置（挨在一起），联动开 / 关（LAMP.link = 0）对比 Boss 波与普通波的输出；
+ *    再拿 10 座激光笔（不限座数的大组）与同样金币的传奇 A 铅笔 / 尺子比较。单塔性价比里的"孤灯"用 --patch '{"lamp.link":0}' 跑 solo。
  */
 import { createWorld, type Branch, type IWorld, type MapId, type TowerId } from '../src/core';
-import { BRANCH, SWATTER, TOWERS } from '../src/config/towers';
+import { BRANCH, LAMP, SWATTER, TOWERS } from '../src/config/towers';
 import { ABILITY_FX, EVO } from '../src/config/evolution';
 import { airSamples, coverage, groundSamples, planMaze, targetCells } from './bots/maze';
 import { BOTS, StrategyBot } from './bots';
@@ -33,7 +35,7 @@ const LEGENDS: TowerId[] = [...ATTACKERS, 'swatter', 'calculator', 'piggy'];
 // --patch '{"branch.glue.B.dps":8,"fx.pencil_b.mul":2}'：运行时临时改配置（branch / swatter / fx / evo / towers），不写文件
 const patchArg = arg('patch', '{}') === '{}' ? '' : arg('patch', '');
 if (patchArg) {
-  const roots: Record<string, unknown> = { branch: BRANCH, swatter: SWATTER, fx: ABILITY_FX, evo: EVO, towers: TOWERS };
+  const roots: Record<string, unknown> = { branch: BRANCH, swatter: SWATTER, fx: ABILITY_FX, evo: EVO, towers: TOWERS, lamp: LAMP };
   for (const [path, v] of Object.entries(JSON.parse(patchArg) as Record<string, number>)) {
     const parts = path.split('.');
     let o = roots[parts[0]] as Record<string, unknown>;
@@ -57,8 +59,8 @@ function buildMaze(w: IWorld): void {
   for (const i of plan.all) w.command({ type: 'place', tower: 'wall', cx: i % g.cols, cy: Math.floor(i / g.cols) });
 }
 
-/** 在迷宫墙上挑最好的位置换成塔 */
-function placeBest(w: IWorld, id: TowerId, n: number): number[] {
+/** 在迷宫墙上挑最好的位置换成塔；near = 只挑离已放的同类塔 LAMP.link 格以内的位置（台灯联动成组） */
+function placeBest(w: IWorld, id: TowerId, n: number, near = false): number[] {
   const g = w.state.grid;
   const scratch = new Float32Array(g.cols * g.rows);
   const plan = planMaze(w);
@@ -74,6 +76,14 @@ function placeBest(w: IWorld, id: TowerId, n: number): number[] {
       if (!t || t.id !== 'wall') continue;
       const cx = i % g.cols;
       const cy = Math.floor(i / g.cols);
+      if (near && uids.length) {
+        let ok = false;
+        for (const u of uids) {
+          const o = w.state.towers.get(u)!;
+          if ((o.cx - cx) ** 2 + (o.cy - cy) ** 2 <= LAMP.link * LAMP.link) ok = true;
+        }
+        if (!ok) continue;
+      }
       let v = d.hitsGround ? coverage(cx, cy, d.range, d.inner ?? 0, gs) : 0;
       if (d.hitsAir) v += 0.3 * coverage(cx, cy, d.range, 0, as);
       if (id === 'calculator') {
@@ -329,10 +339,177 @@ function mythicBench(): void {
   console.log(`  B/A 超出 ±15% 的塔：${off} 个；大橡皮每次少漏 ${Math.round(eraserVals.reduce((a, b) => a + b, 0) / Math.max(1, eraserVals.length))} 生命`);
 }
 
+interface SplitOut { boss: number; normal: number; leakBoss: number; leakNormal: number; size: number; spawned: number; leaked: number }
+
+/** 跑第 1～to 波，统计 from 起"这组塔"在 Boss 波 / 普通波的输出，以及漏怪数 */
+function splitRun(w: IWorld, uids: number[], from: number, to: number): SplitOut {
+  const s = w.state;
+  const out: SplitOut = { boss: 0, normal: 0, leakBoss: 0, leakNormal: 0, size: 0, spawned: 0, leaked: 0 };
+  const last = new Map<number, { id: string; hp: number }>();
+  let boss = false;
+  let d0 = 0;
+  const sum = () => uids.reduce((a, u) => a + (s.towers.get(u)?.damage ?? 0), 0);
+  let sizeN = 0;
+  for (let guard = 0; guard < 60 * 60 * 60 * 2; guard++) {
+    if (s.phase === 'perk') {
+      const neutral = ['pocketmoney', 'earlybird', 'thickcover', 'safe', 'quickreview', 'compound', 'tradein', 'pocket'];
+      const c = s.perkChoices!.find((x) => neutral.includes(x.id)) ?? s.perkChoices!.find((x) => !x.needsTower)!;
+      w.command({ type: 'choosePerk', id: c.id });
+      continue;
+    }
+    if (s.phase === 'build') {
+      if (s.wave >= to) break;
+      w.command({ type: 'startWave' });
+    }
+    last.clear();
+    for (const e of s.enemies) last.set(e.uid, { id: e.id, hp: e.hp + e.shield });
+    w.step();
+    if (guard % 60 === 0 && s.wave >= from) {
+      let m = 0;
+      for (const u of uids) m = Math.max(m, s.towers.get(u)?.prismSize ?? 1);
+      out.size += m;
+      sizeN++;
+    }
+    for (const ev of w.drainEvents()) {
+      if (ev.type === 'waveStart') {
+        boss = ev.tags.includes('boss');
+        d0 = sum();
+      } else if (ev.type === 'waveEnd' && ev.wave >= from) {
+        const d = sum() - d0;
+        if (boss) out.boss += d;
+        else out.normal += d;
+      } else if (ev.type === 'spawn' && s.wave >= from) {
+        const e = s.enemies.find((x) => x.uid === ev.enemyUid);
+        if (e) out.spawned += e.maxHp + e.maxShield;
+      } else if (ev.type === 'leak' && s.wave >= from) {
+        if (boss) out.leakBoss++;
+        else out.leakNormal++;
+        for (const [uid, v] of last) {
+          if (s.enemies.some((x) => x.uid === uid) || v.id !== ev.enemy || v.hp <= 0) continue;
+          out.leaked += v.hp;
+          last.delete(uid);
+          break;
+        }
+      }
+    }
+  }
+  out.size /= Math.max(1, sizeN);
+  return out;
+}
+
+function prismBench(): void {
+  const from = 20;
+  const to = Math.max(WAVES, 40);
+  console.log(`\n## 5) 台灯联动：8 座 Lv5 铅笔打底 + 一组挨在一起的塔，统计第 ${from}～${to} 波 Boss 波 / 普通波的输出（伤害 / 投入金币）`);
+  const link0 = LAMP.link;
+  type Cfg = { label: string; id: TowerId; n: number; level: number; branch?: Branch; link: boolean; gold?: number; late?: boolean };
+  const lampGold = (n: number, level: number) => {
+    const w = world('ch1', 'gold');
+    buildMaze(w);
+    const u = placeBest(w, 'lamp', 1)[0];
+    for (let l = 1; l < level; l++) w.command({ type: 'upgrade', uid: u, branch: 'A' });
+    return w.state.towers.get(u)!.invested * n;
+  };
+  const g10 = lampGold(10, 10);
+  const cfgs: Cfg[] = [
+    { label: '1 台灯 Lv7', id: 'lamp', n: 1, level: 7, link: true },
+    { label: '4 台灯 Lv7 联动', id: 'lamp', n: 4, level: 7, link: true },
+    { label: '4 台灯 Lv7 不联动', id: 'lamp', n: 4, level: 7, link: false },
+    { label: '4 护眼灯 联动', id: 'lamp', n: 4, level: 10, branch: 'B', link: true },
+    { label: '4 护眼灯 不联动', id: 'lamp', n: 4, level: 10, branch: 'B', link: false },
+    { label: '10 激光笔 联动', id: 'lamp', n: 10, level: 10, branch: 'A', link: true, late: true },
+    { label: '10 激光笔 不联动', id: 'lamp', n: 10, level: 10, branch: 'A', link: false, late: true },
+    { label: '同金币 自动铅笔', id: 'pencil', n: 0, level: 10, branch: 'A', link: true, gold: g10, late: true },
+    { label: '同金币 钢尺', id: 'ruler', n: 0, level: 10, branch: 'A', link: true, gold: g10, late: true },
+  ];
+  for (const c of cfgs) {
+    const acc: SplitOut = { boss: 0, normal: 0, leakBoss: 0, leakNormal: 0, size: 0, spawned: 0, leaked: 0 };
+    let gold = 0;
+    for (const map of MAPS) for (let k = 0; k < SEEDS; k++) {
+      LAMP.link = c.link ? link0 : 0;
+      const w = world(map, `prism-${map}-${k}`);
+      buildMaze(w);
+      // 大组（late）不放打底铅笔、统计第 40～58 波，否则全部被打光，比不出差别
+      if (!c.late) {
+        const base = placeBest(w, 'pencil', 8);
+        for (const u of base) for (let l = 1; l < 5; l++) w.command({ type: 'upgrade', uid: u });
+      }
+      let uids: number[] = [];
+      if (c.gold) {
+        // 同样金币：逐座放置升级，直到投入达到 c.gold
+        let inv = 0;
+        while (inv < c.gold) {
+          const u = placeBest(w, c.id, 1)[0];
+          if (u === undefined) break;
+          for (let l = 1; l < c.level; l++) w.command({ type: 'upgrade', uid: u, branch: c.branch });
+          inv += w.state.towers.get(u)!.invested;
+          uids.push(u);
+        }
+      } else {
+        LAMP.link = link0; // 放置时按联动距离挨着放（开 / 关两组位置相同）
+        uids = placeBest(w, c.id, c.n, true);
+        LAMP.link = c.link ? link0 : 0;
+        for (const u of uids) for (let l = 1; l < c.level; l++) w.command({ type: 'upgrade', uid: u, branch: c.branch });
+      }
+      gold += uids.reduce((a, u) => a + w.state.towers.get(u)!.invested, 0);
+      const r = c.late ? splitRun(w, uids, 40, 58) : splitRun(w, uids, from, to);
+      acc.spawned += r.spawned; acc.leaked += r.leaked;
+      acc.boss += r.boss; acc.normal += r.normal; acc.leakBoss += r.leakBoss; acc.leakNormal += r.leakNormal; acc.size += r.size;
+    }
+    LAMP.link = link0;
+    const n = MAPS.length * SEEDS;
+    // 合成场地：一只打不死的 Boss（碎纸机，护甲 6）走完整条迷宫；一串第 45 波强度的面包屑（每 0.25 秒 1 只，共 240 只）
+    let arenaBoss = 0;
+    let arenaSwarm = 0;
+    for (const map of MAPS) for (let k = 0; k < SEEDS; k++) {
+      for (const kind of ['boss', 'swarm'] as const) {
+        LAMP.link = link0;
+        const w = world(map, `arena-${map}-${k}`);
+        buildMaze(w);
+        let uids: number[];
+        if (c.gold) {
+          uids = [];
+          let inv = 0;
+          while (inv < c.gold) {
+            const u = placeBest(w, c.id, 1)[0];
+            if (u === undefined) break;
+            for (let l = 1; l < c.level; l++) w.command({ type: 'upgrade', uid: u, branch: c.branch });
+            inv += w.state.towers.get(u)!.invested;
+            uids.push(u);
+          }
+        } else {
+          uids = placeBest(w, c.id, c.n, true);
+          for (const u of uids) for (let l = 1; l < c.level; l++) w.command({ type: 'upgrade', uid: u, branch: c.branch });
+        }
+        LAMP.link = c.link ? link0 : 0;
+        const pw = w as unknown as { createEnemy(id: string, wave: number, eff: number, x: number, y: number, cx: number, cy: number, o: object): { hp: number; maxHp: number; dead: boolean } };
+        const sp = w.state.grid.spawns[0];
+        const d0 = uids.reduce((a, u) => a + w.state.towers.get(u)!.damage, 0);
+        if (kind === 'boss') {
+          const b = pw.createEnemy('boss_shredder', 45, 45, sp.x + 0.5, sp.y + 0.5, sp.x, sp.y, {});
+          b.hp = b.maxHp = 1e12;
+          for (let i = 0; i < 60 * 240 && !b.dead && w.state.enemies.includes(b as never); i++) { w.step(); w.drainEvents(); }
+        } else {
+          for (let i = 0; i < 60 * 90; i++) {
+            if (i % 15 === 0 && i < 15 * 240) pw.createEnemy('crumb', 45, 45, sp.x + 0.5, sp.y + 0.5, sp.x, sp.y, {});
+            w.step();
+            w.drainEvents();
+          }
+        }
+        const d = uids.reduce((a, u) => a + w.state.towers.get(u)!.damage, 0) - d0;
+        if (kind === 'boss') arenaBoss += d; else arenaSwarm += d;
+      }
+    }
+    LAMP.link = link0;
+    console.log(`  ${c.label.padEnd(14)} 投入 ${pad(Math.round(gold / n), 6)}  Boss 波 ${pad(Math.round(acc.boss / n), 9)}（${(acc.boss / gold).toFixed(1)}/金）  普通波 ${pad(Math.round(acc.normal / n), 9)}（${(acc.normal / gold).toFixed(1)}/金）  漏 Boss 波 ${pad(Math.round(acc.leakBoss / n), 4)} 普通 ${pad(Math.round(acc.leakNormal / n), 4)}  组大小 ${(acc.size / n).toFixed(1)}  打掉 ${((1 - acc.leaked / Math.max(1, acc.spawned)) * 100).toFixed(1)}%${c.late ? '（40～58 波，无打底）' : ''} | 场地 Boss ${(arenaBoss / gold).toFixed(1)}/金 虫群 ${(arenaSwarm / gold).toFixed(1)}/金`);
+  }
+}
+
 const which = arg('only', 'all');
 const t0 = performance.now();
 if (which === 'all' || which === 'solo') soloBench();
 if (which === 'all' || which === 'support') supportBench();
 if (which === 'all' || which === 'branch') branchBench();
 if (which === 'all' || which === 'mythic') mythicBench();
+if (which === 'all' || which === 'prism') prismBench();
 console.log(`\n(${((performance.now() - t0) / 1000).toFixed(1)}s)`);

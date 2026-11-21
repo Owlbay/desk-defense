@@ -8,16 +8,10 @@ import { clear, h, img } from '../dom';
 import { G } from '../icons';
 import { unlockedSkills } from './common';
 import { burst } from './motion';
+import { fmtNumber, t } from '../../i18n';
 
-const TARGET_TEXT: Record<string, string> = {
-  none: '全场 · 立即释放',
-  circle: '圆形范围',
-  rect2: '2×2 区域',
-  line: '一行或一列',
-  tower: '选一座塔',
-  'tower+cell': '选塔 → 选空格',
-  spawner: '选一个空降出生点',
-};
+const TARGET_KEYS = ['none', 'circle', 'rect2', 'line', 'tower', 'tower+cell', 'spawner'];
+const targetText = (k: string): string => (TARGET_KEYS.includes(k) ? t(`ui.skills.target.${k.replace('+', '_')}`) : '');
 
 export function skillsScreen(app: App, route: Route): Screen {
   const back: Route = route.name === 'skills' && route.from ? route.from : { name: 'menu' };
@@ -35,7 +29,7 @@ export function skillsScreen(app: App, route: Route): Screen {
     const slots = skillSlots(p);
     const loadout = resolveLoadout(p, unlocked);
     clear(el);
-    el.appendChild(screenHeader(app, '技能', { back }));
+    el.appendChild(screenHeader(app, t('ui.skills.title'), { back }));
     el.appendChild(body);
     clear(body);
 
@@ -50,17 +44,17 @@ export function skillsScreen(app: App, route: Route): Screen {
     for (let i = 0; i < 4; i++) {
       const s = loadout[i];
       if (i >= slots) {
-        slotRow.appendChild(h('div.slot.locked', { title: '书包天赋「大书包」解锁' }, h('span.gi', { html: G.lock }), h('small', null, '大书包')));
+        slotRow.appendChild(h('div.slot.locked', { title: t('ui.skills.slotLockedTip') }, h('span.gi', { html: G.lock }), h('small', null, t('ui.skills.slotLocked'))));
       } else if (s) {
         slotRow.appendChild(
           h(
             `button.slot.filled${prevLoadout && !prevLoadout.includes(s) ? '.just-filled' : ''}`,
             {
-              title: '点击移出',
+              title: t('ui.skills.tapRemove'),
               onclick: () => {
                 if (loadout.length <= 1) {
                   audio.play('error');
-                  app.toast('至少带入 1 个技能', 'warn');
+                  app.toast(t('ui.skills.minLoadout'), 'warn');
                   return;
                 }
                 audio.play('click');
@@ -73,7 +67,7 @@ export function skillsScreen(app: App, route: Route): Screen {
           ),
         );
       } else {
-        slotRow.appendChild(h('div.slot.empty', null, h('small', null, '空槽')));
+        slotRow.appendChild(h('div.slot.empty', null, h('small', null, t('ui.skills.emptySlot'))));
       }
     }
 
@@ -87,14 +81,14 @@ export function skillsScreen(app: App, route: Route): Screen {
       const pips = h('span.pips');
       const up = justUpgraded === id;
       for (let i = 1; i <= SKILL_MAX_LEVEL; i++) pips.appendChild(h(`span.pip${i <= lv ? '.on' : ''}${up && i === lv ? '.just-on' : ''}`));
-      const cdText = !meta ? '' : id === 'relocate' ? `充能 ${[2, 3, 4][lv - 1]} 次` : `冷却 ${Math.round((meta?.cd ?? 0) * (1 - 0.08 * (lv - 1)))} 秒`;
+      const cdText = !meta ? '' : id === 'relocate' ? t('ui.skills.charges', { n: [2, 3, 4][lv - 1] }) : t('ui.skills.cooldown', { n: Math.round((meta?.cd ?? 0) * (1 - 0.08 * (lv - 1))) });
       const justPicked = !!prevLoadout && inLoadout && !prevLoadout.includes(id);
       const card = h(
           `article.skill-card.card${ok ? '' : '.locked'}${inLoadout ? '.picked' : ''}${justPicked ? '.just-picked' : ''}${up ? '.level-up' : ''}`,
           null,
           h('div.skill-card-head', null, img(skillIcon(id), 'ico skill-ico'), h('div', null, h('h3', null, meta?.name ?? id), pips)),
-          h('p.skill-desc', null, meta?.desc ?? (id === 'seal_tape' ? '封掉一个空降出生点，立即关闭它。' : '')),
-          h('div.skill-tags', null, h('span.tag', null, TARGET_TEXT[meta?.target ?? (id === 'seal_tape' ? 'spawner' : 'none')] ?? ''), cdText ? h('span.tag', null, cdText) : null),
+          h('p.skill-desc', null, meta?.desc ?? (id === 'seal_tape' ? t('ui.skills.sealTapeDesc') : '')),
+          h('div.skill-tags', null, h('span.tag', null, targetText(meta?.target ?? (id === 'seal_tape' ? 'spawner' : 'none'))), cdText ? h('span.tag', null, cdText) : null),
           ok
             ? h(
                 'div.row',
@@ -105,13 +99,13 @@ export function skillsScreen(app: App, route: Route): Screen {
                     onclick: () => {
                       if (inLoadout && loadout.length <= 1) {
                         audio.play('error');
-                        app.toast('至少带入 1 个技能', 'warn');
+                        app.toast(t('ui.skills.minLoadout'), 'warn');
                       } else if (inLoadout) {
                         audio.play('click');
                         setLoadout(loadout.filter((x) => x !== id));
                       } else if (loadout.length >= slots) {
                         audio.play('error');
-                        app.toast(`最多带入 ${slots} 个技能，先移出一个`, 'warn');
+                        app.toast(t('ui.skills.maxLoadout', { n: slots }), 'warn');
                       } else {
                         audio.play('select');
                         setLoadout([...loadout, id]);
@@ -119,14 +113,14 @@ export function skillsScreen(app: App, route: Route): Screen {
                     },
                   },
                   inLoadout ? h('span.gi', { html: G.check }) : null,
-                  inLoadout ? '已带入' : '带入',
+                  inLoadout ? t('ui.skills.equipped') : t('ui.skills.equip'),
                 ),
                 cost === null
-                  ? h('span.badge.good', null, '满级')
+                  ? h('span.badge.good', null, t('ui.skills.maxed'))
                   : h(
                       `button.btn.small.buy${p.currency.ink >= cost ? '' : '.poor'}`,
                       {
-                        title: '每升 1 级：冷却 −8%，效果 +15%',
+                        title: t('ui.skills.upgradeTip'),
                         onclick: () => {
                           let ok2 = false;
                           app.store.update((pp) => {
@@ -134,18 +128,18 @@ export function skillsScreen(app: App, route: Route): Screen {
                           });
                           if (ok2) {
                             audio.play('upgrade');
-                            app.toast(`${meta?.name ?? id} 升到 Lv${lv + 1}`, 'good');
+                            app.toast(t('ui.skills.upgraded', { name: meta?.name ?? id, n: lv + 1 }), 'good');
                             justUpgraded = id;
                             render();
                           } else {
                             audio.play('error');
-                            app.toast('墨水不够', 'warn');
+                            app.toast(t('ui.skills.noInk'), 'warn');
                           }
                         },
                       },
-                      '升级 ',
+                      `${t('ui.skills.upgrade')} `,
                       h('span.gi', { html: G.ink }),
-                      String(cost),
+                      fmtNumber(cost),
                     ),
               )
             : h('div.lock-line', null, h('span.gi', { html: G.lock }), unlockText(meta?.unlock)),
@@ -160,7 +154,7 @@ export function skillsScreen(app: App, route: Route): Screen {
     justUpgraded = null;
 
     body.append(
-      h('section.card.section', null, h('h3', null, `带入的技能（${loadout.length}/${slots}）`), slotRow, h('p.muted', null, '对局中按 Q / W / E / R 释放。开局时所有技能都已就绪。')),
+      h('section.card.section', null, h('h3', null, t('ui.skills.loadoutTitle', { n: loadout.length, max: slots })), slotRow, h('p.muted', null, t('ui.skills.loadoutHint'))),
       grid,
     );
   };

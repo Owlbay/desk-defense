@@ -7,4 +7,6 @@ export default {
   'common.back': '返回',
   'common.close': '关闭',
   'common.language': '语言',
+  'common.starsN': '星星 {n}',
+  'common.inkN': '墨水 {n}',
 } satisfies Dict;

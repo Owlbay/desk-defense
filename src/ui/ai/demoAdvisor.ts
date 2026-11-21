@@ -2,6 +2,7 @@
  * 离线演示版「AI 军师」：不联网，用内置脚本策略"预演"一遍（不真的下指令），
  * 把它想做的头几步写成建议，走与真模型完全相同的 suggest 工具。
  */
+import { t } from '../../i18n';
 import { emptyUsage, type DecisionContext, type DecisionOutcome, type LLMProvider, type ToolResult } from '../../agent';
 import { scriptedTurn } from '../../agent/providers/scripted';
 import type { IWorld } from '../../core/types';
@@ -19,10 +20,10 @@ export function demoAdvisor(world: IWorld): LLMProvider {
       const tr = ctx.trace;
       const t0 = Date.now();
       tr?.({
-        k: 'request', n: 1, provider: 'scripted', api: 'local', model: 'scripted-v1', host: '本机（离线，无网络请求）',
-        params: { 说明: '离线演示军师：用内置规则策略预演一遍（不真的下指令），把想做的头几步写成建议' },
+        k: 'request', n: 1, provider: 'scripted', api: 'local', model: 'scripted-v1', host: t('agent.setup.demo.host'),
+        params: { note: t('agent.setup.demo.note') },
         messages: 1,
-        raw: { provider: 'scripted', mode: 'advisor-dry-run', note: '离线演示：没有发出任何网络请求' },
+        raw: { provider: 'scripted', mode: 'advisor-dry-run', note: t('agent.setup.demo.noNetwork') },
       });
       const wanted: { name: string; input: Record<string, unknown> }[] = [];
       const seen = new Set<string>();
@@ -40,10 +41,10 @@ export function demoAdvisor(world: IWorld): LLMProvider {
         return { ok, text: 'dry-run' };
       };
       await scriptedTurn(world, dry, ctx.point.reasons, tr ? (line) => tr({ k: 'thinking', n: 1, text: line }) : undefined);
-      tr?.({ k: 'thinking', n: 1, text: `预演结束：挑出 ${wanted.length} 条可做的动作作为建议。\n` });
+      tr?.({ k: 'thinking', n: 1, text: `${t('agent.setup.demo.done', { n: wanted.length })}\n` });
       if (wanted.length) {
         const actions = wanted.map((a) => `${a.name} ${Object.entries(a.input).map(([k, v]) => `${k}=${String(v)}`).join(' ')}`.trim());
-        const text = `可以考虑：${wanted.map((a) => describeCall(world, a.name, a.input) ?? a.name).join('；')}。`;
+        const text = t('agent.setup.demo.suggest', { list: wanted.map((a) => describeCall(world, a.name, a.input) ?? a.name).join(t('agent.setup.demo.sep')) });
         out.toolCalls++;
         tr?.({ k: 'text', n: 1, text });
         await ctx.callTool('suggest', { text: text.slice(0, 120), actions }, { id: 'demo_suggest' });

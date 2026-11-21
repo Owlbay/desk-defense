@@ -7,4 +7,6 @@ export default {
   'common.back': 'Back',
   'common.close': 'Close',
   'common.language': 'Language',
+  'common.starsN': '{n} star|{n} stars',
+  'common.inkN': '{n} ink',
 } satisfies Dict;

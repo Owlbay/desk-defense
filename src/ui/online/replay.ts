@@ -10,22 +10,23 @@ import { mountBoard } from '../../render';
 import type { App } from '../App';
 import { audio } from '../audio';
 import { MAP_META } from '../coreMeta';
-import { fmtNum, h, setText } from '../dom';
+import { h, setText } from '../dom';
+import { fmtNumber, t } from '../../i18n';
 import { G } from '../icons';
 import { boardLabel } from '../../shared/leaderboard';
 
 /** 打开回放（先拉取数据）。返回关闭函数。 */
 export function openReplay(app: App, runId: string, nickname?: string): () => void {
-  const title = h('b', null, nickname ? `${nickname} 的回放` : '回放');
-  const sub = h('small.muted', null, '正在加载…');
+  const title = h('b', null, nickname ? t('ui.online.replayOf', { name: nickname }) : t('ui.online.replay'));
+  const sub = h('small.muted', null, t('ui.online.loading'));
   const stage = h('div.replay-stage');
-  const speedBox = h('div.replay-speed', { attrs: { role: 'group', 'aria-label': '回放速度' } });
-  const pauseBtn = h<HTMLButtonElement>('button.btn.small', { attrs: { type: 'button', 'aria-label': '暂停' } }, h('span.gi', { html: G.pause }));
+  const speedBox = h('div.replay-speed', { attrs: { role: 'group', 'aria-label': t('ui.online.replaySpeed') } });
+  const pauseBtn = h<HTMLButtonElement>('button.btn.small', { attrs: { type: 'button', 'aria-label': t('ui.online.pause') } }, h('span.gi', { html: G.pause }));
   pauseBtn.disabled = true;
-  const exitBtn = h('button.btn.small', { attrs: { type: 'button' } }, h('span.gi', { html: G.close }), '退出');
+  const exitBtn = h('button.btn.small', { attrs: { type: 'button' } }, h('span.gi', { html: G.close }), t('ui.online.exit'));
   const root = h(
     'div.replay-view',
-    { attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-label': '观看回放' } },
+    { attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-label': t('ui.online.watchReplay') } },
     h('div.replay-bar', null, h('div.replay-title', null, title, sub), speedBox, pauseBtn, exitBtn),
     stage,
   );
@@ -72,8 +73,8 @@ export function openReplay(app: App, runId: string, nickname?: string): () => vo
     const r = await fetchRun(runId);
     if (closed) return;
     if (!r.ok) {
-      setText(sub, r.status === 'unavailable' ? '在线功能暂不可用' : r.message || '加载失败');
-      stage.appendChild(h('div.replay-end', null, h('div.card', null, h('p', null, '无法加载回放'), h('small.muted', null, r.message))));
+      setText(sub, r.status === 'unavailable' ? t('ui.online.unavailable') : r.message || t('ui.online.loadFailed'));
+      stage.appendChild(h('div.replay-end', null, h('div.card', null, h('p', null, t('ui.online.replayLoadFailed')), h('small.muted', null, r.message))));
       return;
     }
     start(r.data);
@@ -84,7 +85,7 @@ export function openReplay(app: App, runId: string, nickname?: string): () => vo
       session = new Session({ ...run.opts, seed: run.seed });
     } catch (e) {
       console.error(e);
-      setText(sub, '这条回放无法在当前版本播放');
+      setText(sub, t('ui.online.replayIncompatible'));
       return;
     }
     const s = session;
@@ -110,7 +111,7 @@ export function openReplay(app: App, runId: string, nickname?: string): () => vo
       board = mountBoard(boardHost, s);
     } catch (e) {
       console.error(e);
-      setText(sub, '棋盘加载失败');
+      setText(sub, t('ui.online.boardFailed'));
       return;
     }
 
@@ -157,10 +158,10 @@ export function openReplay(app: App, runId: string, nickname?: string): () => vo
       if (lastPaused !== s.paused) {
         lastPaused = s.paused;
         pauseBtn.replaceChildren(h('span.gi', { html: s.paused ? G.play : G.pause }));
-        pauseBtn.setAttribute('aria-label', s.paused ? '继续' : '暂停');
+        pauseBtn.setAttribute('aria-label', s.paused ? t('ui.online.resume') : t('ui.online.pause'));
       }
       const pct = endTick > 0 ? Math.min(100, Math.round((st.tick / endTick) * 100)) : 100;
-      setText(sub, `${boardLabel(run.board)} · ${map} · 第 ${st.wave} 波 · ${fmtNum(Math.round(st.score))} 分 · ${pct}%`);
+      setText(sub, t('ui.online.replayStatus', { board: boardLabel(run.board), map, wave: st.wave, score: fmtNumber(Math.round(st.score)), pct }));
       const over = st.phase === 'lost' || st.phase === 'won' || (st.tick >= endTick && feeder.done);
       if (over && !ended) {
         ended = true;
@@ -172,10 +173,10 @@ export function openReplay(app: App, runId: string, nickname?: string): () => vo
             h(
               'div.card',
               null,
-              h('h3', null, '回放结束'),
-              h('p', null, `撑过 ${run.result.wave} 波 · ${fmtNum(run.result.score)} 分`),
-              Math.round(st.score) !== run.result.score ? h('small.muted', null, '回放结果与提交成绩不完全一致（可能是版本差异）') : null,
-              h('button.btn.primary', { attrs: { type: 'button' }, onclick: () => (audio.play('click'), close()) }, '退出回放'),
+              h('h3', null, t('ui.online.replayEnded')),
+              h('p', null, t('ui.online.replayResult', { n: run.result.wave, score: fmtNumber(Math.round(run.result.score)) })),
+              Math.round(st.score) !== run.result.score ? h('small.muted', null, t('ui.online.replayMismatch')) : null,
+              h('button.btn.primary', { attrs: { type: 'button' }, onclick: () => (audio.play('click'), close()) }, t('ui.online.exitReplay')),
             ),
           ),
         );

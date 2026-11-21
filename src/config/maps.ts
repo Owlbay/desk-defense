@@ -1,4 +1,6 @@
 import type { MapId, Obstacle } from '../core/types';
+import { t, tOr } from '../i18n';
+import { localize } from './text';
 
 /** 出生点定义（文档 09 §1.3） */
 export interface SpawnerDef {
@@ -56,15 +58,26 @@ const COMMON: ClutterDef[] = [
   { kind: 'ruler', w: 3, h: 1, weight: 1, max: 1 },
 ];
 
+/** 出生点：显示名走 i18n（data.spawner.<id>.name） */
+const sp = (d: Omit<SpawnerDef, 'name'>): SpawnerDef => localize(d, `data.spawner.${d.id}`, ['name'] as const);
+/** 地图：名称 / 说明走 i18n（data.map.<id>.*） */
+const map = (d: Omit<MapDef, 'name' | 'desc'>): MapDef => localize(d, `data.map.${d.id}`, ['name', 'desc'] as const);
+
+/** 出生点显示名：地图出生点按 id 取当前语言的名字；空降点 'drop-N' → "空降点 N" */
+export function spawnerName(id: string): string {
+  const m = /^drop-(\d+)$/.exec(id);
+  if (m) return t('data.spawner.drop.name', { n: Number(m[1]) });
+  return tOr(`data.spawner.${id}.name`, id);
+}
+
 export const MAPS: Record<MapId, MapDef> = {
-  ch1: {
-    id: 'ch1', name: '学生书桌', chapter: 1,
-    desc: '北边一个入口；水杯、课本等杂物每局位置不同。无尽后期西侧也会出怪',
+  ch1: map({
+    id: 'ch1', chapter: 1,
     chapterSeed: 'ch1-student-desk',
     spawners: [
-      { id: 'north', name: '北入口', cells: [{ x: 5, y: 0 }, { x: 6, y: 0 }], kind: 'edge', weight: 1 },
-      { id: 'west', name: '西入口', cells: [{ x: 0, y: 3 }, { x: 0, y: 4 }], kind: 'edge', weight: 0.4, openFromWave: 25, campaignOpen: 0 },
-      { id: 'hidden-1', name: '暗门', cells: [{ x: 11, y: 4 }, { x: 11, y: 5 }], kind: 'hidden', weight: 0.5 },
+      sp({ id: 'north', cells: [{ x: 5, y: 0 }, { x: 6, y: 0 }], kind: 'edge', weight: 1 }),
+      sp({ id: 'west', cells: [{ x: 0, y: 3 }, { x: 0, y: 4 }], kind: 'edge', weight: 0.4, openFromWave: 25, campaignOpen: 0 }),
+      sp({ id: 'hidden-1', cells: [{ x: 11, y: 4 }, { x: 11, y: 5 }], kind: 'hidden', weight: 0.5 }),
     ],
     exits: EXIT,
     landmarks: [],
@@ -78,16 +91,15 @@ export const MAPS: Record<MapId, MapDef> = {
       { kind: 'cup', x: 8, y: 3, w: 2, h: 2 },
       { kind: 'books', x: 2, y: 8, w: 1, h: 3 },
     ],
-  },
-  ch2: {
-    id: 'ch2', name: '程序员工位', chapter: 2,
-    desc: '北边两个入口；键盘横在中间，只留一个缺口。后期东侧也会出怪',
+  }),
+  ch2: map({
+    id: 'ch2', chapter: 2,
     chapterSeed: 'ch2-coder-desk',
     spawners: [
-      { id: 'north-1', name: '北入口 1', cells: [{ x: 1, y: 0 }, { x: 2, y: 0 }], kind: 'edge', weight: 1 },
-      { id: 'north-2', name: '北入口 2', cells: [{ x: 9, y: 0 }, { x: 10, y: 0 }], kind: 'edge', weight: 1 },
-      { id: 'east', name: '东入口', cells: [{ x: 11, y: 3 }, { x: 11, y: 4 }], kind: 'edge', weight: 0.4, openFromWave: 30, campaignOpen: 15 },
-      { id: 'hidden-1', name: '暗门', cells: [{ x: 0, y: 4 }, { x: 0, y: 5 }], kind: 'hidden', weight: 0.5 },
+      sp({ id: 'north-1', cells: [{ x: 1, y: 0 }, { x: 2, y: 0 }], kind: 'edge', weight: 1 }),
+      sp({ id: 'north-2', cells: [{ x: 9, y: 0 }, { x: 10, y: 0 }], kind: 'edge', weight: 1 }),
+      sp({ id: 'east', cells: [{ x: 11, y: 3 }, { x: 11, y: 4 }], kind: 'edge', weight: 0.4, openFromWave: 30, campaignOpen: 15 }),
+      sp({ id: 'hidden-1', cells: [{ x: 0, y: 4 }, { x: 0, y: 5 }], kind: 'hidden', weight: 0.5 }),
     ],
     exits: EXIT,
     landmarks: [
@@ -103,16 +115,15 @@ export const MAPS: Record<MapId, MapDef> = {
     defaultClutter: [
       { kind: 'mouse', x: 10, y: 9, w: 1, h: 2 },
     ],
-  },
-  ch3: {
-    id: 'ch3', name: '画师工作台', chapter: 3,
-    desc: '两个角落入口，空中路线更长；调色盘固定，颜料管每局位置不同。后期西侧也会出怪',
+  }),
+  ch3: map({
+    id: 'ch3', chapter: 3,
     chapterSeed: 'ch3-artist-desk',
     spawners: [
-      { id: 'north-1', name: '北入口 1', cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }], kind: 'edge', weight: 1 },
-      { id: 'north-2', name: '北入口 2', cells: [{ x: 10, y: 0 }, { x: 11, y: 0 }], kind: 'edge', weight: 1 },
-      { id: 'west', name: '西入口', cells: [{ x: 0, y: 5 }, { x: 0, y: 6 }], kind: 'edge', weight: 0.4, openFromWave: 30, campaignOpen: 16 },
-      { id: 'hidden-1', name: '暗门', cells: [{ x: 11, y: 5 }, { x: 11, y: 6 }], kind: 'hidden', weight: 0.5 },
+      sp({ id: 'north-1', cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }], kind: 'edge', weight: 1 }),
+      sp({ id: 'north-2', cells: [{ x: 10, y: 0 }, { x: 11, y: 0 }], kind: 'edge', weight: 1 }),
+      sp({ id: 'west', cells: [{ x: 0, y: 5 }, { x: 0, y: 6 }], kind: 'edge', weight: 0.4, openFromWave: 30, campaignOpen: 16 }),
+      sp({ id: 'hidden-1', cells: [{ x: 11, y: 5 }, { x: 11, y: 6 }], kind: 'hidden', weight: 0.5 }),
     ],
     exits: EXIT,
     landmarks: [
@@ -128,7 +139,7 @@ export const MAPS: Record<MapId, MapDef> = {
       { kind: 'paint', x: 9, y: 8, w: 1, h: 2 },
       { kind: 'paint', x: 1, y: 10, w: 2, h: 1 },
     ],
-  },
+  }),
 };
 
 /** 某出生点在给定模式下从第几波开放（0 = 不开放） */

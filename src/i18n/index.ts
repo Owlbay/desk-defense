@@ -13,6 +13,8 @@
  *  - 简体中文字典打包进主包；其他语言按需动态加载（切换语言或启动检测到时加载）。
  */
 
+import { setSharedTranslator } from '../shared/text';
+
 export type Locale = 'zh-CN' | 'zh-TW' | 'en' | 'ja';
 export const LOCALES: { id: Locale; label: string }[] = [
   { id: 'zh-CN', label: '简体中文' },
@@ -132,5 +134,28 @@ export function sourceKeys(): string[] {
 export function dictOf(l: Locale): Dict | undefined {
   return dicts.get(l);
 }
+
+/**
+ * 在指定语言下同步执行 fn（不通知订阅者、不改 <html lang>）。用于需要固定语言的场合：
+ * AI 参战的提示词 / 工具结果始终用源语言（简体中文），数据文档脚本固定输出中文。
+ * 目标语言字典未加载时回退源语言。fn 必须是同步的。
+ */
+export function withLocale<T>(l: Locale, fn: () => T): T {
+  const prev = current;
+  current = l;
+  try {
+    return fn();
+  } finally {
+    current = prev;
+  }
+}
+
+/** 源语言（简体中文）文本，不受当前语言影响 */
+export function tSource(key: string, params?: Params): string {
+  return withLocale(SOURCE_LOCALE, () => t(key, params));
+}
+
+// src/shared 不能依赖本模块（Pages Functions 不经 Vite），通过注入的方式让它的文本也走 i18n
+setSharedTranslator((key, fallback, params) => tOr(key, fallback, params));
 
 export { NAMESPACES };

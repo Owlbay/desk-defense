@@ -215,6 +215,7 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
         trace,
       });
       unsub = session.on((ev) => {
+        engine?.onWorldEvent(ev);
         recent.push(ev);
         if (recent.length > 4000) recent.splice(0, 2000);
         detector.feed(ev, w);

@@ -7,6 +7,9 @@ import {
   RANDOM_EVENT_IDS, type TraitLine,
 } from './types';
 import { generateLayout } from './layout';
+import { t as tr, type Params } from '../i18n';
+import { spawnerName } from '../config/maps';
+import { liveText } from '../config/text';
 import { RANDOM_EVENTS, EVENT_DIRECTOR, DROP, CRATE_OPTIONS } from '../config/events';
 import { ABILITIES, ABILITY_FX, EVO, evoBranch } from '../config/evolution';
 import { Rng, makeSeed } from './rng';
@@ -20,7 +23,7 @@ import {
   F_AOE, F_BEAM, F_CRIT, F_DOT, F_IGNORE_ARMOR, F_SHIELD2, F_SHIELD3, F_SKILL, F_TRUE,
   type Enemy, type Proj, type Tower, type Zone,
 } from './entities';
-import { BRANCH, COMBOS, GROWTH, PIGGY_MAX, SWATTER, TIER_NAMES, TOWERS, UNDO_SECONDS, WALL_UPGRADE_COST } from '../config/towers';
+import { BRANCH, COMBOS, GROWTH, LAMP, PIGGY_MAX, SWATTER, TIER_NAMES, TOWERS, UNDO_SECONDS, WALL_UPGRADE_COST } from '../config/towers';
 import { ELITE, ENEMIES } from '../config/enemies';
 import { MAPS, spawnerOpenWave, type MapDef } from '../config/maps';
 import { CAPS } from '../config/difficulty';
@@ -66,6 +69,11 @@ function tierOf(level: number, isWall: boolean, stars = 0): Tier {
   if (level >= 7) return 3;
   if (level >= 4) return 2;
   return 1;
+}
+
+/** 指令失败：原因文本按当前语言生成（core.reason.<code>），code 与语言无关 */
+function fail(code: string, params?: Params): { ok: false; reason: string; code: string } {
+  return { ok: false, reason: tr(`core.reason.${code}`, params), code };
 }
 
 function fmt(n: number, d = 1): string {
@@ -255,12 +263,12 @@ export class World implements IWorld {
 
   canPlace(tower: TowerId, cx: number, cy: number): PlaceCheck {
     const def = TOWERS[tower];
-    if (!def) return { ok: false, reason: '未知的塔' };
-    if (!this.state.unlockedTowers.includes(tower)) return { ok: false, reason: '尚未解锁' };
-    if (tower === 'piggy' && this.countTowers('piggy') >= PIGGY_MAX) return { ok: false, reason: `存钱罐最多 ${PIGGY_MAX} 个` };
+    if (!def) return fail('unknownTower');
+    if (!this.state.unlockedTowers.includes(tower)) return fail('locked');
+    if (tower === 'piggy' && this.countTowers('piggy') >= PIGGY_MAX) return fail('piggyLimit', { n: PIGGY_MAX });
     const g = this.placeGeom(cx, cy, -1);
     if (!g.ok) return g;
-    if (this.state.gold < this.towerCost(tower)) return { ok: false, reason: '金币不足' };
+    if (this.state.gold < this.towerCost(tower)) return fail('noGold');
     return { ok: true };
   }
 
@@ -357,15 +365,15 @@ export class World implements IWorld {
 
   private exec(cmd: Command): CommandResult {
     const s = this.state;
-    if (s.phase === 'won' || s.phase === 'lost') return { ok: false, reason: '本局已结束' };
+    if (s.phase === 'won' || s.phase === 'lost') return fail('gameOver');
     switch (cmd.type) {
       case 'place': return this.cmdPlace(cmd.tower, cmd.cx, cmd.cy);
       case 'upgrade': return this.cmdUpgrade(cmd.uid, cmd.branch);
       case 'sell': return this.cmdSell(cmd.uid);
       case 'setTarget': {
         const t = s.towers.get(cmd.uid) as Tower | undefined;
-        if (!t) return { ok: false, reason: '塔不存在' };
-        if (!this.targetModes(t).includes(cmd.mode)) return { ok: false, reason: '不支持该目标策略' };
+        if (!t) return fail('noTower');
+        if (!this.targetModes(t).includes(cmd.mode)) return fail('badTargetMode');
         t.targetMode = cmd.mode;
         return { ok: true };
       }
@@ -379,15 +387,15 @@ export class World implements IWorld {
       case 'evolve': return this.cmdEvolve(cmd.uid);
       case 'towerAbility': return this.cmdTowerAbility(cmd);
     }
-    return { ok: false, reason: '未知指令' };
+    return fail('unknownCommand');
   }
 
   private cmdPlace(tower: TowerId, cx: number, cy: number): CommandResult {
     const s = this.state;
-    if (s.phase === 'perk') return { ok: false, reason: '请先选择增益' };
+    if (s.phase === 'perk') return fail('perkPending');
     const chk = this.canPlace(tower, cx, cy);
     if (!chk.ok) {
-      if (chk.reason === '会堵死道路' || chk.reason === '会困住敌人') this.toast(chk.reason, 'warn');
+      if (chk.code === 'blocksPath' || chk.code === 'trapsEnemy') this.toast(`core.reason.${chk.code}`, 'warn');
       return chk;
     }
     const cost = this.towerCost(tower);
@@ -407,14 +415,14 @@ export class World implements IWorld {
   private cmdUpgrade(uid: number, branch?: Branch): CommandResult {
     const s = this.state;
     const t = s.towers.get(uid) as Tower | undefined;
-    if (!t) return { ok: false, reason: '塔不存在' };
-    if (s.phase === 'perk') return { ok: false, reason: '请先选择增益' };
+    if (!t) return fail('noTower');
+    if (s.phase === 'perk') return fail('perkPending');
     const cost = this.upgradeCost(t);
-    if (cost === null) return { ok: false, reason: '已满级' };
+    if (cost === null) return fail('maxLevel');
     if (t.id !== 'wall' && t.level === 9) {
-      if (branch !== 'A' && branch !== 'B') return { ok: false, reason: '请选择传奇分支' };
+      if (branch !== 'A' && branch !== 'B') return fail('pickBranch');
     }
-    if (s.gold < cost) return { ok: false, reason: '金币不足' };
+    if (s.gold < cost) return fail('noGold');
     this.spendGold(cost);
     t.invested += cost;
     const oldTier = t.tier;
@@ -435,8 +443,8 @@ export class World implements IWorld {
   private cmdSell(uid: number): CommandResult {
     const s = this.state;
     const t = s.towers.get(uid) as Tower | undefined;
-    if (!t) return { ok: false, reason: '塔不存在' };
-    if (s.phase === 'perk') return { ok: false, reason: '请先选择增益' };
+    if (!t) return fail('noTower');
+    if (s.phase === 'perk') return fail('perkPending');
     const refund = this.sellValue(t);
     this.removeTower(t);
     if (refund > 0) this.addGold(refund, 'refund', t.cx + 0.5, t.cy + 0.5, false);
@@ -451,10 +459,10 @@ export class World implements IWorld {
   /** 开波；auto = 自动波次（不经过指令记录） */
   private startWave(auto: boolean): CommandResult {
     const s = this.state;
-    if (s.phase === 'perk') return { ok: false, reason: '请先选择增益' };
+    if (s.phase === 'perk') return fail('perkPending');
     const next = s.wave + 1;
-    if (s.totalWaves > 0 && next > s.totalWaves) return { ok: false, reason: '已经是最后一波' };
-    if (this.active.length >= MAX_CONCURRENT_WAVES) return { ok: false, reason: '同时进行的波次太多了' };
+    if (s.totalWaves > 0 && next > s.totalWaves) return fail('lastWave');
+    if (this.active.length >= MAX_CONCURRENT_WAVES) return fail('tooManyWaves');
     const au = s.autoWave;
     const early = !auto && (s.phase === 'wave' || (au.enabled && au.started));
     const bonus = early ? this.earlyBonus(next) : 0;
@@ -488,18 +496,18 @@ export class World implements IWorld {
 
   private cmdCast(cmd: Extract<Command, { type: 'cast' }>): CommandResult {
     const s = this.state;
-    if (s.phase === 'perk') return { ok: false, reason: '请先选择增益' };
+    if (s.phase === 'perk') return fail('perkPending');
     const sk = s.skills.find((k) => k.id === cmd.skill);
-    if (!sk) return { ok: false, reason: '没有携带这个技能' };
+    if (!sk) return fail('skillNotEquipped');
     if (sk.id === 'relocate') {
-      if ((sk.charges ?? 0) <= 0) return { ok: false, reason: '没有充能' };
-    } else if (sk.cd > 0) return { ok: false, reason: '技能冷却中' };
+      if ((sk.charges ?? 0) <= 0) return fail('noCharge');
+    } else if (sk.cd > 0) return fail('skillCd');
     const eff = 1 + SKILL_LEVEL.effectPerLevel * (sk.level - 1);
     const scale = hpScale(s.params, this.currentEffWave());
     const ev: GameEvent = { type: 'skill', skill: sk.id };
     switch (sk.id) {
       case 'eraser_strike': {
-        if (cmd.x === undefined || cmd.y === undefined) return { ok: false, reason: '请选择位置' };
+        if (cmd.x === undefined || cmd.y === undefined) return fail('pickCell');
         const r = 1.5;
         const dmg = 120 * scale * eff;
         const n = this.queryAll(cmd.x, cmd.y, r, this.qC, true);
@@ -532,7 +540,7 @@ export class World implements IWorld {
         } else if (cmd.x !== undefined && cmd.y !== undefined) {
           x0 = Math.floor(cmd.x - 0.5);
           y0 = Math.floor(cmd.y - 0.5);
-        } else return { ok: false, reason: '请选择位置' };
+        } else return fail('pickCell');
         x0 = Math.max(0, Math.min(s.grid.cols - 2, x0));
         y0 = Math.max(0, Math.min(s.grid.rows - 2, y0));
         this.addZone('whiteout', 'rect', x0, y0, { w: 2, h: 2, until: s.time + 8 * eff, slow: 0.6, reveal: true });
@@ -547,7 +555,7 @@ export class World implements IWorld {
         let line: number;
         if (axis === 'row') line = cmd.cy ?? (cmd.y !== undefined ? Math.floor(cmd.y) : -1);
         else line = cmd.cx ?? (cmd.x !== undefined ? Math.floor(cmd.x) : -1);
-        if (line < 0) return { ok: false, reason: '请选择一行或一列' };
+        if (line < 0) return fail('pickLine');
         const dmg = 80 * scale * eff;
         const list: Enemy[] = [];
         for (const e0 of s.enemies) {
@@ -570,8 +578,8 @@ export class World implements IWorld {
       }
       case 'relocate': {
         const t = cmd.uid !== undefined ? (s.towers.get(cmd.uid) as Tower | undefined) : undefined;
-        if (!t) return { ok: false, reason: '请选择要搬的塔' };
-        if (cmd.cx === undefined || cmd.cy === undefined) return { ok: false, reason: '请选择目标格' };
+        if (!t) return fail('pickTowerToMove');
+        if (cmd.cx === undefined || cmd.cy === undefined) return fail('pickTargetCell');
         const from = t.cy * s.grid.cols + t.cx;
         const chk = this.placeGeom(cmd.cx, cmd.cy, from);
         if (!chk.ok) return chk;
@@ -586,14 +594,14 @@ export class World implements IWorld {
       }
       case 'inspiration': {
         const t = cmd.uid !== undefined ? (s.towers.get(cmd.uid) as Tower | undefined) : undefined;
-        if (!t) return { ok: false, reason: '请选择一座塔' };
-        if (t.id === 'wall') return { ok: false, reason: '书本墙无法获得经验' };
+        if (!t) return fail('pickTower');
+        if (t.id === 'wall') return fail('wallNoXp');
         if (t.level >= 10) {
-          if (t.stars >= 3 || (t.stars === 2 && t.evoXp >= t.evoXpNext)) return { ok: false, reason: '经验已满' };
+          if (t.stars >= 3 || (t.stars === 2 && t.evoXp >= t.evoXpNext)) return fail('xpFull');
           t.evoXp += 0.5 * eff * xpForLevel(9);
           this.processEvoXp(t);
         } else {
-          if (t.level === 9 && t.xp >= t.xpNext) return { ok: false, reason: '经验已满' };
+          if (t.level === 9 && t.xp >= t.xpNext) return fail('xpFull');
           t.xp += 0.5 * eff * t.xpNext;
           this.processXpLevels(t);
         }
@@ -601,7 +609,7 @@ export class World implements IWorld {
         break;
       }
       case 'magnifier': {
-        if (cmd.x === undefined || cmd.y === undefined) return { ok: false, reason: '请选择位置' };
+        if (cmd.x === undefined || cmd.y === undefined) return fail('pickCell');
         this.addZone('magnifier', 'circle', cmd.x, cmd.y, { r: 2, until: s.time + 6 * eff, vuln: 0.25, reveal: true, air: true });
         Object.assign(ev, { x: cmd.x, y: cmd.y, r: 2 });
         break;
@@ -617,11 +625,11 @@ export class World implements IWorld {
             if (dx * dx + dy * dy < bd) { bd = dx * dx + dy * dy; sp = k; }
           }
         }
-        if (!sp || sp.kind !== 'drop') return { ok: false, reason: '请选择一个空降出生点' };
+        if (!sp || sp.kind !== 'drop') return fail('pickDrop');
         const c = sp.cells[0];
         this.closeDrop(sp, 'demolish');
         Object.assign(ev, { x: c.x + 0.5, y: c.y + 0.5, cx: c.x, cy: c.y });
-        this.toast('空降点已被封箱胶带封住', 'good');
+        this.toast('core.toast.dropSealed', 'good');
         break;
       }
     }
@@ -636,16 +644,16 @@ export class World implements IWorld {
 
   private cmdChoosePerk(id: string, uid?: number, branch?: Branch): CommandResult {
     const s = this.state;
-    if (s.phase !== 'perk' || !s.perkChoices) return { ok: false, reason: '现在不能选择增益' };
+    if (s.phase !== 'perk' || !s.perkChoices) return fail('cantPickPerk');
     const card = s.perkChoices.find((c) => c.id === id);
-    if (!card) return { ok: false, reason: '没有这个选项' };
+    if (!card) return fail('noOption');
     const pid = id as PerkId;
     if (pid === 'legend') {
       const t = uid !== undefined ? (s.towers.get(uid) as Tower | undefined) : undefined;
-      if (!t || t.id === 'wall' || t.level < 7 || t.level >= 10) return { ok: false, reason: '请选择一座 Lv7–9 的塔' };
+      if (!t || t.id === 'wall' || t.level < 7 || t.level >= 10) return fail('pickTowerLv7to9');
       if (branch !== undefined) {
-        if (branch !== 'A' && branch !== 'B') return { ok: false, reason: '请选择传奇分支' };
-        if (s.gold < this.legendPerkCost(t)) return { ok: false, reason: '金币不足' };
+        if (branch !== 'A' && branch !== 'B') return fail('pickBranch');
+        if (s.gold < this.legendPerkCost(t)) return fail('noGold');
       }
     }
     this.applyPerk(pid, uid, branch);
@@ -660,9 +668,9 @@ export class World implements IWorld {
 
   private cmdReroll(): CommandResult {
     const s = this.state;
-    if (s.phase !== 'perk' || !s.perkChoices) return { ok: false, reason: '现在不能刷新' };
+    if (s.phase !== 'perk' || !s.perkChoices) return fail('cantReroll');
     const cost = s.perkRerollCost;
-    if (s.gold < cost) return { ok: false, reason: '金币不足' };
+    if (s.gold < cost) return fail('noGold');
     if (cost > 0) this.spendGold(cost);
     else this.freeRerolls = Math.max(0, this.freeRerolls - 1);
     this.perkRerolls++;
@@ -676,21 +684,21 @@ export class World implements IWorld {
 
   private placeGeom(cx: number, cy: number, unblock: number): PlaceCheck {
     const g = this.state.grid;
-    if (!Number.isInteger(cx) || !Number.isInteger(cy) || cx < 0 || cy < 0 || cx >= g.cols || cy >= g.rows) return { ok: false, reason: '超出棋盘' };
+    if (!Number.isInteger(cx) || !Number.isInteger(cy) || cx < 0 || cy < 0 || cx >= g.cols || cy >= g.rows) return fail('outOfBoard');
     const i = cy * g.cols + cx;
-    if (i === unblock) return { ok: false, reason: '已经在这里了' };
+    if (i === unblock) return fail('alreadyHere');
     const k = g.cells[i];
-    if (k === CellKind.Tower) return { ok: false, reason: '已经有塔了' };
-    if (k !== CellKind.Empty) return { ok: false, reason: '这里不能建造' };
-    if (this.reserved.has(i)) return { ok: false, reason: '出生点即将出现在这里' };
+    if (k === CellKind.Tower) return fail('occupied');
+    if (k !== CellKind.Empty) return fail('cantBuild');
+    if (this.reserved.has(i)) return fail('spawnerIncoming');
     for (const e0 of this.state.enemies) {
       const e = e0 as Enemy;
       if (e.dead || e.flying) continue;
-      if ((e.ccx === cx && e.ccy === cy) || (e.tcx === cx && e.tcy === cy)) return { ok: false, reason: '有敌人在这里' };
+      if ((e.ccx === cx && e.ccy === cy) || (e.tcx === cx && e.tcy === cy)) return fail('enemyHere');
     }
     const r = this.validate(this.tempCells(i, unblock), this.distScratch);
-    if (r === 1) return { ok: false, reason: '会堵死道路' };
-    if (r === 2) return { ok: false, reason: '会困住敌人' };
+    if (r === 1) return fail('blocksPath');
+    if (r === 2) return fail('trapsEnemy');
     return { ok: true };
   }
 
@@ -855,6 +863,7 @@ export class World implements IWorld {
       critChance: 0, critMul: 2, atkMul: 1, xpGainMul: 1, calcCovers: [], combo: 0,
       slowPct: 0, slowDur: 0, stunChance: 0, inkMax: 3,
       focusUid: 0, focusStacks: 0, laserUid: 0, laserTime: 0, laserAcc: 0, laserBeamT: 0,
+      beamRamp: 1, beam2Uid: 0, beam2Ramp: 1, beam2Acc: 0, overUntil: 0, prismRole: 0, prismMark: 0,
       sweepPhase: 0, colorGold: 0, halfLegend: false, lastTape: -99,
       pierce: 0, abilityUntil: 0, atkCount: 0, piggyMute: 0, piggyCharge: 0, safeLives: false, calcCritUntil: 0, abacusDiscount: false, zapT: 0,
     };
@@ -891,7 +900,7 @@ export class World implements IWorld {
     if (t.stars >= 3) t.evoXp = 0;
   }
 
-  private starUp(t: Tower, byXp: boolean): void {
+  private starUp(t: Tower, _byXp: boolean): void {
     const s = this.state;
     t.stars = Math.min(3, t.stars + 1) as Tower['stars'];
     this.afterLevelChange(t);
@@ -910,8 +919,8 @@ export class World implements IWorld {
     }
     this.emit({ type: 'evolve', uid: t.uid, stars: t.stars, mythic: t.stars === 3 });
     if (br) {
-      const text = t.stars === 3 ? `${t.def.name} 进化为神话·${br.ability.form}！` : `${t.def.name} 进化 ★${t.stars}：${t.stars === 1 ? br.s1.name : br.s2.name}`;
-      this.toast(text + (byXp ? '' : ''), 'good');
+      if (t.stars === 3) this.toast('core.toast.evolveMythic', 'good', { tower: t.def.name, form: br.ability.form });
+      else this.toast('core.toast.evolveStar', 'good', { tower: t.def.name, stars: t.stars, trait: t.stars === 1 ? br.s1.name : br.s2.name });
     }
   }
 
@@ -931,14 +940,14 @@ export class World implements IWorld {
   private cmdEvolve(uid: number): CommandResult {
     const s = this.state;
     const t = s.towers.get(uid) as Tower | undefined;
-    if (!t) return { ok: false, reason: '塔不存在' };
-    if (s.phase === 'perk') return { ok: false, reason: '请先选择增益' };
-    if (t.id === 'wall') return { ok: false, reason: '书本墙不能进化' };
-    if (t.level < 10) return { ok: false, reason: '升到传奇（Lv10）后才能进化' };
-    if (t.stars >= 3) return { ok: false, reason: '已经是神话' };
+    if (!t) return fail('noTower');
+    if (s.phase === 'perk') return fail('perkPending');
+    if (t.id === 'wall') return fail('wallNoEvolve');
+    if (t.level < 10) return fail('needLegend');
+    if (t.stars >= 3) return fail('alreadyMythic');
     const cost = this.evolveCost(t);
-    if (cost === null) return { ok: false, reason: '不能进化' };
-    if (s.gold < cost) return { ok: false, reason: '金币不足' };
+    if (cost === null) return fail('cantEvolve');
+    if (s.gold < cost) return fail('noGold');
     this.spendGold(cost);
     t.invested += cost;
     this.starUp(t, false);
@@ -1139,7 +1148,9 @@ export class World implements IWorld {
           if (A) { baseIvl = 0.4; baseDmg *= 0.6; }
           break;
         case 'lamp':
-          if (A) baseDmg = BRANCH.lamp.A.dps;
+          // 台灯的 damage 是秒伤；间隔成长 / 节能灯泡（间隔 ×0.8）在 lampDps 里换算成秒伤
+          if (A) baseDmg *= BRANCH.lamp.A.dmg;
+          if (B) baseDmg *= BRANCH.lamp.B.dmg;
           if (this.hasPerk('bulb')) baseIvl *= 0.8;
           break;
         case 'compass':
@@ -1262,7 +1273,7 @@ export class World implements IWorld {
       if (ow > 0 && ow <= w) {
         sp.active = true;
         changed = true;
-        this.toast(`新的入口开放了：${sp.name ?? sp.id}`, 'warn');
+        this.toast('core.toast.spawnerOpen', 'warn', { name: spawnerName(sp.id) });
       }
     }
     if (changed) this.spawnersChanged();
@@ -1359,7 +1370,7 @@ export class World implements IWorld {
           if (ENEMIES[en.enemy].boss) {
             if (en.at - aw.t <= 3) {
               aw.warned = true;
-              this.toast(`Boss 来袭：${ENEMIES[en.enemy].name}！`, 'warn');
+              this.toast('core.toast.bossIncoming', 'warn', { name: ENEMIES[en.enemy].name });
             }
             break;
           }
@@ -1587,7 +1598,7 @@ export class World implements IWorld {
       });
     }
     if (announce) {
-      for (const id of s.unlockedTowers) if (!prev.includes(id)) this.toast(`新塔解锁：${TOWERS[id].name}`, 'good');
+      for (const id of s.unlockedTowers) if (!prev.includes(id)) this.toast('core.toast.towerUnlocked', 'good', { name: TOWERS[id].name });
     }
   }
 
@@ -1627,7 +1638,7 @@ export class World implements IWorld {
       const i = rng.weighted(ws);
       const p = cands[i];
       cands.splice(i, 1);
-      const card: PerkCard = { id: p.id, name: p.name, desc: p.desc, rarity: p.rarity };
+      const card: PerkCard = liveText({ id: p.id, rarity: p.rarity } as PerkCard, { name: () => p.name, desc: () => p.desc });
       if (p.needsTower) card.needsTower = true;
       out.push(card);
     }
@@ -1677,7 +1688,7 @@ export class World implements IWorld {
           const rng = new Rng(`${s.seed}|pocket|${this.perkOffers}`);
           const pick = pool[rng.int(pool.length)];
           s.skills.push(this.makeSkill(pick));
-          this.toast(`获得新技能：${SKILLS[pick].name}`, 'good');
+          this.toast('core.toast.skillGained', 'good', { name: SKILLS[pick].name });
         }
         break;
       }
@@ -1703,8 +1714,8 @@ export class World implements IWorld {
             t.halfLegend = false;
             this.afterLevelChange(t);
             this.emit({ type: 'levelUp', uid: t.uid, level: 10, tier: t.tier, tierChanged: t.tier !== tier9, byXp: false });
-            this.toast(`${t.def.name} 晋升传奇·${branch === 'A' ? t.def.A.name : t.def.B.name}`, 'good');
-          } else this.toast(`${t.def.name} 传奇升级费用减半`, 'good');
+            this.toast('core.toast.legendPromoted', 'good', { tower: t.def.name, branch: branch === 'A' ? t.def.A.name : t.def.B.name });
+          } else this.toast('core.toast.legendHalfCost', 'good', { tower: t.def.name });
         }
         break;
       }
@@ -2041,7 +2052,7 @@ export class World implements IWorld {
           const dy = tw.cy + 0.5 - e.y;
           const d2 = dx * dx + dy * dy;
           let r = 1.2;
-          if (tw.id === 'lamp') r = tw.level >= 10 && tw.branch === 'B' ? Math.max(1.5, tw.range) : 1.5;
+          if (tw.id === 'lamp') r = tw.level >= 10 && tw.branch === 'B' ? Math.max(LAMP.detect, tw.range) : LAMP.detect;
           if (d2 <= r * r) {
             revealed = true;
             break;
@@ -2216,7 +2227,7 @@ export class World implements IWorld {
   // ───────────────────────── 伤害 ─────────────────────────
 
   /** 结算一次伤害，返回实际造成的伤害（含护盾） */
-  private damage(e: Enemy, amount: number, t: Tower | null, flags: number): number {
+  private damage(e: Enemy, amount: number, t: Tower | null, flags: number, xpMul = 1): number {
     if (e.dead || amount <= 0) return 0;
     const s = this.state;
     const now = s.time;
@@ -2260,7 +2271,7 @@ export class World implements IWorld {
     if (t) {
       t.damage += dealt;
       const pool = e.maxHp + e.maxShield;
-      if (pool > 0) this.gainXp(t, (dealt / pool) * e.xpVal);
+      if (pool > 0) this.gainXp(t, (dealt / pool) * e.xpVal * xpMul);
     }
     if (e.hp <= 0) {
       this.kill(e, t);
@@ -2528,15 +2539,12 @@ export class World implements IWorld {
     const s = this.state;
     const now = s.time;
     const caff = now < s.caffeineUntil ? 1.6 : 1;
+    this.lampsAct(caff);
     for (let i = 0; i < this.towerList.length; i++) {
       const t = this.towerList[i];
-      if (!t.def.attacks) continue;
+      if (!t.def.attacks || t.id === 'lamp') continue;
       if (t.disabledUntil > now) continue;
       if (t.id === 'swatter' && t.stars >= 3 && t.branch === 'A' && t.abilityUntil > now) this.zapTick(t);
-      if (t.id === 'lamp' && t.level >= 10 && t.branch === 'A') {
-        this.laserTick(t, caff);
-        continue;
-      }
       if (t.cd > 0) t.cd -= DT * t.atkMul * caff * this.speedBoost(t, now);
       if (t.cd > 0) continue;
       let fired = false;
@@ -2544,7 +2552,6 @@ export class World implements IWorld {
         case 'pencil': fired = this.atkPencil(t); break;
         case 'stapler': fired = this.atkStapler(t); break;
         case 'glue': fired = this.atkGlue(t); break;
-        case 'lamp': fired = this.atkLamp(t); break;
         case 'compass': fired = this.atkCompass(t); break;
         case 'eraser': fired = this.atkEraser(t); break;
         case 'ruler': fired = this.atkRuler(t); break;
@@ -2696,117 +2703,411 @@ export class World implements IWorld {
     }
   }
 
-  private atkLamp(t: Tower): boolean {
-    const e = this.findTarget(t, t.range);
-    if (!e) return false;
-    const targets: Enemy[] = [e];
-    if (t.level >= 7) {
-      const e2 = this.findTarget(t, t.range, e.uid);
-      if (e2) targets.push(e2);
-    }
-    this.aim(t, e);
-    const T2 = t.level >= 4;
-    const B = t.level >= 10 && t.branch === 'B';
-    const now = this.state.time;
-    for (let k = 0; k < targets.length; k++) {
-      const tg = targets[k];
-      let dmg = t.dmg;
-      if (T2 && k === 0) {
-        if (t.focusUid === tg.uid) t.focusStacks = Math.min(3, t.focusStacks + 1);
-        else {
-          t.focusUid = tg.uid;
-          t.focusStacks = 0;
-        }
-        dmg *= 1 + 0.2 * t.focusStacks;
-      }
-      if (tg.id === 'moth') dmg *= 2;
-      const crit = this.rollCrit(t);
-      if (crit) dmg *= t.critMul;
-      if (B) {
-        tg.litUntil = Math.max(tg.litUntil, now + 1.6);
-        tg.litVuln = Math.max(tg.litVuln, this.evo(t, 'B', 1) ? BRANCH.lamp.B.s1 : BRANCH.lamp.B.vuln);
-      }
-      this.emit({ type: 'beam', uid: t.uid, x: t.cx + 0.5, y: t.cy + 0.5, tx: tg.x, ty: tg.y, color: B ? 'cyan' : 'warm', width: 0.12 + 0.03 * t.focusStacks });
-      this.damage(tg, dmg, t, F_BEAM | F_IGNORE_ARMOR | (crit ? F_CRIT : 0));
-    }
-    return true;
+  // ───────────────────────── 台灯：持续光束 + 递增 + 联动（文档 02 §2.5） ─────────────────────────
+
+  private isLaser(t: Tower): boolean {
+    return t.level >= 10 && t.branch === 'A';
   }
 
-  private laserTick(t: Tower, caff: number): void {
+  /** 台灯的基础秒伤（不含递增 / 汇聚 / 咖啡因）：等级与进化的间隔成长、节能灯泡、攻速加成都换算成秒伤 */
+  private lampDps(t: Tower): number {
+    return (t.dmg / Math.max(0.05, t.interval)) * t.atkMul;
+  }
+
+  /** 递增倍率上限（不含联动加成） */
+  private lampCap(t: Tower): number {
+    if (this.isLaser(t)) return BRANCH.lamp.A.cap * (this.evo(t, 'A', 1) ? BRANCH.lamp.A.s1 : 1);
+    return LAMP.cap;
+  }
+
+  /** 每秒递增（基础秒伤的倍数） */
+  private lampRate(t: Tower): number {
+    return this.isLaser(t) ? BRANCH.lamp.A.ramp : LAMP.ramp;
+  }
+
+  /** 联动加成：第 k 座辅灯（1 起）的效率 */
+  private relayEff(em: Tower, k: number): number {
+    return LAMP.relay * Math.pow(k, -LAMP.decay) * (this.isLaser(em) ? BRANCH.lamp.A.relay : 1);
+  }
+
+  private readonly lamps: Tower[] = [];
+  private readonly prismOrder: Tower[] = [];
+  private readonly prismStart: number[] = [];
+  private readonly prismComp: Tower[] = [];
+  private readonly prismHelpers: Tower[] = [];
+  private readonly prismShare: number[] = [];
+  private readonly lampExtra: Enemy[] = [];
+  private prismGen = 0;
+
+  /**
+   * 重新划分联动组：中心距 ≤ LAMP.link 的未瘫痪台灯连通（可链式）。连通块里有传奇 A（激光笔）就整块成一组、不限座数；
+   * 否则按 uid 从小到大做起点、广度优先，每组最多 LAMP.maxGroup 座。组内按 uid 排序。结果写入 prismOrder / prismStart。
+   * 只由位置、瘫痪、等级分支决定，放置 / 出售 / 瘫痪后下一步自动生效。
+   */
+  private computePrism(now: number): void {
+    const L = this.lamps;
+    L.length = 0;
+    for (const t of this.towerList) if (t.id === 'lamp') L.push(t);
+    const order = this.prismOrder;
+    const starts = this.prismStart;
+    order.length = 0;
+    starts.length = 0;
+    const gen = ++this.prismGen;
+    const r2 = LAMP.link * LAMP.link;
+    const near = (a: Tower, b: Tower) => (a.cx - b.cx) * (a.cx - b.cx) + (a.cy - b.cy) * (a.cy - b.cy) <= r2 + 1e-9;
+    for (const t of L) {
+      t.prism = 0;
+      t.prismSize = 1;
+      if (t.disabledUntil > now) t.prismMark = gen;
+    }
+    const comp = this.prismComp;
+    for (const s0 of L) {
+      if (s0.prismMark === gen) continue;
+      comp.length = 0;
+      comp.push(s0);
+      s0.prismMark = gen;
+      let laser = false;
+      for (let i = 0; i < comp.length; i++) {
+        const a = comp[i];
+        if (this.isLaser(a)) laser = true;
+        for (const b of L) {
+          if (b.prismMark === gen || !near(a, b)) continue;
+          b.prismMark = gen;
+          comp.push(b);
+        }
+      }
+      if (laser || comp.length <= LAMP.maxGroup) {
+        this.pushPrismGroup(comp, 0, comp.length);
+        continue;
+      }
+      // 普通组：超过上限时拆成若干 ≤ maxGroup 的连通小组（uid 小的先做起点）
+      for (const m of comp) m.prismRole = -1;
+      for (const seed of L) {
+        if (seed.prismRole !== -1 || seed.prismMark !== gen) continue;
+        const q = this.prismHelpers;
+        q.length = 0;
+        q.push(seed);
+        seed.prismRole = 0;
+        for (let i = 0; i < q.length && q.length < LAMP.maxGroup; i++) {
+          for (const b of L) {
+            if (q.length >= LAMP.maxGroup) break;
+            if (b.prismRole !== -1 || b.prismMark !== gen || !near(q[i], b)) continue;
+            b.prismRole = 0;
+            q.push(b);
+          }
+        }
+        this.pushPrismGroup(q, 0, q.length);
+      }
+      for (const m of comp) if (m.prismRole === -1) m.prismRole = 0;
+    }
+    starts.push(order.length);
+  }
+
+  private pushPrismGroup(src: Tower[], a: number, b: number): void {
+    const order = this.prismOrder;
+    const start = order.length;
+    this.prismStart.push(start);
+    let id = Infinity;
+    for (let i = a; i < b; i++) {
+      const m = src[i];
+      id = Math.min(id, m.uid);
+      // 按 uid 插入排序（组很小）
+      let j = order.length;
+      order.push(m);
+      while (j > start && order[j - 1].uid > m.uid) {
+        order[j] = order[j - 1];
+        j--;
+      }
+      order[j] = m;
+    }
+    const n = b - a;
+    for (let i = start; i < order.length; i++) {
+      order[i].prism = n > 1 ? id : 0;
+      order[i].prismSize = n;
+    }
+  }
+
+  /** 维护台灯的主目标（目标有效就一直照着）；换目标时递增清零（精良·余温保留一部分） */
+  private lampTarget(t: Tower): Enemy | null {
     let tg = t.laserUid ? this.enemyByUid.get(t.laserUid) : undefined;
-    const x = t.cx + 0.5;
-    const y = t.cy + 0.5;
     if (tg) {
-      const dx = tg.x - x;
-      const dy = tg.y - y;
-      if (!this.targetable(tg) || dx * dx + dy * dy > t.range * t.range) tg = undefined;
+      const dx = tg.x - (t.cx + 0.5);
+      const dy = tg.y - (t.cy + 0.5);
+      if (!this.targetable(tg) || !this.canHit(t, tg) || dx * dx + dy * dy > t.range * t.range) tg = undefined;
     }
-    if (!tg) {
-      const n = this.findTarget(t, t.range);
-      t.laserUid = n ? n.uid : 0;
-      t.laserTime = 0;
+    if (tg) return tg;
+    if (t.laserUid) {
+      // 目标死亡 / 离开：递增清零（余温保留 keep）
+      t.beamRamp = t.level >= 4 ? 1 + (t.beamRamp - 1) * LAMP.keep : 1;
       t.laserAcc = 0;
-      if (!n) return;
-      tg = n;
+      t.laserBeamT = 0;
+      t.laserUid = 0;
     }
+    const n = this.findTarget(t, t.range);
+    if (n) t.laserUid = n.uid;
+    else t.beamRamp = Math.max(1, t.beamRamp - this.lampRate(t) * DT);
+    return n;
+  }
+
+  private resetLamp(t: Tower): void {
+    t.laserUid = 0;
+    t.laserAcc = 0;
+    t.laserBeamT = 0;
+    t.beamRamp = 1;
+    t.beam2Uid = 0;
+    t.beam2Ramp = 1;
+    t.beam2Acc = 0;
+    t.prismRole = 0;
+    t.prismLead = 0;
+    t.prismRelay = 1;
+  }
+
+  /** 所有台灯：分组 → 各自找目标 → 每组选主灯（目标走得最远的），辅灯把光并入主灯，其余各自开火 */
+  private lampsAct(caff: number): void {
+    const now = this.state.time;
+    this.computePrism(now);
+    for (const t of this.lamps) {
+      t.prismLead = 0;
+      t.prismRelay = 1;
+      if (t.disabledUntil > now) this.resetLamp(t);
+    }
+    const order = this.prismOrder;
+    const starts = this.prismStart;
+    const helpers = this.prismHelpers;
+    const share = this.prismShare;
+    for (let g = 0; g + 1 < starts.length; g++) {
+      const a = starts[g];
+      const b = starts[g + 1];
+      let em: Tower | null = null;
+      let emE: Enemy | null = null;
+      let mark = 0;
+      for (let i = a; i < b; i++) {
+        const m = order[i];
+        if (m.level >= 10 && m.branch === 'B') mark = Math.max(mark, this.evo(m, 'B', 1) ? BRANCH.lamp.B.s1 : BRANCH.lamp.B.vuln);
+        const e = this.lampTarget(m);
+        if (e && (!emE || e.remaining < emE.remaining)) {
+          em = m;
+          emE = e;
+        }
+      }
+      helpers.length = 0;
+      share.length = 0;
+      let mult = 1;
+      if (em && emE && b - a > 1) {
+        for (let i = a; i < b; i++) {
+          const m = order[i];
+          if (m !== em && (m.laserUid === 0 || m.laserUid === emE.uid)) helpers.push(m);
+        }
+        // 秒伤高的辅灯排在前面（效率更高）；同秒伤按 uid
+        helpers.sort((p, q) => this.lampDps(q) - this.lampDps(p) || p.uid - q.uid);
+        const E = Math.max(1e-6, this.lampDps(em));
+        for (let k = 0; k < helpers.length; k++) {
+          const v = (this.relayEff(em, k + 1) * this.lampDps(helpers[k])) / E;
+          share.push(v);
+          mult += v;
+        }
+        for (let k = 0; k < share.length; k++) share[k] /= mult;
+      }
+      for (let i = a; i < b; i++) {
+        const m = order[i];
+        if (m.disabledUntil > now) continue;
+        const help = helpers.indexOf(m) >= 0;
+        if (help && em) {
+          // 辅灯：灯头转向主灯，不单独开火
+          m.prismRole = 2;
+          m.prismLead = em.uid;
+          // 照着同一目标的辅灯继续预热（主灯换人时不用从头递增）；没有目标的在 lampTarget 里慢慢冷却
+          if (m.laserUid) m.beamRamp = Math.max(Math.min(this.lampCap(m), m.beamRamp + this.lampRate(m) * DT), em.beamRamp);
+          m.laserAcc = 0;
+          m.laserBeamT = 0;
+          m.beam2Uid = 0;
+          m.beam2Acc = 0;
+          this.aim(m, { x: em.cx + 0.5, y: em.cy + 0.5 });
+          m.lastFire = now;
+          if (!m.attacked) {
+            m.attacked = true;
+            m.undoUntil = 0;
+          }
+          continue;
+        }
+        const tg = m.laserUid ? this.enemyByUid.get(m.laserUid) ?? null : null;
+        if (m === em && helpers.length) {
+          m.prismRole = 1;
+          m.prismLead = m.uid;
+          m.prismRelay = mult;
+          this.fireLamp(m, tg!, mult, Math.min(LAMP.capMax, LAMP.capPer * helpers.length), helpers, share, mark, caff);
+        } else {
+          m.prismRole = b - a > 1 ? 3 : 0;
+          if (tg) this.fireLamp(m, tg, 1, 0, null, null, mark, caff);
+        }
+      }
+    }
+  }
+
+  private fireLamp(t: Tower, tg: Enemy, mult: number, capBonus: number, helpers: Tower[] | null, share: number[] | null, mark: number, caff: number): void {
+    const now = this.state.time;
+    const cap = this.lampCap(t) + capBonus;
+    const over = t.overUntil > now;
+    t.beamRamp = over ? cap : Math.min(cap, t.beamRamp + this.lampRate(t) * DT);
     this.aim(t, tg);
-    t.laserTime += DT;
-    const LA = BRANCH.lamp.A;
-    const cap = LA.cap * (this.evo(t, 'A', 1) ? LA.s1 : 1);
-    // 节能灯泡（攻击间隔 ×0.8）对持续光束等价于秒伤 ×1.25
-    const bulb = this.hasPerk('bulb') ? 1 / 0.8 : 1;
-    let dps = t.dmg * Math.min(cap, Math.pow(1 + LA.ramp, t.laserTime)) * caff * t.atkMul * bulb;
+    const base = this.lampDps(t) * caff;
+    let dps = base * t.beamRamp * mult;
     if (tg.id === 'moth') dps *= 2;
     t.laserAcc += dps * DT;
     t.laserBeamT += DT;
-    t.lastFire = this.state.time;
+    t.lastFire = now;
     if (!t.attacked) {
       t.attacked = true;
       t.undoUntil = 0;
     }
-    if (t.laserBeamT >= 0.1) {
-      t.laserBeamT = 0;
-      this.emit({ type: 'beam', uid: t.uid, x, y, tx: tg.x, ty: tg.y, color: 'magenta', width: Math.min(0.4, 0.1 + 0.03 * t.laserTime) });
-      const crit = this.rollCrit(t);
-      const amt = t.laserAcc * (crit ? t.critMul : 1) * (t.stars >= 3 && t.abilityUntil > this.state.time ? ABILITY_FX.lamp_a.dmg : 1);
-      t.laserAcc = 0;
-      const extra: Enemy[] = [];
-      // ★3 过载：光束分裂为 N 道，每道伤害 ×dmg
-      const overload = t.stars >= 3 && t.abilityUntil > this.state.time;
-      if (overload) {
-        let ex = tg.uid;
-        for (let k = 0; k < ABILITY_FX.lamp_a.beams - 1; k++) {
-          const o = this.findTarget(t, t.range, ex);
-          if (!o || o === tg || extra.includes(o)) break;
-          extra.push(o);
-          ex = o.uid;
-        }
+    // 镀金·双灯头：第二道光束（单独递增，不吃联动加成）
+    let t2: Enemy | null = null;
+    if (t.level >= 7) {
+      let o = t.beam2Uid ? this.enemyByUid.get(t.beam2Uid) : undefined;
+      if (o) {
+        const dx = o.x - (t.cx + 0.5);
+        const dy = o.y - (t.cy + 0.5);
+        if (o === tg || !this.targetable(o) || !this.canHit(t, o) || dx * dx + dy * dy > t.range * t.range) o = undefined;
       }
-      // ★2 折射：第二个目标 50%
-      let refract: Enemy | null = null;
-      if (this.evo(t, 'A', 2)) {
-        const n = this.queryAll(tg.x, tg.y, 1.5, this.qB, false);
+      if (!o) {
+        const n = this.findTarget(t, t.range, tg.uid);
+        if ((n ? n.uid : 0) !== t.beam2Uid) {
+          t.beam2Ramp = 1;
+          t.beam2Acc = 0;
+        }
+        t.beam2Uid = n ? n.uid : 0;
+        o = n ?? undefined;
+      }
+      if (o) {
+        const cap2 = this.lampCap(t);
+        t.beam2Ramp = over ? cap2 : Math.min(cap2, t.beam2Ramp + this.lampRate(t) * DT);
+        t.beam2Acc += base * t.beam2Ramp * LAMP.second * (o.id === 'moth' ? 2 : 1) * DT;
+        t2 = o;
+      }
+    }
+    if (t.laserBeamT < LAMP.tick - 1e-6) return;
+    t.laserBeamT = 0;
+    this.lampHit(t, tg, cap, mult, helpers, share, mark, over);
+    if (t2 && !t2.dead) {
+      const amt = t.beam2Acc * (over ? ABILITY_FX.lamp_a.dmg : 1);
+      t.beam2Acc = 0;
+      const x = t.cx + 0.5;
+      const y = t.cy + 0.5;
+      this.emit({ type: 'beam', uid: t.uid, x, y, tx: t2.x, ty: t2.y, color: this.lampColor(t), width: 0.07, ramp: (t.beam2Ramp - 1) / Math.max(1e-6, this.lampCap(t) - 1) });
+      if (mark > 0) this.lampMark(t2, mark);
+      this.damage(t2, amt, t, F_BEAM | F_IGNORE_ARMOR);
+    }
+  }
+
+  private lampColor(t: Tower): 'warm' | 'cyan' | 'magenta' {
+    return t.level >= 10 ? (t.branch === 'A' ? 'magenta' : 'cyan') : 'warm';
+  }
+
+  private lampMark(e: Enemy, vuln: number): void {
+    e.litUntil = Math.max(e.litUntil, this.state.time + 1);
+    e.litVuln = Math.max(e.litVuln, vuln);
+  }
+
+  /** 主光束一跳：特效事件、伤害、过载分裂、折射、护眼灯分裂；汇聚时按贡献把伤害统计 / 经验分给辅灯 */
+  private lampHit(t: Tower, tg: Enemy, cap: number, mult: number, helpers: Tower[] | null, share: number[] | null, mark: number, over: boolean): void {
+    const x = t.cx + 0.5;
+    const y = t.cy + 0.5;
+    const color = this.lampColor(t);
+    const nh = helpers ? helpers.length : 0;
+    const ramp = (t.beamRamp - 1) / Math.max(1e-6, cap - 1);
+    this.emit({ type: 'beam', uid: t.uid, x, y, tx: tg.x, ty: tg.y, color, width: Math.min(0.42, 0.09 + 0.1 * ramp + 0.04 * Math.min(5, nh)), ramp, relay: mult, group: nh + 1 });
+    if (helpers) for (const h of helpers) this.emit({ type: 'prismLink', from: h.uid, to: t.uid, x: h.cx + 0.5, y: h.cy + 0.5, tx: x, ty: y });
+    const crit = this.rollCrit(t);
+    const amt = t.laserAcc * (crit ? t.critMul : 1) * (over ? ABILITY_FX.lamp_a.dmg : 1);
+    t.laserAcc = 0;
+    // 过载：光束分裂为 beams 道（额外目标各受同样伤害）
+    const extra = this.lampExtra;
+    extra.length = 0;
+    if (over) {
+      // 射程内走得最远的另外 beams-1 个目标
+      const n = this.queryAll(t.cx + 0.5, t.cy + 0.5, t.range, this.qA, false);
+      for (let k = 0; k < ABILITY_FX.lamp_a.beams - 1; k++) {
+        let best: Enemy | null = null;
+        for (let j = 0; j < n; j++) {
+          const o = this.qA[j];
+          if (o === tg || o.dead || !this.targetable(o) || !this.canHit(t, o) || extra.includes(o)) continue;
+          if (!best || o.remaining < best.remaining || (o.remaining === best.remaining && o.uid < best.uid)) best = o;
+        }
+        if (!best) break;
+        extra.push(best);
+      }
+    }
+    // 激光笔 ★2 折射：1.5 格内最近的另一个目标受到 refract 伤害
+    let refract: Enemy | null = null;
+    if (this.evo(t, 'A', 2)) refract = this.nearestOther(tg, 1.5, extra);
+    const tx0 = tg.x;
+    const ty0 = tg.y;
+    if (mark > 0) this.lampMark(tg, mark);
+    this.lampDamage(t, tg, amt, F_BEAM | F_IGNORE_ARMOR | (crit ? F_CRIT : 0), mult, helpers, share);
+    for (const o of extra) {
+      if (o.dead) continue;
+      this.emit({ type: 'beam', uid: t.uid, x, y, tx: o.x, ty: o.y, color, width: 0.15, ramp: 1 });
+      if (mark > 0) this.lampMark(o, mark);
+      this.lampDamage(t, o, amt, F_BEAM | F_IGNORE_ARMOR, mult, helpers, share);
+    }
+    if (refract && !refract.dead) {
+      this.emit({ type: 'beam', uid: t.uid, x: tx0, y: ty0, tx: refract.x, ty: refract.y, color, width: 0.08 });
+      this.lampDamage(t, refract, amt * BRANCH.lamp.A.refract, F_BEAM | F_IGNORE_ARMOR, mult, helpers, share);
+    }
+    // 护眼灯联动：主灯光束在目标处分裂出（辅灯数）道短光束，伤害 ×split 并附带标记
+    if (nh > 0 && t.level >= 10 && t.branch === 'B') {
+      const LB = BRANCH.lamp.B;
+      const n = this.queryAll(tx0, ty0, LB.splitR, this.qB, false);
+      for (let s = 0; s < nh; s++) {
+        let best: Enemy | null = null;
         let bd = Infinity;
         for (let j = 0; j < n; j++) {
           const o = this.qB[j];
-          if (o === tg || !this.targetable(o) || extra.includes(o)) continue;
-          const dx = o.x - tg.x;
-          const dy = o.y - tg.y;
-          if (dx * dx + dy * dy < bd) { bd = dx * dx + dy * dy; refract = o; }
+          if (o === tg || o.dead || !this.targetable(o) || !this.canHit(t, o) || extra.includes(o)) continue;
+          const dx = o.x - tx0;
+          const dy = o.y - ty0;
+          const d = dx * dx + dy * dy;
+          if (d < bd) { bd = d; best = o; }
         }
+        if (!best) break;
+        extra.push(best);
+        this.emit({ type: 'beam', uid: t.uid, x: tx0, y: ty0, tx: best.x, ty: best.y, color, width: 0.06 });
+        this.lampMark(best, Math.max(mark, LB.vuln));
+        this.lampDamage(t, best, amt * LB.split, F_BEAM | F_IGNORE_ARMOR, mult, helpers, share);
       }
-      const tx0 = tg.x;
-      const ty0 = tg.y;
-      this.damage(tg, amt, t, F_BEAM | F_IGNORE_ARMOR | (crit ? F_CRIT : 0));
-      for (const o of extra) {
-        if (o.dead) continue;
-        this.emit({ type: 'beam', uid: t.uid, x, y, tx: o.x, ty: o.y, color: 'magenta', width: 0.15 });
-        this.damage(o, amt, t, F_BEAM | F_IGNORE_ARMOR);
-      }
-      if (refract && !refract.dead) {
-        this.emit({ type: 'beam', uid: t.uid, x: tx0, y: ty0, tx: refract.x, ty: refract.y, color: 'magenta', width: 0.08 });
-        this.damage(refract, amt * LA.refract, t, F_BEAM | F_IGNORE_ARMOR);
-      }
+    }
+  }
+
+  private nearestOther(tg: Enemy, r: number, skip: Enemy[]): Enemy | null {
+    const n = this.queryAll(tg.x, tg.y, r, this.qB, false);
+    let best: Enemy | null = null;
+    let bd = Infinity;
+    for (let j = 0; j < n; j++) {
+      const o = this.qB[j];
+      if (o === tg || !this.targetable(o) || skip.includes(o)) continue;
+      const dx = o.x - tg.x;
+      const dy = o.y - tg.y;
+      if (dx * dx + dy * dy < bd) { bd = dx * dx + dy * dy; best = o; }
+    }
+    return best;
+  }
+
+  /** 台灯伤害：汇聚时主灯只拿自己那份经验 / 伤害统计，其余按贡献分给辅灯（助攻） */
+  private lampDamage(t: Tower, e: Enemy, amt: number, flags: number, mult: number, helpers: Tower[] | null, share: number[] | null): void {
+    if (!helpers || !share || helpers.length === 0) {
+      this.damage(e, amt, t, flags);
+      return;
+    }
+    const own = 1 / mult;
+    const pool = e.maxHp + e.maxShield;
+    const xpVal = e.xpVal;
+    const dealt = this.damage(e, amt, t, flags, own);
+    if (dealt <= 0) return;
+    t.damage -= dealt * (1 - own);
+    for (let k = 0; k < helpers.length; k++) {
+      const h = helpers[k];
+      h.damage += dealt * share[k];
+      if (pool > 0) this.gainXp(h, (dealt / pool) * xpVal * share[k]);
     }
   }
 
@@ -3518,8 +3819,9 @@ export class World implements IWorld {
     this.events.push(ev);
   }
 
-  private toast(text: string, tone: 'info' | 'warn' | 'good'): void {
-    this.emit({ type: 'toast', text, tone });
+  /** 提示：按 key 取当前语言文本；事件里同时带上 key / params，方便换语言重新生成 */
+  private toast(key: string, tone: 'info' | 'warn' | 'good', params?: Params): void {
+    this.emit({ type: 'toast', text: tr(key, params), tone, key, ...(params ? { params } : {}) });
   }
 
   // ───────────────────────── 神话能力（文档 11 §1.4） ─────────────────────────
@@ -3559,23 +3861,30 @@ export class World implements IWorld {
 
   private cmdTowerAbility(cmd: Extract<Command, { type: 'towerAbility' }>): CommandResult {
     const s = this.state;
-    if (s.phase === 'perk') return { ok: false, reason: '请先选择增益' };
+    if (s.phase === 'perk') return fail('perkPending');
     const t = s.towers.get(cmd.uid) as Tower | undefined;
-    if (!t) return { ok: false, reason: '塔不存在' };
+    if (!t) return fail('noTower');
     const br = evoBranch(t.id, t.branch);
-    if (!br || t.stars < 3 || t.level < 10) return { ok: false, reason: '进化到神话（★3）后才有主动能力' };
+    if (!br || t.stars < 3 || t.level < 10) return fail('needMythic');
     const a = br.ability;
     if (a.chargeWaves) {
-      if ((t.abilityCharges ?? 0) <= 0) return { ok: false, reason: '没有充能' };
-    } else if (t.abilityCd > 0) return { ok: false, reason: '能力冷却中' };
+      if ((t.abilityCharges ?? 0) <= 0) return fail('noCharge');
+    } else if (t.abilityCd > 0) return fail('abilityCd');
     const now = s.time;
     const tx = t.cx + 0.5;
     const ty = t.cy + 0.5;
     const ev: Extract<GameEvent, { type: 'towerAbility' }> = { type: 'towerAbility', uid: t.uid, ability: a.id };
     switch (a.id) {
+      case 'lamp_a': {
+        // 过载：整个联动组超载（递增立即拉满 + 光束分裂）
+        t.abilityUntil = now + a.duration;
+        this.computePrism(now);
+        for (const l of this.lamps) if (l === t || (t.prism && l.prism === t.prism)) l.overUntil = Math.max(l.overUntil, now + a.duration);
+        Object.assign(ev, { x: tx, y: ty });
+        break;
+      }
       case 'pencil_a':
       case 'pencil_b':
-      case 'lamp_a':
       case 'compass_a':
         t.abilityUntil = now + a.duration;
         Object.assign(ev, { x: tx, y: ty });
@@ -3588,7 +3897,7 @@ export class World implements IWorld {
       case 'stapler_a': {
         let ang = cmd.angle;
         if (ang === undefined && cmd.x !== undefined && cmd.y !== undefined) ang = Math.atan2(cmd.y - ty, cmd.x - tx);
-        if (ang === undefined || !Number.isFinite(ang)) return { ok: false, reason: '请选择方向' };
+        if (ang === undefined || !Number.isFinite(ang)) return fail('pickDirection');
         const per = Math.max(1, Math.ceil(a.fx.count / 2));
         for (let k = 0; k < a.fx.count; k++) {
           const p = this.allocProj(t, 'nail', tx, ty);
@@ -3647,7 +3956,7 @@ export class World implements IWorld {
         break;
       }
       case 'glue_b': {
-        if (cmd.x === undefined || cmd.y === undefined) return { ok: false, reason: '请选择位置' };
+        if (cmd.x === undefined || cmd.y === undefined) return fail('pickCell');
         const x0 = Math.max(0, Math.min(s.grid.cols - 3, Math.floor(cmd.x) - 1));
         const y0 = Math.max(0, Math.min(s.grid.rows - 3, Math.floor(cmd.y) - 1));
         this.addZone('lava', 'rect', x0, y0, { w: 3, h: 3, until: now + a.duration, dps: a.fx.dps * t.dmgFactor, slow: a.fx.slow, towerUid: t.uid });
@@ -3661,7 +3970,7 @@ export class World implements IWorld {
         break;
       case 'compass_b': {
         const e = this.pickEnemy(cmd, () => true);
-        if (!e) return { ok: false, reason: '请选择一个敌人' };
+        if (!e) return fail('pickEnemy');
         this.emit({ type: 'beam', uid: t.uid, x: tx, y: ty, tx: e.x, ty: e.y, color: 'magenta', width: 0.3 });
         Object.assign(ev, { x: e.x, y: e.y, targetUid: e.uid });
         // 钻穿：r 格内的其他地面敌人同样按各自已损失生命受伤
@@ -3693,7 +4002,7 @@ export class World implements IWorld {
       }
       case 'eraser_b': {
         const e = this.pickEnemy(cmd, (o) => o.elite && !o.boss && o.affixes.length > 0);
-        if (!e) return { ok: false, reason: '请选择一个精英敌人' };
+        if (!e) return fail('pickElite');
         this.stripAffixes(e);
         Object.assign(ev, { x: e.x, y: e.y, targetUid: e.uid });
         if (a.fx.pct > 0) {
@@ -3716,7 +4025,7 @@ export class World implements IWorld {
           line = axis === 'row' ? Math.floor(cmd.y) : Math.floor(cmd.x);
         }
         if (axis !== 'row' && axis !== 'col') axis = 'row';
-        if (line === undefined || !Number.isFinite(line)) return { ok: false, reason: '请选择一行或一列' };
+        if (line === undefined || !Number.isFinite(line)) return fail('pickLine');
         const list: Enemy[] = [];
         for (const e0 of s.enemies) {
           const e = e0 as Enemy;
@@ -3733,7 +4042,7 @@ export class World implements IWorld {
       }
       case 'ruler_b': {
         const e = this.pickEnemy(cmd, () => true);
-        if (!e) return { ok: false, reason: '请选择一个敌人' };
+        if (!e) return fail('pickEnemy');
         e.measuredUntil = now + a.duration;
         if (a.fx.r > 0) {
           const n = this.queryAll(e.x, e.y, a.fx.r, this.qC, true);
@@ -3744,7 +4053,7 @@ export class World implements IWorld {
         break;
       }
       case 'pen_a': {
-        if (cmd.x === undefined || cmd.y === undefined) return { ok: false, reason: '请选择位置' };
+        if (cmd.x === undefined || cmd.y === undefined) return fail('pickCell');
         const arm = Math.max(1, Math.round(a.fx.arm));
         const cx = Math.max(arm, Math.min(s.grid.cols - 1 - arm, Math.floor(cmd.x)));
         const cy = Math.max(arm, Math.min(s.grid.rows - 1 - arm, Math.floor(cmd.y)));
@@ -3764,17 +4073,17 @@ export class World implements IWorld {
       }
       case 'calculator_b': {
         const o = cmd.targetUid !== undefined ? (s.towers.get(cmd.targetUid) as Tower | undefined) : undefined;
-        if (!o || o.id === 'wall') return { ok: false, reason: '请选择光环里的一座塔' };
+        if (!o || o.id === 'wall') return fail('pickAuraTower');
         const dx = o.cx - t.cx;
         const dy = o.cy - t.cy;
-        if (o !== t && dx * dx + dy * dy > t.aura * t.aura + 1e-6) return { ok: false, reason: '这座塔不在光环里' };
+        if (o !== t && dx * dx + dy * dy > t.aura * t.aura + 1e-6) return fail('notInAura');
         if (o.level >= 10) {
-          if (!this.canEvolveKind(o) || o.stars >= 3) return { ok: false, reason: '这座塔已经满星' };
-          if (o.stars === 2 && o.evoXp >= o.evoXpNext) return { ok: false, reason: '进化经验已满' };
+          if (!this.canEvolveKind(o) || o.stars >= 3) return fail('towerMaxStars');
+          if (o.stars === 2 && o.evoXp >= o.evoXpNext) return fail('evoXpFull');
           o.evoXp += a.fx.evo * o.evoXpNext;
           this.processEvoXp(o);
         } else {
-          if (o.level >= 9) return { ok: false, reason: '速算最多升到 Lv9' };
+          if (o.level >= 9) return fail('quickCalcMax');
           const oldTier = o.tier;
           o.level = Math.min(9, o.level + Math.max(1, Math.round(a.fx.levels)));
           this.afterLevelChange(o);
@@ -3813,7 +4122,7 @@ export class World implements IWorld {
         break;
       }
       default:
-        return { ok: false, reason: '未知能力' };
+        return fail('unknownAbility');
     }
     if (!a.chargeWaves) t.abilityCd = a.cd;
     if (!t.attacked) {
@@ -3980,10 +4289,11 @@ export class World implements IWorld {
         if (i < 0) return false;
         const cx = i % s.grid.cols;
         const cy = (i - cx) / s.grid.cols;
-        const sp: SpawnerState = {
-          id: `drop-${++this.dropSeq}`, name: `空降点 ${this.dropSeq}`, kind: 'drop', cells: [{ x: cx, y: cy }],
+        const dropId = `drop-${++this.dropSeq}`;
+        const sp: SpawnerState = liveText({
+          id: dropId, kind: 'drop', cells: [{ x: cx, y: cy }],
           active: false, warnUntil: now + warn, demolishCost: this.demolishCost(), icon: this.dropIcon(),
-        };
+        } as SpawnerState, { name: () => spawnerName(dropId) });
         s.spawners.push(sp);
         this.reserved.set(i, 'drop');
         fx.spawner = sp.id;
@@ -4049,10 +4359,10 @@ export class World implements IWorld {
       default:
         break;
     }
-    const ev: RandomEventState = {
-      uid: this.nextUid++, id, name: d.name, desc: d.desc, tone: d.tone,
+    const ev: RandomEventState = liveText({
+      uid: this.nextUid++, id, tone: d.tone,
       phase: 'warn', startsAt: now + warn, endsAt: now + warn + d.duration,
-    };
+    } as RandomEventState, { name: () => d.name, desc: () => d.desc });
     if (area) ev.area = area;
     s.events.push(ev);
     this.eventFx.set(ev.uid, fx);
@@ -4074,7 +4384,8 @@ export class World implements IWorld {
     ev.phase = 'active';
     const now = s.time;
     const fx = this.eventFx.get(ev.uid) ?? {};
-    s.eventLog.push({ wave: s.wave, id: ev.id, name: ev.name });
+    const evDef = RANDOM_EVENTS[ev.id];
+    s.eventLog.push(liveText({ wave: s.wave, id: ev.id } as WorldState['eventLog'][number], { name: () => evDef.name }));
     this.emitRandomEvent(ev, 'start');
     switch (ev.id) {
       case 'drop_box': {
@@ -4129,7 +4440,7 @@ export class World implements IWorld {
         if (cands.length) {
           const t = cands[this.evRng.int(cands.length)];
           this.grantHalfLevel(t);
-          this.toast(`灵感闪现：${t.def.name} 获得半级经验`, 'good');
+          this.toast('core.toast.inspiration', 'good', { tower: t.def.name });
         }
         break;
       }
@@ -4227,7 +4538,7 @@ export class World implements IWorld {
     }
     const tail = aw.plan.entries.splice(aw.idx).concat(add).sort((a, b) => a.at - b.at);
     aw.plan.entries.push(...tail);
-    this.toast(`敌军增援：${ENEMIES[enemy].name} ×${n}`, 'warn');
+    this.toast('core.toast.reinforce', 'warn', { name: ENEMIES[enemy].name, n });
   }
 
   // ───────────────────────── 掉落物 ─────────────────────────
@@ -4249,9 +4560,9 @@ export class World implements IWorld {
   private cmdCollect(uid: number): CommandResult {
     const s = this.state;
     const i = s.pickups.findIndex((p) => p.uid === uid);
-    if (i < 0) return { ok: false, reason: '已经消失了' };
+    if (i < 0) return fail('pickupGone');
     const p = s.pickups[i];
-    if (p.kind === 'crate' && s.crateChoice) return { ok: false, reason: '先选择上一个补给箱里的奖励' };
+    if (p.kind === 'crate' && s.crateChoice) return fail('crateFirst');
     s.pickups.splice(i, 1);
     if (p.kind === 'coin') {
       const got = this.addGold(p.value, 'pickup', p.x, p.y);
@@ -4260,7 +4571,8 @@ export class World implements IWorld {
       const rng = new Rng(`${s.seed}|crate|${uid}`);
       const pool = CRATE_OPTIONS.slice();
       const options: { id: string; name: string; desc: string }[] = [];
-      while (options.length < 3 && pool.length) options.push({ ...pool.splice(rng.int(pool.length), 1)[0] });
+      // 选项对象引用配置表（名称 / 说明是按当前语言实时读取的 getter）
+      while (options.length < 3 && pool.length) options.push(pool.splice(rng.int(pool.length), 1)[0]);
       s.crateChoice = { uid, options };
       this.emit({ type: 'pickup', uid, kind: 'crate', x: p.x, y: p.y, phase: 'collect' });
     }
@@ -4270,9 +4582,9 @@ export class World implements IWorld {
   private cmdChooseCrate(option: string): CommandResult {
     const s = this.state;
     const cc = s.crateChoice;
-    if (!cc) return { ok: false, reason: '没有待选择的补给' };
+    if (!cc) return fail('noCrateChoice');
     const opt = cc.options.find((o) => o.id === option);
-    if (!opt) return { ok: false, reason: '没有这个选项' };
+    if (!opt) return fail('noOption');
     switch (opt.id) {
       case 'gold':
         this.addGold(40 + 4 * Math.max(1, s.wave), 'pickup');
@@ -4316,7 +4628,7 @@ export class World implements IWorld {
       }
     }
     s.crateChoice = null;
-    this.toast(`补给：${opt.name}`, 'good');
+    this.toast('core.toast.crate', 'good', { name: opt.name });
     return { ok: true };
   }
 
@@ -4459,12 +4771,12 @@ export class World implements IWorld {
 
   private cmdDemolish(id: string): CommandResult {
     const s = this.state;
-    if (s.phase === 'perk') return { ok: false, reason: '请先选择增益' };
+    if (s.phase === 'perk') return fail('perkPending');
     const sp = s.spawners.find((k) => k.id === id);
-    if (!sp || sp.kind !== 'drop') return { ok: false, reason: '只能拆除空降出生点' };
-    if (!sp.active) return { ok: false, reason: '纸箱还没落地' };
+    if (!sp || sp.kind !== 'drop') return fail('onlyDrop');
+    if (!sp.active) return fail('dropNotLanded');
     const cost = this.demolishCost();
-    if (s.gold < cost) return { ok: false, reason: '金币不足' };
+    if (s.gold < cost) return fail('noGold');
     this.spendGold(cost);
     this.closeDrop(sp, 'demolish');
     return { ok: true };
@@ -4483,7 +4795,7 @@ export class World implements IWorld {
     this.terrainChanged();
     this.spawnersChanged();
     this.emit({ type: 'terrainChanged', reason: 'event' });
-    this.toast(`暗门开启：${sp.name ?? sp.id}`, 'warn');
+    this.toast('core.toast.secretDoor', 'warn', { name: spawnerName(sp.id) });
   }
 
   private closeHidden(sp: SpawnerState): void {
@@ -4646,76 +4958,112 @@ export class World implements IWorld {
 
   // ───────────────────────── 塔信息 ─────────────────────────
 
+  /** 台灯信息面板：秒伤（基础 → 满递增）、递增、双灯头、联动范围 / 组 / 汇聚倍率 */
+  private lampStats(t: Tower, stats: TowerInfo['stats']): void {
+    const base = this.lampDps(t);
+    const cap = this.lampCap(t);
+    stats.push({ label: tr('core.stat.beamDps'), value: tr('core.stat.beamDpsValue', { dps: fmt(base), max: fmt(base * cap) }) });
+    stats.push({ label: tr('core.stat.ramp'), value: tr('core.stat.rampValue', { rate: `${Math.round(this.lampRate(t) * 100)}%`, cap: fmt(cap) }) });
+    if (t.level >= 7) stats.push({ label: tr('core.stat.secondBeam'), value: tr('core.stat.secondBeamValue', { dps: fmt(base * LAMP.second) }) });
+    stats.push({ label: tr('core.stat.range'), value: tr('core.unit.cells', { n: fmt(t.range) }) });
+    stats.push({ label: tr('core.stat.prismLink'), value: tr('core.unit.cells', { n: fmt(LAMP.link) }) });
+    this.computePrism(this.state.time);
+    const n = t.prismSize ?? 1;
+    if (n <= 1 || !t.prism) {
+      stats.push({ label: tr('core.stat.prismGroup'), value: tr('core.stat.none') });
+    } else {
+      // 假设全组都并入本灯时的汇聚倍率
+      const others: Tower[] = [];
+      for (const l of this.prismOrder) if (l !== t && l.prism === t.prism) others.push(l);
+      others.sort((p, q) => this.lampDps(q) - this.lampDps(p) || p.uid - q.uid);
+      let relay = 1;
+      for (let k = 0; k < others.length; k++) relay += (this.relayEff(t, k + 1) * this.lampDps(others[k])) / Math.max(1e-6, base);
+      const capB = Math.min(LAMP.capMax, LAMP.capPer * others.length);
+      let unlimited = false;
+      for (const l of this.prismOrder) if (l.prism === t.prism && this.isLaser(l)) unlimited = true;
+      const role = t.prismRole === 1 ? tr('core.stat.prismEmitter', { relay: fmt(t.prismRelay ?? 1) }) : t.prismRole === 2 ? tr('core.stat.prismHelper') : '';
+      stats.push({ label: tr('core.stat.prismGroup'), value: tr('core.stat.prismGroupValue', { n, relay: fmt(relay), cap: fmt(capB) }) + (unlimited ? tr('core.stat.prismUnlimited') : '') + role });
+    }
+    if (t.critChance > 0) stats.push({ label: tr('core.stat.crit'), value: `${Math.round(t.critChance * 100)}% ×${fmt(t.critMul)}` });
+  }
+
   private buildTowerInfo(t: Tower): TowerInfo {
     const d = t.def;
     const isWall = t.id === 'wall';
     const maxLevel = d.maxLevel;
     const evb = evoBranch(t.id, t.branch);
     const tierName = isWall
-      ? [d.name === '书本墙' ? '草稿本' : d.name, d.t2.name, d.t3.name][t.level - 1]
+      ? [tr('data.tower.wall.tier1'), d.t2.name, d.t3.name][t.level - 1]
       : t.level >= 10
-        ? t.stars >= 3 && evb ? `神话·${evb.ability.form}` : `传奇·${t.branch === 'B' ? d.B.name : d.A.name}${t.stars > 0 ? ` ★${t.stars}` : ''}`
+        ? t.stars >= 3 && evb
+          ? tr('core.info.tierMythic', { form: evb.ability.form })
+          : tr('core.info.tierLegend', { branch: t.branch === 'B' ? d.B.name : d.A.name }) + (t.stars > 0 ? ` ★${t.stars}` : '')
         : TIER_NAMES[t.tier - 1];
     const stats: TowerInfo['stats'] = [];
     const A = t.level >= 10 && t.branch === 'A';
     switch (t.id) {
       case 'wall': {
-        const b = t.level >= 3 ? '射程 +5%，伤害 +5%' : t.level >= 2 ? '射程 +5%' : '无';
-        stats.push({ label: '相邻加成', value: b });
+        const b = t.level >= 3 ? tr('core.stat.wallBonus3') : t.level >= 2 ? tr('core.stat.wallBonus2') : tr('core.stat.none');
+        stats.push({ label: tr('core.stat.adjacentBonus'), value: b });
         break;
       }
       case 'calculator': {
         const sup = 1 + EVO.support * t.stars;
         const bonus = Math.round((10 + (t.level - 1) + (t.level >= 7 ? 15 : 0)) * sup);
-        stats.push({ label: '光环范围', value: `${fmt(t.aura)} 格` });
-        stats.push({ label: '伤害加成', value: `+${bonus}%` });
-        if (t.level >= 4) stats.push({ label: '攻速加成', value: `+${fmt(8 * sup)}%` });
-        if (t.level >= 7) stats.push({ label: '射程加成', value: '+0.3 格' });
-        stats.push({ label: '经验分成', value: '10%' });
+        stats.push({ label: tr('core.stat.auraRange'), value: tr('core.unit.cells', { n: fmt(t.aura) }) });
+        stats.push({ label: tr('core.stat.dmgBonus'), value: `+${bonus}%` });
+        if (t.level >= 4) stats.push({ label: tr('core.stat.atkSpeedBonus'), value: `+${fmt(8 * sup)}%` });
+        if (t.level >= 7) stats.push({ label: tr('core.stat.rangeBonus'), value: tr('core.unit.cellsPlus', { n: 0.3 }) });
+        stats.push({ label: tr('core.stat.xpShare'), value: '10%' });
         break;
       }
       case 'piggy': {
-        stats.push({ label: '每波产出', value: `+${this.piggyOutput(t)} 金币${t.piggyMute > 0 ? `（停产 ${t.piggyMute} 波）` : ''}` });
-        if (t.level >= 4) stats.push({ label: '利息上限', value: this.evo(t, 'A', 1) ? '+15' : '+5' });
+        stats.push({
+          label: tr('core.stat.perWave'),
+          value: tr('core.stat.piggyOutput', { n: this.piggyOutput(t) }) + (t.piggyMute > 0 ? tr('core.stat.piggyMuted', { n: t.piggyMute }) : ''),
+        });
+        if (t.level >= 4) stats.push({ label: tr('core.stat.interestCap'), value: this.evo(t, 'A', 1) ? '+15' : '+5' });
+        break;
+      }
+      case 'lamp': {
+        this.lampStats(t, stats);
         break;
       }
       default: {
-        if (t.id === 'lamp' && A) stats.push({ label: '持续伤害', value: `${fmt(t.dmg)}/秒（递增 25%/秒）` });
-        else if (t.id === 'pen') stats.push({ label: '伤害', value: `${fmt(t.dmg)} + 墨迹 ${fmt(6 * t.dmgFactor * ((t.combo & C_LAMP_PEN) ? 1.3 : 1))}/秒` });
-        else stats.push({ label: '伤害', value: fmt(t.dmg) });
-        if (!(t.id === 'lamp' && A)) stats.push({ label: '攻击间隔', value: `${fmt(t.interval, 2)} 秒` });
-        if (t.id === 'compass') stats.push({ label: '范围', value: `${fmt(t.inner)}–${fmt(t.range)} 格` });
-        else stats.push({ label: '射程', value: `${fmt(t.range)} 格` });
-        if (!(t.id === 'lamp' && A)) {
+        if (t.id === 'pen') stats.push({ label: tr('core.stat.damage'), value: tr('core.stat.penDamageValue', { dmg: fmt(t.dmg), ink: fmt(6 * t.dmgFactor * ((t.combo & C_LAMP_PEN) ? 1.3 : 1)) }) });
+        else stats.push({ label: tr('core.stat.damage'), value: fmt(t.dmg) });
+        stats.push({ label: tr('core.stat.interval'), value: tr('core.unit.seconds', { n: fmt(t.interval, 2) }) });
+        if (t.id === 'compass') stats.push({ label: tr('core.stat.area'), value: tr('core.unit.cellsRange', { a: fmt(t.inner), b: fmt(t.range) }) });
+        else stats.push({ label: tr('core.stat.range'), value: tr('core.unit.cells', { n: fmt(t.range) }) });
+        {
           let dps = t.dmg / Math.max(0.05, t.interval / t.atkMul);
           if (t.id === 'pencil' && t.level >= 7) dps *= 2;
-          if (t.id === 'lamp' && t.level >= 7) dps *= 2;
           if (t.id === 'ruler' && t.level >= 7) dps *= 3;
           if (t.id === 'swatter' && t.level >= 7) dps *= 2;
           if (t.id === 'pen') {
             // 钢笔的主要输出是墨迹：按满层墨迹计入
             const ink = 6 * t.dmgFactor * ((t.combo & C_LAMP_PEN) ? 1.3 : 1);
-            stats.push({ label: '墨迹秒伤', value: `${fmt(ink)}/层，最多 ${t.inkMax} 层（${fmt(ink * t.inkMax)}）` });
+            stats.push({ label: tr('core.stat.inkDps'), value: tr('core.stat.inkDpsValue', { ink: fmt(ink), max: t.inkMax, total: fmt(ink * t.inkMax) }) });
             dps += ink * t.inkMax;
           }
-          stats.push({ label: '秒伤', value: fmt(dps) + (t.id === 'stapler' || t.id === 'compass' || t.id === 'ruler' || t.id === 'swatter' ? ' ×N' : t.id === 'pen' ? '（含满层墨迹）' : '') });
+          stats.push({ label: tr('core.stat.dps'), value: fmt(dps) + (t.id === 'stapler' || t.id === 'compass' || t.id === 'ruler' || t.id === 'swatter' ? ' ×N' : t.id === 'pen' ? tr('core.stat.dpsInkNote') : '') });
         }
-        if (t.critChance > 0) stats.push({ label: '暴击', value: `${Math.round(t.critChance * 100)}% ×${fmt(t.critMul)}` });
-        if (t.id === 'glue') stats.push({ label: '减速', value: `${Math.round(t.slowPct * 100)}% / ${fmt(t.slowDur)} 秒` });
-        if (t.id === 'stapler' && t.stunChance > 0) stats.push({ label: '眩晕概率', value: `${Math.round(t.stunChance * 100)}%` });
-        if (t.id === 'eraser') stats.push({ label: '破甲', value: `每次 −${t.level >= 7 ? 2 : 1}` });
-        if (t.pierce > 0) stats.push({ label: '穿甲', value: `无视 ${t.pierce} 点护甲` });
+        if (t.critChance > 0) stats.push({ label: tr('core.stat.crit'), value: `${Math.round(t.critChance * 100)}% ×${fmt(t.critMul)}` });
+        if (t.id === 'glue') stats.push({ label: tr('core.stat.slow'), value: `${Math.round(t.slowPct * 100)}% / ${tr('core.unit.seconds', { n: fmt(t.slowDur) })}` });
+        if (t.id === 'stapler' && t.stunChance > 0) stats.push({ label: tr('core.stat.stunChance'), value: `${Math.round(t.stunChance * 100)}%` });
+        if (t.id === 'eraser') stats.push({ label: tr('core.stat.armorBreak'), value: tr('core.stat.armorBreakValue', { n: t.level >= 7 ? 2 : 1 }) });
+        if (t.pierce > 0) stats.push({ label: tr('core.stat.armorPierce'), value: tr('core.stat.armorPierceValue', { n: t.pierce }) });
         if (t.id === 'swatter') {
-          stats.push({ label: '目标', value: '只打空中' });
-          stats.push({ label: '拍击范围', value: `${fmt(this.swatRadius(t))} 格${t.level >= 7 ? '，一次 2 拍' : ''}` });
-          if (t.level >= 4) stats.push({ label: '气流', value: `减速 ${Math.round(SWATTER.airSlow * 100)}% / ${fmt(SWATTER.airSlowDur)} 秒` });
+          stats.push({ label: tr('core.stat.target'), value: tr('core.stat.airOnly') });
+          stats.push({ label: tr('core.stat.swatArea'), value: tr('core.unit.cells', { n: fmt(this.swatRadius(t)) }) + (t.level >= 7 ? tr('core.stat.doubleSwat') : '') });
+          if (t.level >= 4) stats.push({ label: tr('core.stat.airflow'), value: tr('core.stat.airflowValue', { pct: Math.round(SWATTER.airSlow * 100), dur: fmt(SWATTER.airSlowDur) }) });
           if (A) {
             const n = SWATTER.chain + (this.evo(t, 'A', 1) ? SWATTER.chainS1 : 0);
-            stats.push({ label: '连锁闪电', value: `弹跳 ${n} 次，每跳 ×${SWATTER.chainMul}${this.evo(t, 'A', 2) ? '，可打地面' : ''}` });
+            stats.push({ label: tr('core.stat.chain'), value: tr('core.stat.chainValue', { n, mul: SWATTER.chainMul }) + (this.evo(t, 'A', 2) ? tr('core.stat.chainGround') : '') });
           } else if (t.level >= 10 && t.branch === 'B') {
             const every = this.evo(t, 'B', 2) ? SWATTER.netEveryS2 : SWATTER.netEvery;
             const dur = SWATTER.netDur + (this.evo(t, 'B', 1) ? SWATTER.netS1 : 0);
-            stats.push({ label: '捕虫网', value: `每第 ${every} 次攻击，网住 ${fmt(dur)} 秒` });
+            stats.push({ label: tr('core.stat.net'), value: tr('core.stat.netValue', { every, dur: fmt(dur) }) });
           }
         }
       }
@@ -4729,13 +5077,13 @@ export class World implements IWorld {
       traits.push({ name: d.t3.name, desc: d.t3.desc, unlockLevel: 7, unlocked: t.level >= 7 });
       if (t.level >= 10 && t.branch) {
         const br = t.branch === 'A' ? d.A : d.B;
-        traits.push({ name: `传奇·${br.name}`, desc: br.desc, unlockLevel: 10, unlocked: true });
+        traits.push({ name: tr('core.info.legendTrait', { name: br.name }), desc: br.desc, unlockLevel: 10, unlocked: true });
       }
     }
     for (let ci = 0; ci < COMBOS.length; ci++) {
       const cb = COMBOS[ci];
       if (cb.a !== t.id && cb.b !== t.id) continue;
-      traits.push({ name: `组合·${cb.name}`, desc: cb.desc, unlockLevel: 1, unlocked: (t.combo & (1 << ci)) !== 0 });
+      traits.push({ name: tr('core.info.comboTrait', { name: cb.name }), desc: cb.desc, unlockLevel: 1, unlocked: (t.combo & (1 << ci)) !== 0 });
     }
     const cost = this.upgradeCost(t);
     const modes = this.targetModes(t);

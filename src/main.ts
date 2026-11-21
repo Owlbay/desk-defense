@@ -22,10 +22,25 @@ import { skillsScreen } from './ui/screens/skills';
 import { talentsScreen } from './ui/screens/talents';
 import { gameScreen } from './ui/hud/GameScreen';
 import { aiScreen } from './ui/screens/ai';
+import { aiAssistantScreen } from './ui/screens/aiAssistant';
+import { installGuideRoute } from './ui/screens/guide';
+import { getLocale, onLocaleChange, setLocale, t } from './i18n';
+import { resolveLocale } from './ui/locale';
 
-function boot(): void {
+async function boot(): Promise<void> {
   const root = document.getElementById('app');
   if (!root) return;
+  // 语言：存档里的选择优先，否则按浏览器语言。字典加载完再渲染第一屏（很快）
+  const store = new ProfileStore();
+  const locale = resolveLocale(store);
+  try {
+    await setLocale(locale);
+  } catch (e) {
+    console.error(e); // 字典加载失败：退回源语言（简体中文）
+  }
+  document.documentElement.lang = getLocale();
+  document.title = t('ui.docTitle');
+  onLocaleChange(() => (document.title = t('ui.docTitle')));
   root.replaceChildren();
   root.classList.add('app');
 
@@ -46,7 +61,6 @@ function boot(): void {
     { passive: false },
   );
 
-  const store = new ProfileStore();
   audio.install();
   applySettings(store.get().settings);
   // 部署了新版本后，旧页面去加载已被替换的分包会失败：自动刷新一次拿到新版本（60 秒内只刷新一次，避免循环）
@@ -80,10 +94,14 @@ function boot(): void {
   app.register('game', (a, r) => gameScreen(a, r));
   // AI 参战（文档 10）：页面外壳很小，表单与 Agent 代码进入页面时才动态加载
   app.register('ai', (a) => aiScreen(a));
+  // 设置 →「AI 助手」：全局模型设置（对局里的 AI 按钮与「AI 参战」共用），表单进入页面时才加载
+  app.register('aiAssistant', (a) => aiAssistantScreen(a));
   app.go({ name: 'menu' });
+  // 图鉴与玩法：注册路由；地址带 #guide/… 时直接打开（内容进入页面时才动态加载）
+  installGuideRoute(app);
 
   // 调试入口（仅开发环境）
   if (import.meta.env.DEV) (window as unknown as { __dd?: unknown }).__dd = { app, store, ui };
 }
 
-boot();
+void boot();

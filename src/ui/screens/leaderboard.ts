@@ -1,10 +1,12 @@
-import { allDiffKeys, keyLabel, leaderKey } from '../../meta/progress';
+import { allDiffKeys, keyLabel, leaderKey, leaderView } from '../../meta/progress';
 import { dailyInfo, dayOf, parseBoard } from '../../shared/leaderboard';
 import { fetchDaily } from '../../meta/online';
+import { fmtNumber, t } from '../../i18n';
+import { fmtDay } from '../online/util';
 import { screenHeader, type App, type Screen } from '../App';
 import { audio } from '../audio';
 import { MAP_META } from '../coreMeta';
-import { clear, copyText, fmtNum, h } from '../dom';
+import { clear, copyText, h } from '../dom';
 import { G } from '../icons';
 import { takeLeaderboardRequest, type LbTab } from '../online/nav';
 import { nicknameChip } from '../online/nickname';
@@ -13,7 +15,7 @@ import { aiBoard } from '../ai/board';
 
 /** 'ai'：AI 榜（文档 10 §13），成绩来自「AI 参战」，与真人榜完全分开 */
 type Tab = LbTab | 'ai';
-const TAB_NAME: Record<Tab, string> = { local: '本地', global: '全服', daily: '每日挑战', ai: 'AI 榜' };
+const tabName = (tab: Tab): string => t(`ui.leaderboard.tab.${tab}`);
 
 export function leaderboardScreen(app: App): Screen {
   const p = app.store.get();
@@ -29,6 +31,8 @@ export function leaderboardScreen(app: App): Screen {
     pure: false,
     // 默认显示有记录的开波方式（优先自动）
     auto: (p.leaderboard[leaderKey(firstKey, false, true)]?.length ?? 0) > 0 || (p.leaderboard[leaderKey(firstKey, false, false)]?.length ?? 0) === 0,
+    /** 本地榜：显示 AI 协助（「让 AI 替我玩」）的成绩（默认不显示） */
+    showAi: false,
   };
   // 从结算面板跳过来：直接定位到那一局的榜
   const reqAi = !!req?.board?.startsWith('ai:');
@@ -40,16 +44,29 @@ export function leaderboardScreen(app: App): Screen {
     state.auto = parsed.auto;
   } else if (parsed?.kind === 'daily') state.tab = 'daily';
 
-  const modeTabs = h('div.lb-mode-tabs', { attrs: { role: 'tablist', 'aria-label': '排行榜类型' } });
+  const modeTabs = h('div.lb-mode-tabs', { attrs: { role: 'tablist', 'aria-label': t('ui.leaderboard.typeLabel') } });
   const tabs = h('div.tabs.scroll-x', { attrs: { role: 'tablist' } });
   const pureSeg = h('div.seg-grid.two');
   const autoSeg = h('div.seg-grid.two');
   const filters = h('div.lb-filters', null, pureSeg, autoSeg);
   const table = h('div.board-table');
+  // 本地榜：AI 协助的成绩默认隐藏，有这类成绩时给一个开关
+  const aiToggleInput = h<HTMLInputElement>('input', { attrs: { type: 'checkbox' } });
+  aiToggleInput.onchange = () => {
+    audio.play('click');
+    state.showAi = aiToggleInput.checked;
+    render();
+  };
+  const aiToggle = h(
+    'label.switch-row.lb-ai-toggle',
+    null,
+    h('span', null, h('b', null, t('ui.assist.lbShow')), h('small.muted', null, t('ui.assist.lbShowHint'))),
+    h('span.switch', null, aiToggleInput, h('span.knob')),
+  );
   const global = onlineBoard(app, { limit: 50 });
-  const daily = onlineBoard(app, { limit: 50, emptyHint: '今天还没有人上榜，去挑战一下吧！' });
+  const daily = onlineBoard(app, { limit: 50, emptyHint: t('ui.leaderboard.dailyEmpty') });
   const aiView = aiBoard(app, { limit: 50 });
-  const aiNote = h('p.muted.small.ai-lb-note', null, '大模型在「AI 参战」里打出的成绩，每个模型各记一条最佳；真人成绩不在这里。');
+  const aiNote = h('p.muted.small.ai-lb-note', null, t('ui.leaderboard.aiNote'));
   const dailyHead = h('div.online-bar');
   const customCard = h('section.card.section');
   const nickBar = h(
@@ -61,7 +78,7 @@ export function leaderboardScreen(app: App): Screen {
     }),
   );
 
-  const filterSection = h('section.card.section', null, tabs, filters, table, global.el, aiNote, aiView.el);
+  const filterSection = h('section.card.section', null, tabs, filters, aiToggle, table, global.el, aiNote, aiView.el);
   const dailySection = h('section.card.section', null, dailyHead, daily.el);
 
   let dailyLoaded = false;
@@ -83,12 +100,12 @@ export function leaderboardScreen(app: App): Screen {
   const paintDailyHead = (day: string, map: string) => {
     clear(dailyHead);
     dailyHead.append(
-      h('div', null, h('h3', null, `今日挑战 · ${map}`), h('small.muted', null, `第 ${day} 期 · 北京时间零点换期`)),
+      h('div', null, h('h3', null, t('ui.leaderboard.dailyTitle', { map })), h('small.muted', null, t('ui.leaderboard.dailySub', { day }))),
       h(
         'button.btn.small.primary',
         { attrs: { type: 'button' }, onclick: () => (audio.play('click'), app.go({ name: 'daily' })) },
         h('span.gi', { html: G.play }),
-        '去挑战',
+        t('ui.leaderboard.goChallenge'),
       ),
     );
   };
@@ -109,20 +126,20 @@ export function leaderboardScreen(app: App): Screen {
 
   const render = () => {
     clear(modeTabs);
-    for (const t of ['local', 'global', 'daily', 'ai'] as Tab[]) {
+    for (const tab of ['local', 'global', 'daily', 'ai'] as Tab[]) {
       modeTabs.appendChild(
         h(
-          `button.seg${state.tab === t ? '.on' : ''}`,
+          `button.seg${state.tab === tab ? '.on' : ''}`,
           {
-            attrs: { type: 'button', role: 'tab', 'aria-selected': state.tab === t ? 'true' : 'false' },
+            attrs: { type: 'button', role: 'tab', 'aria-selected': state.tab === tab ? 'true' : 'false' },
             onclick: () => {
-              if (state.tab === t) return;
+              if (state.tab === tab) return;
               audio.play('click');
-              state.tab = t;
+              state.tab = tab;
               render();
             },
           },
-          TAB_NAME[t],
+          tabName(tab),
         ),
       );
     }
@@ -132,6 +149,7 @@ export function leaderboardScreen(app: App): Screen {
     customCard.hidden = !local;
     nickBar.hidden = local || state.tab === 'ai';
     table.hidden = !local;
+    aiToggle.hidden = true;
     global.el.hidden = state.tab !== 'global';
     aiView.el.hidden = aiNote.hidden = state.tab !== 'ai';
     if (state.tab === 'daily') {
@@ -158,9 +176,9 @@ export function leaderboardScreen(app: App): Screen {
       );
     }
     clear(pureSeg);
-    for (const pure of [false, true]) pureSeg.appendChild(seg(state.pure === pure, pure ? '纯净模式' : '启用天赋', () => (state.pure = pure)));
+    for (const pure of [false, true]) pureSeg.appendChild(seg(state.pure === pure, pure ? t('ui.leaderboard.pure') : t('ui.leaderboard.talents'), () => (state.pure = pure)));
     clear(autoSeg);
-    for (const auto of [true, false]) autoSeg.appendChild(seg(state.auto === auto, auto ? '自动开波' : '手动开波', () => (state.auto = auto)));
+    for (const auto of [true, false]) autoSeg.appendChild(seg(state.auto === auto, auto ? t('ui.leaderboard.autoWave') : t('ui.leaderboard.manualWave'), () => (state.auto = auto)));
 
     const board = leaderKey(state.key, state.pure, state.auto);
     if (state.tab === 'ai') {
@@ -178,20 +196,24 @@ export function leaderboardScreen(app: App): Screen {
       return;
     }
     clear(table);
-    const list = p.leaderboard[board] ?? [];
+    const all = p.leaderboard[board] ?? [];
+    const hiddenAi = all.filter((e) => e.ai).length;
+    aiToggle.hidden = !hiddenAi;
+    aiToggleInput.checked = state.showAi;
+    const list = leaderView(all, state.showAi);
     if (list.length === 0) {
-      table.appendChild(h('div.empty-state', null, h('p', null, '还没有记录'), h('small.muted', null, '在无尽模式里撑过几波，成绩就会出现在这里。')));
+      table.appendChild(h('div.empty-state', null, h('p', null, t('ui.leaderboard.noRecord')), h('small.muted', null, t('ui.leaderboard.noRecordHint'))));
     } else {
       table.appendChild(
         h(
           'div.lb-row.lb-head',
           null,
           h('span', null, '#'),
-          h('span', null, '得分'),
-          h('span', null, '波数'),
-          h('span.hide-narrow', null, '地图'),
-          h('span.hide-narrow', null, '日期'),
-          h('span', null, '种子'),
+          h('span', null, t('ui.leaderboard.col.score')),
+          h('span', null, t('ui.leaderboard.col.wave')),
+          h('span.hide-narrow', null, t('ui.leaderboard.col.map')),
+          h('span.hide-narrow', null, t('ui.leaderboard.col.date')),
+          h('span', null, t('ui.leaderboard.col.seed')),
         ),
       );
       list.forEach((e, i) => {
@@ -200,17 +222,17 @@ export function leaderboardScreen(app: App): Screen {
             `div.lb-row${i < 3 ? `.top${i + 1}` : ''}`,
             null,
             h('span.rank', null, String(i + 1)),
-            h('span.score', null, fmtNum(e.score)),
-            h('span', null, `${e.wave} 波`, h(`small.wave-mode${e.auto ? '.auto' : ''}`, null, e.auto ? '自动' : '手动')),
+            h('span.score', null, fmtNumber(Math.round(e.score)), e.ai ? h('small.badge.ai-assist-badge', { title: t('ui.assist.badgeTip') }, t('ui.assist.badge')) : null),
+            h('span', null, t('ui.leaderboard.waves', { n: e.wave }), h(`small.wave-mode${e.auto ? '.auto' : ''}`, null, e.auto ? t('ui.leaderboard.auto') : t('ui.leaderboard.manual'))),
             h('span.hide-narrow', null, MAP_META[e.map]?.name ?? e.map),
-            h('span.hide-narrow.muted', null, e.date),
+            h('span.hide-narrow.muted', null, fmtDay(e.date)),
             h(
               'button.seed-btn',
               {
-                title: '复制种子',
+                title: t('ui.leaderboard.copySeed'),
                 onclick: async () => {
                   const ok = await copyText(e.seed);
-                  app.toast(ok ? `种子 ${e.seed} 已复制` : '复制失败', ok ? 'good' : 'warn');
+                  app.toast(ok ? t('ui.leaderboard.seedCopied', { seed: e.seed }) : t('ui.leaderboard.copyFailed'), ok ? 'good' : 'warn');
                 },
               },
               e.seed || '—',
@@ -223,13 +245,15 @@ export function leaderboardScreen(app: App): Screen {
 
   const best = p.customBest;
   customCard.append(
-    h('h3', null, '自定义 · 个人最佳'),
-    best ? h('p', null, `${fmtNum(best.score)} 分 · ${best.wave} 波 · ${best.date}`) : h('p.muted', null, '还没有记录'),
+    h('h3', null, t('ui.leaderboard.customBest')),
+    best
+      ? h('p', null, t('ui.leaderboard.customBestLine', { score: fmtNumber(best.score), wave: best.wave, date: fmtDay(best.date) }))
+      : h('p.muted', null, t('ui.leaderboard.noRecord')),
   );
   const el = h(
     'div.screen.leaderboard-screen',
     null,
-    screenHeader(app, '排行榜'),
+    screenHeader(app, t('ui.leaderboard.title')),
     h('div.screen-body', null, modeTabs, nickBar, filterSection, dailySection, customCard),
   );
   render();

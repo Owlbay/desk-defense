@@ -1,6 +1,7 @@
 /**
  * AI 对局结算用的纯函数（无 DOM、不引用渲染层，便于单测）：兜底占比、上传标记、能否进 AI 榜。
  */
+import { t } from '../../i18n';
 import { usageTotal, type TokenUsage } from '../../agent/types';
 import type { RunOptions } from '../../core/types';
 import type { AgentMeta } from '../../shared/leaderboard';
@@ -38,10 +39,10 @@ export function agentMetaOf(s: AgentMetaInput): AgentMeta {
 
 /** 这局能不能进 AI 榜；不能时返回原因 */
 export function aiBoardBlocker(s: { agent: { role: string }; opts: RunOptions; takenOver: boolean; decisions: number }): string | null {
-  if (s.agent.role !== 'player') return '军师模式是你自己在玩，成绩不进 AI 榜';
-  if (s.takenOver) return '中途由你接管过，这局不进 AI 榜';
-  if (s.opts.mode !== 'endless') return '只有无尽模式的成绩可以进 AI 榜';
-  if (!isEligibleRun(s.opts)) return '这局的开局参数不参与排行';
-  if (s.decisions <= 0) return 'AI 还没做出任何决策';
+  if (s.agent.role !== 'player') return t('agent.setup.block.advisor');
+  if (s.takenOver) return t('agent.setup.block.takenOver');
+  if (s.opts.mode !== 'endless') return t('agent.setup.block.endlessOnly');
+  if (!isEligibleRun(s.opts)) return t('agent.setup.block.params');
+  if (s.decisions <= 0) return t('agent.setup.block.noDecisions');
   return null;
 }

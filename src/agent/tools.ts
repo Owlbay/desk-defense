@@ -8,6 +8,7 @@
  *
  * 本文件不依赖任何 LLM SDK：Claude 适配器、MCP 服务、脚本策略都复用这里的定义与执行器。
  */
+import { SOURCE_LOCALE, withLocale } from '../i18n';
 import {
   TOWER_IDS, type Branch, type Command, type IWorld, type SkillId, type TargetMode, type TowerId,
 } from '../core/types';
@@ -16,7 +17,8 @@ import { asciiMap, renderObservation } from './observation';
 import { catalogEntry, catalogText, type CatalogSection } from './prompts';
 import { compactObservation, terrainMap, type CompactObs } from './compact';
 import { coverageLines, groundRoutes, fmtWp, previewChanges, previewText, routeSummary } from './routes';
-import { Planner, type IntentOutcome, type PlannerState } from './planner';
+import { COMBO_PAIRS, Planner, type IntentOutcome, type PlannerState } from './planner';
+import { PURPOSES, type Purpose } from './purpose';
 import type { AgentRole, CommandSink, ToolResult } from './types';
 
 // ───────────────────────── Schema ─────────────────────────
@@ -187,7 +189,7 @@ export const ACT_TO_LEGACY: Record<string, string> = {
 };
 export const ACT_KINDS_V1 = [...Object.keys(ACT_TO_LEGACY), 'end_turn'];
 /** 高层意图（由 planner.ts 挑具体格子 / 目标执行） */
-export const INTENT_KINDS = ['maze', 'build_near', 'upgrade_best', 'anti_air', 'spend', 'save'] as const;
+export const INTENT_KINDS = ['maze', 'build_near', 'upgrade_best', 'anti_air', 'spend', 'save', 'combo', 'support', 'economy', 'reclaim', 'rebuild_maze'] as const;
 export const ACT_KINDS = [...INTENT_KINDS, ...ACT_KINDS_V1];
 
 /** 每种动作用到的字段（其余字段忽略） */
@@ -217,7 +219,9 @@ const ACTION: ObjectSchema = obj({
   do: str('action', ACT_KINDS),
   ...ACTION_FIELDS,
   style: str('maze style', ['serpentine', 'funnel']), budget: int('maze / upgrade_best: max gold'),
-  target: str('build_near: route|route:<spawner>|early|exit|air|airline:<spawner>|chokepoint'), count: int('how many (build_near / upgrade_best / anti_air)'),
+  target: str('build_near: route|route:<spawner>|early|exit|air|airline:<spawner>|chokepoint|seg:x1,y1-x2,y2; reclaim: useless_walls|idle_towers|cells'), count: int('how many (build_near / upgrade_best / anti_air / economy)'),
+  purpose: str('build_near instead of tower', PURPOSES), pair: str('combo', COMBO_PAIRS),
+  near: str('combo: like target'), replaceWith: str('reclaim: tower or purpose for freed cells'), max: int('reclaim max'), dry: { type: 'boolean', description: 'reclaim: list only' },
   metric: str('upgrade_best metric', ['dps', 'coverage']), route: str('spawner id (maze funnel / anti_air line)'),
   reserve: int('spend: keep this much gold'), focus: str('spend focus', ['balanced', 'towers', 'upgrades', 'maze']), until: int('save: target gold'),
 }, ['do']);
@@ -229,7 +233,7 @@ const ACTION: ObjectSchema = obj({
 export const SLIM_TOOLS: AgentToolDef[] = [
   {
     name: 'act', kind: 'action', roles: P,
-    description: 'Run actions in order (each validated, per-action results); ONE call per decision incl. end. Intents (planner picks cells): maze [style,budget] | build_near tower [target,count] | upgrade_best [count,metric,budget] | anti_air [route,count] | spend [reserve,focus] | save until. Low-level: place tower,x,y (auto-moved if blocked) | upgrade/evolve/sell uid | branch uid,branch | target uid,mode | cast_skill skill (+x,y/uid/axis,index/spawner) | tower_ability uid (+args) | collect | choose_perk id | choose_crate option | demolish id | start_wave.',
+    description: 'Run actions in order (each validated, per-action results); ONE call per decision incl. end. Intents (planner picks cells): maze | build_near tower|purpose | upgrade_best | anti_air | spend | save | combo pair | support | economy | reclaim target | rebuild_maze. Low-level: place tower,x,y (auto-moved if blocked) | upgrade/evolve/sell uid | branch uid,branch | target uid,mode | cast_skill skill (+x,y/uid/axis,index/spawner) | tower_ability uid (+args) | collect | choose_perk id | choose_crate option | demolish id | start_wave.',
     input_schema: obj({
       actions: { type: 'array', items: ACTION, description: 'ordered actions (max 16)' },
       end: { ...MEMO, description: 'finish the turn; fields update your MEMO' },
@@ -474,6 +478,11 @@ function describeOk(w: IWorld, name: string, cmd: Command, before: { gold: numbe
  * 执行一个工具。永不抛异常：参数错误 / 指令被拒都以 ok:false + 可读原因返回，模型可以据此改正。
  */
 export function executeTool(ctx: ToolContext, name: string, rawInput: unknown): ToolResult {
+  // AI 看到的目录 / 原因 / 观察文本始终用源语言（简体中文），与玩家界面语言无关
+  return withLocale(SOURCE_LOCALE, () => executeToolInner(ctx, name, rawInput));
+}
+
+function executeToolInner(ctx: ToolContext, name: string, rawInput: unknown): ToolResult {
   const def = TOOL_BY_NAME[name];
   if (!def) return { ok: false, text: `ERROR unknown tool "${name}"` };
   if (!def.roles.includes(ctx.role)) return { ok: false, text: `ERROR tool ${name} is not available for role ${ctx.role}` };
@@ -627,9 +636,20 @@ function runIntent(p: Planner, a: Record<string, unknown>): IntentOutcome {
     case 'maze': return p.maze((ss(a.style) as 'serpentine' | 'funnel' | undefined) ?? 'serpentine', nn(a.budget), ss(a.route));
     case 'build_near': {
       const t = ss(a.tower) as TowerId | undefined;
-      if (!t) return { ok: false, text: 'build_near needs tower', spent: 0, done: 0 };
+      const pu = ss(a.purpose);
+      if (!t && pu && (PURPOSES as readonly string[]).includes(pu)) return p.buildPurpose(pu as Purpose, ss(a.target) ?? '', nn(a.count) ?? 1);
+      if (!t) return { ok: false, text: `build_near needs tower or purpose (${PURPOSES.join('|')})`, spent: 0, done: 0 };
       return p.buildNear(t, ss(a.target) ?? '', nn(a.count) ?? 1);
     }
+    case 'combo': return p.combo(ss(a.pair) ?? '', ss(a.near) ?? ss(a.target) ?? 'route');
+    case 'support': return p.support();
+    case 'economy': return p.economy(nn(a.count) ?? 1);
+    case 'reclaim': {
+      const tg = ss(a.target) ?? 'useless_walls';
+      if (!['useless_walls', 'idle_towers', 'cells'].includes(tg)) return { ok: false, text: 'reclaim target: useless_walls|idle_towers|cells', spent: 0, done: 0 };
+      return p.reclaim(tg as 'useless_walls' | 'idle_towers' | 'cells', nn(a.max) ?? nn(a.count) ?? 4, ss(a.replaceWith), a.dry === true);
+    }
+    case 'rebuild_maze': return p.rebuildMaze((ss(a.style) as 'serpentine' | 'funnel' | undefined) ?? 'serpentine', ss(a.route), nn(a.budget));
     case 'upgrade_best': return p.upgradeBest(nn(a.count) ?? 1, (ss(a.metric) as 'dps' | 'coverage' | undefined) ?? 'dps', nn(a.budget));
     case 'anti_air': return p.antiAir(ss(a.route), nn(a.count) ?? 1);
     case 'spend': return p.spend(Math.max(0, nn(a.reserve) ?? 0), (ss(a.focus) as 'balanced' | 'towers' | 'upgrades' | 'maze' | undefined) ?? 'balanced');
@@ -682,8 +702,9 @@ function executeAct(ctx: ToolContext, input: In): ToolResult {
       const t = m.input.tower as TowerId;
       const x = m.input.x as number;
       const y = m.input.y as number;
-      const why = w.canPlace(t, x, y).reason ?? '';
-      const alt = getPlanner().relocate(t, x, y, why);
+      const chk = w.canPlace(t, x, y);
+      const why = chk.reason ?? '';
+      const alt = getPlanner().relocate(t, x, y, chk.code ?? '');
       if (alt) {
         const r2 = executeTool(ctx, 'place_tower', { tower: t, x: alt.x, y: alt.y });
         if (r2.ok) r = { ...r2, text: `MOVED ${x},${y} (${why}) → ${r2.text}` };
