@@ -1,105 +1,163 @@
+<div align="center">
+
 # 书桌防线 · Desk Defense
 
-迷宫式塔防游戏，题材是书桌，几何扁平风格。Web 优先，手机、平板、电脑都能玩。
+**在书桌上用文具摆迷宫的塔防游戏，也可以让大模型来玩。**
 
-> 当前状态：**可玩版本**。战役（3 章）、无尽（简单到魔境 X）、自定义模式、12 座塔、16 种敌人和 Boss、10 个主动技能、20 个局内增益、永久天赋、存档和排行榜都已实现。
+[![在线试玩](https://img.shields.io/badge/%E5%9C%A8%E7%BA%BF%E8%AF%95%E7%8E%A9-jjjj.games-d4a73c)](https://jjjj.games)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![认可 LINUX DO](https://img.shields.io/badge/%E8%AE%A4%E5%8F%AF-LINUX%20DO-1f6feb)](https://linux.do/)
+
+[在线试玩](https://jjjj.games) · [介绍页](https://jjjj.games/about) · [玩家指南](docs/guide/README.md) · [AI 参战](docs/10-Agent参战.md) · [参与开发](CONTRIBUTING.md)
+
+<img src="public/og.png" alt="书桌防线" width="720">
+
+</div>
+
+## 这是什么
+
+书桌防线是一款迷宫式塔防游戏。棋盘是一张 12×14 的书桌，铅笔、订书机、台灯、圆规这些文具就是塔；每座塔（包括墙）都会挡路，所以怎么摆塔，就是怎么修迷宫。
+
+浏览器打开就能玩，手机、平板、电脑都支持，也可以装成 PWA，或者打包成 iOS / Android / 桌面应用。不用注册，进度保存在本机。
+
+除了自己玩，还可以接入大模型：让 AI 替你打、给你出主意、给你出题，或者让两个模型对打。
+
+<img src="docs/images/menu.jpg" alt="开始菜单" width="720">
+
+## 玩法内容
+
+- **3 种模式**：战役（3 章）、无尽（简单、普通、困难、噩梦、魔境 I～X）、自定义；另有每日挑战。
+- **12 座塔、16 种敌人和 Boss、9 种精英词缀**：塔从 Lv1 升到 Lv10，Lv10 选传奇分支 A / B，之后还能进化到 ★3 解锁主动能力。
+- **10 个主动技能、20 个局内增益、永久天赋**，相邻塔有组合技。
+- **动态战场**：多点出怪、空降出生点、随机事件、随机杂物布局，每局地形都不一样。
+- **全服排行榜**：无尽、每日、战役三个榜，外加 AI 榜和 AI 对战榜。核心逻辑完全确定性，成绩带完整指令日志，可以回放复现。
+- **四种语言**：简体中文、繁体中文、English、日本語；浅色 / 深色主题。
+- **原创美术和配乐**：塔和敌人都是 SVG 几何扁平风，背景音乐由 WebAudio 实时合成（4 套曲风）。
+
+## AI 参战：让大模型来玩
+
+主菜单「AI 参战」里有四种玩法：
+
+| 玩法 | 说明 |
+|---|---|
+| AI 玩家 | 模型从第 1 波开始全程操作，你在旁边看它的思路和每一步操作 |
+| AI 军师 | 你自己玩，模型只给建议，可以一键执行 |
+| AI 出题 | 模型扮演进攻方，每波开始前改写下一波的敌人，你来防守 |
+| AI 对战 | 两个模型同局对抗：一个出题进攻，一个建塔防守 |
+
+- **模型来源**：Claude、OpenAI、Gemini、DeepSeek 等托管 API，OpenAI 兼容的中转服务，本机的 Ollama / LM Studio，或者不需要 Key 的离线演示。
+- **中心策略**：开局可以指定「铅笔流」「范围流」「光束流」等打法，或者让 AI 自己选，也能中途用一句话改。
+- **随时下指令**：对局中可以直接对 AI 说「多造防空」「先存钱」「把迷宫拉长」。
+- **看得见的思路**：侧栏实时显示每次发给模型的局面、模型的思考、调用的工具和操作结果。
+- **公平**：AI 的每个操作都和玩家点击走同一套校验，不能作弊；AI 成绩单独排名，不混进真人榜。
+- **省钱**：上下文增量发送、前缀缓存、预算分级；按模型显示思考档位与费用估算（价格数据来自 [modelinfo.dev](https://modelinfo.dev)）。
+- **Key 的安全**：API Key 默认只存在内存里，可选存到 sessionStorage（关标签页即清除）；只从你的浏览器直连模型服务，**不会发到本站服务器**。
+
+除了网页，也可以用命令行或 MCP 接入：
+
+```bash
+npm run agent:play -- --provider scripted --max-waves 10
+```
+
+```bash
+npm run mcp
+```
+
+`agent:play` 在终端里无头跑一整局并输出报告（上面这条用内置策略，不需要 Key；全部参数见 `scripts/agent-play.ts` 开头）；`mcp` 启动 MCP 服务，Claude Code、Claude Desktop 等客户端可以直接当玩家。详见 [文档 10](docs/10-Agent参战.md)。
 
 ## 快速开始
 
-需要 Node.js 22.22 或更高版本。参与开发前请先读 **[CONTRIBUTING.md](CONTRIBUTING.md)**（目录约定、确定性、国际化、主题、测试与部署）。
+需要 Node.js 22.22 或更高版本。
 
 ```bash
-npm install
+git clone https://github.com/Owlbay/desk-defense.git
+```
+
+```bash
+cd desk-defense && npm install
 ```
 
 ```bash
 npm run dev
 ```
 
-打开终端里显示的地址即可游玩。手机和电脑在同一个局域网时，用手机打开终端里的 Network 地址，就可以在手机上玩。
+打开终端里显示的地址就能玩。手机和电脑在同一个局域网时，用手机打开终端里的 Network 地址，就能在手机上玩。
 
 | 命令 | 作用 |
 |---|---|
-| `npm run dev` | 启动开发服务器（热更新） |
+| `npm run dev` | 开发服务器（热更新） |
 | `npm run build` | 类型检查并打包到 `dist/`（含 PWA，可以部署到任意静态托管） |
 | `npm run preview` | 本地预览打包结果 |
-| `npm test` | 运行全部单元测试（核心逻辑、存档、回放一致性） |
 | `npm run check` | 提交前检查：类型检查、ESLint、Prettier、单元测试（CI 同款） |
-| `npm run sim -- --scenario calib` | 平衡模拟：用机器人策略跑各难度，报告输出到 `scripts/out/report.html` |
-| `npm run gallery` | 重新生成美术预览页 `art/gallery.html` |
-| `npm run cap:ios` / `npm run cap:android` | 构建并同步到 Capacitor 原生工程，再用 Xcode / Android Studio 打开（见下方「原生应用打包」） |
-| `npm run tauri:dev` / `npm run tauri:build` | Tauri 桌面窗口开发 / 打出当前系统的安装包 |
+| `npm run dev:api` | 打包后用 wrangler 在本地起带排行榜接口的完整站点 |
+| `npm run sim -- --scenario calib` | 平衡模拟：用机器人跑各难度，报告在 `scripts/out/report.html` |
+| `npm run agent:eval` | AI 评测：同一批种子对比不同模型 / 配置 / 中心策略 |
+| `npm run cap:ios` / `npm run cap:android` | 构建并同步到 Capacitor 原生工程 |
+| `npm run tauri:dev` / `npm run tauri:build` | Tauri 桌面版开发 / 打包 |
 
-### 原生应用打包
+## 自己部署
 
-同一份 `dist/` 套原生壳，详见 [文档 07 §2.3](docs/07-技术与多平台.md)。
+纯静态部分（`dist/`）可以放到任何静态托管。全服排行榜需要 Cloudflare Pages Functions + D1：
 
-- **iOS**：需要 macOS + Xcode。`npm run cap:ios` 后在 Xcode 里选模拟器或真机运行。
-- **Android**：需要 Android Studio（Android SDK）和 JDK 21。`npm run cap:android` 后在 Android Studio 里运行；命令行可用 `npm run cap:sync && (cd android && ./gradlew assembleDebug)`。
-- **桌面（Windows / macOS / Linux）**：需要 Rust 工具链（1.77.2+）及 Tauri 的系统依赖。`npm run tauri:dev` 开发，`npm run tauri:build` 输出安装包到 `src-tauri/target/release/bundle/`。
-- App Store / Google Play / Steam 等开发者账号与签名证书由项目所有者决定，仓库里不含签名配置。
+1. 创建数据库：`npx wrangler@4 d1 create desk-defense`，把输出的 `database_id` 填进 `wrangler.toml`。
+2. 建表：`npm run db:migrate:remote`。
+3. 设置机密：`npx wrangler@4 pages secret put HASH_SALT --project-name desk-defense`（随机长串，用来哈希 IP 和设备 ID）。
+4. 部署：`npm run deploy`。
 
-## 玩家指南
+没有绑定数据库时，游戏显示「在线功能不可用」，其他功能照常。详见 [文档 12](docs/12-全服排行榜.md)。
 
-面向玩家的完整游戏说明（新手入门、模式、塔与敌人图鉴、组合流派、技能天赋、随机事件、进阶技巧、常见问题）见 **[docs/guide/](docs/guide/README.md)**。
-
-- **游戏内图鉴**：主菜单 →「图鉴 / 玩法」（`src/ui/screens/guide.ts` + `src/ui/guide/`，进入页面时才动态加载）。玩法、防御塔、敌人与 Boss、词缀、技能 / 增益 / 天赋、组合技与流派、AI 参战、常见问题，可搜索；支持深链，例如 <https://jjjj.games/#guide/tower/pencil>。塔的数值在浏览器里用临时对局实时读出，名称与说明来自 `*_META`，跟随界面语言。
-- **介绍页**：<https://jjjj.games/about>（`about.html` + `src/about/`，独立的 Vite 入口，不加载游戏代码）。四种语言（`?lang=zh-CN|zh-TW|en|ja`），浅色 / 深色。简体中文直接写在 `about.html` 里，其它语言取 `src/i18n/locales/<语言>/guide.ts` 的 `guide.about.*`；改文案时两处一起改（`tests/guide/guide-i18n.test.ts` 会校验）。
-- **分享图**：`public/og.png` 由 `node scripts/gen-og.mjs` 生成（源文件 `scripts/og/og.svg`）；`public/robots.txt`、`public/sitemap.xml` 为静态文件。
+原生应用（iOS / Android / 桌面）用同一份 `dist/` 套壳，步骤见 [文档 07 §2.3](docs/07-技术与多平台.md)。仓库里不含任何签名配置和商店账号。
 
 ## 代码结构
 
 | 目录 | 内容 |
 |---|---|
-| `src/core/` | 纯游戏逻辑（不依赖浏览器）：世界状态、寻路、战斗、波次、技能、增益 |
-| `src/config/` | 全部数值配置：塔、敌人、词缀、技能、增益、天赋、难度、地图、战役波次 |
+| `src/core/` | 纯游戏逻辑（不依赖浏览器，完全确定性）：世界状态、寻路、战斗、波次、技能、增益 |
+| `src/config/` | 全部数值配置：塔、敌人、词缀、技能、增益、天赋、难度、地图、战役 |
 | `src/render/` | Phaser 棋盘渲染、特效、棋盘上的触摸和鼠标输入 |
-| `src/ui/` | HTML 界面：菜单、局内状态栏、塔栏、信息面板、弹窗、音效 |
-| `src/meta/` | 存档、星星和墨水、解锁规则、排行榜、中途存档回放 |
-| `src/game/` | 运行循环（Session）和界面交互状态（UiStore） |
-| `scripts/` | 平衡模拟、机器人策略、美术预览页生成 |
-| `tests/` | 单元测试 |
+| `src/ui/` | HTML 界面：菜单、局内 HUD、图鉴、AI 侧栏、配乐 |
+| `src/agent/` | AI 参战：观测、意图规划器、工具、中心策略、各家模型适配 |
+| `src/meta/` | 存档、进度、解锁、排行榜、回放 |
+| `src/shared/` | 前端和服务端共用的校验与编码 |
+| `functions/` | Cloudflare Pages Functions（`/api/*` 排行榜接口） |
+| `migrations/` | D1 数据库迁移 |
+| `scripts/` | 平衡模拟、机器人、AI 评测、MCP 服务、文档和美术生成 |
+| `tests/` | 单元测试（500+ 个，不需要网络） |
+| `art/` | SVG 美术源文件（`art/gallery.html` 预览全部素材） |
 
+技术栈：TypeScript、Phaser 3、Vite、Vitest；Cloudflare Pages + D1；Capacitor、Tauri。
 
 ## 设计文档
 
 | 章节 | 内容 |
 |---|---|
-| [01 概述与玩法](docs/01-概述与玩法.md) | 核心循环、网格与寻路、操作方式（鼠标和触摸）、界面布局、新手引导 |
-| [02 防御塔](docs/02-防御塔.md) | 12 座塔（含专职防空的苍蝇拍）；Lv1–10 与 4 种形态；经验升级和金币升级；出售返还；相邻加成与组合技 |
+| [01 概述与玩法](docs/01-概述与玩法.md) | 核心循环、网格与寻路、操作方式、界面布局、新手引导 |
+| [02 防御塔](docs/02-防御塔.md) | 12 座塔、Lv1–10 与 4 种形态、升级与出售、组合技 |
 | [03 敌人](docs/03-敌人.md) | 12 种普通敌人、4 个 Boss、9 种精英词缀 |
-| [04 模式与难度](docs/04-模式与难度.md) | 战役、无尽、自定义；简单到魔境 X 的难度参数；成长公式；波次生成 |
-| [05 技能与能力](docs/05-技能与能力.md) | 10 个主动技能、20 个局内增益、永久天赋 |
-| [06 美术与建模](docs/06-美术与建模.md) | 建模方式对比、调色板、SVG 图层规范、动画、素材生产流程 |
-| [07 技术与多平台](docs/07-技术与多平台.md) | Phaser + TypeScript 架构、多平台路线、性能预算、存档、里程碑 |
-| [09 动态战场](docs/09-动态战场.md) | 多点出怪、空降出生点、随机事件、自动波次、随机地形 |
+| [04 模式与难度](docs/04-模式与难度.md) | 战役、无尽、自定义；难度参数、成长公式、波次生成 |
+| [05 技能与能力](docs/05-技能与能力.md) | 主动技能、局内增益、永久天赋 |
+| [06 美术与建模](docs/06-美术与建模.md) | 调色板、SVG 图层规范、动画、素材流程 |
+| [07 技术与多平台](docs/07-技术与多平台.md) | 架构、多平台路线、性能预算、存档 |
+| [08 实现约定](docs/08-实现约定.md) | core / render / ui 的边界与接口 |
+| [09 动态战场](docs/09-动态战场.md) | 多点出怪、空降、随机事件、自动波次、随机地形 |
+| [10 Agent 参战](docs/10-Agent参战.md) | 大模型接入、提示与上下文、意图规划器、评测、中心策略 |
 | [11 传奇进化](docs/11-传奇进化.md) | 传奇分支与进化 |
-| [12 全服排行榜](docs/12-全服排行榜.md) | 全服排行榜 |
-| [玩家指南](docs/guide/README.md) | 面向玩家的完整说明与自动生成的[数据参考](docs/guide/数据/README.md) |
-| [08 实现约定](docs/08-实现约定.md) | core / render / ui 三个模块的边界与接口 |
+| [12 全服排行榜](docs/12-全服排行榜.md) | 接口、防作弊、回放复核、部署 |
+| [玩家指南](docs/guide/README.md) | 面向玩家的完整说明与自动生成的数据表 |
 
-## 已确定的设计决策
+## 参与贡献
 
-| 决策 | 结论 |
-|---|---|
-| 题材 / 风格 | 书桌题材；几何扁平风 |
-| 技术 | TypeScript + Phaser 3 + Vite，HTML 界面叠在画布上 |
-| 平台 | Web → PWA → Capacitor（iOS / Android）→ Tauri（桌面） |
-| 地图 | 12×14，所有平台通用 |
-| 无尽模式 | 有；难度分简单、普通、困难、噩梦、魔境 I～X；敌人数量和属性按可调比例成长；另有自定义模式 |
-| 出售 | 只返还一部分，等级越高返还越少（70% → 25%）；靠经验升上去的等级不计入投入 |
-| 塔的成长 | 打怪获得经验，升级较慢，最高到 Lv9；也可以直接花钱升级，经验进度会抵扣部分费用；Lv10 必须花钱并选择分支 |
-| 形态 | 草稿、精良、镀金、传奇（A / B 两个分支），外观各不相同 |
-| 主动技能 | 开局带 3 个，靠冷却使用 |
+欢迎提 Issue 和 Pull Request。开始之前请先读 [CONTRIBUTING.md](CONTRIBUTING.md)，里面有目录约定、确定性要求、国际化、测试与部署流程。提交前跑一遍 `npm run check`。
 
-## 美术素材
+报告 bug 时，最好附上种子（暂停菜单里可以复制）和难度；成绩自带回放，复现起来很快。
 
-在浏览器中打开 `art/gallery.html`，可以看到全部素材。增删 SVG 之后，运行下面的命令重新生成预览页：
+## 开源说明
 
-```bash
-npm run gallery
-```
+- **完整开源**：游戏客户端、服务端接口（`functions/`）、数据库迁移、美术 SVG 源文件、配乐生成代码、AI 评测脚本全部在这个仓库里，没有闭源部分。
+- **免费，不需要登录**：没有付费内容、没有广告、没有 AFF，也没有任何群组。
+- **隐私**：进度只存在本机。上传成绩时只带昵称和哈希过的设备标识；AI 成绩只显示模型名和思考档位，不显示你用的是哪家服务或中转。
+- **许可证**：[MIT](LICENSE)。
 
-## 后续可做
-- 原生应用：Capacitor（iOS / Android）与 Tauri（桌面）脚手架已就位（文档 07 §2.3），还差：原生壳里跳过 Service Worker、排行榜 API 指向 `https://jjjj.games` 并对原生壳 origin 放行 CORS；上架商店的账号与签名由项目所有者决定
-- 背景音乐已是 WebAudio 生成的原创配乐（菜单 / 布防 / 波次 / Boss / 胜负短乐句，`src/ui/music.ts`）；可以再加更多曲目变化，或换成录制的正式配乐
+## 社区
+
+本项目积极参与并认可 [LINUX DO](https://linux.do/) 社区。感谢佬友们的反馈和支持。
