@@ -1670,3 +1670,9 @@ html[lang='zh-TW'] .logo-zh {
     font-size: clamp(28px, 6vw, 44px);
   }
 }
+
+/* 信息面板内容超出可视高度时（手机竖屏常见），底部渐隐提示"还能往下滚"，避免被截断的按钮看起来像空白方块 */
+.g-info.is-scrollable:not(.at-end) {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+}

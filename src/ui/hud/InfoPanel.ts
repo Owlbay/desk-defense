@@ -72,15 +72,30 @@ export class InfoPanel {
   /** 最近一次花钱升级 / 进化成功的时间（用来区分经验升级） */
   private paidAt = 0;
   private locale = getLocale();
+  private markScroll: () => void = () => undefined;
 
   constructor(private ctx: GameCtx) {
     this.body = h('div.info-body');
     this.el = h('div.infopanel', { attrs: { 'aria-live': 'off' } }, this.body);
+    // 内容超出可视高度时打标记，样式据此在底部渐隐，提示还能往下滚动
+    const markScroll = (this.markScroll = (): void => {
+      const el = this.el;
+      const scrollable = el.scrollHeight > el.clientHeight + 4;
+      el.classList.toggle('is-scrollable', scrollable);
+      el.classList.toggle('at-end', !scrollable || el.scrollTop + el.clientHeight >= el.scrollHeight - 4);
+    });
+    this.el.addEventListener('scroll', markScroll, { passive: true });
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(markScroll);
+      ro.observe(this.el);
+      ro.observe(this.body);
+    }
   }
 
   /** 选中塔信息（null 时根据 build / 提示显示） */
   update(info: TowerInfo | null, buildOpt: BuildOption | null): void {
     this.render(info, buildOpt);
+    requestAnimationFrame(() => this.markScroll());
     // 给样式用：hint（空）/ build / tower / spawner / aim / abil / perk
     const kind = this.mode.split(':')[0] || 'hint';
     if (this.el.dataset.kind !== kind) this.el.dataset.kind = kind;
