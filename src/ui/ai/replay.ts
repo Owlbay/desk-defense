@@ -13,6 +13,8 @@ import { audio } from '../audio';
 import { fmtNum, h, setText } from '../dom';
 import { G } from '../icons';
 import { makeFeeder } from '../online/util';
+import { type DockHandle, mountDock } from './dock';
+import { DOCK_SPLIT_W, paneOf } from './dock-state';
 import { OpsRecorder, type TraceExportWithOps } from './ops';
 import { mountTracePanel, type TracePanelHandle } from './trace-panel';
 
@@ -53,6 +55,7 @@ export function openLocalReplay(
   let session: Session | null = null;
   let board: { destroy(): void } | null = null;
   let tp: TracePanelHandle | null = null;
+  let dock: DockHandle | null = null;
   let raf = 0;
   let closed = false;
   const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -63,6 +66,7 @@ export function openLocalReplay(
     cancelAnimationFrame(raf);
     document.removeEventListener('keydown', onKey, true);
     tp?.destroy();
+    dock?.destroy();
     try {
       board?.destroy();
     } catch {
@@ -76,7 +80,7 @@ export function openLocalReplay(
   const onKey = (e: KeyboardEvent): void => {
     e.stopPropagation();
     // 思路与请求面板里的输入框 / 按钮：按键留给它们（Esc 仍然退出回放）
-    if (e.key !== 'Escape' && e.target instanceof HTMLElement && e.target.closest('.tr-panel')) return;
+    if (e.key !== 'Escape' && e.target instanceof HTMLElement && e.target.closest('.tr-panel, .ai-dock')) return;
     if (e.key === 'Escape') {
       e.preventDefault();
       audio.play('click');
@@ -94,8 +98,29 @@ export function openLocalReplay(
   (app.root ?? document.body).appendChild(root);
   if (o.trace?.events?.length) {
     try {
+      // 与对局同一个 AI 侧栏（只有「思路与请求 / 操作解读」两页）
+      const present = (): void => {
+        if (!dock || !tp) return;
+        const st = dock.state();
+        const p = paneOf(st);
+        tp.present({
+          visible: p.pane === 'trace',
+          view: p.view === 'ops' ? 'ops' : p.view === 'split' ? 'split' : 'trace',
+          compact: st.mode === 'sheet' || st.width < DOCK_SPLIT_W,
+        });
+      };
+      dock = mountDock({
+        host: root,
+        anchor: () => stage,
+        tabs: ['trace', 'ops'],
+        subtitle: t('agent.replay.traceSubtitle'),
+        prefKey: 'desk-defense.ai.dock.replay.v1',
+        onChange: present,
+      });
+      const dk = dock;
       tp = mountTracePanel({
         host: root,
+        embed: dk.tracePane,
         anchor: () => stage,
         trace: AgentTrace.fromExport(o.trace),
         live: false,
@@ -105,7 +130,16 @@ export function openLocalReplay(
         ops: (o.trace as TraceExportWithOps).ops ? OpsRecorder.fromExport((o.trace as TraceExportWithOps).ops) : undefined,
         onHighlightCells: (cells) => ui.set({ aiFocusCells: cells?.length ? cells.map((c) => ({ cx: c.x, cy: c.y })) : null }),
       });
-      exitBtn.before(tp.toggle);
+      present();
+      // 顶栏的开关：打开 / 聚焦侧栏
+      const toggleText = h('span', null, t('agent.trace.toggle'));
+      const toggle = h<HTMLButtonElement>(
+        'button.btn.small.tr-toggle',
+        { attrs: { type: 'button', 'aria-controls': dk.el.id }, onclick: () => (audio.play('click'), dk.focus()) },
+        h('span.tr-live', { attrs: { 'aria-hidden': 'true' } }),
+        toggleText,
+      );
+      exitBtn.before(toggle);
       tp.setTickLimit(0);
     } catch (e) {
       console.error('[ai] trace panel failed to load', e);

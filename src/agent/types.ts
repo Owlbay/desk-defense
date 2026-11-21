@@ -21,7 +21,8 @@ export type DecisionReason =
   | 'boss_spawn' // Boss 出场
   | 'perk' // 增益三选一（世界已暂停）
   | 'crate' // 补给箱待选择
-  | 'leak'; // 本轮有漏怪（只作附加原因，不单独触发）
+  | 'leak' // 本轮有漏怪（只作附加原因，不单独触发）
+  | 'player'; // 玩家下了一次性指令（立即决策，绕过门控）
 
 export interface DecisionPoint {
   seq: number;
@@ -136,6 +137,8 @@ export interface DecisionRecord {
   /** end_turn 的备忘（下一次决策时会回显给模型） */
   note?: string;
   observationTokens: number;
+  /** 这次决策带上的玩家指令（「给 AI 下指令」）与 AI 的回应 */
+  instructions?: { id: number; text: string; kind: 'once' | 'standing'; ack?: string; ackCode?: string }[];
 }
 
 /** 内置机器人兜底（CLI 里接 scripts/bots 的 StrategyBot；浏览器里可接简单策略） */

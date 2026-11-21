@@ -66,6 +66,21 @@ export default {
   'guide.play.start.tips.4':
     'When you have gold to spare, keep about 400 in the bank before spending. That is 20 free gold in interest every wave.',
   'guide.play.start.tips.5': 'Save your skills for boss waves: Big Eraser gives the best value right after the Coffee Stain splits.',
+  'guide.play.maze.title': 'How to Build a Maze',
+  'guide.play.maze.intro':
+    'The best value is a **serpentine maze**: rows of walls split the board into lanes, with the gaps alternating left and right. Below is a 10-wide example: with no walls enemies walk 7 cells; with this layout they walk 25 (about ×3.6).',
+  'guide.play.maze.1':
+    '**One wall row, gap at one end**: fill a whole row with book walls (5 gold each) and leave a single gap at the far left or far right.',
+  'guide.play.maze.2':
+    "**Next row's gap on the other end**: leave one empty row between wall rows as a lane. With alternating gaps, enemies must cross the full width of every lane.",
+  'guide.play.maze.3':
+    '**Towers between lanes**: towers block paths like walls. Put them inside a wall row and enemies pass their range on the way there and back, so each tower hits twice.',
+  'guide.play.maze.4':
+    '**Start near the entrance and add rows downward**: short on gold? Build one or two rows first. In a run, “Route N cells (×R straight)” is shown next to the wave preview, and the placement preview marks “+M cells”.',
+  'guide.play.maze.5': 'Turn on “Show suggested maze” in Settings to faintly mark recommended wall spots planned for the current map.',
+  'guide.play.maze.legend': '**S** entrance · **X** homework · **#** book wall · **T** tower · **o** enemy route · **.** empty',
+  'guide.play.maze.why':
+    '**Why alternate the gaps?** If two rows have their gaps on the same side, enemies drop straight through and the walls are mostly wasted. Alternating forces them to walk every lane end to end, and towers in between get to hit them twice.',
 
   // ───────────── How to Play · Controls ─────────────
   'guide.play.controls.title': 'Controls',

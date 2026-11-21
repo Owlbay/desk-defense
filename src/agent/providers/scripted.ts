@@ -10,6 +10,7 @@ import { ENEMIES } from '../../config/enemies';
 import type { IWorld, TowerId } from '../../core/types';
 import { CellKind } from '../../core/types';
 import { comboState } from '../board';
+import { HOLD_INTENTS, instructionIntents, type InstructionRef } from '../instructions';
 import { enemyPurposes, type Purpose, PURPOSE_CORE } from '../purpose';
 import { executeTool } from '../tools';
 import { type DecisionReason, emptyUsage, type FallbackPolicy, type ToolResult } from '../types';
@@ -293,6 +294,88 @@ const rank = (id: string): number => {
   return i < 0 ? 99 : i;
 };
 
+/**
+ * 玩家指令（离线演示）：关键词 → 意图（instructions.ts instructionIntents），合成一次 act 执行，
+ * 回应写成 "P3 ok: …" / "P3 无法: …"（引擎从回复里按编号找回应）。
+ * 一次性指令全部执行；长期方针只执行持续性的（防空 / 存钱 / 范围 / 别动某边……，不含开波 / 拆墙 / 集火）。
+ */
+export async function scriptedInstructionTurn(
+  w: IWorld,
+  call: Call,
+  once: readonly InstructionRef[],
+  standing: readonly InstructionRef[],
+  think?: (line: string) => void,
+): Promise<{ hold: boolean; ack: string }> {
+  const s = w.state;
+  const say = (line: string): void => think?.(`${line}\n`);
+  const bossCells = s.bossUids
+    .map((u) => s.enemies.find((e) => e.uid === u))
+    .filter((e): e is NonNullable<typeof e> => !!e)
+    .map((e) => ({ x: Math.floor(e.x), y: Math.floor(e.y) }));
+  const skill = s.skills.find((k) => k.ready && k.target === 'circle')?.id;
+  const actions: Record<string, unknown>[] = [];
+  /** 每条一次性指令对应的动作下标 */
+  const owned = new Map<number, number[]>();
+  const keys = new Map<number, string[]>();
+  let hold = false;
+  const ONCE_ONLY = ['start_wave', 'reclaim', 'boss', 'maze', 'upgrade'];
+  for (const x of [...once, ...standing]) {
+    const intents = instructionIntents(x.text, { bossCells, skill });
+    keys.set(
+      x.id,
+      intents.map((i) => i.key),
+    );
+    const idx: number[] = [];
+    for (const it of intents) {
+      if (x.kind === 'standing' && ONCE_ONLY.includes(it.key)) continue;
+      if (HOLD_INTENTS.includes(it.key)) hold = true;
+      for (const a of it.actions) {
+        const k = JSON.stringify(a);
+        let j = actions.findIndex((b) => JSON.stringify(b) === k);
+        if (j < 0) {
+          j = actions.length;
+          actions.push(a);
+        }
+        idx.push(j);
+      }
+    }
+    if (x.kind === 'once') owned.set(x.id, idx);
+    say(
+      `玩家指令 P${x.id}${x.kind === 'once' ? '!' : ''}「${x.text}」→ ${intents.length ? intents.map((i) => i.key).join(', ') : '听不懂'}`,
+    );
+  }
+  let lines: string[] = [];
+  if (actions.length) {
+    const r = await call('act', { actions });
+    lines = r.text.split('\n');
+  }
+  const acks: string[] = [];
+  for (const x of once) {
+    const k = keys.get(x.id) ?? [];
+    const idx = owned.get(x.id) ?? [];
+    if (!k.length) {
+      acks.push(`P${x.id} 无法: 离线演示只听得懂 防空 / 集火 Boss / 存钱 / 拉长迷宫 / 范围伤害 / 拆墙 / 别动某边 / 开波 / 升级`);
+      continue;
+    }
+    if (!idx.length) {
+      // 限制类（存钱 / 别动）或没有 Boss 可集火
+      const why =
+        k.includes('boss') && !bossCells.length
+          ? '无法: 场上现在没有 Boss'
+          : k.includes('boss') && !skill
+            ? '无法: 没有就绪的范围技能'
+            : 'ok: 这回合不再建新塔';
+      acks.push(`P${x.id} ${why}`);
+      continue;
+    }
+    const res = idx.map((j) => lines.find((l) => l.startsWith(`${j + 1} `)) ?? '');
+    const good = res.filter((l) => /^\d+ OK/.test(l));
+    const first = (good[0] ?? res[0] ?? '').replace(/^\d+ \w+\s*/, '').slice(0, 80);
+    acks.push(`P${x.id} ${good.length ? 'ok' : '无法'}: ${k.join('+')}${first ? ` — ${first}` : ''}`);
+  }
+  return { hold, ack: acks.join(' | ') };
+}
+
 /** 作为 LLMProvider：所有动作经 ctx.callTool（记录、realtime 时间推进与模型完全一致） */
 export class ScriptedProvider implements LLMProvider {
   readonly id = 'scripted';
@@ -334,9 +417,21 @@ export class ScriptedProvider implements LLMProvider {
       }
       return r;
     };
+    const think = tr ? (line: string) => tr({ k: 'thinking', n: 1, text: line }) : undefined;
+    // 玩家指令：按关键词先执行对应的意图；限制类（存钱 / 别动某边）这回合不再按规则花钱
+    const ins = ctx.instructions;
+    let hold = false;
+    let ack = '';
+    if (ins && (ins.once.length || ins.standing.length)) {
+      const r = await scriptedInstructionTurn(ctx.world, call, ins.once, ins.standing, think);
+      hold = r.hold;
+      ack = r.ack;
+    }
     const turn = this.o.tactics ? scriptedTacticsTurn : this.o.intents ? scriptedIntentTurn : scriptedTurn;
-    const note = await turn(ctx.world, call, ctx.point.reasons, tr ? (line) => tr({ k: 'thinking', n: 1, text: line }) : undefined);
-    tr?.({ k: 'text', n: 1, text: `本回合：${note}` });
+    const note = hold ? 'hold (玩家指令)' : await turn(ctx.world, call, ctx.point.reasons, think);
+    if (hold) think?.('玩家要求先别花钱 / 别动某一边：这回合不再按规则建塔。\n');
+    if (ack) out.text = ack;
+    tr?.({ k: 'text', n: 1, text: `${ack ? `${ack}\n` : ''}本回合：${note}` });
     tr?.({
       k: 'response',
       n: 1,

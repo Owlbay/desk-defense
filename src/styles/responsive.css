@@ -642,6 +642,10 @@ body {
     flex: 0 1 auto;
     min-width: 3em;
   }
+  .game[data-layout='landscape'][data-compact] .preview-head {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
   .game[data-layout='landscape'][data-compact] .preview-list {
     flex: 1 1 0;
     min-width: 0;

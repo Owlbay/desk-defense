@@ -7,6 +7,7 @@
  * 每次决策都是一段新对话（不跨决策累积历史）：上下文长度恒定，缓存命中靠固定前缀；跨决策的记忆只有结构化备忘（MEMO）。
  */
 import type { IWorld } from '../../core/types';
+import type { InstructionRef } from '../instructions';
 import type { AgentToolDef } from '../tools';
 import type { TraceSink } from '../trace';
 import type { AgentRole, DecisionPoint, TokenUsage, ToolResult } from '../types';
@@ -37,6 +38,8 @@ export interface DecisionContext {
   /** 思考等级覆盖（预算 ≥90% 时 'off'）；缺省用适配器配置 */
   thinking?: import('../config').ThinkingLevel;
   signal: AbortSignal;
+  /** 玩家指令（「给 AI 下指令」；文字已在 message 的「玩家指令」段里，这里给离线策略按关键词执行） */
+  instructions?: { once: readonly InstructionRef[]; standing: readonly InstructionRef[] };
   /** 只给进程内的确定性策略（scripted）读状态用；远程模型不会拿到 */
   world?: IWorld;
   /**

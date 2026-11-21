@@ -15,6 +15,7 @@ import { makeMidRun } from '../meta/midrun';
 import { type AgentModelConfig, agentTag, configErrorMessage, resolveConfig, saveableConfig, validateConfig } from './config';
 import { type BudgetChoice, type BudgetState, DecisionEngine } from './engine';
 import { createProvider } from './factory';
+import type { InstructionQueue } from './instructions';
 import { scriptedFallback } from './providers/scripted';
 import type { LLMProvider } from './providers/types';
 import { aiBoardKey } from './runner';
@@ -87,6 +88,7 @@ export { listModels, testConnection, type ModelListing, type ConnectionDiagnosti
 export * from './relay';
 export { connectBridge, originAllowed, makePairingCode, BRIDGE_PROTOCOL } from './bridge';
 export { scriptedFallback, ScriptedProvider, scriptedIntentTurn } from './providers/scripted';
+export * from './instructions';
 export type { LLMProvider, DecisionContext, DecisionOutcome } from './providers/types';
 export * from './trace';
 export { redactString, redactValue, redactJson, redactError, isSecretKey, REDACTED } from './redact';
@@ -127,6 +129,8 @@ export interface AgentControllerOptions {
   pollMs?: number;
   /** 思路与请求的缓冲区（缺省新建一个；UI 换模型重启控制器时传同一个，面板不断档） */
   trace?: AgentTrace;
+  /** 玩家指令队列（「给 AI 下指令」）：有等待中的一次性指令时立即决策（绕过最小间隔与门控） */
+  instructions?: InstructionQueue;
 }
 
 export interface AgentController {
@@ -193,7 +197,7 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
 
   const poll = () => {
     if (!engine || busy || userPaused || status === 'stopped' || status === 'error') return;
-    const reasons = detector.check(w);
+    const reasons = detector.check(w, !!o.instructions?.hasPending());
     if (!reasons) return;
     const point = detector.point(w, reasons);
     const pauseMode = (config.decision?.mode ?? 'pause') === 'pause';
@@ -254,6 +258,7 @@ export function createAgentController(o: AgentControllerOptions): AgentControlle
         onSuggest: (s) => emit({ type: 'suggestion', suggestion: s }),
         onUsage: (u, c) => emit({ type: 'usage', usage: u, costUsd: c }),
         onBudget: (b) => emit({ type: 'budget', budget: b }),
+        instructions: o.instructions,
         onBudgetExceeded: (b) =>
           new Promise<BudgetChoice>((resolve) => {
             // 暂停并询问：游戏停住（实时模式也停），等玩家选

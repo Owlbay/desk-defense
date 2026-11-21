@@ -25,6 +25,8 @@ export default {
   'ui.settings.waveManual': 'Manual',
   'ui.settings.fixedLayout': 'Fixed campaign layout',
   'ui.settings.fixedLayoutHint': 'Campaign clutter is placed in the same spots every run',
+  'ui.settings.mazeHint': 'Show suggested maze',
+  'ui.settings.mazeHintHint': 'Faintly marks suggested book-wall spots on the board (a serpentine maze planned for the current map)',
   'ui.settings.save': 'Save data',
   'ui.settings.tutorialReset': 'Reset tutorial',
   'ui.settings.tutorialResetDone': 'Tutorial reset. It will show again next time you start Chapter 1',
@@ -133,6 +135,7 @@ export default {
   'ui.coremeta.entry': 'Entry',
   'ui.coremeta.entryN': 'Entry {n}',
   'ui.render.loading': 'Loading…',
+  'ui.render.routeDelta': '{sign}{n} cell|{sign}{n} cells',
   'ui.render.immune': 'Immune',
   'ui.render.dodge': 'Dodge',
   'ui.render.inspiration': 'Eureka!',
@@ -295,6 +298,10 @@ export default {
   'ui.wave.earlyTip': 'Start early for bonus gold (Space)',
   'ui.wave.lastHint': 'Hold this wave to win!',
   'ui.wave.nextTitle': 'Next · Wave {n}',
+  'ui.wave.route': 'Route {n} cells (×{r} straight)',
+  'ui.wave.routeShort': '{n} cells ×{r}',
+  'ui.wave.routeTip':
+    'Length of the longest ground route in cells; ×R compares it with the shortest route when no walls are built. The longer the path, the longer your towers get to shoot.',
   'ui.wave.listSep': ', ',
   'ui.wave.groupElite': '{name} ×{n} ({elite} elite)',
   'ui.wave.groupEliteAffix': '{name} ×{n} ({elite} elite: {affixes})',
@@ -315,6 +322,20 @@ export default {
     'Sell towers you don’t need. Higher levels refund less (70% → 25%). Within 5 seconds of placing, you can undo for a full refund.',
   'ui.tutorial.ch1-boss.title': 'Boss incoming!',
   'ui.tutorial.ch1-boss.body': 'Tap {eraser}, then tap the board to deal heavy damage to enemies in the area.',
+  'ui.tutorial.ch1-maze-row.title': 'Maze ①: build a wall row',
+  'ui.tutorial.ch1-maze-row.body':
+    'Enemies always take the shortest path. Build a horizontal row of book walls along the glowing cells (5 gold each) and leave a gap at one end only. Enemies must walk all the way to that end to get through, so the route gets much longer. Tap a glowing cell to place a wall, or tap “Place suggested”.',
+  'ui.tutorial.ch1-maze-snake.title': 'Maze ②: gap on the other end',
+  'ui.tutorial.ch1-maze-snake.body':
+    "Leave one empty row, then build a second wall row with its gap at the opposite end. Enemies now walk from one end to the other between the rows. That's a serpentine maze: alternating gaps force them to cross the full width of every lane.",
+  'ui.tutorial.ch1-maze-lanes.title': 'Maze ③: towers between lanes',
+  'ui.tutorial.ch1-maze-lanes.body':
+    'Towers block paths just like walls. Put towers inside a wall row, between two lanes: enemies pass through their range on the way there and on the way back, so each tower hits them twice. Add more wall rows as gold allows.',
+  'ui.tutorial.mazeRoute': 'Route: {from} → {to} cells (×{r})',
+  'ui.tutorial.mazePlace': 'Place suggested',
+  'ui.tutorial.skip': 'Skip lesson',
+  'ui.tutorial.mazeNoGold': 'Not enough gold. Play a wave to earn some first.',
+  'ui.tutorial.mazePartial': 'Placed {n} wall, out of gold|Placed {n} walls, out of gold',
   'ui.tutorial.tip-event.title': 'Random events',
   'ui.tutorial.tip-event.body':
     'Events can happen on the desk: red is bad, green is good. The top banner warns you with a countdown. Tap coins and supply crates to collect them.',

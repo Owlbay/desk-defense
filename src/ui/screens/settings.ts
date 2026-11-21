@@ -108,6 +108,13 @@ export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLEle
     save(() => (app.store.get().settings.fixedLayout = fixedInput.checked));
   };
 
+  const mazeInput = h<HTMLInputElement>('input', { attrs: { type: 'checkbox' } });
+  mazeInput.checked = !!s.mazeHint;
+  mazeInput.onchange = () => {
+    audio.play('click');
+    save(() => (app.store.get().settings.mazeHint = mazeInput.checked));
+  };
+
   const motionInput = h<HTMLInputElement>('input', { attrs: { type: 'checkbox' } });
   motionInput.checked = s.reduceMotion;
   motionInput.onchange = () => {
@@ -206,6 +213,12 @@ export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLEle
         null,
         h('span', null, h('b', null, t('ui.settings.fixedLayout')), h('small.muted', null, t('ui.settings.fixedLayoutHint'))),
         h('span.switch', null, fixedInput, h('span.knob')),
+      ),
+      h(
+        'label.switch-row',
+        null,
+        h('span', null, h('b', null, t('ui.settings.mazeHint')), h('small.muted', null, t('ui.settings.mazeHintHint'))),
+        h('span.switch', null, mazeInput, h('span.knob')),
       ),
     ),
     // AI 助手：全局模型设置（对局里的 AI 按钮与「AI 参战」共用）；对局里从 AI 按钮的「配置模型…」打开

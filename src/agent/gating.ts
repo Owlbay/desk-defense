@@ -17,7 +17,7 @@ import type { DecisionReason } from './types';
 
 export type GatingLevel = 'aggressive' | 'normal' | 'off';
 
-const ALWAYS: DecisionReason[] = ['game_start', 'perk', 'crate', 'event_warn', 'drop_warn', 'boss_spawn', 'leak'];
+const ALWAYS: DecisionReason[] = ['game_start', 'perk', 'crate', 'event_warn', 'drop_warn', 'boss_spawn', 'leak', 'player'];
 
 /** 最便宜的"有用"花钱动作（攻击塔 / 升级 / 分支 / 进化；墙不算——墙要配合规划，留给建造阶段的正常决策） */
 export function cheapestUsefulAction(w: IWorld): number {

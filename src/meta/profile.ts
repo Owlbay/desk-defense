@@ -23,6 +23,8 @@ export interface Settings {
   reduceMotion: boolean;
   /** 界面主题：跟随系统 / 浅色 / 深色（见 src/ui/theme.ts） */
   theme: 'system' | 'light' | 'dark';
+  /** 显示推荐迷宫：在棋盘上淡淡标出迷宫规划建议的书本墙位置（默认关） */
+  mazeHint: boolean;
 }
 
 export interface LeaderEntry {
@@ -93,7 +95,17 @@ export interface Profile {
 export const DEFAULT_LOADOUT: SkillId[] = ['eraser_strike', 'bell', 'whiteout_zone'];
 
 export function defaultSettings(): Settings {
-  return { quality: 'high', sfx: 0.8, music: 0.5, lang: null, autoWave: null, fixedLayout: false, reduceMotion: false, theme: 'system' };
+  return {
+    quality: 'high',
+    sfx: 0.8,
+    music: 0.5,
+    lang: null,
+    autoWave: null,
+    fixedLayout: false,
+    reduceMotion: false,
+    theme: 'system',
+    mazeHint: false,
+  };
 }
 
 export function defaultProfile(): Profile {
@@ -207,6 +219,7 @@ export function normalizeProfile(raw: unknown): Profile {
     p.settings.autoWave = typeof s.autoWave === 'boolean' ? s.autoWave : null;
     p.settings.fixedLayout = s.fixedLayout === true;
     p.settings.reduceMotion = s.reduceMotion === true;
+    p.settings.mazeHint = s.mazeHint === true;
     p.settings.theme = s.theme === 'light' || s.theme === 'dark' ? s.theme : 'system';
     p.settings.lang = s.lang === 'zh' ? null : normalizeLocale(s.lang);
   }

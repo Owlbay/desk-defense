@@ -1,12 +1,22 @@
 import Phaser from 'phaser';
 
-import type { Command, EnemyState, PlaceCheck, SkillState, TowerId, TowerInfo, TowerState } from '../core/types';
+import {
+  CellKind,
+  type Command,
+  type EnemyState,
+  type PlaceCheck,
+  type SkillState,
+  type TowerId,
+  type TowerInfo,
+  type TowerState,
+} from '../core/types';
+import { routeDelta } from '../game/route-length';
 import { ui } from '../game/UiStore';
 import { t } from '../i18n';
 import type { RenderCtx } from './ctx';
 import type { FieldLayer } from './field';
 import { BOARD_H, BOARD_W, CELL, DEPTH } from './layout';
-import { B, C } from './palette';
+import { B, C, FONT, hex } from './palette';
 import { PartSet } from './parts';
 import { branchColor, dashed, towerAsset } from './towers';
 
@@ -37,7 +47,13 @@ export class BoardInput {
     preview: null as Path[] | null,
     curVersion: -1,
     current: [] as Path[],
+    /** 放下后主路线格数的变化（只在悬停格 / 地形变化时重算） */
+    delta: 0,
   };
+  /** 放置预览旁的「+M 格」（懒创建） */
+  private deltaText: Phaser.GameObjects.Text | null = null;
+  private deltaShown = '';
+  private deltaRes = 0;
   private off: (() => void)[] = [];
   /** 触摸：能力选敌第一次点中的敌人 */
   private pendingEnemy: number | null = null;
@@ -166,6 +182,11 @@ export class BoardInput {
   private click(cell: Cell | null, pos: { x: number; y: number }, touch: boolean): void {
     const s = ui.state;
     const session = this.ctx.session;
+    // 「给 AI 下指令」输入中：点棋盘 = 把格子 / 塔编号插进输入框
+    if (s.boardPick) {
+      if (cell) s.boardPick({ cx: cell.cx, cy: cell.cy, uid: this.towerAt(cell) });
+      return;
+    }
     // AI 玩家操作中：只能点选查看塔 / 空降纸箱，不发任何指令
     if (s.inspectOnly) {
       const uid = this.towerAt(cell);
@@ -228,6 +249,17 @@ export class BoardInput {
         this.cache.key = '';
       }
       return;
+    }
+    // 摆迷宫教学：点一下推荐的幽灵墙格就放一面书本墙（走正常放置指令，规则与金币照常）
+    if (cell && s.mazeLesson?.length) {
+      const g = session.world.state.grid;
+      const i = cell.cy * g.cols + cell.cx;
+      if (s.mazeLesson.includes(i) && g.cells[i] === CellKind.Empty) {
+        const r = session.command({ type: 'place', tower: 'wall', cx: cell.cx, cy: cell.cy });
+        if (!r.ok) this.fail(cell, r.reason);
+        ui.set({ pending: null, selected: null });
+        return;
+      }
     }
     // 普通：选塔 / 选空降纸箱（UI 显示拆除按钮）/ 取消选择
     const uid = this.towerAt(cell);
@@ -549,6 +581,9 @@ export class BoardInput {
 
     const focus: Cell | null = s.touch ? s.pending : s.hover;
 
+    // 推荐迷宫（设置里打开时淡淡显示）与摆迷宫教学的幽灵墙（醒目、可点）
+    if (s.mazeHint?.length || s.mazeLesson?.length) this.drawMazeGhost(ug, og, rt);
+
     if (s.abilityAiming === null) this.pendingEnemy = null;
     if (s.abilityAiming !== null) {
       const a = this.ability();
@@ -607,6 +642,7 @@ export class BoardInput {
           this.cache.checkT = 0.2;
           this.cache.check = world.canPlace(id, focus.cx, focus.cy);
           this.cache.preview = this.cache.check.ok ? world.previewPath(id, focus.cx, focus.cy) : null;
+          this.cache.delta = routeDelta(this.cache.current, this.cache.preview);
         }
       }
       const pv = focus ? this.cache.preview : null;
@@ -647,6 +683,10 @@ export class BoardInput {
       for (const f of s.aiFocusCells) og.strokeRoundedRect(f.cx * CELL - 1, f.cy * CELL - 1, CELL + 2, CELL + 2, 9);
     }
 
+    // 放置预览：主路线变长 / 变短几格
+    const showDelta = !!s.build && !s.aiming && s.abilityAiming === null && ghostCell !== null && ghostOk && this.cache.delta !== 0;
+    this.drawDelta(showDelta ? ghostCell : null, this.cache.delta);
+
     // 幽灵塔
     if (ghostAsset && ghostCell && this.ctx.atlas.ready) {
       this.ghost.bind(this.ctx.atlas, ghostAsset);
@@ -686,6 +726,81 @@ export class BoardInput {
       this.ghostRoot.setVisible(false);
       this.ghostOn = false;
     }
+  }
+
+  /** 推荐墙格：设置里的推荐迷宫画得很淡；教学当前这一排画成醒目的虚线幽灵墙 */
+  private drawMazeGhost(ug: Phaser.GameObjects.Graphics, og: Phaser.GameObjects.Graphics, rt: number): void {
+    const s = ui.state;
+    const g = this.ctx.session.world.state.grid;
+    const lesson = s.mazeLesson ?? [];
+    if (s.mazeHint?.length) {
+      ug.fillStyle(B.line, 0.07);
+      for (const i of s.mazeHint) {
+        if (g.cells[i] !== CellKind.Empty || lesson.includes(i)) continue;
+        const x = (i % g.cols) * CELL;
+        const y = Math.floor(i / g.cols) * CELL;
+        ug.fillRoundedRect(x + 5, y + 5, CELL - 10, CELL - 10, 5);
+      }
+      ug.lineStyle(1.5, B.line, 0.22);
+      for (const i of s.mazeHint) {
+        if (g.cells[i] !== CellKind.Empty || lesson.includes(i)) continue;
+        ug.strokeRoundedRect((i % g.cols) * CELL + 5, Math.floor(i / g.cols) * CELL + 5, CELL - 10, CELL - 10, 5);
+      }
+    }
+    if (lesson.length) {
+      const pulse = this.ctx.reduced ? 1 : 0.5 + 0.5 * Math.sin(rt * 4);
+      ug.fillStyle(C.screen, 0.18 + 0.12 * pulse);
+      for (const i of lesson) {
+        if (g.cells[i] !== CellKind.Empty) continue;
+        ug.fillRoundedRect((i % g.cols) * CELL + 3, Math.floor(i / g.cols) * CELL + 3, CELL - 6, CELL - 6, 6);
+      }
+      for (const i of lesson) {
+        if (g.cells[i] !== CellKind.Empty) continue;
+        const x0 = (i % g.cols) * CELL + 3;
+        const y0 = Math.floor(i / g.cols) * CELL + 3;
+        const x1 = x0 + CELL - 6;
+        const y1 = y0 + CELL - 6;
+        const a = 0.55 + 0.4 * pulse;
+        dashed(og, x0, y0, x1, y0, C.teal, 2, 5, 4, 0, a);
+        dashed(og, x1, y0, x1, y1, C.teal, 2, 5, 4, 0, a);
+        dashed(og, x1, y1, x0, y1, C.teal, 2, 5, 4, 0, a);
+        dashed(og, x0, y1, x0, y0, C.teal, 2, 5, 4, 0, a);
+      }
+    }
+  }
+
+  /** 放置预览旁的「+M 格 / −M 格」 */
+  private drawDelta(cell: Cell | null, delta: number): void {
+    if (!cell) {
+      if (this.deltaText?.visible) this.deltaText.setVisible(false);
+      return;
+    }
+    if (!this.deltaText) {
+      this.deltaText = this.ctx.scene.add
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '13px', fontStyle: 'bold', strokeThickness: 4 })
+        .setOrigin(0.5, 1)
+        .setDepth(DEPTH.text);
+    }
+    const tx = this.deltaText;
+    const res = Math.min(4, this.ctx.zoom);
+    if (this.deltaRes !== res) {
+      this.deltaRes = res;
+      tx.setResolution(res);
+    }
+    const label = t('ui.render.routeDelta', { sign: delta > 0 ? '+' : '−', n: Math.abs(delta) });
+    const key = `${label}|${B.textStroke}`;
+    if (key !== this.deltaShown) {
+      this.deltaShown = key;
+      tx.setText(label);
+      tx.setColor(hex(delta > 0 ? C.screen : C.pink));
+      tx.setStroke(hex(B.textStroke), 4);
+    }
+    const g = this.ctx.session.world.state.grid;
+    const x = Phaser.Math.Clamp((cell.cx + 0.5) * CELL, 28, g.cols * CELL - 28);
+    // 顶行放在格子下方，避免出界
+    if (cell.cy === 0) tx.setOrigin(0.5, 0).setPosition(x, (cell.cy + 1) * CELL + 2);
+    else tx.setOrigin(0.5, 1).setPosition(x, cell.cy * CELL - 2);
+    tx.setVisible(true);
   }
 
   private rangeRings(
@@ -1015,6 +1130,7 @@ export class BoardInput {
     this.off = [];
     this.ghost.destroy();
     this.ghostRoot.destroy();
+    this.deltaText?.destroy();
     this.under.destroy();
     this.over.destroy();
   }

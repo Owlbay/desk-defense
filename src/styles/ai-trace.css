@@ -804,7 +804,8 @@ html.reduce-motion .tr-panel[data-mode='drawer'] {
   display: none;
 }
 
-.tr-panel[data-mode='drawer'] .tr-tools-btn {
+.tr-panel[data-mode='drawer'] .tr-tools-btn,
+.tr-panel[data-compact='1'] .tr-tools-btn {
   display: inline-flex;
 }
 
@@ -812,36 +813,43 @@ html.reduce-motion .tr-panel[data-mode='drawer'] {
   background: var(--tint-blue);
 }
 
-.tr-panel[data-mode='drawer']:not([data-tools='1']) .tr-tools {
+.tr-panel[data-mode='drawer']:not([data-tools='1']) .tr-tools,
+.tr-panel[data-compact='1']:not([data-tools='1']) .tr-tools {
   display: none;
 }
 
-.tr-panel[data-mode='drawer'] .tr-head {
+.tr-panel[data-mode='drawer'] .tr-head,
+.tr-panel[data-compact='1'] .tr-head {
   padding: 6px 8px 4px 10px;
 }
 
-.tr-panel[data-mode='drawer'] .tr-head-actions .btn {
+.tr-panel[data-mode='drawer'] .tr-head-actions .btn,
+.tr-panel[data-compact='1'] .tr-head-actions .btn {
   min-height: 32px;
   padding: 2px 8px;
   font-size: 12px;
 }
 
-.tr-panel[data-mode='drawer'] .tr-totals {
+.tr-panel[data-mode='drawer'] .tr-totals,
+.tr-panel[data-compact='1'] .tr-totals {
   flex-wrap: nowrap;
   overflow-x: auto;
   padding: 0 10px 6px;
   scrollbar-width: none;
 }
 
-.tr-panel[data-mode='drawer'] .tr-totals::-webkit-scrollbar {
+.tr-panel[data-mode='drawer'] .tr-totals::-webkit-scrollbar,
+.tr-panel[data-compact='1'] .tr-totals::-webkit-scrollbar {
   display: none;
 }
 
-.tr-panel[data-mode='drawer'] .tr-title small {
+.tr-panel[data-mode='drawer'] .tr-title small,
+.tr-panel[data-compact='1'] .tr-title small {
   display: none;
 }
 
-.tr-panel[data-mode='drawer'] .tr-privacy {
+.tr-panel[data-mode='drawer'] .tr-privacy,
+.tr-panel[data-compact='1'] .tr-privacy {
   padding-block: 4px;
 }
 
@@ -1174,6 +1182,93 @@ html.reduce-motion .tr-panel[data-mode='drawer'] {
   outline-offset: 1px;
 }
 
-.tr-panel[data-mode='drawer'][data-view='trace'] .tr-ops-sum {
+.tr-panel[data-mode='drawer'][data-view='trace'] .tr-ops-sum,
+.tr-panel[data-compact='1'][data-view='trace'] .tr-ops-sum {
   display: none;
+}
+
+/* ───────────── 嵌进 AI 侧栏（src/ui/ai/dock.ts） ───────────── */
+.tr-panel[data-mode='embed'] {
+  position: relative;
+  flex: 1 1 auto;
+  height: 100%;
+  background: transparent;
+}
+
+.tr-panel[data-mode='embed'] .tr-title b,
+.tr-panel[data-mode='embed'] .tr-collapse,
+.tr-panel[data-mode='embed'] .tr-resizer,
+.tr-panel[data-mode='embed'] .tr-rail {
+  display: none;
+}
+
+.tr-panel[data-mode='embed'] .tr-head {
+  padding-top: 6px;
+}
+
+/* 两栏并排时，指令块放在操作栏里，思路栏里不重复 */
+.tr-panel[data-view='split'] .tr-card-main .tr-instr {
+  display: none;
+}
+
+/* ───────────── 玩家指令块 ───────────── */
+.tr-instr {
+  display: grid;
+  gap: 4px;
+  margin: 6px 10px;
+  padding: 6px 8px;
+  border: 1.5px solid var(--border-faint);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-s);
+  background: var(--tint-blue);
+  font-size: 12px;
+}
+
+.tr-instr-tag {
+  justify-self: start;
+}
+
+.tr-instr-list {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tr-instr-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  overflow-wrap: anywhere;
+}
+
+.tr-instr-id {
+  font-variant-numeric: tabular-nums;
+}
+
+.tr-instr-text {
+  font-weight: 700;
+}
+
+.tr-instr-ack {
+  flex-basis: 100%;
+  color: var(--ink-soft);
+}
+
+.tr-instr-ack.ok {
+  color: var(--good-text, var(--ink));
+}
+
+.tr-instr-ack.no {
+  color: var(--bad-text);
+}
+
+.tr-instr-list li.k-standing {
+  opacity: 0.8;
+}
+
+.tr-instr-badge {
+  background: var(--tint-blue);
 }

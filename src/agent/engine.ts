@@ -11,6 +11,7 @@ import { comboLine, mazeLine, reclaimLine } from './board';
 import { type AgentModelConfig, CONTEXT_MODES, type ContextModeSpec, contextSpec, type ThinkingLevel } from './config';
 import { ContextBuilder } from './context';
 import { gateDecision } from './gating';
+import { type AckCode, type InstructionQueue, type InstructionRef, instructionSection } from './instructions';
 import { BattleIntel, gapLine, killLine, leakLine, type LeakRecord } from './intel';
 import type { PlannerState } from './planner';
 import { runHeader, systemBlocks } from './prompts';
@@ -60,6 +61,11 @@ export interface EngineOptions {
    * 不提供时按 'continue'（压缩后以最省模式继续）。
    */
   onBudgetExceeded?: (b: BudgetState) => Promise<BudgetChoice>;
+  /**
+   * 玩家指令队列（「给 AI 下指令」）：有等待中的一次性指令时本次决策带上（原因加 player、绕过门控），
+   * 长期方针每次决策都带上；结束后按模型回应标记完成。
+   */
+  instructions?: InstructionQueue;
 }
 
 /** 预算分级：0 正常 · 1 ≥70% 省流 · 2 ≥90% 省流 + 无思考 + 只在建造 / 事件时决策 · 3 ≥100%（soft：最省模式继续） */
@@ -341,6 +347,8 @@ export class DecisionEngine {
     this.battle.feed(recent);
     this.goldAtWaveStart = null;
     const buildPhase = point.reasons.includes('build') || point.reasons.includes('game_start');
+    const queue = this.o.instructions;
+    if (queue?.hasPending() && !point.reasons.includes('player')) point.reasons.push('player');
 
     // 门控：模型可用、但局面里没有值得叫模型的事 → 本地处理
     if (!this.disabledReason && this.o.provider) {
@@ -352,8 +360,11 @@ export class DecisionEngine {
       if (why) return this.skipLocal(point, recent, why, t0, compacted);
     }
 
+    const ins =
+      queue && this.role !== 'attacker' ? queue.take(point.seq) : { once: [] as InstructionRef[], standing: [] as InstructionRef[] };
+    const insText = instructionSection(ins.once, ins.standing, this.role);
     const built = withLocale(SOURCE_LOCALE, () =>
-      this.ctx.build(point, recent, this.assist && this.role !== 'attacker' ? this.extras(buildPhase) : undefined),
+      this.ctx.build(point, recent, this.assist && this.role !== 'attacker' ? this.extras(buildPhase) : undefined, insText || undefined),
     );
     const message = built.text;
     const rec: DecisionRecord = {
@@ -392,7 +403,13 @@ export class DecisionEngine {
         stage: compacted.stage,
         reason: stageMsg(compacted.stage) ?? '',
       });
+    if (ins.once.length || ins.standing.length) {
+      sink?.({ k: 'instruction', items: [...ins.once, ...ins.standing].map((x) => ({ id: x.id, text: x.text, kind: x.kind })) });
+      rec.instructions = [...ins.once, ...ins.standing].map((x) => ({ id: x.id, text: x.text, kind: x.kind }));
+    }
     let costThis = 0;
+    /** 模型这次说的话（end.note / 文字 / 建议）：从里面找对每条指令的回应 */
+    let reply = '';
 
     let failed: string | null = this.disabledReason;
     if (!failed && this.o.provider) {
@@ -422,6 +439,7 @@ export class DecisionEngine {
           thinking: this.thinkingOverride(),
           signal: ac.signal,
           world: this.o.provider.id === 'scripted' ? w : undefined,
+          instructions: ins.once.length || ins.standing.length ? ins : undefined,
           callTool: async (name, input, meta) => this.callTool(name, input, calls, sink, meta?.id),
           trace: sink,
           afterRequest: async (ms) => {
@@ -448,6 +466,7 @@ export class DecisionEngine {
         if (out.note && !calls.some((c) => c.name === 'act' || c.name === 'end_turn' || c.name === 'suggest'))
           this.ctx.memo.update(undefined, out.note);
         if (out.text) rec.note = out.text.slice(0, 500);
+        reply = [out.text, out.note, ...replyParts(calls)].filter(Boolean).join('\n');
         if (timedOut) failed = `timeout after ${timeoutMs} ms`;
         else if (out.error && !(gameOver && out.error === 'aborted')) failed = out.error;
         const memo = this.ctx.memo.text();
@@ -474,6 +493,22 @@ export class DecisionEngine {
     }
     const end = (): DecisionRecord => {
       if (buildPhase) this.noteBuildGold();
+      if (queue && ins.once.length) {
+        const ids = ins.once.map((x) => x.id);
+        if (this.o.signal?.aborted) queue.requeue(ids);
+        else {
+          const code: AckCode = failed ? (this.role === 'player' ? 'bot' : 'failed') : 'noReply';
+          const done = queue.complete(ids, reply, code);
+          sink?.({ k: 'instruction_ack', items: done.map((x) => ({ id: x.id, ack: x.ack, code: x.ackCode })) });
+          for (const x of rec.instructions ?? []) {
+            const d = done.find((y) => y.id === x.id);
+            if (d) {
+              x.ack = d.ack;
+              x.ackCode = d.ackCode;
+            }
+          }
+        }
+      }
       rec.ms = Date.now() - t0;
       this.decisions.push(rec);
       sink?.({
@@ -729,4 +764,20 @@ export class DecisionEngine {
       rec.fallbackReason = (rec.fallbackReason ? `${rec.fallbackReason}; ` : '') + 'auto start_wave';
     }
   }
+}
+
+/** 模型这次决策里说的话：act 的 end.note、end_turn 的 note、suggest 的文字（找对玩家指令的回应用） */
+function replyParts(calls: readonly ToolCallRecord[]): string[] {
+  const out: string[] = [];
+  for (const c of calls) {
+    const i = (c.input ?? {}) as Record<string, unknown>;
+    if (c.name === 'act') {
+      const e = i.end as Record<string, unknown> | undefined;
+      if (e && typeof e.note === 'string') out.push(e.note);
+      if (Array.isArray(i.actions))
+        for (const a of i.actions as Record<string, unknown>[]) if (a?.do === 'end_turn' && typeof a.note === 'string') out.push(a.note);
+    } else if (c.name === 'end_turn' && typeof i.note === 'string') out.push(i.note);
+    else if (c.name === 'suggest' && typeof i.text === 'string') out.push(i.text);
+  }
+  return out;
 }

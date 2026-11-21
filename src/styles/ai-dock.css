@@ -1,0 +1,744 @@
+/*
+ * AI 侧栏（src/ui/ai/dock.ts）：AI 状态 / 思路与请求 / 操作解读 + 「给 AI 下指令」的唯一容器。
+ *   column：宿主 [data-dock='column'] 右侧一栏，宽 --dock-w，对局容器让出 --dock-occupy（收成细边时 40px）；
+ *   sheet：底部抽屉，左右对齐棋盘（--dk-x / --dk-w），底边贴棋盘底（--dk-bottom），高度按档位（peek 自适应 / --dk-half / --dk-full）。
+ * 颜色全部用 tokens.css 的语义变量（浅色 / 深色自动跟随）。动画只用 transform / opacity。
+ */
+
+/* ───────────── 宿主让位 ───────────── */
+.game-screen[data-dock='column'] > .game {
+  right: var(--dock-occupy, 0px);
+}
+
+.replay-view[data-dock='column'] > .replay-bar,
+.replay-view[data-dock='column'] > .replay-stage {
+  margin-right: var(--dock-occupy, 0px);
+}
+
+/* ───────────── 外壳 ───────────── */
+.ai-dock {
+  z-index: 8;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  color: var(--ink);
+  background: var(--surface);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.ai-dock[hidden] {
+  display: none;
+}
+
+.ai-dock[data-mode='column'] {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--dock-occupy, 420px);
+  border-left: var(--bw) solid var(--border);
+  box-shadow: -4px 0 14px rgb(var(--shadow-rgb) / 0.1);
+}
+
+.replay-view > .ai-dock[data-mode='column'] {
+  top: calc(8px + var(--sat, 0px));
+  bottom: calc(8px + var(--sab, 0px));
+  right: calc(12px + var(--sar, 0px));
+  width: calc(var(--dock-occupy, 420px) - 8px);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.ai-dock[data-mode='sheet'] {
+  position: fixed;
+  left: var(--dk-x, 0px);
+  bottom: var(--dk-bottom, 0px);
+  width: var(--dk-w, 100vw);
+  max-height: calc(100dvh - var(--dk-bottom, 0px));
+  z-index: 45;
+  flex-direction: column;
+  border: var(--bw) solid var(--border);
+  border-bottom-width: 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: 0 -6px 18px rgb(var(--shadow-rgb) / 0.22);
+  animation: dock-up var(--dur-m, 260ms) var(--ease-out, ease-out) both;
+}
+
+.ai-dock[data-mode='sheet'][data-snap='half'] {
+  height: var(--dk-half, 50dvh);
+}
+
+.ai-dock[data-mode='sheet'][data-snap='full'] {
+  left: 0;
+  width: 100vw;
+  height: var(--dk-full, 90dvh);
+  padding-top: var(--sat, 0px);
+}
+
+.ai-dock[data-mode='sheet'].dragging {
+  height: var(--dk-drag) !important;
+  animation: none;
+  transition: none;
+}
+
+@keyframes dock-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-dock[data-mode='sheet'] {
+    animation: none;
+  }
+}
+
+html.reduce-motion .ai-dock[data-mode='sheet'] {
+  animation: none;
+}
+
+.dock-inner {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ───────────── 拖宽 / 细边 ───────────── */
+.dock-resizer,
+.dock-rail {
+  display: none;
+}
+
+.ai-dock[data-mode='column'] .dock-resizer {
+  display: block;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -6px;
+  width: 12px;
+  z-index: 2;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.ai-dock[data-mode='column'] .dock-resizer::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  width: 4px;
+  height: 44px;
+  margin-top: -22px;
+  border-radius: 2px;
+  background: var(--ink-faint);
+  transition: background-color var(--dur-s, 160ms) var(--ease-out, ease-out);
+}
+
+.ai-dock .dock-resizer:hover::after,
+.ai-dock .dock-resizer:focus-visible::after,
+.ai-dock.resizing .dock-resizer::after {
+  background: var(--blue);
+}
+
+.ai-dock.resizing {
+  user-select: none;
+}
+
+.ai-dock[data-mode='column'][data-open='0'] .dock-inner,
+.ai-dock[data-mode='column'][data-open='0'] .dock-resizer {
+  display: none;
+}
+
+.ai-dock[data-mode='column'][data-open='0'] .dock-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 0;
+  border: 0;
+  background: var(--surface-2);
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.dock-rail-text {
+  writing-mode: vertical-rl;
+  letter-spacing: 2px;
+}
+
+.dock-rail:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: -3px;
+}
+
+/* ───────────── 头部：把手 + 页签 ───────────── */
+.dock-head {
+  flex: none;
+  display: grid;
+  gap: 2px;
+  padding: 6px 8px 0;
+  border-bottom: 1.5px solid var(--border-faint);
+}
+
+.dock-head-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dock-sub {
+  padding: 0 4px 4px 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.ai-dock[data-mode='sheet'] .dock-sub {
+  display: none;
+}
+
+.dock-grab {
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 18px;
+  margin: -4px 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: grab;
+  touch-action: none;
+}
+
+.dock-grab[hidden] {
+  display: none;
+}
+
+.dock-grab-bar {
+  width: 40px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--ink-faint);
+}
+
+.dock-grab:focus-visible {
+  outline: 2px solid var(--focus);
+  border-radius: 6px;
+}
+
+.dock-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-left: 4px;
+  border: 1.5px solid var(--border);
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.ai-dock[data-status='thinking'] .dock-dot,
+.ai-dock[data-status='loading'] .dock-dot {
+  background: var(--blue);
+}
+
+.ai-dock[data-status='acting'] .dock-dot {
+  background: var(--gold-l);
+}
+
+.ai-dock[data-status='paused'] .dock-dot,
+.ai-dock[data-status='stopped'] .dock-dot,
+.ai-dock[data-status='over'] .dock-dot {
+  background: var(--neutral);
+}
+
+.ai-dock[data-status='fallback'] .dock-dot {
+  background: var(--orange);
+}
+
+.ai-dock[data-status='error'] .dock-dot {
+  background: var(--red);
+}
+
+.dock-tabs {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.dock-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.dock-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.dock-tab .gi {
+  width: 16px;
+  height: 16px;
+}
+
+.dock-tab.on {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+
+.dock-tab:hover {
+  color: var(--ink);
+}
+
+.dock-tab:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+
+.dock-badge {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--red);
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.dock-badge[hidden] {
+  display: none;
+}
+
+.dock-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.dock-head-actions .btn {
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.dock-snap[hidden] {
+  display: none;
+}
+
+.dock-snap[data-dir='down'] .gi {
+  transform: rotate(180deg);
+}
+
+/* ───────────── 内容 / 底部插槽 ───────────── */
+.dock-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.dock-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.dock-pane[hidden] {
+  display: none;
+}
+
+.dock-pane[data-pane='status'] {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 10px 12px;
+}
+
+/* peek：只露页签条 + 指令输入 */
+.ai-dock[data-mode='sheet'][data-snap='peek'] .dock-body {
+  display: none;
+}
+
+.dock-foot {
+  flex: none;
+  border-top: 1.5px solid var(--border-faint);
+  background: var(--surface-2);
+}
+
+.dock-foot:empty {
+  display: none;
+}
+
+.ai-dock[data-mode='sheet'] .dock-foot {
+  padding-bottom: var(--sab, 0px);
+}
+
+/* 状态页里的旧面板：去掉浮动面板的外框 */
+.ai-dock .ai-panel {
+  max-height: none;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  animation: none;
+}
+
+.ai-dock .ai-suggest {
+  width: auto;
+}
+
+/* ───────────── 棋盘上的徽标 ───────────── */
+.ai-chip-badge {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--red);
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.ai-chip-badge[hidden] {
+  display: none;
+}
+
+/* ───────────── 给 AI 下指令 ───────────── */
+.ai-composer {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+}
+
+.ai-composer.disabled {
+  opacity: 0.55;
+}
+
+.ic-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.ic-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 40px;
+  max-height: 96px;
+  padding: 8px 10px;
+  resize: none;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.ic-send {
+  flex: none;
+  min-width: 44px;
+  min-height: 40px;
+}
+
+.ic-quick {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 1px;
+}
+
+.ic-quick::-webkit-scrollbar {
+  display: none;
+}
+
+.ic-chip {
+  flex: none;
+  min-height: 32px;
+  padding: 2px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ic-chip:hover {
+  background: var(--tint-blue);
+}
+
+.ic-chip:focus-visible,
+.ic-pin-x:focus-visible,
+.ic-item-x:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.ai-composer[data-kind='standing'] .ic-chip {
+  border-style: dashed;
+}
+
+.ic-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.ic-kind {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  flex: none;
+  gap: 2px;
+}
+
+.ic-kind .seg {
+  min-height: 19px;
+  padding: 0 8px;
+  font-size: 11px;
+  border-width: 1.5px;
+}
+
+.ic-hint,
+.ic-count {
+  font-size: 11px;
+}
+
+.ic-hint {
+  flex: 1 1 160px;
+}
+
+.ic-standing {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ic-standing[hidden],
+.ic-recent[hidden] {
+  display: none;
+}
+
+.ic-pin {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 1px 2px 1px 8px;
+  border: 1.5px solid var(--accent);
+  border-radius: 999px;
+  background: var(--tint-blue);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ic-pin .gi {
+  width: 14px;
+  height: 14px;
+}
+
+.ic-pin-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ic-pin-x,
+.ic-item-x {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* 小按钮的可点范围补到 44px */
+.ic-pin-x::after,
+.ic-item-x::after {
+  content: '';
+  position: absolute;
+  inset: -9px;
+}
+
+.ic-pin-x .gi,
+.ic-item-x .gi {
+  width: 14px;
+  height: 14px;
+}
+
+.ic-recent {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ic-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 6px;
+  padding: 4px 8px;
+  border-left: 3px solid var(--blue);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 12px;
+}
+
+.ic-item-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ic-item-ack {
+  grid-column: 1;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.ic-item-x {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.ic-item.s-done {
+  border-left-color: var(--good-text);
+}
+
+.ic-item.s-done .ic-item-ack {
+  color: var(--good-text-strong);
+}
+
+.ic-item.bad {
+  border-left-color: var(--orange);
+}
+
+.ic-item.bad .ic-item-ack {
+  color: var(--warn-text);
+}
+
+/* peek：指令区只留输入行与最近一条 */
+.ai-dock[data-mode='sheet'][data-snap='peek'] .ic-quick,
+.ai-dock[data-mode='sheet'][data-snap='peek'] .ic-meta,
+.ai-dock[data-mode='sheet'][data-snap='peek'] .ic-standing,
+.ai-dock[data-mode='sheet'][data-snap='peek'] .ic-item:not(:last-child) {
+  display: none;
+}
+
+/* 决策流里的玩家指令 */
+.ai-feed-instr {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 4px 6px;
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  background: var(--tint-blue);
+  list-style: none;
+  overflow-wrap: anywhere;
+}
+
+/* ───────────── 抽屉（手机）：紧凑 ───────────── */
+.ai-dock[data-mode='sheet'] {
+  overflow: hidden;
+}
+
+.ai-dock[data-mode='sheet'] .dock-head {
+  padding-top: 2px;
+}
+
+.ai-dock[data-mode='sheet'] .dock-grab {
+  height: 14px;
+  margin: 0;
+}
+
+.ai-dock[data-mode='sheet'] .dock-tab {
+  min-height: 38px;
+  padding: 0 8px;
+}
+
+@media (max-width: 520px) {
+  .ai-dock[data-mode='sheet'] .dock-tab .gi {
+    display: none;
+  }
+}
+
+.ai-dock[data-mode='sheet'] .ai-composer {
+  gap: 4px;
+  padding: 6px 8px;
+}
+
+.ai-dock[data-mode='sheet'] .ic-meta {
+  display: none;
+}
+
+.ai-dock[data-mode='sheet'] .ic-item:not(:last-child) {
+  display: none;
+}
+
+.ai-dock[data-mode='sheet'] .ic-item-ack,
+.ai-dock[data-mode='sheet'] .ic-pin-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-dock[data-mode='sheet'] .ic-standing {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ai-dock[data-mode='sheet'] .ic-pin {
+  flex: none;
+  max-width: 70%;
+}
+
+.ai-dock[data-mode='sheet'] .ic-input {
+  font-size: 16px;
+}

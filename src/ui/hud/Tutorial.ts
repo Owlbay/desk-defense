@@ -1,9 +1,13 @@
 import type { GameEvent } from '../../core/types';
+import { fmtRatio, maxCells } from '../../game/route-length';
+import { ui } from '../../game/UiStore';
 import { onLocaleChange, t } from '../../i18n';
 import { audio } from '../audio';
 import { SKILL_META } from '../coreMeta';
 import { h, setText } from '../dom';
 import type { GameCtx } from './context';
+import { firstStep, ghostSegment, type LessonEvent, lessonStep, MAZE_STEPS, type MazeStep } from './maze-lesson';
+import type { MazeGuide } from './MazeGuide';
 
 /**
  * 第一章新手引导（文档 01 §6）：不阻塞操作的气泡提示，指向相关按钮，每条只出现一次。
@@ -16,6 +20,8 @@ export type TutorialStep =
   | 'ch1-upgrade'
   | 'ch1-sell'
   | 'ch1-boss'
+  // 摆迷宫小教学（放下第一座铅笔之后；步骤推进见 maze-lesson.ts）
+  | MazeStep
   // 所有模式通用的一次性提示（文档 09 / 11）
   | 'tip-event'
   | 'tip-drop'
@@ -41,7 +47,12 @@ interface Active {
   bubble: HTMLElement;
   ring: HTMLElement;
   target: () => HTMLElement | null;
+  /** 摆迷宫教学：路线长度那一行、「按推荐摆放」按钮 */
+  route?: HTMLElement;
+  place?: HTMLButtonElement;
 }
+
+const isMaze = (s: TutorialStep | undefined): s is MazeStep => !!s && (MAZE_STEPS as readonly string[]).includes(s);
 
 /** 气泡文字：ui.tutorial.<step>.title / .body */
 const text = (step: TutorialStep): { title: string; body: string } => {
@@ -56,15 +67,19 @@ export class Tutorial {
   private raf = 0;
   private offLocale: () => void;
   readonly enabled: boolean;
+  /** 摆迷宫教学开始时的路线格数（气泡里显示「路线 A → B 格」） */
+  private routeFrom = 0;
 
   constructor(
     private ctx: GameCtx,
     private tg: Targets,
+    private maze?: MazeGuide,
   ) {
     const o = ctx.opts;
     this.enabled = o.mode === 'campaign' && o.map === 'ch1';
     // 语言切换：正在显示的气泡就地换成新语言
     this.offLocale = onLocaleChange(() => this.relabel());
+    if (maze && this.enabled) maze.onChange = () => this.onTerrain();
   }
 
   private relabel(): void {
@@ -77,6 +92,10 @@ export class Tutorial {
     if (title) setText(title, tx.title);
     if (body) setText(body, tx.body);
     if (ok) setText(ok, t('ui.tutorial.ok'));
+    const skip = a.bubble.querySelector<HTMLElement>('.coach-skip');
+    if (skip) setText(skip, t('ui.tutorial.skip'));
+    if (a.place) setText(a.place, t('ui.tutorial.mazePlace'));
+    this.refreshMaze();
   }
 
   private seen(s: TutorialStep): boolean {
@@ -96,8 +115,62 @@ export class Tutorial {
     const st = this.ctx.world.state;
     if (st.wave === 0 && st.phase === 'build') {
       if (!this.seen('ch1-place') && st.towers.size === 0) this.show('ch1-place');
-      else if (!this.seen('ch1-start')) this.show('ch1-start');
+      else this.afterPlace();
     }
+  }
+
+  /** 放下第一座塔之后：先上摆迷宫小教学（没看过的话），再提示开波 */
+  private afterPlace(): void {
+    const step = this.maze ? firstStep((s) => this.seen(s)) : null;
+    if (step) this.show(step);
+    else this.show('ch1-start');
+  }
+
+  // ───────────── 摆迷宫小教学 ─────────────
+
+  /** 地形变化 / 规划算好：按已建好的推荐段推进，刷新气泡里的路线长度 */
+  private onTerrain(): void {
+    const cur = this.active?.step;
+    if (!isMaze(cur) || !this.maze?.ready) return;
+    this.lesson({ type: 'progress', built: this.maze.built() });
+  }
+
+  private lesson(ev: LessonEvent): void {
+    const cur = this.active?.step;
+    if (!isMaze(cur)) return;
+    const r = lessonStep(cur, ev);
+    for (const s of r.seen) this.markSeen(s);
+    // 第一排墙亲手摆过了：第 1 波后那条「用书本墙改路线」就不用再讲
+    if (ev.type === 'progress' && r.seen.includes('ch1-maze-row')) this.markSeen('ch1-wall');
+    if (r.step === cur) {
+      this.refreshMaze();
+      return;
+    }
+    this.hide();
+    const next: TutorialStep | null | undefined = r.step ?? (ev.type === 'abort' ? this.queue.shift() : 'ch1-start');
+    if (next) setTimeout(() => this.show(next), 250);
+  }
+
+  /** 气泡里的路线长度、「按推荐摆放」按钮的状态 */
+  private refreshMaze(): void {
+    const a = this.active;
+    if (!a || !isMaze(a.step)) return;
+    if (a.route) {
+      const now = maxCells(this.ctx.world.currentPaths());
+      const from = this.routeFrom || now;
+      setText(a.route, now > 0 ? t('ui.tutorial.mazeRoute', { from, to: now, r: fmtRatio(now / Math.max(1, from)) }) : '');
+    }
+    if (a.place) {
+      const seg = ghostSegment(a.step);
+      a.place.hidden = seg === null || !this.maze?.ready || !ui.state.mazeLesson?.length;
+    }
+  }
+
+  /** 「按推荐摆放」：只摆金币够的部分 */
+  private placeSuggested(): void {
+    if (!this.maze) return;
+    const r = this.maze.placeLesson();
+    if (r.short) this.ctx.toast(r.placed > 0 ? t('ui.tutorial.mazePartial', { n: r.placed }) : t('ui.tutorial.mazeNoGold'), 'warn');
   }
 
   onEvent(ev: GameEvent): void {
@@ -126,10 +199,15 @@ export class Tutorial {
       case 'place':
         if (cur === 'ch1-place') {
           this.done();
-          this.show('ch1-start');
+          this.afterPlace();
         } else if (cur === 'ch1-wall' && ev.tower === 'wall') this.done();
         break;
       case 'waveStart':
+        if (isMaze(cur)) {
+          // 教学途中直接开波：剩下的步骤和「开始第 1 波」都不用再提示
+          this.lesson({ type: 'abort' });
+          this.ack('ch1-start');
+        }
         if (cur === 'ch1-start' || cur === 'ch1-place') this.done();
         if (ev.tags.includes('boss') || ev.wave === 10) this.show('ch1-boss');
         break;
@@ -166,6 +244,10 @@ export class Tutorial {
         return () => this.tg.info() ?? this.tg.board();
       case 'ch1-boss':
         return () => this.tg.skill('eraser_strike') ?? this.tg.skills();
+      case 'ch1-maze-row':
+      case 'ch1-maze-snake':
+      case 'ch1-maze-lanes':
+        return () => this.tg.board();
       case 'tip-event':
         return () => this.tg.events() ?? this.tg.board();
       case 'tip-drop':
@@ -185,26 +267,66 @@ export class Tutorial {
       return;
     }
     const tx = text(s);
-    const bubble = h(
-      'div.coach',
-      { attrs: { role: 'note' } },
-      h('div.coach-title', null, tx.title),
-      h('div.coach-body', null, tx.body),
-      h(
-        'button.btn.small.coach-ok',
+    const maze = isMaze(s);
+    const ok = h(
+      'button.btn.small.coach-ok',
+      {
+        onclick: () => {
+          audio.play('click');
+          if (maze) this.lesson({ type: 'ok' });
+          else this.done();
+        },
+      },
+      t('ui.tutorial.ok'),
+    );
+    let route: HTMLElement | undefined;
+    let place: HTMLButtonElement | undefined;
+    let actions: HTMLElement = ok;
+    if (maze) {
+      route = h('div.coach-route', { attrs: { 'aria-live': 'polite' } });
+      place = h<HTMLButtonElement>(
+        'button.btn.small.primary.coach-place',
         {
           onclick: () => {
             audio.play('click');
-            this.done();
+            this.placeSuggested();
           },
         },
-        t('ui.tutorial.ok'),
-      ),
+        t('ui.tutorial.mazePlace'),
+      );
+      const skip = h(
+        'button.btn.small.coach-skip',
+        {
+          onclick: () => {
+            audio.play('click');
+            this.lesson({ type: 'skip' });
+          },
+        },
+        t('ui.tutorial.skip'),
+      );
+      actions = h('div.coach-actions', null, skip, place, ok);
+      if (s === 'ch1-maze-row') this.routeFrom = maxCells(this.ctx.world.currentPaths());
+      // 幽灵墙要点得到：收起塔栏里选中的塔（选着铅笔时点幽灵格会放铅笔）
+      if (ui.state.build && ui.state.build !== 'wall') ui.set({ build: null, pending: null });
+    }
+    const bubble = h(
+      'div.coach',
+      { attrs: { role: 'note' }, data: maze ? { maze: '' } : undefined },
+      h('div.coach-title', null, tx.title),
+      h('div.coach-body', null, tx.body),
+      route ?? null,
+      actions,
       h('span.coach-arrow'),
     );
     const ring = h('div.coach-ring');
     this.ctx.root.append(ring, bubble);
-    this.active = { step: s, bubble, ring, target: this.targetFor(s) };
+    this.active = { step: s, bubble, ring, target: this.targetFor(s), route, place };
+    if (maze) {
+      if (!this.routeFrom) this.routeFrom = maxCells(this.ctx.world.currentPaths());
+      this.maze?.setLesson(ghostSegment(s));
+      this.refreshMaze();
+      this.onTerrain();
+    }
     // 目标基本是静止的界面元素：前几帧立即定位，之后每 6 帧（约 10 次/秒）才重新量一次位置，
     // 避免每帧读布局；提示圈的呼吸动画由 CSS 完成。
     let n = 0;
@@ -283,9 +405,10 @@ export class Tutorial {
     // 大目标里只有棋盘（或四周都放不下时）才把气泡放进目标内部；
     // 横置手机上的塔信息卡也很大，但气泡放进去会盖住「升级 / 出售」
     if (big && (tgt === this.tg.board() || !order.some((s) => room[s] >= 0))) {
-      // 目标是整块棋盘之类的大区域：放在它里面靠上，不带箭头
+      // 目标是整块棋盘之类的大区域：放在它里面靠上，不带箭头；
+      // 摆迷宫教学的幽灵墙在入口一侧（上方），气泡改放到棋盘里靠下
       left = clampX(cx - bw / 2);
-      top = clampY(y + Math.min(72, r.height * 0.18));
+      top = isMaze(a.step) ? clampY(y + r.height - bh - 12) : clampY(y + Math.min(72, r.height * 0.18));
       side = 'none';
     } else {
       const pick: Side = order.find((s) => room[s] >= 0) ?? order.reduce((best, s) => (room[s] > room[best] ? s : best));
@@ -329,6 +452,7 @@ export class Tutorial {
     cancelAnimationFrame(this.raf);
     if (!a) return;
     this.active = null;
+    if (isMaze(a.step)) this.maze?.setLesson(null);
     a.bubble.classList.add('out');
     a.ring.classList.add('out');
     setTimeout(() => a.ring.remove(), 200);

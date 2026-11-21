@@ -113,7 +113,8 @@ export class ContextBuilder {
     this.last = null;
   }
 
-  build(point: DecisionPoint, recent: readonly GameEvent[], extra?: string): BuiltMessage {
+  /** instructions：「玩家指令」段（instructions.ts instructionSection），紧跟决策原因；不进固定前缀 */
+  build(point: DecisionPoint, recent: readonly GameEvent[], extra?: string, instructions?: string): BuiltMessage {
     const w = this.w;
     const evs = this.carry.length ? [...this.carry, ...recent] : recent;
     const obs = compactObservation(w, { recent: evs });
@@ -151,6 +152,7 @@ export class ContextBuilder {
       memo: this.memo.text(),
       skipped,
       extra,
+      instructions,
       delta: !full,
     });
     return { text, full, map, observationTokens: estimateTokens(body) };

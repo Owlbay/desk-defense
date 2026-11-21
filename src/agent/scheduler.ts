@@ -71,11 +71,18 @@ export class DecisionDetector {
     }
   }
 
-  /** 现在是否需要决策；返回原因列表（不含仅 leak 的情况） */
-  check(w: IWorld): DecisionReason[] | null {
+  /**
+   * 现在是否需要决策；返回原因列表（不含仅 leak 的情况）。
+   * player = 玩家刚下了一次性指令：立即决策（不等最小间隔），挂起的事件原因一并带上。
+   */
+  check(w: IWorld, player = false): DecisionReason[] | null {
     const s = w.state;
     if (s.phase === 'won' || s.phase === 'lost') return null;
     const r = new Set<DecisionReason>();
+    if (player) {
+      r.add('player');
+      for (const p of this.pending) r.add(p);
+    }
     if (!this.started) {
       r.add('game_start');
       r.add('build');

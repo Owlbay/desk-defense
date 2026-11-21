@@ -238,24 +238,24 @@ const RULES_HEAD = `You play 书桌防线 / Desk Defense (deterministic maze tow
 
 const RULES = `${RULES_HEAD}
 # How to win
-1. Maze early: a straight route is ≈14 cells, a 5g-wall serpentine makes it 40-60 (towers shoot 3-4× longer). {do:"maze"} builds a proven serpentine barrier by barrier (never blocks); build_near/spend put towers inside the barriers. Single hand-placed walls rarely lengthen the path.
+1. Maze early: a straight route is ≈14 cells, a 5g-wall serpentine makes it 40-60 (towers shoot 3-4× longer). {do:"maze"} builds a proven serpentine barrier by barrier (never blocks); build_near/spend put towers inside the barriers.
 2. Keep gold working: interest is tiny; end build phases with ≲20g unless saving on purpose ({do:"save",until:N}).
 3. Waves 1-6 buy towers; later upgrade_best too (Lv4/Lv7 are big jumps; Lv9 branch auto-picked).
 4. Before [air] waves every flight line (Ra) needs an A tower: {do:"anti_air"}.
 5. Mix roles: pencils alone fail vs armor/swarms/air/healers. CTR maps next-wave enemies to purposes → {do:"build_near",purpose:"armor"} (planner picks eraser/lamp…). Pair combos ({do:"combo"}; CB line). Skills on leaks / bosses / Ef d≤3.
-6. TH = next-wave threat (your damage ÷ incoming HP): 危险/吃紧 → add damage there now; 安全 → may call early. BR = last wave; LK = each leaked enemy (hp left, % time in range, uncovered cells); GAP = recurring holes → build_near target "seg:…" / anti_air. KH = where kills happen (late-heavy = weak front).
+6. TH = next-wave threat (your damage ÷ incoming HP): 危险/吃紧 → add damage there now; 安全 → may call early. BR = last wave; LK = each leaked enemy (hp left, % time in range, uncovered cells); GAP = recurring holes → build_near target "seg:…" / anti_air. KH = where kills happen.
 7. Full board: a wall refunds 3g but a freed good cell holds a tower. RC (useless walls / 0-dmg towers / crowded cells) → {do:"reclaim"}; routes changed → {do:"rebuild_maze"}. MZ = route vs achievable length.
 Openings (150g): [{do:"spend",reserve:0}] (= 4 pencils + first barriers). ch2: two entrances merge → build_near target "chokepoint". ch3: long flight lines → anti_air each line early.
 Each build phase: anti_air if [air], maze, fix LK/GAP/CTR, spend; ≈w6+ upgrade_best; reclaim/combo when RC/CB suggest.
 
-# Each decision (every request costs money)
+# Each decision
 1. STATE is in the message; observe only if unclear.
-2. ONE act call with ALL actions + end:{…}. Prefer intents (the planner picks valid cells, reports cells/costs/path); a blocked place is auto-moved nearby.
+2. ONE act call with ALL actions + end:{…}. Prefer intents (the planner picks valid cells, reports cells/costs/path).
 3. end:{plan,maze,priorities,note} = your memory (≤300 tokens), shown as MEMO; omitted fields keep old values.
 Example (build, g140, nx [air]): act {actions:[{do:"anti_air"},{do:"maze",budget:40},{do:"spend",reserve:10}],end:{plan:"serpentine+pencils; AA before air",priorities:"upgrade_best from w6"}}
 
 # STATE keys (after the first decision you get Δ = only changed keys; T+ changed/new towers, T- removed uids, _unset removed keys)
-t time s | ph phase | w wave/total | g gold | hp lives | sc score | aw auto-wave | T towers "#uid id x,y Llevel [A|B] [★n] [x xp%] [t=target] [up cost|br cost=needs branch] [ev evolve cost] (costs rounded up to 5) [ab R|cd]" | W walls "uid@x,y" | E enemy groups "code×n hp% far/mid/near [A air] [B boss] [e elite] [h hidden]" | Ef enemy nearest exit | EB bosses | EG coin targets | nx next wave "wN [tags] | spawner: code×n" | R ground routes "sp:turn points Llen" (warn = drop landing soon) | Rs long straights "sp a>b Llen b=free cells beside" | Rp best spots "x,y:route cells in r2.5" | Ra flight lines "sp from>to Llen aa% towers" | sk skills id:R|cd | ev events | sp drop boxes | pu pickups | perk offer | crate options | own perks | b prices ("base" = cheat sheet; else diffs/locked/max) | rc since last decision | pe queued errors.
+t time s | ph phase | w wave/total | g gold | hp lives | sc score | aw auto-wave | T towers "#uid id x,y Llevel [A|B] [★n] [x xp%] [t=target] [up cost|br cost=needs branch] [ev evolve cost] [ab R|cd]" | W walls "uid@x,y" | E enemy groups "code×n hp% far/mid/near [A air] [B boss] [e elite] [h hidden]" | Ef enemy nearest exit | EB bosses | EG coin targets | nx next wave "wN [tags] | spawner: code×n" | R ground routes "sp:turn points Llen" (warn = drop landing soon) | Rs long straights "sp a>b Llen b=free cells beside" | Rp best spots "x,y:route cells in r2.5" | Ra flight lines "sp from>to Llen aa% towers" | sk skills id:R|cd | ev events | sp drop boxes | pu pickups | perk offer | crate options | own perks | b prices ("base" = cheat sheet; else diffs/locked/max) | rc since last decision | pe queued errors.
 - Extra lines: BR TH CTR LK GAP KH RC CB MZ (above), IDLE unspent gold, EVT event tips.
 - MAP (sent when terrain changes): rows y, cols x (0..9,a,b). . empty | # obstacle | S spawn | X exit | d drop warning | D drop spawn | route letters a,b,c… (+ overlap, ~ future drop route) | towers: ${Object.entries(
   TOWER_CHAR,
@@ -269,12 +269,19 @@ const ROLE_TEXT: Record<AgentRole, string> = {
   attacker: `# Role: AI attacker (design stub). The attacker protocol is not implemented; reply with a one-line plan and no tool calls.`,
 };
 
+/** 玩家指令的优先级规则（固定文本，进固定前缀；指令内容本身只在 user 消息里） */
+const PLAYER_TEXT: Partial<Record<AgentRole, string>> = {
+  player: `# Player orders: "P<id>!" = do now, "P<id>" = standing. Obey over your plan unless illegal/fatal. end.note: "P<id> ok:…"/"P<id> 无法:why".`,
+  advisor: `# Player questions: answer "P<id>!" in suggest as "P<id>: …"; "P<id>" = standing preference.`,
+};
+
 /**
  * 固定前缀的两个块：[规则 + 角色, 速查表]。纯函数、逐字节稳定（无种子 / 时间 / 随局内容），所有局共享缓存。
  * assist = false：旧版规则（无意图 / 打法要点），评测基线用。
  */
 export function systemBlocks(role: AgentRole, assist = true): [string, string] {
-  return [`${assist && role === 'player' ? RULES : RULES_V1}\n\n${ROLE_TEXT[role]}`, cheatSheet()];
+  const pt = assist ? PLAYER_TEXT[role] : undefined;
+  return [`${assist && role === 'player' ? RULES : RULES_V1}\n\n${ROLE_TEXT[role]}${pt ? `\n\n${pt}` : ''}`, cheatSheet()];
 }
 
 /** 本局开局信息（放在每次决策 user 消息的开头，随局变化但同局内不变） */
@@ -297,6 +304,7 @@ const REASON_TEXT: Record<string, string> = {
   perk: 'perk offer — choose_perk now',
   crate: 'crate opened — choose_crate',
   leak: 'enemies leaked',
+  player: 'the human sent an instruction (玩家指令 below)',
 };
 
 export interface DecisionMessageParts {
@@ -311,6 +319,8 @@ export interface DecisionMessageParts {
   extra?: string;
   /** 是否增量 */
   delta?: boolean;
+  /** 「玩家指令」段（instructions.ts instructionSection；只在 user 消息里，不进固定前缀） */
+  instructions?: string;
 }
 
 export function decisionMessage(p: DecisionMessageParts): string;
@@ -322,6 +332,7 @@ export function decisionMessage(a: string | DecisionMessageParts, point?: Decisi
     ...(p.header ? [p.header] : []),
     `Decision #${p.point.seq} t=${p.point.time.toFixed(1)}s: ${why}.${p.skipped ? ` (${p.skipped} quiet checks skipped)` : ''}`,
   ];
+  if (p.instructions) lines.push(p.instructions);
   if (p.extra) lines.push(p.extra);
   if (p.memo) lines.push(`MEMO ${p.memo}`);
   lines.push(p.delta ? 'STATE Δ' : 'STATE', p.observation, 'Act now: one act call with all actions + end.');

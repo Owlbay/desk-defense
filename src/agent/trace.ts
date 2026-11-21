@@ -124,6 +124,16 @@ export type TraceBody =
   | { k: 'error'; n?: number; message: string; retry?: boolean }
   | { k: 'fallback'; reason: string; acted: boolean; effect?: string }
   | {
+      /** 本次决策带上的玩家指令（「给 AI 下指令」；once = 这次执行，standing = 长期方针） */
+      k: 'instruction';
+      items: { id: number; text: string; kind: 'once' | 'standing' }[];
+    }
+  | {
+      /** 决策结束时 AI 对每条一次性指令的回应（ack = 模型原话；code = 没有原话时的状态） */
+      k: 'instruction_ack';
+      items: { id: number; ack?: string; code?: string }[];
+    }
+  | {
       k: 'decision_end';
       by: 'agent' | 'fallback' | 'local';
       /** by = local：门控跳过原因 */
@@ -244,6 +254,12 @@ function sizeOf(e: TraceEvent): number {
       break;
     case 'error':
       n += e.message.length;
+      break;
+    case 'instruction':
+      n += e.items.reduce((a, x) => a + x.text.length + 20, 0);
+      break;
+    case 'instruction_ack':
+      n += e.items.reduce((a, x) => a + (x.ack?.length ?? 0) + 20, 0);
       break;
     default:
       break;
@@ -430,6 +446,12 @@ export class AgentTrace {
         break;
       case 'compact':
         out = { ...ev, d, t, reason: redactString(ev.reason, sec) };
+        break;
+      case 'instruction':
+        out = { ...ev, d, t, items: ev.items.map((x) => ({ ...x, text: redactString(x.text, sec).slice(0, 400) })) };
+        break;
+      case 'instruction_ack':
+        out = { ...ev, d, t, items: ev.items.map((x) => ({ ...x, ack: x.ack && redactString(x.ack, sec).slice(0, 400) })) };
         break;
       case 'fallback':
         out = { ...ev, d, t, reason: redactString(ev.reason, sec), effect: ev.effect && redactString(ev.effect, sec) };

@@ -269,6 +269,34 @@
   gap: 4px;
 }
 
+/* 示意图（迷宫 ASCII）：等宽字体，窄屏时横向滚动而不是折行 */
+.guide-ascii {
+  margin: 10px 0;
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+}
+
+.guide-pre {
+  margin: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border-faint);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 15px;
+  line-height: 1.25;
+  letter-spacing: 0.25em;
+  white-space: pre;
+}
+
+.guide-ascii figcaption {
+  font-size: 12px;
+}
+
 /* 目录（玩法页顶部） */
 .guide-toc {
   display: flex;

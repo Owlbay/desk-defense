@@ -2568,6 +2568,68 @@ textarea.input.code {
   letter-spacing: 0.04em;
 }
 
+/* 波次面板标题行：「下一波」+ 路线长度小标签 */
+.preview-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.preview-head .preview-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.route-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px 1px 4px;
+  border-radius: 999px;
+  border: 1.5px solid var(--border-faint);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.route-chip .gi {
+  width: 14px;
+  height: 14px;
+}
+
+.route-chip .rc-short {
+  display: none;
+}
+
+/* 竖屏手机 / 紧凑横屏：只显示「N 格 ×R」 */
+.game[data-layout='portrait'] .route-chip .rc-long,
+.game[data-compact] .route-chip .rc-long {
+  display: none;
+}
+
+.game[data-layout='portrait'] .route-chip .rc-short,
+.game[data-compact] .route-chip .rc-short {
+  display: inline;
+}
+
+/* 平板竖放：底部够宽，显示完整文字 */
+@container gamescreen (min-width: 700px) {
+  .game[data-layout='portrait'] .route-chip .rc-long {
+    display: inline;
+  }
+  .game[data-layout='portrait'] .route-chip .rc-short {
+    display: none;
+  }
+}
+
 .preview-list {
   display: flex;
   flex-wrap: wrap;
@@ -3318,6 +3380,44 @@ textarea.input.code {
 .coach-ok {
   justify-self: end;
   margin-top: 4px;
+}
+
+/* 摆迷宫教学：路线长度一行 + 操作按钮（跳过 / 按推荐摆放 / 知道了） */
+.coach-route {
+  justify-self: start;
+  margin-top: 2px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1.5px solid var(--border-faint);
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.coach-route:empty {
+  display: none;
+}
+
+.coach-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.coach-actions .coach-ok {
+  margin-top: 0;
+}
+
+.coach-skip {
+  margin-right: auto;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  text-decoration: underline;
 }
 
 .coach-arrow {

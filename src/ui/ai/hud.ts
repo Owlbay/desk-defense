@@ -1,7 +1,8 @@
 /**
- * 对局里的 AI 面板（动态分包）：状态徽标、决策流、用量 / 预算、控制按钮、军师建议卡片、结算报告。
+ * 对局里的 AI 面板（动态分包）：状态徽标、决策流、用量 / 预算、控制按钮、军师建议卡片、给 AI 下指令、结算报告。
  *
- * 手机：棋盘左上角一个小徽标，点开是底部抽屉；电脑：徽标下面的浮动面板。
+ * 全部放在同一个 AI 侧栏（dock.ts）里：电脑 / 平板横放是棋盘右侧一栏，手机 / 紧凑横屏是一个底部抽屉；
+ * 页签：AI 状态 / 思路与请求 / 操作解读，底部是「给 AI 下指令」。棋盘左上角的徽标只负责打开 / 聚焦侧栏。
  * 控制器（src/agent createAgentController）只负责「什么时候问模型、把指令下到 session」，
  * 这里负责：轮询节奏（军师模式避免在建造 / 增益阶段反复提问）、自动拾取、AI 操作时屏蔽玩家输入。
  */
@@ -17,6 +18,7 @@ import {
   budgetTokens,
   createAgentController,
   type DecisionRecord,
+  InstructionQueue,
   type SessionLike,
   type Suggestion,
   type TokenUsage,
@@ -32,13 +34,19 @@ import { audio } from '../audio';
 import { clear, fmtNum, h, setText } from '../dom';
 import { G } from '../icons';
 import { applyAction, describeCall, failReason, parseAction, reasonName } from './actions';
+import { mountComposer } from './composer';
 import { demoAdvisor } from './demoAdvisor';
+import { mountDock } from './dock';
+import { DOCK_SPLIT_W, paneOf } from './dock-state';
 import { fmtCost, fmtTokens } from './format';
 import type { AiAttachCtx, AiGameOverHandlers, AiGameOverInfo, AiHudHandle, AiLaunch } from './launch';
 import { botShareOf } from './meta';
 import { OpsRecorder, type OpsWorld, type TraceExportWithOps } from './ops';
 import { type AiRunSummary, reportCard } from './report';
 import { mountTracePanel, type TracePanelHandle } from './trace-panel';
+
+/** 本局的玩家指令（长期方针跨 AI 重新挂上保留，整局有效） */
+const QUEUES = new WeakMap<object, InstructionQueue>();
 
 const FEED_MAX = 40;
 const SUGGEST_MAX = 2;
@@ -144,19 +152,21 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
   const feed = h<HTMLDetailsElement>('details.ai-feed', null, h('summary', null, feedTitle, feedCount), feedList);
   feed.open = true;
 
-  const closeBtn = h('button.btn.icon-btn.ai-close', { attrs: { type: 'button' } }, h('span.gi', { html: G.close }));
   const panelTitle = h('b');
+  const suggestBox = h('div.ai-suggest', { attrs: { 'aria-live': 'polite' } });
+  // 「AI 状态」页：状态、出错 / 预算询问、军师建议、用量、控制、决策流
   const panel = h(
     'div.ai-panel',
     { attrs: { id: 'ai-panel', role: 'region' } },
-    h('div.ai-panel-head', null, h('div.ai-panel-title', null, panelTitle, h('small.muted', null, launch.label)), closeBtn),
+    h('div.ai-panel-head', null, h('div.ai-panel-title', null, panelTitle, h('small.muted', null, launch.label))),
     statusLine,
     errorBox,
-    h('div.ai-usage', null, usageNums, budgetBar, h('div.ai-budget-row', null, budgetMode, budgetText), budgetAsk),
+    budgetAsk,
+    suggestBox,
+    h('div.ai-usage', null, usageNums, budgetBar, h('div.ai-budget-row', null, budgetMode, budgetText)),
     controls,
     feed,
   );
-  const suggestBox = h('div.ai-suggest', { attrs: { 'aria-live': 'polite' } });
   /** 创建后不再变化的文字：切换语言时重新写一遍 */
   const paintStatic = (): void => {
     marks.forEach((m, i) => (m.title = t(i === 0 ? 'agent.hud.mark70' : 'agent.hud.mark90')));
@@ -165,7 +175,6 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
     budgetAsk.setAttribute('aria-label', t('agent.hud.budgetOut'));
     speedBtn.setAttribute('aria-label', t('agent.hud.speed'));
     setText(feedTitle, t('agent.hud.feed'));
-    closeBtn.setAttribute('aria-label', t('agent.hud.closePanel'));
     panel.setAttribute('aria-label', t('agent.hud.panel'));
     setText(panelTitle, isPlayer ? t('agent.hud.player') : t('agent.hud.advisor'));
     suggestBox.setAttribute('aria-label', t('agent.hud.suggestions'));
@@ -174,10 +183,40 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
   // 思路与请求（文档 10 §12.1）：同一个缓冲区贯穿整局（换成内置策略重启控制器也不断档）
   const trace = new AgentTrace();
   const offOpsTrace = trace.subscribe((e) => opsRec.onTrace(e));
+  const chipBadge = h('span.ai-chip-badge');
+  chipBadge.hidden = true;
+  chip.appendChild(chipBadge);
   const chipRow = h('div.ai-chip-row', null, chip);
-  const root = h('div.ai-hud', { data: { role } }, chipRow, suggestBox, panel);
+  const root = h('div.ai-hud', { data: { role } }, chipRow);
   board.appendChild(root);
+
+  // ───────────── AI 侧栏（唯一的容器） ─────────────
+  const queue = QUEUES.get(session) ?? new InstructionQueue();
+  QUEUES.set(session, queue);
+  let unreadSuggest = 0;
   let tp: TracePanelHandle | null = null;
+  const dock = mountDock({
+    host: game.parentElement ?? game,
+    anchor: () => board,
+    tabs: ['status', 'trace', 'ops'],
+    subtitle: launch.label,
+    onChange: (st) => {
+      const p = paneOf(st);
+      chip.setAttribute('aria-expanded', p.pane ? 'true' : 'false');
+      root.dataset.open = p.pane ? '1' : '0';
+      tp?.present({
+        visible: p.pane === 'trace',
+        view: p.view === 'ops' ? 'ops' : p.view === 'split' ? 'split' : 'trace',
+        compact: st.mode === 'sheet' || st.width < DOCK_SPLIT_W,
+      });
+      if (p.pane === 'status' && unreadSuggest) {
+        unreadSuggest = 0;
+        paintBadges();
+      }
+    },
+  });
+  dock.statusPane.appendChild(panel);
+  chip.setAttribute('aria-controls', dock.el.id);
   try {
     tp = mountTracePanel({
       host: game.parentElement ?? game,
@@ -185,42 +224,49 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       trace,
       live: true,
       subtitle: launch.label,
+      embed: dock.tracePane,
       onHighlight: (c) => ui.set({ aiFocus: c ? { cx: c.x, cy: c.y } : null }),
       ops: opsRec,
       onHighlightCells: (cells) => ui.set({ aiFocusCells: cells?.length ? cells.map((c) => ({ cx: c.x, cy: c.y })) : null }),
-      onOpenChange: (o, mode) => {
-        // 抽屉模式：和 AI 面板（同样是抽屉）不同时打开
-        if (o && mode === 'drawer' && open && !wide()) {
-          open = false;
-          paintOpen();
-        }
-      },
     });
-    chipRow.appendChild(tp.toggle);
   } catch (e) {
     console.error('[ai] trace panel failed to load', e);
   }
+  {
+    const st = dock.state();
+    const p = paneOf(st);
+    tp?.present({
+      visible: p.pane === 'trace',
+      view: p.view === 'ops' ? 'ops' : p.view === 'split' ? 'split' : 'trace',
+      compact: st.mode === 'sheet' || st.width < DOCK_SPLIT_W,
+    });
+  }
+  function paintBadges(): void {
+    dock.setBadge('status', unreadSuggest);
+    chipBadge.hidden = unreadSuggest <= 0;
+    setText(chipBadge, unreadSuggest > 9 ? '9+' : String(unreadSuggest));
+  }
+  /** 状态页现在是否看得见 */
+  const statusVisible = (): boolean => paneOf(dock.state()).pane === 'status';
 
-  const wide = (): boolean => game.dataset.layout === 'landscape' && game.dataset.compact === undefined;
-  let open = wide();
-  const paintOpen = (): void => {
-    root.dataset.open = open ? '1' : '0';
-    chip.setAttribute('aria-expanded', open ? 'true' : 'false');
-    panel.hidden = !open;
-  };
+  // 给 AI 下指令（侧栏底部）
+  const composer = mountComposer({
+    queue,
+    role,
+    now: () => world.state.time,
+    toast: (text, tone) => app.toast(text, tone),
+    onSend: (item) => {
+      // 一次性指令：尽快触发一次决策（控制器下一次 poll 就会带上，绕过门控与最小间隔）
+      if (item.kind === 'once' && ctl?.status === 'running') ctl.poll();
+    },
+  });
+  dock.footer.appendChild(composer.el);
+
   chip.onclick = () => {
     audio.play('click');
-    open = !open;
-    paintOpen();
-    if (open && tp?.mode === 'drawer' && tp.isOpen() && !wide()) tp.setOpen(false);
+    // 徽标只负责打开 / 聚焦侧栏（关上用侧栏自己的按钮）
+    dock.focus(unreadSuggest ? 'status' : undefined);
   };
-  closeBtn.onclick = () => {
-    audio.play('click');
-    open = false;
-    paintOpen();
-    chip.focus({ preventScroll: true });
-  };
-  paintOpen();
 
   // ───────────── 状态 ─────────────
   const driving = (): boolean => isPlayer && !takenOver && !over && status !== 'stopped';
@@ -245,6 +291,8 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
     if (k !== shownChip) {
       shownChip = k;
       root.dataset.status = k;
+      dock.setStatus(k);
+      composer.setEnabled(k !== 'over' && k !== 'stopped' && k !== 'error');
       setText(
         chipText,
         switchedToBot && (k === 'watching' || k === 'thinking') ? t('agent.hud.chipBot', { status: chipLabel(k) }) : chipLabel(k),
@@ -365,10 +413,7 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
         h('button.btn.small', { attrs: { type: 'button' }, onclick: () => choose('bot') }, t('agent.hud.askBot')),
       ),
     );
-    if (!open) {
-      open = true;
-      paintOpen();
-    }
+    dock.focus('status');
   };
 
   const paintSpeed = (): void => {
@@ -446,6 +491,23 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
         h('span.muted', null, reasons),
         rec.by === 'fallback' ? h('span.badge.ai-bot-badge', null, t('agent.hud.bot')) : null,
       ),
+      rec.instructions?.some((x) => x.kind === 'once')
+        ? h(
+            'ul.ai-feed-instr',
+            null,
+            rec.instructions
+              .filter((x) => x.kind === 'once')
+              .map((x) =>
+                h(
+                  'li',
+                  null,
+                  h('b', null, `P${x.id}`),
+                  ` ${x.text}`,
+                  h('small', null, ` → ${x.ack ?? t(`agent.dock.ack.${x.ackCode ?? 'noReply'}`)}`),
+                ),
+              ),
+          )
+        : null,
       rec.note ? h('p.ai-feed-note', null, rec.note) : null,
       acts.length
         ? h('ul.ai-feed-acts', null, acts)
@@ -519,6 +581,10 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
     suggestBox.prepend(card);
     while (suggestBox.children.length > SUGGEST_MAX) suggestBox.lastElementChild?.remove();
     audio.play('click');
+    if (!statusVisible()) {
+      unreadSuggest++;
+      paintBadges();
+    }
   };
 
   // ───────────── 控制器 ─────────────
@@ -571,7 +637,7 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
   };
 
   const makeController = (cfg: Partial<AgentModelConfig>, provider = launch.provider): AgentController =>
-    createAgentController({ config: cfg, session: proxy, mode: launch.mode, provider, onEvent, pollMs: 0, trace });
+    createAgentController({ config: cfg, session: proxy, mode: launch.mode, provider, onEvent, pollMs: 0, trace, instructions: queue });
 
   const startController = (cfg: Partial<AgentModelConfig>, provider = launch.provider): void => {
     config = cfg;
@@ -630,10 +696,7 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
             ),
       ),
     );
-    if (!open) {
-      open = true;
-      paintOpen();
-    }
+    dock.focus('status');
   }
 
   function takeOver(): void {
@@ -704,7 +767,7 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
         }
       }
       // 军师：建造 / 增益阶段同一局面只问一次（世界不会自己前进，否则会反复提问烧 token）
-      if (!isPlayer && (s.phase === 'build' || s.phase === 'perk') && stateKey() === advisorKey) return;
+      if (!isPlayer && (s.phase === 'build' || s.phase === 'perk') && stateKey() === advisorKey && !queue.hasPending()) return;
       if (pauseMenuOpen() || session.autoPaused) return;
       ctl.poll();
     }
@@ -727,7 +790,7 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
     if (k === 'p' || k === 'f' || k === 'i' || k === 'Escape' || k === 'Tab' || k === 'Enter' || k === 'Shift') return;
     const t = e.target;
     // 思路与请求面板（搜索框等）：按键原样交给它
-    if (t instanceof HTMLElement && t.closest('.tr-panel, .ai-config-overlay, .ai-menu, .confirm-overlay')) return;
+    if (t instanceof HTMLElement && t.closest('.tr-panel, .ai-dock, .ai-config-overlay, .ai-menu, .confirm-overlay')) return;
     if (t instanceof HTMLElement && t.closest('.ai-hud, .overlay, .replay-view')) {
       if (k === ' ' && t.closest('button, summary')) return;
     }
@@ -795,8 +858,8 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
         /* ignore */
       }
       clear(suggestBox);
-      open = false;
-      paintOpen();
+      // 手机抽屉：收起，让结算卡片露出来；宽屏侧栏留着（可以继续翻看思路）
+      if (dock.state().mode === 'sheet') dock.dispatch({ type: 'close' });
       paintStatus();
       tp?.setLive(false);
       return reportCard(app, sum, hd);
@@ -829,6 +892,8 @@ export function mountAiHud(ctx: AiAttachCtx, launch: AiLaunch): AiHudHandle {
       }
       game.classList.remove('ai-driving');
       tp?.destroy();
+      composer.destroy();
+      dock.destroy();
       offOpsTrace();
       offOpsEvents();
       ui.set({ aiFocus: null, aiFocusCells: null, inspectOnly: false });

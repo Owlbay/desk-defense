@@ -1,4 +1,5 @@
 import type { RandomEventState, WavePreview, WavePreviewGroup, WorldState } from '../../core/types';
+import { emptyBoardBaselines, fmtRatio, routeLength } from '../../game/route-length';
 import type { Speed } from '../../game/Session';
 import { getLocale, t } from '../../i18n';
 import { affixIcon, enemyIcon } from '../assets';
@@ -43,10 +44,19 @@ export class WavePanel {
   private counting = false;
   private lastP = -1;
   private locale = '';
+  /** 路线长度小标签（只在地形 / 出生点变化时重算） */
+  private routeChip: HTMLElement;
+  private routeLong: HTMLElement;
+  private routeShort: HTMLElement;
+  private routeSig = '';
 
   constructor(private ctx: GameCtx) {
     this.preview = h('div.preview-list');
     this.previewTitle = h('span.preview-title');
+    this.routeLong = h('span.rc-long');
+    this.routeShort = h('span.rc-short', { attrs: { 'aria-hidden': 'true' } });
+    this.routeChip = h('span.route-chip', null, h('span.gi', { html: G.swirl }), this.routeLong, this.routeShort);
+    this.routeChip.hidden = true;
     this.upcoming = h('div.upcoming');
     this.upcoming.hidden = true;
     this.startLabel = h('span.act-label');
@@ -74,7 +84,7 @@ export class WavePanel {
     this.el = h(
       'div.wavepanel',
       null,
-      h('div.preview', null, this.previewTitle, this.preview, this.upcoming),
+      h('div.preview', null, h('div.preview-head', null, this.previewTitle, this.routeChip), this.preview, this.upcoming),
       h('div.wave-actions', null, this.startBtn, this.speedBtn),
     );
     this.syncSpeed();
@@ -91,6 +101,8 @@ export class WavePanel {
     this.speedBtn.title = t('ui.wave.speedTip');
     this.speedBtn.setAttribute('aria-label', t('ui.wave.speedAria'));
     this.sig = '';
+    this.routeSig = '';
+    this.routeChip.title = t('ui.wave.routeTip');
     for (const row of this.upRows.values()) row.el.remove();
     this.upRows.clear();
     this.upcoming.replaceChildren();
@@ -121,6 +133,20 @@ export class WavePanel {
     this.speedBtn.dataset.speed = String(sp);
   }
 
+  /** 「路线 N 格（×R 直线）」：主地面路线（各出生点里最长的一条）；地形或出生点变化时才重算 */
+  private updateRoute(st: WorldState): void {
+    const sig = `${st.grid.version}|${st.spawners.map((s) => (s.active ? s.id : '')).join(',')}`;
+    if (sig === this.routeSig) return;
+    this.routeSig = sig;
+    const paths = this.ctx.world.currentPaths();
+    const r = routeLength(paths, emptyBoardBaselines(st.grid, paths));
+    this.routeChip.hidden = !r;
+    if (!r) return;
+    const p = { n: r.cells, r: fmtRatio(r.ratio) };
+    setText(this.routeLong, t('ui.wave.route', p));
+    setText(this.routeShort, t('ui.wave.routeShort', p));
+  }
+
   /** 自动开波倒计时剩 3/2/1 秒：按钮闪一下（提示音由 audio 处理） */
   onCountdown(secondsLeft: number): void {
     replay(this.startBtn, 'blink', 520);
@@ -138,6 +164,7 @@ export class WavePanel {
       this.renderPreview(st, nw, lastWave);
     }
     this.updateUpcoming(st);
+    this.updateRoute(st);
 
     // 开波按钮
     const aw = st.autoWave;

@@ -25,6 +25,8 @@ export default {
   'ui.settings.waveManual': '手動',
   'ui.settings.fixedLayout': 'キャンペーン配置を固定',
   'ui.settings.fixedLayoutHint': 'キャンペーンの障害物を毎回同じ位置に置きます',
+  'ui.settings.mazeHint': 'おすすめ迷路を表示',
+  'ui.settings.mazeHintHint': 'おすすめの本の壁の位置を盤面にうっすら表示します（現在のマップに合わせた蛇行迷路）',
   'ui.settings.save': 'セーブデータ',
   'ui.settings.tutorialReset': 'チュートリアルをリセット',
   'ui.settings.tutorialResetDone': 'チュートリアルをリセットしました。次に第1章を始めると再表示されます',
@@ -132,6 +134,7 @@ export default {
   'ui.coremeta.entry': '入口',
   'ui.coremeta.entryN': '入口 {n}',
   'ui.render.loading': '読み込み中…',
+  'ui.render.routeDelta': '{sign}{n}マス',
   'ui.render.immune': '無効',
   'ui.render.dodge': '回避',
   'ui.render.inspiration': 'ひらめき!',
@@ -293,6 +296,10 @@ export default {
   'ui.wave.earlyTip': '早期開始でゴールド獲得（Space）',
   'ui.wave.lastHint': 'このウェーブを守り切れば勝利！',
   'ui.wave.nextTitle': '次 · ウェーブ{n}',
+  'ui.wave.route': 'ルート {n}マス（直線の×{r}）',
+  'ui.wave.routeShort': '{n}マス ×{r}',
+  'ui.wave.routeTip':
+    '地上の敵が通る最長ルートのマス数です。×R は壁がないときの最短ルートの何倍かを表します。道が長いほどタワーが長く攻撃できます。',
   'ui.wave.listSep': '、',
   'ui.wave.groupElite': '{name} ×{n}（エリート {elite}）',
   'ui.wave.groupEliteAffix': '{name} ×{n}（エリート {elite}：{affixes}）',
@@ -312,6 +319,20 @@ export default {
     '不要なタワーは売却できます。レベルが高いほど返金率は下がります（70% → 25%）。設置後5秒以内なら全額で取り消せます。',
   'ui.tutorial.ch1-boss.title': 'ボス襲来！',
   'ui.tutorial.ch1-boss.body': '「{eraser}」をタップし、盤面をタップして発動。範囲内の敵に大ダメージ。',
+  'ui.tutorial.ch1-maze-row.title': '迷路づくり①：壁を横一列に',
+  'ui.tutorial.ch1-maze-row.body':
+    '敵はいつも最短ルートを進みます。光っているマスに沿って本の壁を横一列に置き（1マス5ゴールド）、片方の端だけ隙間を空けましょう。敵はその端まで歩かないと抜けられず、ルートが一気に長くなります。光るマスをタップで壁を1つ、「おすすめ配置」でまとめて置けます。',
+  'ui.tutorial.ch1-maze-snake.title': '迷路づくり②：隙間は反対側に',
+  'ui.tutorial.ch1-maze-snake.body':
+    '1行空けて2列目の壁を置き、今度は反対の端に隙間を空けます。敵は2列の壁の間を端から端まで歩くことに。これが蛇行迷路です。隙間を左右交互にすると、どの通路も全幅を歩かせられます。',
+  'ui.tutorial.ch1-maze-lanes.title': '迷路づくり③：通路の間にタワー',
+  'ui.tutorial.ch1-maze-lanes.body':
+    'タワーも壁として道をふさげます。壁の列の中、2本の通路にはさまれた位置にタワーを置くと、敵は行きと帰りの両方で射程を通るので1基で2回攻撃できます。ゴールドに余裕ができたら壁の列を増やしましょう。',
+  'ui.tutorial.mazeRoute': 'ルート：{from} → {to}マス（×{r}）',
+  'ui.tutorial.mazePlace': 'おすすめ配置',
+  'ui.tutorial.skip': 'レッスンをスキップ',
+  'ui.tutorial.mazeNoGold': 'ゴールドが足りません。まず1ウェーブ戦って稼ぎましょう',
+  'ui.tutorial.mazePartial': '{n}マス置きました。ゴールドが足りません',
   'ui.tutorial.tip-event.title': 'ランダムイベント',
   'ui.tutorial.tip-event.body':
     '机の上で突然イベントが起こります。赤は悪いこと、緑は良いこと。上部のバナーがカウントダウンで予告します。コインと補給箱はタップで回収。',

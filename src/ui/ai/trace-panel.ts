@@ -55,6 +55,11 @@ export interface TracePanelOptions {
   onOpenChange?: (open: boolean, mode: 'column' | 'drawer') => void;
   /** 初始是否打开（缺省：分栏模式打开、抽屉模式关闭） */
   initialOpen?: boolean;
+  /**
+   * 嵌进 AI 侧栏（dock.ts）：面板放进这个容器，自己不再管位置 / 开合 / 改宽 / 页签，
+   * 由侧栏经 present() 告诉它是否可见、显示哪一页（思路 / 操作 / 两栏并排）。
+   */
+  embed?: HTMLElement;
 }
 
 export interface TracePanelHandle {
@@ -68,6 +73,8 @@ export interface TracePanelHandle {
   setTickLimit(tick: number | null): void;
   /** 对局结束：标记为不再更新 */
   setLive(live: boolean): void;
+  /** 嵌入模式：侧栏的当前页（visible = 这个面板正显示着；view = 思路 / 操作 / 两栏；compact = 窄 / 抽屉） */
+  present(p: { visible: boolean; view: 'trace' | 'ops' | 'split'; compact: boolean }): void;
   destroy(): void;
 }
 
@@ -99,6 +106,9 @@ interface Card {
   foot?: HTMLElement;
   /** 操作解读（右栏） */
   opsEl?: HTMLElement;
+  /** 玩家指令（本次决策带上的）与 AI 的回应 */
+  instr?: { id: number; text: string; kind: 'once' | 'standing'; ack?: string; code?: string }[];
+  instrEl?: HTMLElement;
   opsDirty: boolean;
   full: boolean;
   /** 用户手动展开的旧卡片（不会被自动折叠） */
@@ -241,6 +251,10 @@ function savePrefs(p: Prefs): void {
 
 export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
   const { host, trace } = o;
+  const embed = o.embed ?? null;
+  let embedVisible = false;
+  let embedView: 'trace' | 'ops' | 'split' = 'trace';
+  let embedCompact = false;
   const prefs = loadPrefs();
   let live = o.live;
   let destroyed = false;
@@ -402,7 +416,7 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
     h('div.tr-inner', null, head, totals, opsSum, tools, tabs, colHead, scroller, privacy),
   );
   L(() => el.setAttribute('aria-label', t('agent.trace.title')));
-  host.appendChild(el);
+  (embed ?? host).appendChild(el);
 
   const toggleText = h('span');
   L(() => setText(toggleText, t('agent.trace.toggle')));
@@ -415,6 +429,7 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
 
   // ── 布局 ──
   const decideMode = (): 'column' | 'drawer' => {
+    if (embed) return 'column';
     const r = host.getBoundingClientRect();
     if (r.width === 0) return mode;
     return r.width >= 960 && r.width / Math.max(1, r.height) >= 1.25 ? 'column' : 'drawer';
@@ -424,18 +439,23 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
     return Math.round(Math.max(280, Math.min(w, Math.min(720, hw * 0.5))));
   };
   const clampOpsW = (w: number): number => {
+    if (embed) {
+      const ew = embed.getBoundingClientRect().width || 640;
+      return Math.round(Math.max(200, Math.min(w, ew * 0.48)));
+    }
     const hw = host.getBoundingClientRect().width || 1200;
     return Math.round(Math.max(220, Math.min(w, Math.min(560, hw * 0.3))));
   };
   /** 分栏且显示操作解读时，面板总宽 = 思路栏 + 操作栏 */
   const totalW = (): number => (view === 'split' ? width + opsW : width);
   const applyView = (): void => {
-    view = !opsSrc ? 'trace' : mode === 'column' ? (opsOn ? 'split' : 'trace') : tab;
+    if (embed) view = !opsSrc ? 'trace' : embedView === 'split' ? (opsOn ? 'split' : 'trace') : embedView;
+    else view = !opsSrc ? 'trace' : mode === 'column' ? (opsOn ? 'split' : 'trace') : tab;
     el.dataset.view = view;
-    opsBtn.hidden = !opsSrc || mode !== 'column';
+    opsBtn.hidden = !opsSrc || mode !== 'column' || (!!embed && embedView !== 'split');
     opsBtn.setAttribute('aria-pressed', opsOn ? 'true' : 'false');
     opsBtn.classList.toggle('on', opsOn);
-    tabs.hidden = !opsSrc || mode === 'column';
+    tabs.hidden = !opsSrc || mode === 'column' || !!embed;
     colHead.hidden = view !== 'split';
     for (const b of tabs.querySelectorAll<HTMLButtonElement>('button')) {
       const on = b.dataset.v === tab;
@@ -445,7 +465,7 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
     el.style.setProperty('--tr-ops-w', `${opsW}px`);
   };
   /** 分栏模式只有「展开 / 收成细边」两态；抽屉模式是「打开 / 关闭」 */
-  const visible = (): boolean => (mode === 'column' ? !collapsed : open);
+  const visible = (): boolean => (embed ? embedVisible : mode === 'column' ? !collapsed : open);
 
   const placeDrawer = (): void => {
     if (mode !== 'drawer' || !open) return;
@@ -465,6 +485,19 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
   };
 
   const applyLayout = (): void => {
+    if (embed) {
+      mode = 'column';
+      el.dataset.mode = 'embed';
+      el.dataset.compact = embedCompact ? '1' : '0';
+      el.dataset.open = embedVisible ? '1' : '0';
+      el.hidden = false;
+      collapseBtn.hidden = true;
+      applyView();
+      opsW = clampOpsW(opsW);
+      el.style.setProperty('--tr-ops-w', `${opsW}px`);
+      if (visible()) schedule();
+      return;
+    }
     mode = decideMode();
     el.dataset.mode = mode;
     el.dataset.open = visible() ? '1' : '0';
@@ -624,13 +657,13 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
   };
 
   const ro = new ResizeObserver(() => applyLayout());
-  ro.observe(host);
+  ro.observe(embed ?? host);
   const onWinResize = (): void => placeDrawer();
   window.addEventListener('resize', onWinResize);
 
   // 面板里的按键不要触发游戏快捷键
   el.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && mode === 'drawer') {
+    if (e.key === 'Escape' && mode === 'drawer' && !embed) {
       setOpen(false);
       toggle.focus({ preventScroll: true });
     }
@@ -895,6 +928,21 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
         c.dirtyHead = true;
         if (e.note) addSearch(c, e.note);
         break;
+      case 'instruction':
+        c.instr = e.items.map((x) => ({ ...x }));
+        c.dirtyHead = true;
+        addSearch(c, `${t('agent.dock.instrTag')} ${e.items.map((x) => x.text).join(' ')}`);
+        break;
+      case 'instruction_ack':
+        for (const a of e.items) {
+          const x = c.instr?.find((i) => i.id === a.id);
+          if (x) {
+            x.ack = a.ack;
+            x.code = a.code;
+          }
+        }
+        c.dirtyHead = true;
+        break;
     }
     dirty.add(c);
     totalsDirty = true;
@@ -950,6 +998,9 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
       s?.skipped ? h('span.badge.tr-skip-badge', { attrs: { title: s.skipped } }, t('agent.trace.skipped')) : null,
       s?.delta ? h('span.badge.tr-delta-badge', { attrs: { title: t('agent.trace.deltaTip') } }, t('agent.trace.delta')) : null,
       opsBadge(c),
+      c.instr?.some((x) => x.kind === 'once')
+        ? h('span.badge.tr-instr-badge', null, t('agent.dock.instrBadge', { n: c.instr.filter((x) => x.kind === 'once').length }))
+        : null,
       h(
         'span.tr-head-meta.muted',
         null,
@@ -994,6 +1045,41 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
           .join(';')
       : null;
 
+  /** 玩家指令块：「玩家指令」+ 每条指令与 AI 的回应（思路页在卡片顶部，操作页在操作列表上方） */
+  const instrBlock = (c: Card): HTMLElement | null => {
+    if (!c.instr?.length) return null;
+    const running = live && !c.end;
+    return h(
+      'div.tr-instr',
+      null,
+      h('span.tr-tag.tr-instr-tag', null, t('agent.dock.instrTag')),
+      h(
+        'ul.tr-instr-list',
+        null,
+        c.instr.map((x) => {
+          const ack =
+            x.kind === 'standing'
+              ? t('agent.dock.standingTag')
+              : (x.ack ?? (x.code ? t(`agent.dock.ack.${x.code}`) : running ? t('agent.dock.ack.pending') : t('agent.dock.ack.noReply')));
+          const bad = !!x.ack && /无法|cannot|can't|できない|無法/i.test(x.ack);
+          return h(
+            `li.k-${x.kind}`,
+            null,
+            h('b.tr-instr-id', null, `P${x.id}${x.kind === 'once' ? '!' : ''}`),
+            h('span.tr-instr-text', null, x.text),
+            h(`small.tr-instr-ack${x.ack ? (bad ? '.no' : '.ok') : '.muted'}`, null, x.kind === 'once' && x.ack ? `→ ${ack}` : ack),
+          );
+        }),
+      ),
+    );
+  };
+  const renderInstr = (c: Card): void => {
+    if (!c.instrEl) return;
+    const b = instrBlock(c);
+    if (b) c.instrEl.replaceChildren(b);
+    else c.instrEl.replaceChildren();
+  };
+
   /** 操作解读：这次决策的全部操作（按意图分组） */
   const renderOps = (c: Card): void => {
     c.opsDirty = false;
@@ -1008,10 +1094,16 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
     const groups = d?.groups.filter((g) => g.ops.length || g.kind === 'intent') ?? [];
     if (!groups.length) {
       const running = live && !c.end;
-      fill(box, h('div.tr-ops-inner', null, h('p.tr-ops-empty.muted', null, running ? t('agent.ops.running') : t('agent.ops.none'))));
+      fill(
+        box,
+        h('div.tr-ops-inner', null, instrBlock(c), h('p.tr-ops-empty.muted', null, running ? t('agent.ops.running') : t('agent.ops.none'))),
+      );
       return;
     }
     const out: HTMLElement[] = [];
+    // 玩家指令放在最上面：下面的操作就是 AI 这次为它（和自己的计划）做的事
+    const ib = instrBlock(c);
+    if (ib) out.push(ib);
     for (const g of groups) {
       const items = g.ops.map((op) => {
         const gold = opGold(op);
@@ -1260,11 +1352,13 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
       c.body = h('ol.tr-body');
       c.foot = h('div.tr-foot');
       c.opsEl = opsSrc ? h('div.tr-ops') : undefined;
+      c.instrEl = h('div.tr-instr-slot');
       c.el.append(
         opsSrc
-          ? h('div.tr-card-cols', null, h('div.tr-card-main', null, c.body, c.foot), c.opsEl)
-          : h('div.tr-card-main', null, c.body, c.foot),
+          ? h('div.tr-card-cols', null, h('div.tr-card-main', null, c.instrEl, c.body, c.foot), c.opsEl)
+          : h('div.tr-card-main', null, c.instrEl, c.body, c.foot),
       );
+      renderInstr(c);
       for (const s of c.segs) {
         s.el = undefined;
         renderSeg(c, s);
@@ -1275,6 +1369,7 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
       c.body = undefined;
       c.foot = undefined;
       c.opsEl = undefined;
+      c.instrEl = undefined;
       for (const s of c.segs) s.el = undefined;
     }
     c.pending = [];
@@ -1428,6 +1523,7 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
       if (c.dirtyHead) {
         renderHead(c);
         if (c.full && c.foot) renderFoot(c);
+        if (c.full) renderInstr(c);
         if (c.full) c.opsDirty = true;
         c.dirtyHead = false;
       }
@@ -1508,6 +1604,22 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
         });
       }
     },
+    present(p) {
+      if (!embed) return;
+      const was = embedVisible;
+      const changed = p.view !== embedView || p.compact !== embedCompact;
+      embedVisible = p.visible;
+      embedView = p.view;
+      embedCompact = p.compact;
+      if (!changed && was === p.visible) return;
+      applyLayout();
+      if (p.visible && (!was || changed)) markAllOps();
+      if (p.visible && !was) {
+        for (const c of cards.values()) dirty.add(c);
+        totalsDirty = true;
+        schedule(true);
+      }
+    },
     setLive(v) {
       live = v;
       followBtn.hidden = !v;
@@ -1535,6 +1647,7 @@ export function mountTracePanel(o: TracePanelOptions): TracePanelHandle {
       if (url) URL.revokeObjectURL(url);
       el.remove();
       toggle.remove();
+      if (embed) return;
       delete host.dataset.traceMode;
       host.style.removeProperty('--trace-w');
       host.style.removeProperty('--trace-occupy');

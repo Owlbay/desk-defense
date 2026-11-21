@@ -17,6 +17,7 @@ import { BuildBar } from './BuildBar';
 import { BUILD_KEYS, type GameCtx } from './context';
 import { GoldFx } from './GoldFx';
 import { InfoPanel } from './InfoPanel';
+import { MazeGuide } from './MazeGuide';
 import { branchModal, gameOverView, loadingOverlay, pauseMenu, PerkModal } from './Modals';
 import { replay } from './motion';
 import { SkillBar } from './SkillBar';
@@ -184,16 +185,23 @@ export function gameScreen(app: App, route: Route): Screen {
   overlay.hintBox.appendChild(perkHint);
 
   // ───────────── 新手引导 ─────────────
-  const tutorial = new Tutorial(ctx, {
-    build: (id) => buildBar.buttonFor(id),
-    start: () => wavePanel.startBtn,
-    info: () => (ui.state.selected !== null ? info.el : null),
-    board: () => boardWrap,
-    skill: (id) => skillBar.buttonFor(id),
-    skills: () => skillBar.el,
-    events: () => overlay.eventsEl() ?? wavePanel.el,
-    ai: () => aiMenu.btn,
-  });
+  // 推荐迷宫（第一章摆迷宫教学的幽灵墙 + 设置「显示推荐迷宫」）
+  const mazeGuide = new MazeGuide(ctx);
+  cleanups.push(() => mazeGuide.destroy());
+  const tutorial = new Tutorial(
+    ctx,
+    {
+      build: (id) => buildBar.buttonFor(id),
+      start: () => wavePanel.startBtn,
+      info: () => (ui.state.selected !== null ? info.el : null),
+      board: () => boardWrap,
+      skill: (id) => skillBar.buttonFor(id),
+      skills: () => skillBar.el,
+      events: () => overlay.eventsEl() ?? wavePanel.el,
+      ai: () => aiMenu.btn,
+    },
+    mazeGuide,
+  );
 
   // 补给箱三选一（不暂停）
   overlay.onCrate = (option, name) => {
@@ -566,8 +574,10 @@ export function gameScreen(app: App, route: Route): Screen {
     info.tickFast(st);
     wavePanel.tickFast(st);
     goldFx.flush();
+    mazeGuide.tick();
     if (dirty || frame % 6 === 0) {
       dirty = false;
+      mazeGuide.setHint(!!app.store.get().settings.mazeHint);
       const opts2 = world.getBuildOptions();
       buildBar.update(opts2);
       wavePanel.update(st);

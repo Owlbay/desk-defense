@@ -1,4 +1,4 @@
-/** 图鉴 · 玩法：新手入门、操作、模式、自动开波、随机事件、动态战场、进化 */
+/** 图鉴 · 玩法：新手入门、如何摆迷宫、操作、模式、自动开波、随机事件、动态战场、进化 */
 import {
   abyssParams,
   CRATE_OPTIONS,
@@ -16,7 +16,7 @@ import { art, towerIcon } from '../../assets';
 import { h } from '../../dom';
 import { bullets, type Entry, icon, items, plain, rich, section, type TabContext, table, type TabModule, tag } from '../kit';
 
-const SECTIONS = ['start', 'controls', 'modes', 'autowave', 'events', 'field', 'evolve'] as const;
+const SECTIONS = ['start', 'maze', 'controls', 'modes', 'autowave', 'events', 'field', 'evolve'] as const;
 const CONTROL_ROWS = ['build', 'place', 'cancel', 'upgrade', 'skill', 'wave', 'speed', 'pause', 'ability'] as const;
 const MODES = ['campaign', 'endless', 'daily', 'custom'] as const;
 const MAPS: MapId[] = ['ch1', 'ch2', 'ch3'];
@@ -30,6 +30,25 @@ function start(): HTMLElement {
     bullets('guide.play.start'),
     h('h3.guide-h3', null, t('guide.play.start.tips.title')),
     bullets('guide.play.start.tips', true),
+  );
+}
+
+/** 蛇形迷宫示意（10 格宽；符号与语言无关，图例走 i18n） */
+export const MAZE_ASCII = ['....S.....', '....oooooo', '###T####To', 'oooooooooo', 'o#T####T##', 'ooooo.....', '....X.....'].join('\n');
+
+function maze(): HTMLElement {
+  return section(
+    'maze',
+    t('guide.play.maze.title'),
+    rich('p', t('guide.play.maze.intro')),
+    h(
+      'figure.guide-ascii',
+      null,
+      h('pre.guide-pre', { attrs: { 'aria-label': plain(t('guide.play.maze.legend')) } }, MAZE_ASCII),
+      rich('figcaption.muted', t('guide.play.maze.legend')),
+    ),
+    bullets('guide.play.maze', true),
+    rich('p', t('guide.play.maze.why')),
   );
 }
 
@@ -155,7 +174,7 @@ function evolve(): HTMLElement {
   );
 }
 
-const RENDER: Record<(typeof SECTIONS)[number], () => HTMLElement> = { start, controls, modes, autowave, events, field, evolve };
+const RENDER: Record<(typeof SECTIONS)[number], () => HTMLElement> = { start, maze, controls, modes, autowave, events, field, evolve };
 
 export const playTab: TabModule = {
   entries(): Entry[] {

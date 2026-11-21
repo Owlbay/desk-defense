@@ -40,6 +40,12 @@ export interface UiState {
   aiFocusCells?: { cx: number; cy: number }[] | null;
   /** AI 玩家操作中：棋盘只允许点选查看（塔 / 空降纸箱），不允许建造、施法、收集等会下指令的操作 */
   inspectOnly: boolean;
+  /** 设置「显示推荐迷宫」：迷宫规划建议的墙格（格子索引 y*cols+x，只含当前空地；棋盘上淡淡画出；null = 不显示） */
+  mazeHint?: number[] | null;
+  /** 第一章摆迷宫教学：当前这一排推荐墙格（醒目的幽灵墙，点一下就放墙；null = 无） */
+  mazeLesson?: number[] | null;
+  /** 「给 AI 下指令」输入框聚焦时：点棋盘不下指令，而是把格子 / 塔编号插进输入框（null = 正常操作） */
+  boardPick?: ((p: { cx: number; cy: number; uid: number }) => void) | null;
 }
 
 type Fn = (s: UiState) => void;
