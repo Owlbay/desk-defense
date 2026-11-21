@@ -2,7 +2,8 @@
  * 全服排行榜客户端（文档 12）。
  *
  * - 设备 id：随机 UUID，存在 localStorage（服务端只存其加盐哈希）
- * - 昵称：独立于存档的 localStorage 键
+ * - 昵称：独立于存档的 localStorage 键；没设过时用默认昵称（「玩家」+ 设备 id 前 4 位），不再弹框
+ * - 自动上传：缺省开启（AUTO_UPLOAD_KEY），结算时直接上传；关掉后结算面板给一个「上传成绩」按钮
  * - 提交成绩：指令日志用 CompressionStream('gzip') 压缩（不支持时直接发 JSON）；
  *   断网 / 服务不可用 / 被限流时进入离线队列，下次启动或 online 事件时重试
  * - API 不存在（例如本地 `vite dev`）时状态为 'unavailable'，所有函数都不会抛异常
@@ -15,7 +16,7 @@ import { getLocale, t } from '../i18n';
 import { decodeLogPayload, encodeLog } from '../shared/codec';
 import {
   type AgentMeta,
-  AI_BOARD_PREFIX,
+  type AiAssistMeta,
   type ApiError,
   boardForOpts,
   type Checked,
@@ -29,6 +30,7 @@ import {
   type LogEntry,
   type RunDetail,
   sanitizeNickname,
+  starsFor,
   type StatusResponse,
   type SubmitBody,
   type SubmitResponse,
@@ -40,6 +42,8 @@ import { type KV, safeStorage } from './storage';
 export const DEVICE_KEY = 'desk-defense.online.device.v1';
 export const NICK_KEY = 'desk-defense.online.nickname.v1';
 export const QUEUE_KEY = 'desk-defense.online.queue.v1';
+/** 「自动上传成绩」开关（缺省开启；'0' = 关闭） */
+export const AUTO_UPLOAD_KEY = 'desk-defense.online.autoUpload.v1';
 export const QUEUE_MAX = 20;
 /** 队列里的成绩最多保留 7 天 */
 export const QUEUE_TTL_MS = 7 * 86_400_000;
@@ -163,14 +167,38 @@ export function getDeviceId(): string {
   return id.toLowerCase();
 }
 
-/** 已保存的昵称（没有则返回空串，UI 应提示玩家填写） */
-export function getNickname(): string {
+/**
+ * 默认昵称：本地化前缀（玩家 / Player / プレイヤー）+ 设备 id 的前 4 位（大写）。
+ * 不用弹框问昵称，第一局就能直接上榜；之后可以在排行榜页或结算面板改名。
+ */
+export function defaultNickname(deviceId: string, prefix: string): string {
+  const tag =
+    deviceId
+      .replace(/[^0-9a-z]/gi, '')
+      .slice(0, 4)
+      .toUpperCase() || '0000';
+  const r = sanitizeNickname(`${prefix}${tag}`);
+  return r.ok ? r.value : `P${tag}`;
+}
+
+/** 玩家自己设过的昵称（没有则返回空串） */
+export function getCustomNickname(): string {
   try {
     return conf().storage.get(NICK_KEY) ?? '';
   } catch {
     return '';
   }
 }
+
+/** 上传用的昵称：自己设过的，否则是默认昵称（永远非空） */
+export function getNickname(): string {
+  const n = getCustomNickname();
+  if (n && sanitizeNickname(n).ok) return n;
+  return defaultNickname(getDeviceId(), t('core.online.nickPrefix'));
+}
+
+/** 是否还在用默认昵称 */
+export const isDefaultNickname = (): boolean => !getCustomNickname();
 
 /** 校验并保存昵称；失败返回中文原因 */
 export function setNickname(raw: string): Checked<string> {
@@ -183,6 +211,24 @@ export function setNickname(raw: string): Checked<string> {
     }
   }
   return r;
+}
+
+/** 「自动上传成绩」（缺省开启） */
+export function getAutoUpload(): boolean {
+  try {
+    return conf().storage.get(AUTO_UPLOAD_KEY) !== '0';
+  } catch {
+    return true;
+  }
+}
+
+export function setAutoUpload(on: boolean): void {
+  try {
+    if (on) conf().storage.remove(AUTO_UPLOAD_KEY);
+    else conf().storage.set(AUTO_UPLOAD_KEY, '0');
+  } catch {
+    /* ignore */
+  }
 }
 
 // ───────────────────────── 请求 ─────────────────────────
@@ -362,8 +408,10 @@ export interface SubmitInput {
   dailyDay?: string | null;
   /** 缺省用 getNickname() */
   nickname?: string;
-  /** AI 对局：成绩进 `ai:` 榜（真人榜拒收带标记的成绩） */
+  /** 「AI 参战」对局：成绩进同一个榜，带「AI 辅助」+ 模型标记 */
   agent?: AgentMeta;
+  /** 用过「让 AI 替我玩」：成绩进同一个榜，带「AI 辅助」标记 */
+  aiAssist?: AiAssistMeta;
 }
 
 const RETRYABLE_CODES = new Set(['rate_limited', 'turnstile', 'internal', 'not_configured']);
@@ -398,13 +446,13 @@ export async function buildSubmitBody(input: SubmitInput): Promise<Checked<Omit<
     value: {
       nickname: nick.value,
       deviceId: getDeviceId(),
-      board: input.agent ? AI_BOARD_PREFIX + boardForOpts(input.opts, null) : boardForOpts(input.opts, input.dailyDay ?? null),
+      board: boardForOpts(input.opts, input.dailyDay ?? null),
       opts: JSON.parse(JSON.stringify(input.opts)) as RunOptions,
       seed,
       log: await encodeLog(input.log),
       result: input.result,
       gameVersion: GAME_VERSION,
-      ...(input.agent ? { agent: input.agent } : {}),
+      ...(input.agent ? { agent: input.agent } : input.aiAssist ? { aiAssist: input.aiAssist } : {}),
     },
   };
 }
@@ -431,36 +479,47 @@ export async function submitRun(input: SubmitInput): Promise<SubmitOutcome> {
   }
 }
 
-/** 从结束时的 world 取声明结果（wavesSurvived 与本地结算一致：失败时 = 当前波 - 1） */
+/** 从结束时的 world 取声明结果（wavesSurvived 与本地结算一致：失败时 = 当前波 - 1）；战役附带评星 */
 export function resultFromWorld(
-  st: Pick<WorldState, 'score' | 'lives' | 'gold' | 'tick' | 'stats'>,
+  st: Pick<WorldState, 'score' | 'lives' | 'gold' | 'tick' | 'stats'> & Partial<Pick<WorldState, 'phase' | 'maxLives' | 'opts'>>,
   wavesSurvived: number,
   extra: { cleared?: number; bonus?: number } = {},
 ): ClaimedResult {
+  const campaign = st.opts?.mode === 'campaign';
+  const won = campaign && st.phase === 'won';
   return {
     wave: wavesSurvived,
     score: Math.round(st.score),
     kills: st.stats.kills,
     lives: st.lives,
     gold: st.gold,
-    won: false,
+    won,
     ticks: st.tick,
     ...extra,
+    ...(campaign
+      ? won
+        ? { maxLives: Math.max(st.lives, st.maxLives ?? st.lives), stars: starsFor(st.lives, Math.max(st.lives, st.maxLives ?? st.lives)) }
+        : { stars: 0 }
+      : {}),
   };
 }
 
-/** 结算时的便捷入口：world 结束后直接调用 */
+/**
+ * 结算时的便捷入口：world 结束后直接调用。
+ * AI 辅助的对局照常上传（带标记）：agent = 「AI 参战」，aiAssist.player = 「让 AI 替我玩」；只用过军师不算 AI 辅助。
+ */
 export function submitWorldRun(
   world: {
     readonly log: readonly LogEntry[];
-    readonly state: Pick<WorldState, 'score' | 'lives' | 'gold' | 'tick' | 'stats' | 'opts' | 'seed'>;
+    readonly state: Pick<WorldState, 'score' | 'lives' | 'gold' | 'tick' | 'stats' | 'opts' | 'seed'> &
+      Partial<Pick<WorldState, 'phase' | 'maxLives'>>;
   },
   o: { wavesSurvived: number; dailyDay?: string | null; nickname?: string; agent?: AgentMeta; aiAssist?: AiAssist | null },
 ): Promise<SubmitOutcome> {
-  // 公平性：用过「让 AI 替我玩」的对局不进真人榜 / 每日挑战榜（AI 参战的对局带 agent 标记，只进 AI 榜）
-  if (isAiAssisted(o.aiAssist) && !o.agent) return Promise.resolve({ kind: 'rejected', message: t('ui.assist.blockedShort') });
   const st = world.state;
   const opts: RunOptions = { ...st.opts, seed: st.opts.seed ?? st.seed };
+  const assist: AiAssistMeta | undefined =
+    !o.agent && isAiAssisted(o.aiAssist) ? (o.aiAssist?.model ? { model: o.aiAssist.model } : {}) : undefined;
   return submitRun({
     opts,
     log: world.log.map((e) => ({ tick: e.tick, cmd: e.cmd })),
@@ -468,6 +527,7 @@ export function submitWorldRun(
     dailyDay: o.dailyDay ?? null,
     nickname: o.nickname,
     ...(o.agent ? { agent: o.agent } : {}),
+    ...(assist ? { aiAssist: assist } : {}),
   });
 }
 
@@ -507,10 +567,14 @@ export function flushQueue(): Promise<number> {
 
 // ───────────────────────── 查询 ─────────────────────────
 
-/** 拉取某榜前 N 名；around = true 时附带本设备的最佳名次（me） */
-export async function fetchLeaderboard(board: string, o: { limit?: number; around?: boolean } = {}): Promise<Fetched<LeaderboardResponse>> {
+/** 拉取某榜前 N 名；around = true 时附带本设备的最佳名次（me）；hideAi = true 时隐藏 AI 辅助的成绩 */
+export async function fetchLeaderboard(
+  board: string,
+  o: { limit?: number; around?: boolean; hideAi?: boolean } = {},
+): Promise<Fetched<LeaderboardResponse>> {
   const p = new URLSearchParams({ board, limit: String(o.limit ?? 20) });
   if (o.around) p.set('around', getDeviceId());
+  if (o.hideAi) p.set('hideAi', '1');
   return toFetched(await call<LeaderboardResponse>(`/api/leaderboard?${p.toString()}`));
 }
 

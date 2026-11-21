@@ -3,8 +3,8 @@
  *
  * 每局记录用过哪些 AI 角色：
  *  - advisor（军师）：只给建议，真人自己操作 → 没有任何限制；
- *  - player（替我玩）：AI 下过指令 → 本局标记为「AI 协助」：不上传全服榜 / 每日挑战榜，
- *    本地排行榜条目打上标记（默认不显示）；战役进度 / 星星 / 墨水照常发放。
+ *  - player（替我玩）：AI 下过指令 → 本局标记为「AI 辅助」：成绩照常上传到同一张排行榜，
+ *    只是带「AI 辅助」标记（排行榜可以一键隐藏）；战役进度 / 星星 / 墨水照常发放。
  * 标记随中途存档（MidRun.aiAssist）保存，读档后保留。
  */
 export interface AiAssist {
@@ -32,7 +32,7 @@ export function markAssist(a: AiAssist, role: AiAssistRole, model?: string): AiA
 
 export const usedAi = (a: AiAssist | null | undefined): boolean => !!a && (a.player || a.advisor);
 
-/** 本局是否算「AI 协助」（替我玩过；只用过军师不算） */
+/** 本局是否算「AI 辅助」（替我玩过；只用过军师不算） */
 export const isAiAssisted = (a: AiAssist | null | undefined): boolean => !!a?.player;
 
 /** 存档里读出的任意值 → 合法标记；没用过 AI 时返回 undefined（不写进存档） */

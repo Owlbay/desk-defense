@@ -127,7 +127,7 @@ export default {
   // ───────────── 玩法 · 自動開波 ─────────────
   'guide.play.autowave.title': '自動開波',
   'guide.play.autowave.intro':
-    '開波方式分手動和自動。簡單難度和還沒通關的第一章預設手動，其他預設自動；在設定或開局頁可以更改。排行榜依開波方式分開記錄。',
+    '開波方式分手動和自動。簡單難度和還沒通關的第一章預設手動，其他預設自動；在設定或開局頁可以更改。排行榜不區分開波方式。',
   'guide.play.autowave.1': '**手動**：每一波都由你點開始，沒有時間壓力。上一波還沒打完就開下一波，獎勵 5 + 波數 金幣。',
   'guide.play.autowave.2': '**自動**：第一波由你開；之後每波敵人全部出場後開始倒數（普通 20 秒），到 0 自動開下一波。',
   'guide.play.autowave.3': 'Boss 波之前倒數 ×1.5；每波還有時間上限（普通 60 秒），逾時也會開下一波。',
@@ -318,7 +318,7 @@ export default {
   'guide.talent.max': '最高 {n} 級',
   'guide.talent.price': '每級 {star} 星或 {ink} 墨水',
   'guide.talent.tip': '星星優先買單級的大項目（大書包、文具收藏家、幸運籤），多級的小加成用墨水慢慢補。',
-  'guide.talent.pure': '**純淨模式**：無盡開局時可以關閉所有天賦，成績進入獨立的純淨排行榜。',
+  'guide.talent.pure': '**純淨模式**：無盡開局時可以關閉所有天賦（每日挑戰固定純淨）。成績和其他無盡成績進同一張無盡榜。',
 
   // ───────────── 組合技與流派 ─────────────
   'guide.combo.section.combos': '組合技',
@@ -372,7 +372,7 @@ export default {
 
   // ───────────── AI 參戰 ─────────────
   'guide.ai.intro':
-    '讓大型語言模型像玩家一樣玩這個遊戲，或者在你玩的時候當軍師。AI 的每一步都和你的點擊走同一套驗證，無法作弊；AI 的成績進入獨立的 AI 排行榜。',
+    '讓大型語言模型像玩家一樣玩這個遊戲，或者在你玩的時候當軍師。AI 的每一步都和你的點擊走同一套驗證，無法作弊；AI 打出的成績也進排行榜，帶「AI 輔助」標記和模型名，可以一鍵隱藏。',
   'guide.ai.modes.title': '兩種角色',
   'guide.ai.modes.1': '**AI 玩家**：模型獨立打完一局，你可以旁觀它的思路和每一次操作。',
   'guide.ai.modes.2': '**AI 軍師**：你來玩，模型只看局面並給出建議，建議可以一鍵執行。',
@@ -416,7 +416,7 @@ export default {
   'guide.faq.branch.q': '傳奇分支選錯了能改嗎？',
   'guide.faq.branch.a': '不能。想換只能賣掉重蓋，Lv10 的返還率是 25%。選之前可以在本圖鑑裡先看兩個分支的說明。',
   'guide.faq.autowave.q': '自動開波太快了，能關掉嗎？',
-  'guide.faq.autowave.a': '可以。在設定裡把開波方式改成手動，或在開局頁直接切換。修改後下一局生效；排行榜依開波方式分開記錄。',
+  'guide.faq.autowave.a': '可以。在設定裡把開波方式改成手動，或在開局頁直接切換。修改後下一局生效；排行榜不區分開波方式。',
   'guide.faq.friend.q': '怎麼和朋友打同一局？',
   'guide.faq.friend.a': '把種子傳給朋友，對方在開局頁填入並選同一張地圖。自訂模式再加上分享碼，規則也完全一樣。',
   'guide.faq.perf.q': '手機發燙或卡頓怎麼辦？',
@@ -478,7 +478,7 @@ export default {
   'guide.about.feature.endless.desc':
     '戰役 3 章之後是無盡模式：簡單、普通、困難、噩夢，再到魔境 I～X。菁英敵人帶著隨機詞綴，看你能撐到第幾波。',
   'guide.about.feature.online.title': '全服排行榜與每日挑戰',
-  'guide.about.feature.online.desc': '每天一張固定種子的桌面，所有人同圖比拚。無盡模式每個難度都有全服排行榜。',
+  'guide.about.feature.online.desc': '每天一張固定種子的桌面，所有人同圖比拚。無盡、每日挑戰、戰役三張全服榜，打完自動上傳。',
   'guide.about.feature.ai.title': 'AI 參戰',
   'guide.about.feature.ai.desc': '接上你自己的大型語言模型，讓它獨立打一局，或者在你玩的時候當軍師。支援中轉服務、本機模型和本機橋接。',
   'guide.about.feature.pwa.title': '跨裝置與離線',

@@ -134,6 +134,10 @@ export interface ClaimedResult {
   ticks: number;
   cleared?: number;
   bonus?: number;
+  /** 仅战役：结束时的生命上限（增益会加上限），用于核对评星 */
+  maxLives?: number;
+  /** 仅战役：评星 1..3（通关），失败为 0 */
+  stars?: number;
 }
 
 export interface SubmitBody {
@@ -147,8 +151,15 @@ export interface SubmitBody {
   result: ClaimedResult;
   gameVersion: string;
   turnstileToken?: string;
-  /** AI 对局标记（文档 10 §13）：带它的成绩只能进 `ai:` 榜，真人榜一律拒收 */
+  /** 「AI 参战」（AI 从第 1 波起全程操作）：成绩照常进同一个榜，带「AI 辅助」+ 模型标记 */
   agent?: AgentMeta;
+  /** 对局里用过「让 AI 替我玩」：成绩照常进榜，带「AI 辅助」标记（只用过军师不算，不发这个字段） */
+  aiAssist?: AiAssistMeta;
+}
+
+/** 「让 AI 替我玩」的标记（只带界面上显示的模型名，不含任何 Key） */
+export interface AiAssistMeta {
+  model?: string;
 }
 
 /** AI 对局随成绩上传的元数据（不含任何 Key） */
@@ -198,10 +209,21 @@ export interface LeaderRow {
   kills: number;
   lives: number;
   map: MapId;
+  difficulty: DifficultyId;
+  /** 魔境等级（仅魔境） */
+  abyssLevel?: number;
+  /** 战役评星（通关 1..3，失败 0）；无尽 / 每日恒为 0 */
+  stars: number;
+  /** 战役是否通关 */
+  won: boolean;
   status: RunStatus;
   /** 毫秒时间戳 */
   createdAt: number;
-  /** 仅 AI 榜 */
+  /** AI 辅助（「让 AI 替我玩」或「AI 参战」）的成绩 */
+  ai: boolean;
+  /** AI 辅助时界面显示的模型名（可能为空） */
+  aiModel?: string;
+  /** 仅「AI 参战」：服务商 / 模型 / 决策模式 / 兜底占比 */
   agent?: AgentBadge;
 }
 
@@ -209,6 +231,8 @@ export interface LeaderboardResponse {
   board: string;
   rows: LeaderRow[];
   total: number;
+  /** 是否隐藏了 AI 辅助的成绩（hideAi=1） */
+  hideAi: boolean;
   /** 传了 around=deviceId 时：调用者在该榜的最佳成绩（没有成绩则 null） */
   me?: LeaderRow | null;
   generatedAt: number;
@@ -226,7 +250,9 @@ export interface RunDetail {
   gameVersion: string;
   status: RunStatus;
   createdAt: number;
-  /** 仅 AI 榜 */
+  ai: boolean;
+  aiModel?: string;
+  /** 仅「AI 参战」 */
   agent?: AgentBadge;
 }
 
@@ -257,6 +283,16 @@ export interface ApiError {
 }
 
 // ───────────────────────── 排行榜键 ─────────────────────────
+//
+// 只有三类榜（文档 12 §3）：
+//   endless              无尽榜：所有无尽成绩一张榜，按得分排（得分已含难度倍率），行上标难度 / 魔境等级 / 波数
+//   daily:<YYYY-MM-DD>   每日挑战榜：每天一张
+//   campaign:<ch1|ch2|ch3> 战役榜：每章一张，按 评星 → 得分 → 波数 排（普通 / 困难合并，得分倍率区分难度）
+// AI 辅助（「让 AI 替我玩」/「AI 参战」）的成绩进同一张榜，只是带标记；查询时可以隐藏。
+// 自定义模式（任意参数）不排名。
+//
+// 旧版本的榜键（'normal' / 'abyss3:pure:auto' / 'ai:normal:auto' …）一律归一到 endless（normalizeBoardKey），
+// migrations/0003_simple_boards.sql 也把库里的旧行改到新榜键上。
 
 const clampAbyss = (n: number | undefined): number => Math.max(1, Math.min(ABYSS_MAX_LEVEL, Math.floor(n ?? 1) || 1));
 
@@ -270,50 +306,56 @@ export function diffKeyOf(d: DifficultyId, abyssLevel?: number): string {
   return d === 'abyss' ? `abyss${clampAbyss(abyssLevel)}` : d;
 }
 
-/** 无尽榜键：`<难度键>[:pure][:auto]`，与本地排行榜（progress.leaderKey）一致 */
-export function endlessBoardKey(d: DifficultyId, abyssLevel: number | undefined, pure: boolean, auto: boolean): string {
-  return `${diffKeyOf(d, abyssLevel)}${pure ? ':pure' : ''}${auto ? ':auto' : ''}`;
-}
+/** 战役一章的波数（与 src/config/campaign.ts CAMPAIGN_WAVES 一致，测试里核对） */
+export const CAMPAIGN_TOTAL_WAVES = 20;
+/** 战役可选难度 */
+export const CAMPAIGN_DIFFICULTIES = ['normal', 'hard'] as const satisfies readonly DifficultyId[];
 
+export const ENDLESS_BOARD = 'endless';
 export const dailyBoardKey = (day: string): string => `daily:${day}`;
+export const campaignBoardKey = (map: MapId): string => `campaign:${map}`;
+/** 自定义模式的「榜键」：不排名，服务端拒收 */
+export const CUSTOM_BOARD = 'custom';
 
-export type ParsedBoard =
-  { kind: 'endless'; difficulty: DifficultyId; abyssLevel?: number; pure: boolean; auto: boolean } | { kind: 'daily'; day: string };
+export type ParsedBoard = { kind: 'endless' } | { kind: 'daily'; day: string } | { kind: 'campaign'; map: MapId };
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const LEGACY_ENDLESS_RE = /^(easy|normal|hard|nightmare|abyss([1-9]|10))(:pure)?(:auto)?$/;
 
+/** 解析（新）榜键；旧榜键先经过 normalizeBoardKey */
 export function parseBoard(key: unknown): ParsedBoard | null {
   if (typeof key !== 'string' || key.length > 40) return null;
+  if (key === ENDLESS_BOARD) return { kind: 'endless' };
   if (key.startsWith('daily:')) {
     const day = key.slice(6);
     return isValidDay(day) ? { kind: 'daily', day } : null;
   }
-  const m = /^(easy|normal|hard|nightmare|abyss([1-9]|10))(:pure)?(:auto)?$/.exec(key);
-  if (!m) return null;
-  const pure = !!m[3];
-  const auto = !!m[4];
-  if (m[2]) return { kind: 'endless', difficulty: 'abyss', abyssLevel: Number(m[2]), pure, auto };
-  return { kind: 'endless', difficulty: m[1] as DifficultyId, pure, auto };
+  if (key.startsWith('campaign:')) {
+    const map = key.slice(9);
+    return MAPS.includes(map as MapId) ? { kind: 'campaign', map: map as MapId } : null;
+  }
+  return null;
 }
 
-// ── AI 榜（文档 10 §13）：键 = `ai:` + 无尽榜键；与真人榜完全隔离（parseBoard 不认 `ai:`） ──
+/** 旧版无尽榜键（`<难度键>[:pure][:auto]`，以及 AI 榜 `ai:` + 它）？ */
+export function isLegacyEndlessKey(key: unknown): boolean {
+  if (typeof key !== 'string' || key.length > 40) return false;
+  const k = key.startsWith(AI_BOARD_PREFIX) ? key.slice(AI_BOARD_PREFIX.length) : key;
+  return LEGACY_ENDLESS_RE.test(k) || k === ENDLESS_BOARD;
+}
 
+/** 任意（新 / 旧）榜键 → 新榜键；不认识的返回 null */
+export function normalizeBoardKey(key: unknown): string | null {
+  if (parseBoard(key)) return key as string;
+  return isLegacyEndlessKey(key) ? ENDLESS_BOARD : null;
+}
+
+// ── AI 标记 ──
+
+/** 旧版 AI 榜键前缀（'ai:normal:auto'）；现在只用于兼容旧客户端 / 旧链接，归一到 endless */
 export const AI_BOARD_PREFIX = 'ai:';
 /** 兜底机器人决策占比超过这个值的 AI 成绩会被标注 */
 export const AI_BOT_SHARE_FLAG = 0.2;
-
-export const isAiBoardKey = (key: unknown): key is string => typeof key === 'string' && key.startsWith(AI_BOARD_PREFIX);
-
-/** 解析 AI 榜键（只有无尽榜有 AI 版；每日挑战没有） */
-export function parseAiBoard(key: unknown): Extract<ParsedBoard, { kind: 'endless' }> | null {
-  if (!isAiBoardKey(key)) return null;
-  const b = parseBoard(key.slice(AI_BOARD_PREFIX.length));
-  return b && b.kind === 'endless' ? b : null;
-}
-
-export function aiEndlessBoardKey(d: DifficultyId, abyssLevel: number | undefined, pure: boolean, auto: boolean): string {
-  return AI_BOARD_PREFIX + endlessBoardKey(d, abyssLevel, pure, auto);
-}
 
 const AGENT_PROVIDER_RE = /^[a-z0-9][a-z0-9:_.-]{0,39}$/;
 const AGENT_MODEL_RE = /^[\x21-\x7e]{1,80}$/;
@@ -325,7 +367,7 @@ export function sanitizeAgentMeta(raw: unknown): Checked<AgentMeta> {
   const a = raw as Record<string, unknown>;
   if (typeof a.provider !== 'string' || !AGENT_PROVIDER_RE.test(a.provider)) return bad('AI 标记无效（服务商）');
   if (typeof a.model !== 'string' || !AGENT_MODEL_RE.test(a.model)) return bad('AI 标记无效（模型）');
-  if (a.role !== undefined && a.role !== 'player') return bad('只有「AI 玩家」的对局可以进入 AI 榜');
+  if (a.role !== undefined && a.role !== 'player') return bad('只有「AI 玩家」的对局带 AI 参战标记');
   if (a.mode !== 'pause' && a.mode !== 'realtime') return bad('AI 标记无效（决策模式）');
   if (typeof a.botShare !== 'number' || !(a.botShare >= 0 && a.botShare <= 1)) return bad('AI 标记无效（兜底占比）');
   if (!Number.isSafeInteger(a.decisions) || (a.decisions as number) < 0 || (a.decisions as number) > 200_000)
@@ -348,44 +390,69 @@ export function sanitizeAgentMeta(raw: unknown): Checked<AgentMeta> {
   };
 }
 
+export const AI_MODEL_MAX = 80;
+
+/** 校验「让 AI 替我玩」标记：只保留清洗过的模型名（≤ 80 字） */
+export function sanitizeAiAssist(raw: unknown): Checked<AiAssistMeta> {
+  const bad = (message: string): Checked<AiAssistMeta> => ({ ok: false, message });
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return bad('AI 辅助标记无效');
+  const m = (raw as Record<string, unknown>).model;
+  if (m === undefined || m === null || m === '') return { ok: true, value: {} };
+  if (typeof m !== 'string' || m.length > 200) return bad('AI 辅助标记无效（模型）');
+  const model = Array.from(m.normalize('NFKC').replace(CONTROL_RE, '').replace(/\s+/g, ' ').trim()).slice(0, AI_MODEL_MAX).join('');
+  return { ok: true, value: model ? { model } : {} };
+}
+
 export function agentBadge(a: Pick<AgentMeta, 'provider' | 'model' | 'mode' | 'botShare'>): AgentBadge {
   return { provider: a.provider, model: a.model, mode: a.mode, botShare: a.botShare, botAssisted: a.botShare > AI_BOT_SHARE_FLAG };
 }
 
-/** 某局（无尽）应进入的榜；dailyDay 非空表示这局是每日挑战 */
+/** 这局是不是参与排名的对局：无尽（非自定义参数、非固定布局）/ 每日挑战 / 战役 */
+export function isRankedOpts(opts: Pick<RunOptions, 'mode' | 'custom' | 'events' | 'fixedLayout'>): boolean {
+  if (opts.mode !== 'endless' && opts.mode !== 'campaign') return false;
+  return !(opts.custom || opts.events || opts.fixedLayout);
+}
+
+/** 某局应进入的榜；dailyDay 非空表示这局是每日挑战；自定义模式返回 CUSTOM_BOARD（不排名） */
 export function boardForOpts(opts: RunOptions, dailyDay?: string | null): string {
+  if (!isRankedOpts(opts)) return CUSTOM_BOARD;
+  if (opts.mode === 'campaign') return campaignBoardKey(opts.map);
   if (dailyDay) return dailyBoardKey(dailyDay);
-  return endlessBoardKey(opts.difficulty, opts.abyssLevel, !!opts.pure, effectiveAutoWave(opts));
+  return ENDLESS_BOARD;
 }
 
 // 榜单名称文本。src/shared 不能依赖 i18n（Pages Functions 也会引用），用 stDef 注册 key + 简体中文回退；
 // 浏览器里由 i18n 注入翻译（见 src/shared/text.ts）。
 const BOARD_TEXT = {
-  ai: stDef('core.board.ai', 'AI 榜 · {label}'),
+  endless: stDef('core.board.endless', '无尽榜'),
   daily: stDef('core.board.daily', '每日挑战 {day}'),
-  pure: stDef('core.board.pure', '纯净'),
-  auto: stDef('core.board.auto', '自动开波'),
-  manual: stDef('core.board.manual', '手动开波'),
-  abyss: stDef('data.difficulty.abyssLevel', '魔境 {lv}'),
+  campaign: stDef('core.board.campaign', '战役 · {map}'),
+  custom: stDef('core.board.custom', '自定义（不排名）'),
 };
-const DIFF_TEXT: Record<DifficultyId, () => string> = {
-  easy: stDef('data.difficulty.easy', '简单'),
-  normal: stDef('data.difficulty.normal', '普通'),
-  hard: stDef('data.difficulty.hard', '困难'),
-  nightmare: stDef('data.difficulty.nightmare', '噩梦'),
-  abyss: stDef('data.difficulty.abyss', '魔境'),
+const MAP_TEXT: Record<MapId, () => string> = {
+  ch1: stDef('data.map.ch1.name', '学生书桌'),
+  ch2: stDef('data.map.ch2.name', '程序员工位'),
+  ch3: stDef('data.map.ch3.name', '画师工作台'),
 };
 
+/** 榜的显示名（旧榜键按归一后的新榜显示） */
 export function boardLabel(key: string): string {
-  if (isAiBoardKey(key)) return parseAiBoard(key) ? BOARD_TEXT.ai({ label: boardLabel(key.slice(AI_BOARD_PREFIX.length)) }) : key;
-  const b = parseBoard(key);
-  if (!b) return key;
+  const b = parseBoard(normalizeBoardKey(key));
+  if (!b) return key === CUSTOM_BOARD ? BOARD_TEXT.custom() : key;
   if (b.kind === 'daily') return BOARD_TEXT.daily({ day: b.day });
-  const roman = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
-  const parts = [b.difficulty === 'abyss' ? BOARD_TEXT.abyss({ lv: roman[b.abyssLevel ?? 1] }) : DIFF_TEXT[b.difficulty]()];
-  if (b.pure) parts.push(BOARD_TEXT.pure());
-  parts.push(b.auto ? BOARD_TEXT.auto() : BOARD_TEXT.manual());
-  return parts.join(' · ');
+  if (b.kind === 'campaign') return BOARD_TEXT.campaign({ map: MAP_TEXT[b.map]() });
+  return BOARD_TEXT.endless();
+}
+
+// ───────────────────────── 战役评星 ─────────────────────────
+
+/** 评星：剩余生命 ≥90% 3 星，≥50% 2 星，通关 1 星（src/meta/progress 也用这一份） */
+export function starsFor(lives: number, maxLives: number): number {
+  if (maxLives <= 0) return 1;
+  const r = lives / maxLives;
+  if (r >= 0.9) return 3;
+  if (r >= 0.5) return 2;
+  return 1;
 }
 
 // ───────────────────────── 得分 ─────────────────────────
@@ -541,6 +608,7 @@ export function isValidSeed(s: unknown): s is string {
 export interface CheckedSubmission {
   nickname: string;
   deviceId: string;
+  /** 归一后的新榜键（旧客户端提交的旧榜键已映射） */
   board: string;
   parsedBoard: ParsedBoard;
   opts: RunOptions;
@@ -549,10 +617,16 @@ export interface CheckedSubmission {
   result: ClaimedResult;
   gameVersion: string;
   turnstileToken?: string;
-  /** 每日挑战的日期（无尽榜为 null） */
+  /** 每日挑战的日期（其他榜为 null） */
   day: string | null;
-  /** AI 榜的成绩才有；真人榜恒为 null */
+  /** 「AI 参战」的元数据；其他成绩为 null */
   agent: AgentMeta | null;
+  /** AI 辅助（AI 参战或「让 AI 替我玩」）的成绩 */
+  ai: boolean;
+  /** AI 辅助时显示的模型名 */
+  aiModel: string | null;
+  /** 战役评星（失败 0）；无尽 / 每日恒为 0 */
+  stars: number;
 }
 
 export interface SubmitContext {
@@ -560,6 +634,20 @@ export interface SubmitContext {
   /** 服务端接受的版本，缺省为 [GAME_VERSION] */
   acceptVersions?: readonly string[];
 }
+
+const OPTS_KNOWN = new Set([
+  'mode',
+  'map',
+  'difficulty',
+  'abyssLevel',
+  'seed',
+  'skills',
+  'skillLevels',
+  'talents',
+  'pure',
+  'autoWave',
+  'fixedLayout',
+]);
 
 /**
  * 只依赖请求体本身的轻量校验（schema / 版本 / 榜键与 opts 一致 / 种子规则 / 得分重算 / 结果合理性）。
@@ -578,27 +666,35 @@ export function checkSubmission(body: unknown, ctx: SubmitContext): Checked<Chec
   if (!nick.ok) return bad(nick.message);
   if (!isDeviceId(body.deviceId)) return bad('设备标识无效');
 
-  // AI 标记与 AI 榜必须成对出现：带标记的成绩进不了真人榜，没有标记的成绩也进不了 AI 榜
-  const hasAgent = body.agent !== undefined && body.agent !== null;
-  const aiBoard = isAiBoardKey(body.board);
-  if (hasAgent && !aiBoard) return bad('AI 对局的成绩只能提交到 AI 榜');
-  if (aiBoard && !hasAgent) return bad('AI 榜只接受带 AI 标记的成绩');
+  // ── AI 标记：所有榜都接受，只是成绩带「AI 辅助」标记 ──
   let agent: AgentMeta | null = null;
-  if (hasAgent) {
+  if (body.agent !== undefined && body.agent !== null) {
     const a = sanitizeAgentMeta(body.agent);
     if (!a.ok) return bad(a.message);
     agent = a.value;
   }
-  const parsedBoard: ParsedBoard | null = aiBoard ? parseAiBoard(body.board) : parseBoard(body.board);
-  if (!parsedBoard) return bad('排行榜不存在');
+  let assist: AiAssistMeta | null = null;
+  if (body.aiAssist !== undefined && body.aiAssist !== null) {
+    const a = sanitizeAiAssist(body.aiAssist);
+    if (!a.ok) return bad(a.message);
+    assist = a.value;
+  }
+  const ai = !!agent || !!assist;
+  const aiModel = agent ? agent.model : (assist?.model ?? null);
+
+  const board = normalizeBoardKey(body.board);
+  const parsedBoard = parseBoard(board);
+  if (!board || !parsedBoard) return bad('排行榜不存在');
 
   // ── opts ──
   const o = body.opts;
   if (!isObj(o)) return bad('开局参数缺失');
-  if (o.mode !== 'endless') return bad('只有无尽模式（含每日挑战）可以上传成绩');
+  if (o.mode !== 'endless' && o.mode !== 'campaign') return bad('自定义模式不参与排行');
+  const campaign = o.mode === 'campaign';
   if (!MAPS.includes(o.map as MapId)) return bad('地图无效');
   if (!DIFFICULTIES.includes(o.difficulty as DifficultyId)) return bad('难度无效');
   const difficulty = o.difficulty as DifficultyId;
+  if (campaign && !(CAMPAIGN_DIFFICULTIES as readonly string[]).includes(difficulty)) return bad('战役难度无效');
   if (difficulty === 'abyss') {
     if (!intIn(o.abyssLevel, 1, ABYSS_MAX_LEVEL)) return bad('魔境等级无效');
   } else if (o.abyssLevel !== undefined) return bad('开局参数不一致（魔境等级）');
@@ -621,29 +717,18 @@ export function checkSubmission(body: unknown, ctx: SubmitContext): Checked<Chec
       if (!TALENTS.includes(k as TalentId) || !intIn(v, 0, 10)) return bad('天赋无效');
     }
   }
-  const known = new Set([
-    'mode',
-    'map',
-    'difficulty',
-    'abyssLevel',
-    'seed',
-    'skills',
-    'skillLevels',
-    'talents',
-    'pure',
-    'autoWave',
-    'fixedLayout',
-  ]);
-  if (Object.keys(o).some((k) => !known.has(k))) return bad('开局参数包含未知字段');
+  if (Object.keys(o).some((k) => !OPTS_KNOWN.has(k))) return bad('开局参数包含未知字段');
 
   // ── 种子 ──
   if (!isValidSeed(body.seed)) return bad('种子无效');
   if (o.seed !== body.seed) return bad('开局参数与种子不一致');
   const seed = body.seed;
+  const dailySeedLike = /^d\d{8}[0-9a-z]{7}$/.test(seed);
 
   // ── 榜键一致性 / 每日挑战规则 ──
   let day: string | null = null;
   if (parsedBoard.kind === 'daily') {
+    if (campaign) return bad('排行榜与开局参数不一致');
     day = parsedBoard.day;
     if (!acceptedDailyDays(ctx.now).includes(day)) return bad('这期每日挑战已经结束了');
     const info = dailyInfo(day);
@@ -654,41 +739,51 @@ export function checkSubmission(body: unknown, ctx: SubmitContext): Checked<Chec
     if (!pure || o.autoWave !== true) return bad('每日挑战需要纯净模式 + 自动开波');
     if (o.skills.length > 3) return bad('技能数量无效');
     if (o.skillLevels && Object.values(o.skillLevels).some((v) => v !== 1)) return bad('每日挑战的技能等级固定为 1 级');
+  } else if (parsedBoard.kind === 'campaign') {
+    if (!campaign || parsedBoard.map !== o.map) return bad('排行榜与开局参数不一致');
   } else {
-    if (/^d\d{8}[0-9a-z]{7}$/.test(seed)) return bad('每日挑战的种子不能用于普通排行');
-    const expect = endlessBoardKey(
-      difficulty,
-      o.abyssLevel as number | undefined,
-      pure,
-      effectiveAutoWave({ autoWave: o.autoWave as boolean | undefined, difficulty }),
-    );
-    if ((aiBoard ? AI_BOARD_PREFIX : '') + expect !== body.board) return bad('排行榜与开局参数不一致');
+    if (campaign) return bad('排行榜与开局参数不一致');
+    if (dailySeedLike) return bad('每日挑战的种子不能用于普通排行');
   }
 
   // ── 结果 ──
   const r = body.result;
   if (!isObj(r)) return bad('结算数据缺失');
-  if (!intIn(r.wave, 0, 10_000)) return bad('波数无效');
+  if (!intIn(r.wave, 0, campaign ? CAMPAIGN_TOTAL_WAVES : 10_000)) return bad('波数无效');
   if (!intIn(r.score, 0, 1e10)) return bad('得分无效');
   if (!intIn(r.kills, 0, (r.wave + 1) * 2000)) return bad('击杀数不合理');
   if (!intIn(r.lives, 0, 500)) return bad('剩余生命不合理');
   if (!inRange(r.gold, 0, 1e8)) return bad('金币数不合理');
-  if (r.won !== false) return bad('无尽模式没有胜利结算');
+  if (typeof r.won !== 'boolean') return bad('结算数据无效');
+  if (r.won && !campaign) return bad('无尽模式没有胜利结算');
   if (!intIn(r.ticks, 0, MAX_RUN_SEC * TICKS_PER_SECOND)) return bad('对局时长不合理');
   if (r.ticks > (r.wave + 1) * MAX_SEC_PER_WAVE * TICKS_PER_SECOND) return bad('对局时长与波数不符');
   if (r.ticks < r.wave * MIN_SEC_PER_WAVE * TICKS_PER_SECOND) return bad('对局时长与波数不符');
   if (r.cleared !== undefined && !isInt(r.cleared)) return bad('结算数据无效');
   if (r.bonus !== undefined && !isNum(r.bonus)) return bad('结算数据无效');
+  // 战役：通关 = 打满 20 波且还有生命；评星由「剩余生命 / 生命上限」算出
+  let stars = 0;
+  let maxLives: number | undefined;
+  if (campaign) {
+    if (r.won) {
+      if (r.wave !== CAMPAIGN_TOTAL_WAVES || r.lives < 1) return bad('战役通关数据不一致');
+      if (!intIn(r.maxLives, r.lives, 500)) return bad('生命上限不合理');
+      maxLives = r.maxLives;
+      stars = starsFor(r.lives, maxLives);
+    } else if (r.wave >= CAMPAIGN_TOTAL_WAVES) return bad('战役失败时的波数不对');
+    if (r.stars !== undefined && r.stars !== stars) return bad('评星与剩余生命不符');
+  } else if (r.stars !== undefined && r.stars !== 0) return bad('只有战役有评星');
   const result: ClaimedResult = {
     wave: r.wave,
     score: r.score,
     kills: r.kills,
     lives: r.lives,
     gold: r.gold,
-    won: false,
+    won: r.won,
     ticks: r.ticks,
     ...(r.cleared !== undefined ? { cleared: r.cleared as number } : {}),
     ...(r.bonus !== undefined ? { bonus: r.bonus as number } : {}),
+    ...(campaign ? { stars, ...(maxLives !== undefined ? { maxLives } : {}) } : {}),
   };
   const scoreErr = checkScore(result, scoreMul(difficulty, o.abyssLevel as number | undefined));
   if (scoreErr) return bad(scoreErr);
@@ -711,7 +806,7 @@ export function checkSubmission(body: unknown, ctx: SubmitContext): Checked<Chec
     value: {
       nickname: nick.value,
       deviceId: (body.deviceId as string).toLowerCase(),
-      board: body.board as string,
+      board,
       parsedBoard,
       opts,
       seed,
@@ -721,6 +816,9 @@ export function checkSubmission(body: unknown, ctx: SubmitContext): Checked<Chec
       ...(typeof body.turnstileToken === 'string' ? { turnstileToken: body.turnstileToken } : {}),
       day,
       agent,
+      ai,
+      aiModel,
+      stars,
     },
   };
 }

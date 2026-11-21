@@ -479,7 +479,7 @@ ctl.trace.subscribe((ev) => panel.push(ev));      // 思路与请求（§12.1）
 - 控制器订阅 `session.on()` 事件、每 100 ms 检查决策点（`pollMs: 0` 时由 UI 每帧调 `ctl.poll()`）；暂停模式下决策期间 `session.togglePause(true)`，结束后恢复（玩家自己暂停时不会被恢复）。
 - 指令走 `session.command()`，渲染与 UI 事件照常触发。
 - **打包（已验证）**：首屏包只多了 `src/ui/ai/launch.ts` 等几 KB 的入口；Agent 逻辑与模型 SDK 全部在 `dist/assets/ai/` 下的动态分包里（`vite.config.ts` 的 `chunkFileNames`），不进 PWA 预缓存，首次进入「AI 参战」时下载、之后由 Service Worker 缓存。构建产物里没有 undici / proxy-agent / @aws-sdk / ws。以下为最初的设计说明：`src/agent/index.ts` 本身只含纯逻辑；`createProvider` 用 `import()` 加载 `providers/claude.ts`、`providers/pi.ts`、`bridge.ts`，Vite 会拆成独立分包，只在玩家开启 AI 模式时下载。UI 工作需要确认构建产物里 pi 的 Node 专用依赖（undici、proxy-agent、bedrock）没有被打进浏览器包（必要时在 vite 配置里给它们设 `external` 或别名到空模块）。
-- 结算：带 agent 标记的成绩只能提交到 `aiBoardKey(opts)`（`ai:` 前缀），UI 不得显示"提交到全服排行榜"按钮。
+- 结算：带 agent 标记的成绩进**同一张**全服榜（2026-11 起，见第 12 章 §4.1），榜上带「AI 辅助」+ 模型名。`aiBoardKey(opts)` 仍返回旧式 `ai:<榜键>`，服务端 `normalizeBoardKey` 会把它归一到新榜。
 
 ### 12.1 透明度：「思路与请求」面板（`src/agent/trace.ts` + `src/ui/ai/trace-panel.ts`）
 
@@ -515,7 +515,7 @@ ctl.trace.subscribe((ev) => panel.push(ev));      // 思路与请求（§12.1）
 
 - **指令校验**：所有动作经 `World.command()`；工具输入先过 Schema 校验；军师角色根本拿不到动作工具。模型不能读未来（观测里没有随机数种子之外的内部状态，下一波预告与真人看到的一致）。
 - **限速**：每次决策工具调用上限、单次决策超时、整局预算、连续失败熔断；MCP 会话数上限；桥接器单连接 + 配对码 + Origin 校验 + 仅本机监听。
-- **AI 榜隔离（已实现）**：Agent 回放带 `agent: {provider, model, role}`，榜键 `ai:<无尽榜键>`（每日挑战没有 AI 榜）。
+- **AI 榜隔离（已取消，2026-11 起并入普通榜，见第 12 章 §3.1 / §4.1；下面是历史设计）**：Agent 回放带 `agent: {provider, model, role}`，榜键 `ai:<无尽榜键>`（每日挑战没有 AI 榜）。
   - 提交仍走 `POST /api/runs`，请求体多一个 `agent: { provider, model, mode, botShare, decisions, tokens?, costUsd? }`（`src/shared/leaderboard.ts` 的 `AgentMeta`）。**标记与榜键必须成对**：带 `agent` 的成绩提交到真人榜 → 拒绝（"AI 对局的成绩只能提交到 AI 榜"）；`ai:` 榜没有 `agent` → 拒绝。真人榜的 `parseBoard` 仍然不认 `ai:`。得分 / 日志 / 限流校验与真人成绩完全相同。
   - 存储：同一张 `runs` 表，`migrations/0002_ai_board.sql` 加了 `agent_provider / agent_model / agent_mode / agent_bot_share / agent_json` 五列（真人成绩为 NULL）。AI 榜的去重键是 `sha256(salt|dev|uuid|ai|provider|model)`：同一设备的**每个模型各保留一条最佳**。
   - 展示：`GET /api/leaderboard?board=ai:normal:auto` 的每行带 `agent: { provider, model, mode, botShare, botAssisted }`；兜底机器人决策占比 > 20%（`AI_BOT_SHARE_FLAG`）标注"机器人代打"，内置策略 `scripted` 的占比恒为 1 并标注"内置策略"。只有"AI 玩家"、且玩家没有中途接管的无尽对局可以提交（军师模式是真人在玩，不进任何在线榜）。

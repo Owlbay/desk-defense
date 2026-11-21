@@ -23,12 +23,15 @@ describe('online ui helpers', () => {
     expect(dailyDayOfOpts({ ...opts, map: info.map === 'ch1' ? 'ch2' : 'ch1' })).toBeNull();
     expect(dailyDayOfOpts({ ...opts, pure: false })).toBeNull();
     expect(dailyDayOfOpts(base)).toBeNull();
-    expect(boardOfRun(base)).toBe('normal:auto');
+    expect(boardOfRun(base)).toBe('endless');
+    expect(boardOfRun({ ...base, mode: 'campaign', map: 'ch2' })).toBe('campaign:ch2');
+    expect(boardOfRun({ ...base, mode: 'custom' })).toBe('custom');
   });
 
-  it('eligibility: endless only, no custom / events / fixed layout', () => {
+  it('eligibility: endless + campaign; no custom mode / custom params / events / fixed layout', () => {
     expect(isEligibleRun(base)).toBe(true);
-    expect(isEligibleRun({ ...base, mode: 'campaign' })).toBe(false);
+    expect(isEligibleRun({ ...base, mode: 'campaign' })).toBe(true);
+    expect(isEligibleRun({ ...base, fixedLayout: true })).toBe(false);
     expect(isEligibleRun({ ...base, mode: 'custom' })).toBe(false);
     expect(isEligibleRun({ ...base, custom: { lives: 5 } })).toBe(false);
     expect(isEligibleRun({ ...base, seed: undefined })).toBe(false);

@@ -4,26 +4,24 @@
  */
 import { decodeLogPayload, gzipJsonBase64 } from '../../src/shared/codec';
 import {
-  agentBadge,
   checkLog,
   checkSubmission,
   type DailyInfo,
   dailyInfo,
   dayOf,
+  effectiveAutoWave,
   GAME_VERSION,
-  isAiBoardKey,
   isDeviceId,
   LEADERBOARD_MAX_LIMIT,
   type LeaderboardResponse,
   MAX_BODY_BYTES,
-  parseAiBoard,
-  parseBoard,
+  normalizeBoardKey,
   RATE_LIMIT,
   type RunDetail,
   type StatusResponse,
   type SubmitResponse,
 } from '../../src/shared/leaderboard';
-import { type D1Like, type RunRow, RunStore, toLeaderRow } from './db';
+import { agentOfRow, type BestRow, type D1Like, ranksBefore, type RunRow, RunStore, toLeaderRow } from './db';
 import { apiError, json } from './http';
 import { checkRateLimit, D1RateLimitStore, type RateLimitStore } from './ratelimit';
 
@@ -63,11 +61,11 @@ export async function sha256Hex(s: string): Promise<string> {
 export const hashDevice = async (salt: string, deviceId: string): Promise<string> =>
   (await sha256Hex(`${salt}|dev|${deviceId.toLowerCase()}`)).slice(0, 32);
 /**
- * AI 榜的去重键：同一台设备的每个「服务商 + 模型」各保留一条最佳成绩
- * （复用 runs 表的 UNIQUE(board, device_hash)，不同模型不会互相覆盖）。
+ * AI 辅助成绩的去重键：同一台设备在每个榜上「真人最佳」和「AI 辅助最佳」各保留一条
+ * （复用 runs 表的 UNIQUE(board, device_hash)，两者不会互相覆盖）。
  */
-export const hashAgentDevice = async (salt: string, deviceId: string, provider: string, model: string): Promise<string> =>
-  (await sha256Hex(`${salt}|dev|${deviceId.toLowerCase()}|ai|${provider}|${model}`)).slice(0, 32);
+export const hashAiDevice = async (salt: string, deviceId: string): Promise<string> =>
+  (await sha256Hex(`${salt}|dev|${deviceId.toLowerCase()}|ai`)).slice(0, 32);
 export const hashIp = async (salt: string, ip: string): Promise<string> => (await sha256Hex(`${salt}|ip|${ip}`)).slice(0, 32);
 
 const ID_ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyz';
@@ -86,8 +84,8 @@ function notConfigured(): Response {
   return apiError('not_configured', '在线功能暂未开放（服务器未配置数据库）');
 }
 
-export function leaderboardCacheKey(origin: string, board: string, limit: number): string {
-  return `${origin}/api/leaderboard?board=${encodeURIComponent(board)}&limit=${limit}`;
+export function leaderboardCacheKey(origin: string, board: string, limit: number, hideAi = false): string {
+  return `${origin}/api/leaderboard?board=${encodeURIComponent(board)}&limit=${limit}&hideAi=${hideAi ? 1 : 0}`;
 }
 
 async function verifyTurnstile(deps: Deps, token: string | undefined, ip: string): Promise<boolean> {
@@ -164,7 +162,7 @@ export async function handleSubmit(req: Request, deps: Deps): Promise<Response> 
     board: sub.board,
     day: sub.day,
     nickname: sub.nickname,
-    device_hash: sub.agent ? await hashAgentDevice(deps.salt, sub.deviceId, sub.agent.provider, sub.agent.model) : (deviceHash as string),
+    device_hash: sub.ai ? await hashAiDevice(deps.salt, sub.deviceId) : (deviceHash as string),
     score: sub.result.score,
     wave: sub.result.wave,
     kills: sub.result.kills,
@@ -174,7 +172,7 @@ export async function handleSubmit(req: Request, deps: Deps): Promise<Response> 
     difficulty: sub.opts.difficulty,
     abyss: sub.opts.difficulty === 'abyss' ? (sub.opts.abyssLevel ?? 1) : 0,
     pure: sub.opts.pure ? 1 : 0,
-    auto_wave: sub.parsedBoard.kind === 'daily' || sub.board.endsWith(':auto') ? 1 : 0,
+    auto_wave: effectiveAutoWave(sub.opts) ? 1 : 0,
     game_version: sub.gameVersion,
     opts_json: JSON.stringify(sub.opts),
     result_json: JSON.stringify(sub.result),
@@ -188,15 +186,24 @@ export async function handleSubmit(req: Request, deps: Deps): Promise<Response> 
     agent_mode: sub.agent?.mode ?? null,
     agent_bot_share: sub.agent ? sub.agent.botShare : null,
     agent_json: sub.agent ? JSON.stringify(sub.agent) : null,
+    ai: sub.ai ? 1 : 0,
+    ai_model: sub.aiModel,
+    stars: sub.stars,
+    won: sub.result.won ? 1 : 0,
   };
   const { improved } = await store.upsertBest(row);
   const best = await store.bestOf(sub.board, row.device_hash);
   if (!best) return apiError('internal', '保存成绩失败，请稍后再试');
-  const { rank, total } = await store.rankOf(sub.board, best);
+  // 名次按「包含 AI 辅助」的完整榜算（隐藏 AI 时界面会重新查询）
+  const { rank, total } = await store.rankOf(sub.board, best, true);
 
   if (improved && deps.cache) {
     const origin = new URL(req.url).origin;
-    await Promise.all(LIMIT_PRESETS.map((l) => deps.cache!.delete(leaderboardCacheKey(origin, sub.board, l)).catch(() => false)));
+    await Promise.all(
+      LIMIT_PRESETS.flatMap((l) =>
+        [false, true].map((h) => deps.cache!.delete(leaderboardCacheKey(origin, sub.board, l, h)).catch(() => false)),
+      ),
+    );
   }
   const res: SubmitResponse = { id: best.id, rank, total, improved, status: best.status };
   return json(res, { status: improved ? 201 : 200 });
@@ -208,26 +215,28 @@ export async function handleLeaderboard(req: Request, deps: Deps): Promise<Respo
   if (req.method !== 'GET') return apiError('method', '请求方式不支持');
   if (!deps.db) return notConfigured();
   const url = new URL(req.url);
-  const board = url.searchParams.get('board') ?? '';
-  const ai = isAiBoardKey(board);
-  if (!(ai ? parseAiBoard(board) : parseBoard(board))) return apiError('bad_request', '排行榜不存在');
+  // 旧榜键（'normal:auto' / 'ai:hard' …）归一到新榜（endless）
+  const board = normalizeBoardKey(url.searchParams.get('board') ?? '');
+  if (!board) return apiError('bad_request', '排行榜不存在');
   const limitRaw = Number(url.searchParams.get('limit') ?? '20');
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(LEADERBOARD_MAX_LIMIT, Math.floor(limitRaw))) : 20;
   const around = url.searchParams.get('around');
   if (around !== null && !isDeviceId(around)) return apiError('bad_request', '设备标识无效');
+  const hideAi = url.searchParams.get('hideAi') === '1';
+  const includeAi = !hideAi;
 
   const store = new RunStore(deps.db);
-  // 缓存按档位（10/20/50/100）存，任意 limit 都落到某一档再截断，提交新纪录时能全部清掉
+  // 缓存按档位（10/20/50/100）× 是否隐藏 AI 存，任意 limit 都落到某一档再截断，提交新纪录时能全部清掉
   const bucket = LIMIT_PRESETS.find((l) => l >= limit) ?? LEADERBOARD_MAX_LIMIT;
-  const key = leaderboardCacheKey(url.origin, board, bucket);
+  const key = leaderboardCacheKey(url.origin, board, bucket, hideAi);
   let base: LeaderboardResponse | null = null;
   if (deps.cache) {
     const hit = await deps.cache.match(key).catch(() => undefined);
     if (hit) base = (await hit.json()) as LeaderboardResponse;
   }
   if (!base) {
-    const [rows, total] = await Promise.all([store.top(board, bucket), store.total(board)]);
-    base = { board, rows, total, generatedAt: deps.now() };
+    const [rows, total] = await Promise.all([store.top(board, bucket, includeAi), store.total(board, includeAi)]);
+    base = { board, rows, total, hideAi, generatedAt: deps.now() };
     if (deps.cache) {
       await deps.cache.put(key, json(base, { cacheControl: `public, max-age=${LEADERBOARD_TTL}` })).catch(() => undefined);
     }
@@ -235,12 +244,26 @@ export async function handleLeaderboard(req: Request, deps: Deps): Promise<Respo
   if (base.rows.length > limit) base = { ...base, rows: base.rows.slice(0, limit) };
   if (around === null) return json(base, { cacheControl: `public, max-age=${LEADERBOARD_TTL}` });
 
-  // AI 榜按「设备 + 模型」去重，没有单一的「我的名次」
-  if (ai) return json({ ...base, me: null }, { cacheControl: 'private, max-age=10' });
-  const best = await store.bestOf(board, await hashDevice(deps.salt, around));
+  // 我的最佳：真人最佳；包含 AI 时再和 AI 辅助最佳比，取排名更靠前的那条
+  const [human, aiBest] = await Promise.all([
+    store.bestOf(board, await hashDevice(deps.salt, around)),
+    includeAi ? store.bestOf(board, await hashAiDevice(deps.salt, around)) : Promise.resolve(null),
+  ]);
+  const pick = (a: BestRow | null, b: BestRow | null): BestRow | null => {
+    if (!a || !b) return a ?? b;
+    const key = (r: BestRow) => ({
+      id: r.id,
+      stars: Number(r.stars),
+      score: Number(r.score),
+      wave: Number(r.wave),
+      created_at: Number(r.created_at),
+    });
+    return ranksBefore(key(b), key(a)) ? b : a;
+  };
+  const best = pick(human, aiBest);
   let me = null;
   if (best) {
-    const { rank } = await store.rankOf(board, best);
+    const { rank } = await store.rankOf(board, best, includeAi);
     me = toLeaderRow(best, rank);
   }
   return json({ ...base, me }, { cacheControl: 'private, max-age=10' });
@@ -265,16 +288,9 @@ export async function handleGetRun(req: Request, deps: Deps, id: string): Promis
     gameVersion: r.game_version,
     status: r.status,
     createdAt: Number(r.created_at),
-    ...(r.agent_provider && r.agent_model
-      ? {
-          agent: agentBadge({
-            provider: r.agent_provider,
-            model: r.agent_model,
-            mode: r.agent_mode === 'realtime' ? 'realtime' : 'pause',
-            botShare: Number(r.agent_bot_share ?? 0),
-          }),
-        }
-      : {}),
+    ai: Number(r.ai) === 1 || !!r.agent_provider,
+    ...(r.ai_model || r.agent_model ? { aiModel: (r.ai_model || r.agent_model) as string } : {}),
+    ...(agentOfRow(r) ? { agent: agentOfRow(r) } : {}),
   };
   return json(detail, { cacheControl: 'public, max-age=300' });
 }

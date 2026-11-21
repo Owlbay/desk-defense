@@ -139,7 +139,7 @@ export default {
   // ───────────── How to Play · Auto Wave ─────────────
   'guide.play.autowave.title': 'Auto-start waves',
   'guide.play.autowave.intro':
-    'Waves start either manually or automatically. Easy difficulty and an uncleared Chapter 1 default to manual; everything else defaults to auto. You can change this in Settings or on the run setup screen. Leaderboards are kept separately for each wave start mode.',
+    'Waves start either manually or automatically. Easy difficulty and an uncleared Chapter 1 default to manual; everything else defaults to auto. You can change this in Settings or on the run setup screen. Leaderboards do not split by wave start mode.',
   'guide.play.autowave.1':
     '**Manual**: you start every wave yourself, with no time pressure. Starting the next wave before the current one is finished rewards 5 + wave number gold.',
   'guide.play.autowave.2':
@@ -367,7 +367,7 @@ export default {
   'guide.talent.tip':
     'Spend stars on the big single-level talents first (Big Backpack, Stationery Collector, Lucky Draw), and fill in the small multi-level bonuses with ink over time.',
   'guide.talent.pure':
-    '**Pure Mode**: when starting an Endless run you can turn off all talents. Your result goes on a separate Pure leaderboard.',
+    '**Pure Mode**: when starting an Endless run you can turn off all talents (the Daily Challenge is always Pure). Your result goes on the same Endless leaderboard as every other Endless run.',
 
   // ───────────── Combos & builds ─────────────
   'guide.combo.section.combos': 'Combos',
@@ -432,7 +432,7 @@ export default {
 
   // ───────────── AI Play ─────────────
   'guide.ai.intro':
-    "Let a large language model play the game like a player, or have it advise you while you play. Every AI move goes through the same validation as your clicks, so it can't cheat. AI results go on a separate AI leaderboard.",
+    "Let a large language model play the game like a player, or have it advise you while you play. Every AI move goes through the same validation as your clicks, so it can't cheat. AI results go on the leaderboards too, tagged AI-assisted with the model name, and can be hidden with one switch.",
   'guide.ai.modes.title': 'Two roles',
   'guide.ai.modes.1': '**AI Player**: the model plays a whole run on its own. You can watch its reasoning and every action.',
   'guide.ai.modes.2':
@@ -484,7 +484,7 @@ export default {
     'No. The only way is to sell the tower and rebuild it, and a Lv10 tower refunds just 25%. You can read up on both paths in this Codex before choosing.',
   'guide.faq.autowave.q': 'Auto-start waves are too fast. Can I turn them off?',
   'guide.faq.autowave.a':
-    'Yes. Set wave start to manual in Settings, or switch it on the run setup screen. The change applies from your next run. Leaderboards are kept separately for each wave start mode.',
+    'Yes. Set wave start to manual in Settings, or switch it on the run setup screen. The change applies from your next run. Leaderboards do not split by wave start mode.',
   'guide.faq.friend.q': 'How do I play the same run as a friend?',
   'guide.faq.friend.a':
     'Send your friend the seed. They enter it on the run setup screen and pick the same map. In Custom mode, add the share code and the rules will match exactly too.',
@@ -551,7 +551,7 @@ export default {
     'After the 3 Campaign chapters comes Endless: Easy, Normal, Hard, Nightmare, then Abyss I–X. Elite enemies carry random affixes. How many waves can you survive?',
   'guide.about.feature.online.title': 'Global leaderboards and Daily Challenge',
   'guide.about.feature.online.desc':
-    'One desk with a fixed seed every day, and everyone competes on the same map. Every Endless difficulty has its own global leaderboard.',
+    'One desk with a fixed seed every day, and everyone competes on the same map. Three global leaderboards (Endless, Daily, Campaign); scores upload automatically.',
   'guide.about.feature.ai.title': 'AI Play',
   'guide.about.feature.ai.desc':
     'Plug in your own large language model and let it play a run on its own, or have it advise you while you play. Works with API relays, local models and the Local Bridge.',

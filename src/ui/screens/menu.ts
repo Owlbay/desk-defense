@@ -147,7 +147,7 @@ export function menuScreen(app: App): Screen {
         null,
         btn(t('ui.menu.talents'), G.bag, go({ name: 'talents' }), t('ui.menu.talentsSub')),
         btn(t('ui.menu.skills'), G.bolt, go({ name: 'skills' }), t('ui.menu.skillsSub')),
-        btn(t('ui.menu.leaderboard'), G.trophy, go({ name: 'leaderboard' }), t('ui.menu.leaderboardSub', { n: 10 })),
+        btn(t('ui.menu.leaderboard'), G.trophy, go({ name: 'leaderboard' }), t('ui.lb.menuSub')),
         btn(t('ui.menu.settings'), G.gear, go({ name: 'settings' }), t('ui.menu.settingsSub')),
       ),
     ),

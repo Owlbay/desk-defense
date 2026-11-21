@@ -17,13 +17,13 @@ export default {
   'ui.assist.currentModel': '現在のモデル：{model}',
   'ui.assist.rolePlayer': 'AI プレイヤー',
   'ui.assist.roleAdvisor': 'AI 軍師',
-  'ui.assist.fairnessShort': 'AI に代わりにプレイさせた対局は全体ランキングとデイリーランキングに載りません。軍師だけなら影響なし。',
-  'ui.assist.markedNote': 'この対局は「AI 補助」です：報酬は通常どおり、全体 / デイリーランキングには送信しません。',
+  'ui.assist.fairnessShort': 'AI に代わりにプレイさせた対局もランキングに載り、「AI 補助」の印が付きます。軍師だけなら印は付きません。',
+  'ui.assist.markedNote': 'この対局は「AI 補助」です：報酬は通常どおり、成績は「AI 補助」の印付きでランキングに載ります。',
   'ui.assist.dedicatedNote':
     'これは「AI 参戦」の対局で、AI が第 1 ウェーブから操作します。役割を変えるには「AI 参戦」から始め直してください。',
   'ui.assist.badge': 'AI 補助',
   'ui.assist.badgeAdvisor': 'AI 軍師',
-  'ui.assist.badgeTip': 'この対局では AI が代わりにプレイしました：報酬は通常どおり、全体ランキングとデイリーランキングには載りません',
+  'ui.assist.badgeTip': 'この対局では AI が代わりにプレイしました：報酬は通常どおり、成績は「AI 補助」の印付きでランキングに載ります',
   'ui.assist.badgeAdvisorTip': 'AI 軍師は提案するだけで、成績に影響しません',
   'ui.assist.enabledPlayer': 'AI が引き継ぎました（{model}）— I キーでいつでも停止',
   'ui.assist.enabledAdvisor': 'AI 軍師がスタンバイしました（{model}）',
@@ -49,22 +49,15 @@ export default {
   'ui.assist.openSettings': 'モデル設定…',
   'ui.assist.howTitle': '使い方',
   'ui.assist.howPlayer':
-    'AI が現在の局面から操作を引き継ぎます。対局は「AI 補助」になり、キャンペーン進行・星・インクは通常どおり。全体 / デイリーランキングには載らず、ローカルランキングでは別枠になります。',
+    'AI が現在の局面から操作を引き継ぎます。この対局は「AI 補助」になります：キャンペーンの進行・星・インクは通常どおり、成績も「AI 補助」の印付きでランキングに載ります（ランキングで非表示にできます）。',
   'ui.assist.howAdvisor': 'AI は提案カードを出すだけで、「採用」を押すまで何も起きません。成績や送信に影響しません。',
   'ui.assist.howButtonTitle': '対局中の AI ボタン',
   'ui.assist.howButton':
     '上部バーの AI ボタン（ショートカット I）：いつでも有効化・役割の切り替え・停止ができ、停止すると操作はすべて戻ります。',
   'ui.assist.fairness':
-    'AI に第 1 ウェーブから本気で戦わせて AI ランキングに載せたい場合は、メインメニューの「AI 参戦」から始めてください。',
-  'ui.assist.notUploaded': 'この対局は全体ランキングに送信しません',
-  'ui.assist.notUploadedDaily': 'この対局はデイリーランキングに送信しません',
-  'ui.assist.notUploadedWhy':
-    'この対局では AI が代わりにプレイしました。全体ランキングとデイリーランキングは人間の成績のみです。AI を正式に競わせるなら「AI 参戦」（AI ランキング）をどうぞ。',
-  'ui.assist.blockedShort': 'AI が代わりにプレイした対局は人間のランキングに送信しません',
-  'ui.assist.goNote': 'この対局では AI が代わりにプレイしました：報酬は通常どおり、成績は AI 補助として記録します。',
+    'AI に 1 ウェーブ目から通しで戦わせるなら、メインメニューの「AI 参戦」から始めてください。成績は「AI 補助」とモデル名付きでランキングに載ります。',
+  'ui.assist.goNote': 'この対局では AI が代わりにプレイしました：報酬は通常どおり、成績は「AI 補助」の印付きでランキングに載ります。',
   'ui.assist.goNoteAdvisor': 'この対局では AI 軍師に助言してもらいました。成績に影響はありません。',
-  'ui.assist.lbShow': 'AI 補助の成績を表示',
-  'ui.assist.lbShowHint': 'AI が代わりにプレイした対局は別枠で記録し、既定では表示しません',
   'ui.tutorial.tip-ai.title': 'AI アシスタント',
   'ui.tutorial.tip-ai.body': '行き詰まった？ここ（または I キー）で AI に助言をもらったり、しばらく代わりにプレイさせたりできます。',
 } satisfies Dict;

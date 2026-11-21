@@ -127,7 +127,7 @@ export default {
   // ───────────── 玩法 · 自动开波 ─────────────
   'guide.play.autowave.title': '自动开波',
   'guide.play.autowave.intro':
-    '开波方式分手动和自动。简单难度和还没通关的第一章默认手动，其他默认自动；在设置或开局页可以改。排行榜按开波方式分开记录。',
+    '开波方式分手动和自动。简单难度和还没通关的第一章默认手动，其他默认自动；在设置或开局页可以改。排行榜不区分开波方式。',
   'guide.play.autowave.1': '**手动**：每一波都由你点开始，没有时间压力。上一波还没打完就开下一波，奖励 5 + 波数 金币。',
   'guide.play.autowave.2': '**自动**：第一波由你开；之后每波敌人全部刷出后开始倒计时（普通 20 秒），到 0 自动开下一波。',
   'guide.play.autowave.3': 'Boss 波之前倒计时 ×1.5；每波还有上限时间（普通 60 秒），超时也会开下一波。',
@@ -318,7 +318,7 @@ export default {
   'guide.talent.max': '最高 {n} 级',
   'guide.talent.price': '每级 {star} 星或 {ink} 墨水',
   'guide.talent.tip': '星星优先买单级大件（大书包、文具收藏家、幸运签），多级的小加成用墨水慢慢补。',
-  'guide.talent.pure': '**纯净模式**：无尽开局时可以关闭所有天赋，成绩进入单独的纯净排行榜。',
+  'guide.talent.pure': '**纯净模式**：无尽开局时可以关闭所有天赋（每日挑战固定纯净）。成绩和其他无尽成绩进同一张无尽榜。',
 
   // ───────────── 组合技与流派 ─────────────
   'guide.combo.section.combos': '组合技',
@@ -372,7 +372,7 @@ export default {
 
   // ───────────── AI 参战 ─────────────
   'guide.ai.intro':
-    '让大模型像玩家一样玩这个游戏，或者在你玩的时候当军师。AI 的每一步都和你的点击走同一套校验，无法作弊；AI 的成绩进入单独的 AI 排行榜。',
+    '让大模型像玩家一样玩这个游戏，或者在你玩的时候当军师。AI 的每一步都和你的点击走同一套校验，无法作弊；AI 打出的成绩也进排行榜，带「AI 辅助」标记和模型名，可以一键隐藏。',
   'guide.ai.modes.title': '两种角色',
   'guide.ai.modes.1': '**AI 玩家**：模型独立打完一局，你可以旁观它的思路和每一次操作。',
   'guide.ai.modes.2': '**AI 军师**：你来玩，模型只看局面并给出建议，建议可以一键执行。',
@@ -416,7 +416,7 @@ export default {
   'guide.faq.branch.q': '传奇分支选错了能改吗？',
   'guide.faq.branch.a': '不能。想换只能卖掉重造，Lv10 的返还率是 25%。选之前可以在本图鉴里先看两个分支的说明。',
   'guide.faq.autowave.q': '自动开波太快了，能关掉吗？',
-  'guide.faq.autowave.a': '可以。在设置里把开波方式改成手动，或在开局页直接切换。修改后下一局生效；排行榜按开波方式分开记录。',
+  'guide.faq.autowave.a': '可以。在设置里把开波方式改成手动，或在开局页直接切换。修改后下一局生效；排行榜不区分开波方式。',
   'guide.faq.friend.q': '怎么和朋友打同一局？',
   'guide.faq.friend.a': '把种子发给朋友，对方在开局页填入并选同一张地图。自定义模式再加上分享码，规则也完全一样。',
   'guide.faq.perf.q': '手机发热或卡顿怎么办？',
@@ -478,7 +478,7 @@ export default {
   'guide.about.feature.endless.desc':
     '战役 3 章之后是无尽模式：简单、普通、困难、噩梦，再到魔境 I～X。精英敌人带着随机词缀，看你能撑到第几波。',
   'guide.about.feature.online.title': '全服排行榜与每日挑战',
-  'guide.about.feature.online.desc': '每天一张固定种子的桌面，所有人同图比拼。无尽模式每个难度都有全服排行榜。',
+  'guide.about.feature.online.desc': '每天一张固定种子的桌面，所有人同图比拼。无尽、每日挑战、战役三张全服榜，打完自动上传。',
   'guide.about.feature.ai.title': 'AI 参战',
   'guide.about.feature.ai.desc': '接上你自己的大模型，让它独立打一局，或者在你玩的时候当军师。支持中转服务、本机模型和本地桥接。',
   'guide.about.feature.pwa.title': '多端与离线',

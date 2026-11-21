@@ -1185,11 +1185,7 @@ html.tab-hidden .ai-hud[data-status] .ai-dot {
   animation: none;
 }
 
-/* 排行榜顶部多了「AI 榜」一页：四等分；设置页的接入方式是两等分 */
-.leaderboard-screen .lb-mode-tabs {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
+/* 设置页的接入方式是两等分（排行榜页三等分见 online.css） */
 .lb-mode-tabs.ai-tabs {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }

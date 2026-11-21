@@ -233,11 +233,7 @@ export default {
   'core.online.replayCorrupt': 'Replay data is corrupted',
 
   // ── Leaderboards (src/shared/leaderboard; fallback text lives in the stDef source and must match) ──
-  'core.board.ai': 'AI board · {label}',
   'core.board.daily': 'Daily Challenge {day}',
-  'core.board.pure': 'Pure',
-  'core.board.auto': 'Auto waves',
-  'core.board.manual': 'Manual waves',
   'core.nick.empty': 'Enter a nickname',
   'core.nick.tooLong': 'Nickname can be at most {n} character|Nickname can be at most {n} characters',
   'core.nick.blocked': 'Nickname contains inappropriate content. Try another',

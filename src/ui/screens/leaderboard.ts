@@ -1,283 +1,241 @@
+/**
+ * 排行榜（文档 12 §3 / §7）：只有三张全服榜，选择尽量少。
+ *  - 无尽：所有无尽成绩一张榜（得分已含难度倍率），每行标难度 / 魔境等级 / 波数；
+ *  - 每日：今天（可切到昨天）；
+ *  - 战役：每章一张（第一章 / 第二章 / 第三章），按评星 → 得分排；
+ * 顶部一行：昵称 · 自动上传成绩 · 隐藏 AI 辅助；榜单上方固定「我的最佳」；底部「我的记录」（本设备最近 N 局）。
+ */
+import type { MapId } from '../../core/types';
 import { fmtNumber, t } from '../../i18n';
-import { fetchDaily } from '../../meta/online';
-import { allDiffKeys, keyLabel, leaderKey, leaderView } from '../../meta/progress';
-import { dailyInfo, dayOf, parseBoard } from '../../shared/leaderboard';
-import { aiBoard } from '../ai/board';
+import { type HistoryEntry, readHistory } from '../../meta/history';
+import { getAutoUpload, setAutoUpload } from '../../meta/online';
+import { diffLabel } from '../../meta/progress';
+import { campaignBoardKey, dailyBoardKey, dailyInfo, dayOf, ENDLESS_BOARD, type LeaderboardResponse, MAPS } from '../../shared/leaderboard';
 import { type App, type Screen, screenHeader } from '../App';
 import { audio } from '../audio';
 import { MAP_META } from '../coreMeta';
-import { clear, copyText, h } from '../dom';
+import { append, clear, h, setText } from '../dom';
 import { G } from '../icons';
 import { type LbTab, takeLeaderboardRequest } from '../online/nav';
 import { nicknameChip } from '../online/nickname';
 import { onlineBoard } from '../online/table';
-import { fmtDay } from '../online/util';
+import { fmtTime } from '../online/util';
 
-/** 'ai'：AI 榜（文档 10 §13），成绩来自「AI 参战」，与真人榜完全分开 */
-type Tab = LbTab | 'ai';
-const tabName = (tab: Tab): string => t(`ui.leaderboard.tab.${tab}`);
+const HIDE_AI_KEY = 'desk-defense.lb.hideAi.v1';
+
+function loadHideAi(): boolean {
+  try {
+    return localStorage.getItem(HIDE_AI_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+function saveHideAi(v: boolean): void {
+  try {
+    if (v) localStorage.setItem(HIDE_AI_KEY, '1');
+    else localStorage.removeItem(HIDE_AI_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 开关行（与设置页同款 .switch-row） */
+function switchRow(label: string, hint: string, on: boolean, onChange: (v: boolean) => void): HTMLElement {
+  const input = h<HTMLInputElement>('input', { attrs: { type: 'checkbox' } });
+  input.checked = on;
+  input.onchange = () => {
+    audio.play('click');
+    onChange(input.checked);
+  };
+  return h(
+    'label.switch-row',
+    null,
+    h('span', null, h('b', null, label), h('small.muted', null, hint)),
+    h('span.switch', null, input, h('span.knob')),
+  );
+}
+
+function seg(on: boolean, label: string, onclick: () => void, role = 'tab'): HTMLElement {
+  return h(
+    `button.seg${on ? '.on' : ''}`,
+    {
+      attrs: { type: 'button', role, [role === 'tab' ? 'aria-selected' : 'aria-pressed']: on ? 'true' : 'false' },
+      onclick: () => {
+        if (on) return;
+        audio.play('click');
+        onclick();
+      },
+    },
+    label,
+  );
+}
+
+const mapName = (m: MapId): string => MAP_META[m]?.name ?? m;
+
+/** 「我的记录」一行 */
+function historyRow(e: HistoryEntry): HTMLElement {
+  const mode =
+    e.mode === 'campaign'
+      ? t('ui.lb.hist.campaign', { map: mapName(e.map) })
+      : e.daily
+        ? t('ui.lb.hist.daily', { day: e.daily })
+        : e.mode === 'custom'
+          ? t('ui.lb.hist.custom')
+          : t('ui.lb.hist.endless');
+  const result =
+    e.mode === 'campaign'
+      ? e.won
+        ? t('ui.lb.stars', { n: e.stars ?? 1 })
+        : t('ui.lb.failedAt', { n: e.wave })
+      : t('ui.online.waves', { n: e.wave });
+  return h(
+    'div.lb-hist-row',
+    null,
+    h(
+      'span.lb-hist-main',
+      null,
+      h('b', null, mode),
+      h(
+        'small.muted',
+        null,
+        e.mode === 'custom' ? '' : `${diffLabel(e.difficulty, e.abyssLevel ?? 1)} · `,
+        result,
+        e.at > 0 ? ` · ${fmtTime(e.at)}` : '',
+      ),
+    ),
+    h(
+      'span.lb-hist-tags',
+      null,
+      e.ai ? h('span.badge.lb-ai-badge', null, t('ui.lb.ai')) : null,
+      e.ranked ? null : h('span.badge.lb-unranked', null, t('ui.lb.unranked')),
+    ),
+    h('span.lb-hist-score', null, fmtNumber(Math.round(e.score))),
+  );
+}
 
 export function leaderboardScreen(app: App): Screen {
-  const p = app.store.get();
   const req = takeLeaderboardRequest();
-  // 默认选中有记录的第一个难度
-  const keys = allDiffKeys();
-  const count = (k: string) =>
-    [false, true].reduce(
-      (n, pure) => n + [false, true].reduce((m, auto) => m + (p.leaderboard[leaderKey(k, pure, auto)]?.length ?? 0), 0),
-      0,
-    );
-  const firstKey = keys.find((k) => count(k) > 0) ?? 'normal';
+  const today = dayOf(Date.now());
+  const yesterday = dayOf(Date.now() - 86_400_000);
   const state = {
-    tab: (req?.tab ?? 'local') as Tab,
-    key: firstKey,
-    pure: false,
-    // 默认显示有记录的开波方式（优先自动）
-    auto:
-      (p.leaderboard[leaderKey(firstKey, false, true)]?.length ?? 0) > 0 ||
-      (p.leaderboard[leaderKey(firstKey, false, false)]?.length ?? 0) === 0,
-    /** 本地榜：显示 AI 协助（「让 AI 替我玩」）的成绩（默认不显示） */
-    showAi: false,
+    tab: (req?.tab ?? 'endless') as LbTab,
+    daily: req?.day === yesterday ? yesterday : today,
+    map: (req?.map ?? 'ch1') as MapId,
+    hideAi: loadHideAi(),
   };
-  // 从结算面板跳过来：直接定位到那一局的榜
-  const reqAi = !!req?.board?.startsWith('ai:');
-  if (reqAi) state.tab = 'ai';
-  const parsed = req?.board ? parseBoard(reqAi ? req.board.slice(3) : req.board) : null;
-  if (parsed?.kind === 'endless') {
-    state.key = parsed.difficulty === 'abyss' ? `abyss${parsed.abyssLevel ?? 1}` : parsed.difficulty;
-    state.pure = parsed.pure;
-    state.auto = parsed.auto;
-  } else if (parsed?.kind === 'daily') state.tab = 'daily';
 
-  const modeTabs = h('div.lb-mode-tabs', { attrs: { role: 'tablist', 'aria-label': t('ui.leaderboard.typeLabel') } });
-  const tabs = h('div.tabs.scroll-x', { attrs: { role: 'tablist' } });
-  const pureSeg = h('div.seg-grid.two');
-  const autoSeg = h('div.seg-grid.two');
-  const filters = h('div.lb-filters', null, pureSeg, autoSeg);
-  const table = h('div.board-table');
-  // 本地榜：AI 协助的成绩默认隐藏，有这类成绩时给一个开关
-  const aiToggleInput = h<HTMLInputElement>('input', { attrs: { type: 'checkbox' } });
-  aiToggleInput.onchange = () => {
-    audio.play('click');
-    state.showAi = aiToggleInput.checked;
-    render();
-  };
-  const aiToggle = h(
-    'label.switch-row.lb-ai-toggle',
-    null,
-    h('span', null, h('b', null, t('ui.assist.lbShow')), h('small.muted', null, t('ui.assist.lbShowHint'))),
-    h('span.switch', null, aiToggleInput, h('span.knob')),
-  );
-  const global = onlineBoard(app, { limit: 50 });
-  const daily = onlineBoard(app, { limit: 50, emptyHint: t('ui.leaderboard.dailyEmpty') });
-  const aiView = aiBoard(app, { limit: 50 });
-  const aiNote = h('p.muted.small.ai-lb-note', null, t('ui.leaderboard.aiNote'));
-  const dailyHead = h('div.online-bar');
-  const customCard = h('section.card.section');
-  const nickBar = h(
-    'div.online-bar.lb-nick-bar',
-    null,
-    nicknameChip(() => {
-      global.reload();
-      daily.reload();
-    }),
-  );
-
-  const filterSection = h('section.card.section', null, tabs, filters, aiToggle, table, global.el, aiNote, aiView.el);
-  const dailySection = h('section.card.section', null, dailyHead, daily.el);
-
-  let dailyLoaded = false;
-  let globalBoard = '';
-  let aiBoardShown = '';
-  const showDaily = async () => {
-    if (dailyLoaded) return;
-    dailyLoaded = true;
-    let info = dailyInfo(dayOf(Date.now()));
-    paintDailyHead(info.day, MAP_META[info.map]?.name ?? info.map);
-    daily.load(info.board);
-    const r = await fetchDaily();
-    if (r.ok && r.data.board !== info.board) {
-      info = r.data;
-      paintDailyHead(info.day, MAP_META[info.map]?.name ?? info.map);
-      daily.load(info.board);
-    }
-  };
-  const paintDailyHead = (day: string, map: string) => {
-    clear(dailyHead);
-    dailyHead.append(
-      h('div', null, h('h3', null, t('ui.leaderboard.dailyTitle', { map })), h('small.muted', null, t('ui.leaderboard.dailySub', { day }))),
-      h(
-        'button.btn.small.primary',
-        { attrs: { type: 'button' }, onclick: () => (audio.play('click'), app.go({ name: 'daily' })) },
-        h('span.gi', { html: G.play }),
-        t('ui.leaderboard.goChallenge'),
-      ),
+  const tabs = h('div.lb-mode-tabs', { attrs: { role: 'tablist', 'aria-label': t('ui.leaderboard.typeLabel') } });
+  const sub = h('div.lb-sub');
+  const note = h('p.muted.small.lb-note');
+  const myBest = h('div.lb-my-best', { attrs: { 'aria-live': 'polite' } });
+  const paintMine = (d: LeaderboardResponse | null) => {
+    clear(myBest);
+    const me = d?.me ?? null;
+    myBest.append(
+      h('span.lb-my-label', null, h('span.gi', { html: G.trophy }), t('ui.lb.myBest')),
+      me
+        ? h(
+            'span.lb-my-value',
+            null,
+            t('ui.lb.myBestLine', { rank: fmtNumber(me.rank), total: fmtNumber(d?.total ?? 0), score: fmtNumber(me.score) }),
+            me.ai ? h('span.badge.lb-ai-badge', null, t('ui.lb.ai')) : null,
+          )
+        : h('span.lb-my-value.muted', null, d ? t('ui.lb.myBestNone') : '—'),
     );
   };
+  paintMine(null);
+  const board = onlineBoard(app, { limit: 50, onLoaded: paintMine });
 
-  const seg = (on: boolean, label: string, fn: () => void) =>
-    h(
-      `button.seg${on ? '.on' : ''}`,
-      {
-        attrs: { type: 'button', 'aria-pressed': on ? 'true' : 'false' },
-        onclick: () => {
-          audio.play('click');
-          fn();
-          render();
-        },
-      },
-      label,
-    );
+  const boardKey = (): string =>
+    state.tab === 'daily' ? dailyBoardKey(state.daily) : state.tab === 'campaign' ? campaignBoardKey(state.map) : ENDLESS_BOARD;
+
+  const load = () => {
+    paintMine(null);
+    board.load(boardKey(), { hideAi: state.hideAi });
+  };
 
   const render = () => {
-    clear(modeTabs);
-    for (const tab of ['local', 'global', 'daily', 'ai'] as Tab[]) {
-      modeTabs.appendChild(
-        h(
-          `button.seg${state.tab === tab ? '.on' : ''}`,
-          {
-            attrs: { type: 'button', role: 'tab', 'aria-selected': state.tab === tab ? 'true' : 'false' },
-            onclick: () => {
-              if (state.tab === tab) return;
-              audio.play('click');
-              state.tab = tab;
-              render();
-            },
-          },
-          tabName(tab),
-        ),
-      );
-    }
-    const local = state.tab === 'local';
-    filterSection.hidden = state.tab === 'daily';
-    dailySection.hidden = state.tab !== 'daily';
-    customCard.hidden = !local;
-    nickBar.hidden = local || state.tab === 'ai';
-    table.hidden = !local;
-    aiToggle.hidden = true;
-    global.el.hidden = state.tab !== 'global';
-    aiView.el.hidden = aiNote.hidden = state.tab !== 'ai';
-    if (state.tab === 'daily') {
-      void showDaily();
-      return;
-    }
-
     clear(tabs);
-    for (const k of keys) {
-      const has = count(k) > 0;
+    for (const tab of ['endless', 'daily', 'campaign'] as LbTab[])
       tabs.appendChild(
+        seg(state.tab === tab, t(`ui.lb.tab.${tab}`), () => {
+          state.tab = tab;
+          render();
+        }),
+      );
+    clear(sub);
+    if (state.tab === 'daily') {
+      const info = dailyInfo(state.daily);
+      append(sub, [
         h(
-          `button.tab${state.key === k ? '.on' : ''}${k.startsWith('abyss') ? '.abyss' : ''}${has || !local ? '' : '.empty'}`,
-          {
-            attrs: { type: 'button', role: 'tab', 'aria-selected': state.key === k ? 'true' : 'false' },
-            onclick: () => {
-              audio.play('click');
-              state.key = k;
-              render();
-            },
-          },
-          keyLabel(k),
+          'div.seg-grid.two.lb-sub-seg',
+          { attrs: { role: 'group' } },
+          seg(state.daily === today, t('ui.lb.today'), () => ((state.daily = today), render()), 'button'),
+          seg(state.daily === yesterday, t('ui.lb.yesterday'), () => ((state.daily = yesterday), render()), 'button'),
+        ),
+        state.daily === today
+          ? h(
+              'button.btn.small.primary',
+              { attrs: { type: 'button' }, onclick: () => (audio.play('click'), app.go({ name: 'daily' })) },
+              h('span.gi', { html: G.play }),
+              t('ui.leaderboard.goChallenge'),
+            )
+          : null,
+      ]);
+      setText(
+        note,
+        t('ui.lb.dailyNote', { day: info.day, map: mapName(info.map), diff: diffLabel(info.difficulty, info.abyssLevel ?? 1) }),
+      );
+    } else if (state.tab === 'campaign') {
+      sub.append(
+        h(
+          'div.seg-grid.lb-sub-seg.lb-maps',
+          { attrs: { role: 'group' } },
+          MAPS.map((m) => seg(state.map === m, mapName(m), () => ((state.map = m), render()), 'button')),
         ),
       );
-    }
-    clear(pureSeg);
-    for (const pure of [false, true])
-      pureSeg.appendChild(
-        seg(state.pure === pure, pure ? t('ui.leaderboard.pure') : t('ui.leaderboard.talents'), () => (state.pure = pure)),
-      );
-    clear(autoSeg);
-    for (const auto of [true, false])
-      autoSeg.appendChild(
-        seg(state.auto === auto, auto ? t('ui.leaderboard.autoWave') : t('ui.leaderboard.manualWave'), () => (state.auto = auto)),
-      );
-
-    const board = leaderKey(state.key, state.pure, state.auto);
-    if (state.tab === 'ai') {
-      if (board !== aiBoardShown) {
-        aiBoardShown = board;
-        aiView.load(board);
-      }
-      return;
-    }
-    if (!local) {
-      if (board !== globalBoard) {
-        globalBoard = board;
-        global.load(board);
-      }
-      return;
-    }
-    clear(table);
-    const all = p.leaderboard[board] ?? [];
-    const hiddenAi = all.filter((e) => e.ai).length;
-    aiToggle.hidden = !hiddenAi;
-    aiToggleInput.checked = state.showAi;
-    const list = leaderView(all, state.showAi);
-    if (list.length === 0) {
-      table.appendChild(
-        h('div.empty-state', null, h('p', null, t('ui.leaderboard.noRecord')), h('small.muted', null, t('ui.leaderboard.noRecordHint'))),
-      );
-    } else {
-      table.appendChild(
-        h(
-          'div.lb-row.lb-head',
-          null,
-          h('span', null, '#'),
-          h('span', null, t('ui.leaderboard.col.score')),
-          h('span', null, t('ui.leaderboard.col.wave')),
-          h('span.hide-narrow', null, t('ui.leaderboard.col.map')),
-          h('span.hide-narrow', null, t('ui.leaderboard.col.date')),
-          h('span', null, t('ui.leaderboard.col.seed')),
-        ),
-      );
-      list.forEach((e, i) => {
-        table.appendChild(
-          h(
-            `div.lb-row${i < 3 ? `.top${i + 1}` : ''}`,
-            null,
-            h('span.rank', null, String(i + 1)),
-            h(
-              'span.score',
-              null,
-              fmtNumber(Math.round(e.score)),
-              e.ai ? h('small.badge.ai-assist-badge', { title: t('ui.assist.badgeTip') }, t('ui.assist.badge')) : null,
-            ),
-            h(
-              'span',
-              null,
-              t('ui.leaderboard.waves', { n: e.wave }),
-              h(`small.wave-mode${e.auto ? '.auto' : ''}`, null, e.auto ? t('ui.leaderboard.auto') : t('ui.leaderboard.manual')),
-            ),
-            h('span.hide-narrow', null, MAP_META[e.map]?.name ?? e.map),
-            h('span.hide-narrow.muted', null, fmtDay(e.date)),
-            h(
-              'button.seed-btn',
-              {
-                title: t('ui.leaderboard.copySeed'),
-                onclick: async () => {
-                  const ok = await copyText(e.seed);
-                  app.toast(ok ? t('ui.leaderboard.seedCopied', { seed: e.seed }) : t('ui.leaderboard.copyFailed'), ok ? 'good' : 'warn');
-                },
-              },
-              e.seed || '—',
-            ),
-          ),
-        );
-      });
-    }
+      setText(note, t('ui.lb.campaignNote'));
+    } else setText(note, t('ui.lb.endlessNote'));
+    sub.hidden = sub.childElementCount === 0;
+    load();
   };
 
-  const best = p.customBest;
-  customCard.append(
-    h('h3', null, t('ui.leaderboard.customBest')),
-    best
-      ? h('p', null, t('ui.leaderboard.customBestLine', { score: fmtNumber(best.score), wave: best.wave, date: fmtDay(best.date) }))
-      : h('p.muted', null, t('ui.leaderboard.noRecord')),
+  const settings = h(
+    'section.card.section.lb-settings',
+    null,
+    h(
+      'div.online-bar',
+      null,
+      nicknameChip(() => load()),
+    ),
+    h(
+      'div.lb-switches',
+      null,
+      switchRow(t('ui.lb.autoUpload'), t('ui.lb.autoUploadHint'), getAutoUpload(), (v) => setAutoUpload(v)),
+      switchRow(t('ui.lb.hideAi'), t('ui.lb.hideAiHint'), state.hideAi, (v) => {
+        state.hideAi = v;
+        saveHideAi(v);
+        load();
+      }),
+    ),
   );
+
+  const history = readHistory(app.store.get());
+  const historyCard = h(
+    'section.card.section.lb-history',
+    null,
+    h('h3', null, t('ui.lb.history')),
+    history.length ? h('p.muted.small', null, t('ui.lb.historyHint', { n: history.length })) : null,
+    history.length
+      ? h('div.lb-hist', null, history.map(historyRow))
+      : h('div.empty-state', null, h('p', null, t('ui.leaderboard.noRecord')), h('small.muted', null, t('ui.lb.historyEmpty'))),
+  );
+
   const el = h(
     'div.screen.leaderboard-screen',
     null,
     screenHeader(app, t('ui.leaderboard.title')),
-    h('div.screen-body', null, modeTabs, nickBar, filterSection, dailySection, customCard),
+    h('div.screen-body', null, tabs, h('section.card.section.lb-board', null, sub, note, myBest, board.el), settings, historyCard),
   );
   render();
   return { el };

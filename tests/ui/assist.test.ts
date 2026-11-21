@@ -276,17 +276,24 @@ describe('公平性标记', () => {
     expect(c.campaign['ch1:normal']).toBe(3);
   });
 
-  it('用过「让 AI 替我玩」的对局不上传（不发请求）', async () => {
+  it('用过「让 AI 替我玩」的对局照常上传，带 aiAssist 标记（同一张榜）', async () => {
     const { submitWorldRun } = await import('../../src/meta/online');
     const s = new Session(ENDLESS);
-    const fetchSpy = vi.fn();
+    const fetchSpy = vi.fn(async () => {
+      throw new TypeError('offline');
+    });
     const g = globalThis as { fetch?: unknown };
     const had = g.fetch;
     g.fetch = fetchSpy;
     try {
-      const r = await submitWorldRun(s.world, { wavesSurvived: 3, aiAssist: { player: true, advisor: false } });
-      expect(r).toEqual({ kind: 'rejected', message: t('ui.assist.blockedShort') });
-      expect(fetchSpy).not.toHaveBeenCalled();
+      const r = await submitWorldRun(s.world, { wavesSurvived: 3, aiAssist: { player: true, advisor: false, model: '离线演示' } });
+      expect(r.kind).toBe('queued');
+      expect(fetchSpy).toHaveBeenCalled();
+      const [url, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
+      expect(url).toContain('/api/runs');
+      const body = JSON.parse(String(init.body)) as { board: string; aiAssist?: { model?: string } };
+      expect(body.board).toBe('endless');
+      expect(body.aiAssist).toEqual({ model: '离线演示' });
     } finally {
       g.fetch = had;
     }

@@ -1,17 +1,23 @@
 /**
- * 结算面板里的「全服排行榜」区：昵称、上传状态、查看全服榜。
- * 只对无尽（非自定义）与每日挑战显示；全部异步，不阻塞结算界面。
+ * 结算面板里的排行榜区（文档 12 §6）：
+ *  - 每局都先记进「我的记录」（本设备最近 N 局，含不排名的自定义模式）；
+ *  - 无尽 / 每日挑战 / 战役：缺省「自动上传成绩」，不用填昵称（没设过就用默认昵称）；
+ *    关掉自动上传时给一个「上传成绩」按钮；
+ *  - AI 辅助（用过「让 AI 替我玩」）的对局照常上传，带「AI 辅助」标记；
+ *  - 自定义模式不排名，只说明一句。
+ * 全部异步，不阻塞结算界面；同一局重建面板（例如切换语言）不会重复上传 / 重复记录。
  */
 import { fmtNumber, t } from '../../i18n';
 import { isAiAssisted } from '../../meta/aiAssist';
-import { getNickname, initOnline, type SubmitOutcome, submitWorldRun } from '../../meta/online';
-import { boardLabel } from '../../shared/leaderboard';
+import { historyEntryOf, recordHistory } from '../../meta/history';
+import { getAutoUpload, getNickname, initOnline, type SubmitOutcome, submitWorldRun } from '../../meta/online';
+import { boardLabel, CUSTOM_BOARD, starsFor } from '../../shared/leaderboard';
 import { audio } from '../audio';
 import { h, setText } from '../dom';
 import type { GameCtx } from '../hud/context';
 import { G } from '../icons';
 import { requestLeaderboardTab } from './nav';
-import { askNickname, ensureNickname } from './nickname';
+import { askNickname } from './nickname';
 import { boardOfRun, dailyDayOfOpts, isEligibleRun } from './util';
 
 export type SubmitView =
@@ -52,16 +58,60 @@ export function outcomeView(o: SubmitOutcome): SubmitView {
   return { kind: 'rejected', message: o.message };
 }
 
+/** 同一局只记一次「我的记录」、只上传一次（面板可能因切换语言等原因重建） */
+const recorded = new WeakSet<object>();
+const uploads = new WeakMap<object, Promise<SubmitView>>();
+
+function recordRun(ctx: GameCtx, wavesSurvived: number, ranked: boolean, day: string | null): void {
+  const w = ctx.world as object;
+  if (recorded.has(w)) return;
+  recorded.add(w);
+  try {
+    const st = ctx.world.state;
+    const won = st.phase === 'won';
+    recordHistory(
+      historyEntryOf(
+        ctx.opts,
+        {
+          wave: wavesSurvived,
+          score: st.score,
+          won,
+          stars: ctx.opts.mode === 'campaign' && won ? starsFor(st.lives, Math.max(st.lives, st.maxLives)) : 0,
+          ai: isAiAssisted(ctx.aiAssist),
+          ranked,
+          daily: day,
+          seed: st.seed,
+        },
+        Date.now(),
+      ),
+      ctx.app.store.get(),
+    );
+  } catch (e) {
+    console.warn('[online] history failed', e);
+  }
+}
+
 /**
- * 结算界面钩子：返回要插进结算卡片的元素；不符合条件的对局返回 null。
+ * 结算界面钩子：返回要插进结算卡片的元素。
  */
 export function onlineSubmitPanel(ctx: GameCtx, wavesSurvived: number): HTMLElement | null {
   try {
-    if (!isEligibleRun(ctx.opts)) return null;
-    const day = dailyDayOfOpts(ctx.opts);
-    // 公平性：用过「让 AI 替我玩」的对局不上传（说明原因，不显示上传按钮）
-    if (isAiAssisted(ctx.aiAssist)) return aiAssistNote(!!day);
-    const board = boardOfRun(ctx.opts);
+    // 战役 / 随机种子的对局：路由里的 opts 不带种子，以 world 实际用的为准
+    const opts = { ...ctx.opts, seed: ctx.opts.seed ?? ctx.world.state.seed };
+    const ranked = isEligibleRun(opts);
+    const day = ranked ? dailyDayOfOpts(opts) : null;
+    recordRun(ctx, wavesSurvived, ranked, day);
+    if (!ranked) {
+      return h(
+        'div.online-submit.lb-custom-note',
+        { attrs: { role: 'note' } },
+        h('div.os-line', null, h('span', null, boardLabel(CUSTOM_BOARD))),
+        h('p.muted.small', null, t('ui.lb.customNote')),
+      );
+    }
+    const board = boardOfRun(opts);
+    const assisted = isAiAssisted(ctx.aiAssist);
+    const world = ctx.world as object;
     const status = h('span.os-status', { attrs: { role: 'status', 'aria-live': 'polite' } });
     const nick = h('b.nick-name');
     const submitBtn = h<HTMLButtonElement>(
@@ -78,13 +128,13 @@ export function onlineSubmitPanel(ctx: GameCtx, wavesSurvived: number): HTMLElem
           audio.play('click');
           if (day) ctx.app.go({ name: 'daily' });
           else {
-            requestLeaderboardTab('global', board);
+            requestLeaderboardTab('endless', board);
             ctx.app.go({ name: 'leaderboard' });
           }
         },
       },
       h('span.gi', { html: G.trophy }),
-      day ? t('ui.online.viewDaily') : t('ui.online.viewGlobal'),
+      day ? t('ui.online.viewDaily') : t('ui.lb.viewBoard'),
     );
     const nickBtn = h(
       'button.btn.small',
@@ -105,43 +155,46 @@ export function onlineSubmitPanel(ctx: GameCtx, wavesSurvived: number): HTMLElem
       setText(status, st.text);
       status.className = `os-status${st.tone ? ` ${st.tone}` : ''}`;
       submitBtn.hidden = !(view.kind === 'idle' || view.kind === 'rejected');
-      submitBtn.disabled = false;
     };
-    const paintNick = () => setText(nick, getNickname() || t('ui.online.notSet'));
+    const paintNick = () => setText(nick, getNickname());
 
-    let busy = false;
-    const doSubmit = async (interactive: boolean) => {
-      if (busy) return;
-      busy = true;
-      try {
-        const st = await initOnline();
-        if (st.status === 'unavailable') {
-          view = { kind: 'unavailable' };
-          return;
+    const upload = (): Promise<SubmitView> => {
+      const prev = uploads.get(world);
+      if (prev) return prev;
+      const p = (async (): Promise<SubmitView> => {
+        try {
+          const st = await initOnline();
+          if (st.status === 'unavailable') return { kind: 'unavailable' };
+          return outcomeView(
+            await submitWorldRun(ctx.world as Parameters<typeof submitWorldRun>[0], {
+              wavesSurvived,
+              dailyDay: day,
+              aiAssist: ctx.aiAssist,
+            }),
+          );
+        } catch (e) {
+          console.warn('[online] submit failed', e);
+          return { kind: 'rejected', message: t('ui.online.uploadFailed') };
         }
-        const n = interactive ? await ensureNickname() : getNickname();
-        if (!n) {
-          view = { kind: 'idle' };
-          return;
-        }
-        paintNick();
-        view = { kind: 'sending' };
-        paint();
-        view = outcomeView(
-          await submitWorldRun(ctx.world as Parameters<typeof submitWorldRun>[0], { wavesSurvived, dailyDay: day, aiAssist: ctx.aiAssist }),
-        );
-        if (view.kind === 'done' || view.kind === 'queued') audio.play(view.kind === 'done' ? 'select' : 'click');
-      } catch (e) {
-        console.warn('[online] submit failed', e);
-        view = { kind: 'rejected', message: t('ui.online.uploadFailed') };
-      } finally {
-        busy = false;
-        paint();
-      }
+      })();
+      uploads.set(world, p);
+      // 失败（被拒 / 不可用）后允许再点一次「上传成绩」重试
+      void p.then((v) => {
+        if (v.kind === 'rejected' || v.kind === 'unavailable') uploads.delete(world);
+      });
+      return p;
+    };
+    const run = async () => {
+      view = { kind: 'sending' };
+      paint();
+      view = await upload();
+      if (!panel.isConnected) return;
+      if (view.kind === 'done' || view.kind === 'queued') audio.play(view.kind === 'done' ? 'select' : 'click');
+      paint();
     };
     submitBtn.onclick = () => {
       audio.play('click');
-      void doSubmit(true);
+      void run();
     };
 
     const panel = h(
@@ -150,7 +203,12 @@ export function onlineSubmitPanel(ctx: GameCtx, wavesSurvived: number): HTMLElem
       h(
         'div.os-line',
         null,
-        h('span', null, day ? null : h('span.muted.small', null, t('ui.online.globalPrefix')), boardLabel(board)),
+        h(
+          'span.os-board',
+          null,
+          boardLabel(board),
+          assisted ? h('span.badge.lb-ai-badge', { title: ctx.aiAssist?.model ?? '' }, t('ui.lb.ai')) : null,
+        ),
         status,
       ),
       h(
@@ -159,11 +217,13 @@ export function onlineSubmitPanel(ctx: GameCtx, wavesSurvived: number): HTMLElem
         h('span.online-nick', null, h('span.muted.small', null, t('ui.online.nick')), nick, nickBtn),
         h('span.os-actions', null, submitBtn, viewBtn),
       ),
+      assisted ? h('p.muted.small', null, t('ui.lb.aiSubmitNote')) : null,
+      getAutoUpload() ? null : h('p.muted.small', null, t('ui.lb.autoOffNote')),
     );
     paintNick();
     paint();
-    // 已有昵称：自动上传；没有昵称：等玩家点「上传成绩」再问
-    if (getNickname()) void doSubmit(false);
+    // 自动上传（缺省开启）；已经上传过的这一局（面板重建）直接显示结果
+    if (getAutoUpload() || uploads.has(world)) void run();
     else
       void initOnline().then((st) => {
         if (st.status === 'unavailable' && view.kind === 'idle') {
@@ -176,21 +236,6 @@ export function onlineSubmitPanel(ctx: GameCtx, wavesSurvived: number): HTMLElem
     console.warn('[online] panel failed', e);
     return null;
   }
-}
-
-/** AI 协助的对局：结算面板里替代上传区的说明 */
-export function aiAssistNote(daily: boolean): HTMLElement {
-  return h(
-    'div.online-submit.ai-assist-note',
-    { attrs: { role: 'note' } },
-    h(
-      'div.os-line',
-      null,
-      h('span.badge.ai-assist-badge', null, t('ui.assist.badge')),
-      h('b', null, daily ? t('ui.assist.notUploadedDaily') : t('ui.assist.notUploaded')),
-    ),
-    h('p.muted.small', null, t('ui.assist.notUploadedWhy')),
-  );
 }
 
 /** 兼容「挂载」写法 */

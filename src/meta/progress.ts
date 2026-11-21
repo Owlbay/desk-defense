@@ -1,6 +1,7 @@
 import { localize } from '../config/text';
 import type { DifficultyId, MapId, ModeId, RunOptions, SkillId, TalentId } from '../core/types';
 import { t } from '../i18n';
+import { starsFor as sharedStarsFor } from '../shared/leaderboard';
 import type { LeaderEntry, Profile } from './profile';
 
 /**
@@ -75,14 +76,8 @@ export const runAutoWave = (opts: RunOptions): boolean => opts.autoWave === true
 
 export const campaignKey = (map: MapId, d: DifficultyId): string => `${map}:${d}`;
 
-/** 评星：剩余生命 ≥90% 3 星，≥50% 2 星，通关 1 星 */
-export function starsFor(lives: number, maxLives: number): number {
-  if (maxLives <= 0) return 1;
-  const r = lives / maxLives;
-  if (r >= 0.9) return 3;
-  if (r >= 0.5) return 2;
-  return 1;
-}
+/** 评星：剩余生命 ≥90% 3 星，≥50% 2 星，通关 1 星（与服务端校验同一份：src/shared/leaderboard starsFor） */
+export const starsFor = sharedStarsFor;
 
 export function campaignStars(p: Profile, map: MapId, d: DifficultyId): number {
   return p.campaign[campaignKey(map, d)] ?? 0;

@@ -303,7 +303,7 @@ describe('MCP handlers', () => {
     expect(adv.content[0].text).toMatch(/decision point #\d+/);
     expect(srv.callTool('advance', { session_id: sid, seconds: 5 }).isError).toBeUndefined();
     const rep = JSON.parse(srv.callTool('get_replay', { session_id: sid }).content[0].text);
-    expect(rep.board).toBe('ai:normal:pure:auto');
+    expect(rep.board).toBe('ai:endless'); // 旧前缀保留，服务端归一到 endless 榜
     expect(rep.replay.agent).toEqual({ provider: 'mcp', model: 'claude-test', role: 'player' });
     expect(rep.replay.log.length).toBe(2);
     expect(srv.callTool('observe', { session_id: 'nope' }).isError).toBe(true);

@@ -1,6 +1,6 @@
 /**
  * 每日挑战（docs/12）：今天的地图 + 难度 + 种子，北京时间零点换期。
- * 固定纯净模式 + 自动开波，技能等级按 1 级；成绩进入 daily:<日期> 榜。
+ * 固定纯净模式 + 自动开波，技能等级按 1 级；成绩自动上传到 daily:<日期> 榜（AI 辅助的成绩带标记）。
  */
 import { fmtNumber, t } from '../../i18n';
 import { fetchDaily } from '../../meta/online';
@@ -134,6 +134,7 @@ export function dailyScreen(app: App): Screen {
           h('li', null, t('ui.daily.rule1')),
           h('li', null, t('ui.daily.rule2')),
           h('li', null, t('ui.daily.rule3')),
+          h('li', null, t('ui.lb.dailyAiRule')),
         ),
         bestBox,
       ),

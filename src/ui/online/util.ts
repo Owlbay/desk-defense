@@ -3,7 +3,7 @@
  */
 import type { Command, RunOptions } from '../../core/types';
 import { getLocale } from '../../i18n';
-import { boardForOpts, DAILY_TZ_OFFSET_MIN, dailyInfo, isValidDay, sanitizeNickname } from '../../shared/leaderboard';
+import { boardForOpts, DAILY_TZ_OFFSET_MIN, dailyInfo, isRankedOpts, isValidDay, sanitizeNickname } from '../../shared/leaderboard';
 
 const DAILY_SEED_RE = /^d(\d{4})(\d{2})(\d{2})[0-9a-z]{7}$/;
 
@@ -19,15 +19,12 @@ export function dailyDayOfOpts(opts: Pick<RunOptions, 'mode' | 'seed' | 'map' | 
   return day;
 }
 
-/** 可以上传到全服榜的对局：无尽（非自定义、非固定布局）或每日挑战 */
+/** 可以上传到全服榜的对局：无尽（非自定义参数、非固定布局）/ 每日挑战 / 战役；自定义模式不排名 */
 export function isEligibleRun(opts: RunOptions): boolean {
-  if (opts.mode !== 'endless') return false;
-  if (opts.custom || opts.events || opts.fixedLayout) return false;
-  if (!opts.seed) return false;
-  return true;
+  return isRankedOpts(opts) && !!opts.seed;
 }
 
-/** 这局应进入的榜键 */
+/** 这局应进入的榜键（endless / daily:<日期> / campaign:<章节>；自定义为 custom） */
 export function boardOfRun(opts: RunOptions): string {
   return boardForOpts(opts, dailyDayOfOpts(opts));
 }

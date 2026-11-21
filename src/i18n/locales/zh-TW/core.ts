@@ -233,11 +233,7 @@ export default {
   'core.online.replayCorrupt': '重播資料損毀',
 
   // ── 排行榜（src/shared/leaderboard，備援文字寫在原始碼 stDef 裡，須與這裡一致） ──
-  'core.board.ai': 'AI 榜 · {label}',
   'core.board.daily': '每日挑戰 {day}',
-  'core.board.pure': '純淨',
-  'core.board.auto': '自動開波',
-  'core.board.manual': '手動開波',
   'core.nick.empty': '請填寫暱稱',
   'core.nick.tooLong': '暱稱最多 {n} 個字',
   'core.nick.blocked': '暱稱包含不適當的內容，換一個吧',

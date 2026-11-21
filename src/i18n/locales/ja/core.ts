@@ -233,11 +233,7 @@ export default {
   'core.online.replayCorrupt': 'リプレイデータが壊れています',
 
   // ── ランキング（src/shared/leaderboard；フォールバック文言はソースの stDef にあり、ここと一致させること） ──
-  'core.board.ai': 'AI ランキング · {label}',
   'core.board.daily': 'デイリーチャレンジ {day}',
-  'core.board.pure': 'ピュア',
-  'core.board.auto': 'オートウェーブ',
-  'core.board.manual': '手動ウェーブ',
   'core.nick.empty': 'ニックネームを入力してください',
   'core.nick.tooLong': 'ニックネームは最大 {n} 文字です',
   'core.nick.blocked': 'ニックネームに不適切な内容が含まれています。別の名前にしてください',

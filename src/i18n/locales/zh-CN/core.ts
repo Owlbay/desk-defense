@@ -233,11 +233,7 @@ export default {
   'core.online.replayCorrupt': '回放数据损坏',
 
   // ── 排行榜（src/shared/leaderboard，回退文本写在源码 stDef 里，须与这里一致） ──
-  'core.board.ai': 'AI 榜 · {label}',
   'core.board.daily': '每日挑战 {day}',
-  'core.board.pure': '纯净',
-  'core.board.auto': '自动开波',
-  'core.board.manual': '手动开波',
   'core.nick.empty': '请填写昵称',
   'core.nick.tooLong': '昵称最多 {n} 个字',
   'core.nick.blocked': '昵称包含不合适的内容，换一个吧',

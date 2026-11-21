@@ -17,12 +17,14 @@ export default {
   'ui.assist.currentModel': 'Model: {model}',
   'ui.assist.rolePlayer': 'AI player',
   'ui.assist.roleAdvisor': 'AI advisor',
-  'ui.assist.fairnessShort': 'Runs where AI played for you stay off the global and daily boards; advisor-only runs are unaffected.',
-  'ui.assist.markedNote': 'This run is marked "AI-assisted": rewards as usual, not uploaded to the global / daily boards.',
+  'ui.assist.fairnessShort':
+    'Runs where AI played for you still go on the leaderboards, tagged AI-assisted; advisor-only runs are not tagged.',
+  'ui.assist.markedNote':
+    'This run is marked "AI-assisted": rewards as usual, and it still goes on the leaderboards with an AI-assisted tag.',
   'ui.assist.dedicatedNote': 'This is an AI Battle run, played by AI from wave 1. To change roles, start again from AI Battle.',
   'ui.assist.badge': 'AI-assisted',
   'ui.assist.badgeAdvisor': 'AI advisor',
-  'ui.assist.badgeTip': 'AI played for you in this run: rewards as usual, but it stays off the global and daily boards',
+  'ui.assist.badgeTip': 'AI played for you in this run: rewards as usual; it still goes on the leaderboards, tagged AI-assisted',
   'ui.assist.badgeAdvisorTip': 'The AI advisor only suggests moves; your score is unaffected',
   'ui.assist.enabledPlayer': 'AI has taken over ({model}) — press I to stop any time',
   'ui.assist.enabledAdvisor': 'AI advisor is ready ({model})',
@@ -48,21 +50,15 @@ export default {
   'ui.assist.openSettings': 'Model settings…',
   'ui.assist.howTitle': 'How it works',
   'ui.assist.howPlayer':
-    'AI takes over from the current position. The run is marked "AI-assisted": campaign progress, stars and ink as usual; kept off the global and daily boards and tagged on your local leaderboard.',
+    'AI takes over from the current position. The run is marked "AI-assisted": campaign progress, stars and ink as usual, and the score still goes on the leaderboards with an AI-assisted tag (the leaderboard can hide these).',
   'ui.assist.howAdvisor': 'AI only shows suggestion cards; nothing happens until you tap "Adopt". No effect on scores or uploads.',
   'ui.assist.howButtonTitle': 'The in-game AI button',
   'ui.assist.howButton':
     'AI button in the top bar (shortcut I): enable, switch roles or stop at any time — stopping gives you back full control.',
-  'ui.assist.fairness': 'For a full AI run from wave 1 that counts on the AI board, start from "AI Battle" in the main menu.',
-  'ui.assist.notUploaded': 'Not uploaded to the global board',
-  'ui.assist.notUploadedDaily': 'Not uploaded to the daily board',
-  'ui.assist.notUploadedWhy':
-    'AI played for you in this run, and the global and daily boards only take human scores. To have AI compete properly, use AI Battle (AI board).',
-  'ui.assist.blockedShort': "Runs where AI played for you aren't uploaded to human boards",
-  'ui.assist.goNote': 'AI played for you in this run: rewards as usual, score recorded as AI-assisted.',
+  'ui.assist.fairness':
+    'For a full AI run from wave 1, start from "AI Battle" in the main menu; it also goes on the leaderboards, tagged AI-assisted with the model name.',
+  'ui.assist.goNote': 'AI played for you in this run: rewards as usual; the score goes on the leaderboards tagged AI-assisted.',
   'ui.assist.goNoteAdvisor': 'You had an AI advisor this run; your score is unaffected.',
-  'ui.assist.lbShow': 'Show AI-assisted scores',
-  'ui.assist.lbShowHint': 'Runs where AI played for you are kept separately and hidden by default',
   'ui.tutorial.tip-ai.title': 'AI helper',
   'ui.tutorial.tip-ai.body': 'Stuck? Tap here (or press I) to get advice from AI — or let it play for a while.',
 } satisfies Dict;

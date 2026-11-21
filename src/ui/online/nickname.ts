@@ -2,7 +2,7 @@
  * 昵称：对话框 + 页面头部的「昵称 · 修改」小组件
  */
 import { t } from '../../i18n';
-import { getNickname, setNickname } from '../../meta/online';
+import { getNickname, isDefaultNickname, setNickname } from '../../meta/online';
 import { NICK_MAX } from '../../shared/leaderboard';
 import { audio } from '../audio';
 import { h } from '../dom';
@@ -103,20 +103,18 @@ export function askNickname(o: { parent?: HTMLElement | null; title?: string; hi
   });
 }
 
-/** 确保有昵称：已有直接返回，否则弹框询问 */
-export async function ensureNickname(parent?: HTMLElement | null): Promise<string | null> {
-  const n = getNickname();
-  if (n && !nicknameError(n)) return n;
-  return askNickname({ parent, title: t('ui.online.firstUpload'), hint: t('ui.online.firstUploadHint') });
+/** 上传用的昵称：没设过时直接用默认昵称（「玩家」+ 设备 id 前 4 位），不再弹框 */
+export function ensureNickname(_parent?: HTMLElement | null): Promise<string | null> {
+  return Promise.resolve(getNickname());
 }
 
-/** 页面头部：昵称 + 修改按钮 */
+/** 页面头部：昵称（默认昵称带「默认」小标记）+ 修改按钮 */
 export function nicknameChip(onChange?: (n: string) => void): HTMLElement {
   const name = h('span.nick-name');
+  const tag = h('small.badge.nick-default', { title: t('ui.lb.defaultNickTip') }, t('ui.lb.defaultNick'));
   const paint = () => {
-    const n = getNickname();
-    name.textContent = n || t('ui.online.noNick');
-    name.classList.toggle('muted', !n);
+    name.textContent = getNickname();
+    tag.hidden = !isDefaultNickname();
   };
   paint();
   return h(
@@ -124,6 +122,7 @@ export function nicknameChip(onChange?: (n: string) => void): HTMLElement {
     null,
     h('span.muted.small', null, t('ui.online.nick')),
     name,
+    tag,
     h(
       'button.btn.small',
       {
