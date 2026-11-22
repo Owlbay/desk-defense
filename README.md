@@ -6,9 +6,11 @@
 
 [![在线试玩](https://img.shields.io/badge/%E5%9C%A8%E7%BA%BF%E8%AF%95%E7%8E%A9-jjjj.games-d4a73c)](https://jjjj.games)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![认可 LINUX DO](https://img.shields.io/badge/%E8%AE%A4%E5%8F%AF-LINUX%20DO-1f6feb)](https://linux.do/)
+[![LINUX DO](https://img.shields.io/badge/LINUX-DO-ffb003?labelColor=3f3f46)](https://linux.do/)
 
 [在线试玩](https://jjjj.games) · [介绍页](https://jjjj.games/about) · [玩家指南](docs/guide/README.md) · [AI 参战](docs/10-Agent参战.md) · [参与开发](CONTRIBUTING.md)
+
+本项目在 [LINUX DO](https://linux.do/) 社区发布与交流
 
 <img src="public/og.png" alt="书桌防线" width="720">
 
@@ -145,11 +147,15 @@ npm run dev
 | [12 全服排行榜](docs/12-全服排行榜.md) | 接口、防作弊、回放复核、部署 |
 | [玩家指南](docs/guide/README.md) | 面向玩家的完整说明与自动生成的数据表 |
 
+## 反馈与交流
+
+- **Bug 和建议**：[提交 Issue](https://github.com/Owlbay/desk-defense/issues)。最好附上种子（暂停菜单里可以复制）、难度和浏览器；成绩自带回放，复现起来很快。
+- **讨论和晒成绩**：欢迎在 [LINUX DO](https://linux.do/) 发帖交流，聊聊你的模型打到了第几波、哪种中心策略最好用。
+- **用 AI 玩时报错**：截图或复制侧栏里的报错就行，**先把 Key 从截图和日志里去掉**。
+
 ## 参与贡献
 
-欢迎提 Issue 和 Pull Request。开始之前请先读 [CONTRIBUTING.md](CONTRIBUTING.md)，里面有目录约定、确定性要求、国际化、测试与部署流程。提交前跑一遍 `npm run check`。
-
-报告 bug 时，最好附上种子（暂停菜单里可以复制）和难度；成绩自带回放，复现起来很快。
+欢迎提 Pull Request。开始之前请先读 [CONTRIBUTING.md](CONTRIBUTING.md)，里面有目录约定、确定性要求、国际化、测试与部署流程。提交前跑一遍 `npm run check`。
 
 ## 开源说明
 
@@ -158,6 +164,8 @@ npm run dev
 - **隐私**：进度只存在本机。上传成绩时只带昵称和哈希过的设备标识；AI 成绩只显示模型名和思考档位，不显示你用的是哪家服务或中转。
 - **许可证**：[MIT](LICENSE)。
 
-## 社区
+## 社区与友情链接
 
-本项目积极参与并认可 [LINUX DO](https://linux.do/) 社区。感谢佬友们的反馈和支持。
+本项目积极参与并认可 [LINUX DO](https://linux.do/) 社区，感谢佬友们的反馈和支持。
+
+- [LINUX DO - 新的理想型社区](https://linux.do/)
