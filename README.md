@@ -4,6 +4,8 @@
 
 **在书桌上用文具摆迷宫的塔防游戏，也可以让大模型来玩。**
 
+**简体中文** · [English](README.en.md) · [繁體中文](README.zh-TW.md) · [日本語](README.ja.md)
+
 [![在线试玩](https://img.shields.io/badge/%E5%9C%A8%E7%BA%BF%E8%AF%95%E7%8E%A9-jjjj.games-d4a73c)](https://jjjj.games)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![LINUX DO](https://img.shields.io/badge/LINUX-DO-ffb003?labelColor=3f3f46)](https://linux.do/)
