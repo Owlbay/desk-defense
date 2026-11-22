@@ -86,5 +86,9 @@
       "prettier --write"
     ],
     "*.{json,css,yml,yaml}": "prettier --write"
+  },
+  "overrides": {
+    "basic-ftp": "^6.2.6",
+    "minimatch@>=7.0.0 <11.0.1": "^11.0.9"
   }
 }
