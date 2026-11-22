@@ -1,0 +1,16 @@
+node_modules
+dist
+*.local
+.DS_Store
+scripts/out
+.wrangler/
+.dev.vars
+
+# 原生壳（Capacitor ios/ android/、Tauri src-tauri/）的构建产物；各目录自带的 .gitignore 另外忽略复制进去的 dist
+ios/App/build/
+ios/DerivedData/
+android/.gradle/
+android/build/
+android/app/build/
+src-tauri/target/
+src-tauri/gen/
