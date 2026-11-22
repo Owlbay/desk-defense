@@ -527,6 +527,8 @@ export default {
   'guide.about.footer.play': '開始遊戲',
   'guide.about.footer.guide': '圖鑑與玩法',
   'guide.about.footer.leaderboard': '排行榜',
+  'guide.about.footer.source': '原始碼（GitHub）',
+  'guide.about.footer.community': 'LINUX DO 社群',
   'guide.about.footer.label': '頁尾連結',
   'guide.about.footer.note': '書桌防線 Desk Defense，一款網頁塔防遊戲。',
   'guide.enemy.goldbag.behavior':

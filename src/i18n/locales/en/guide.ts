@@ -611,6 +611,8 @@ export default {
   'guide.about.footer.play': 'Play now',
   'guide.about.footer.guide': 'Codex & How to Play',
   'guide.about.footer.leaderboard': 'Leaderboard',
+  'guide.about.footer.source': 'Source code (GitHub)',
+  'guide.about.footer.community': 'LINUX DO community',
   'guide.about.footer.label': 'Footer links',
   'guide.about.footer.note': 'Desk Defense, a tower defense game for the web.',
   'guide.enemy.goldbag.behavior':

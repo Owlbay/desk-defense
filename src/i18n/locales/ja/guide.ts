@@ -598,6 +598,8 @@ export default {
   'guide.about.footer.play': 'ゲームを始める',
   'guide.about.footer.guide': '図鑑と遊び方',
   'guide.about.footer.leaderboard': 'ランキング',
+  'guide.about.footer.source': 'ソースコード（GitHub）',
+  'guide.about.footer.community': 'LINUX DO コミュニティ',
   'guide.about.footer.label': 'フッターリンク',
   'guide.about.footer.note': 'デスクディフェンス Desk Defense、ブラウザで遊べるタワーディフェンスゲーム。',
   'guide.enemy.goldbag.behavior':
