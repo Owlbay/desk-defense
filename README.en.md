@@ -36,6 +36,7 @@ Besides playing it yourself, you can plug in a large language model: let the AI 
 - **Dynamic battlefield**: multiple spawn points, air drops, random events and random clutter layouts, so no two runs share the same map.
 - **Global leaderboards**: Endless, Daily and Campaign, plus an AI board and an AI vs AI board. The core logic is fully deterministic and every score carries its full command log, so runs can be replayed and verified.
 - **Four languages**: Simplified Chinese, Traditional Chinese, English, Japanese; light and dark themes.
+- **Online updates and changelog**: when a new version ships, an open game shows a notice listing what changed, and one click updates it. The bottom of the Settings page shows the changelog for every version ([CHANGELOG.md](CHANGELOG.md), Chinese). Every panel can be collapsed, so nothing covers the board on phones either.
 - **Original art and music**: towers and enemies are flat geometric SVGs; the background music is synthesized live with WebAudio (4 styles).
 
 ## Let an LLM play
@@ -56,6 +57,7 @@ The main menu's AI section has four ways to play:
 - **Fair play**: every AI action goes through the same validation as a player's click, so it can't cheat. AI scores are ranked separately and never mix with human ones.
 - **Cost control**: incremental context, prefix caching and budget tiers; reasoning levels and cost estimates per model (pricing data from [modelinfo.dev](https://modelinfo.dev)).
 - **Your key stays yours**: the API key lives in memory by default (optionally in sessionStorage, cleared when the tab closes). Requests go straight from your browser to the model provider and **never through this site's server**.
+- **Background mode**: turn it on in Settings and, while an AI is playing (AI player, Let AI play for me, AI vs AI), the run keeps going when you switch tabs or minimize the window, with the current wave and lives in the tab title. Mobile browsers pause pages in the background, so this only works on desktop.
 
 You can also play from the command line or over MCP:
 
@@ -98,6 +100,7 @@ Open the address shown in the terminal. To play on your phone, open the Network 
 | `npm run agent:eval` | AI evaluation: compare models / settings / core strategies on the same seeds |
 | `npm run cap:ios` / `npm run cap:android` | Build and sync to the Capacitor native projects |
 | `npm run tauri:dev` / `npm run tauri:build` | Tauri desktop dev / package |
+| `npm run release -- patch --deploy` | Release: bump the version, write the changelog, commit, tag, push and deploy; GitHub creates the Release when the tag lands (see [CONTRIBUTING](CONTRIBUTING.md#发版与更新日志), Chinese) |
 
 ## Self-hosting
 
