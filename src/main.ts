@@ -5,14 +5,13 @@ import './styles/hud-motion.css';
 import './styles/online.css';
 import './styles/responsive.css';
 import './styles/ai.css';
-
-import { registerSW } from 'virtual:pwa-register';
+import './styles/update.css';
 
 import { ui } from './game/UiStore';
 import { getLocale, onLocaleChange, setLocale, t } from './i18n';
 import { configureOnline, initOnline } from './meta/online';
 import { ProfileStore } from './meta/profile';
-import { apiBaseUrl, nativeShell } from './platform';
+import { apiBaseUrl } from './platform';
 import { App, applySettings } from './ui/App';
 import { audio } from './ui/audio';
 import { gameScreen } from './ui/hud/GameScreen';
@@ -29,6 +28,7 @@ import { menuScreen } from './ui/screens/menu';
 import { settingsScreen } from './ui/screens/settings';
 import { skillsScreen } from './ui/screens/skills';
 import { talentsScreen } from './ui/screens/talents';
+import { initUpdates, upgradeForStaleChunk } from './ui/update';
 
 async function boot(): Promise<void> {
   const root = document.getElementById('app');
@@ -76,11 +76,9 @@ async function boot(): Promise<void> {
       return;
     }
     e.preventDefault();
-    location.reload();
+    // 有等待中的新版本 Service Worker 时激活它（否则刷新后旧 Service Worker 仍会给出旧页面）
+    if (!upgradeForStaleChunk()) location.reload();
   });
-  // PWA：打开游戏时检查更新，发现新版本立即激活并刷新页面（否则玩家要手动刷新两次才能看到新版本）。
-  // 只在启动时检查，不做定时检查，避免对局中途被刷新。
-  if (!import.meta.env.DEV && !nativeShell()) registerSW({ immediate: true });
   // 联网：探测排行榜接口并补交离线时排队的成绩（失败不影响游戏）
   configureOnline({ baseUrl: apiBaseUrl() });
   void initOnline().catch(() => undefined);
@@ -101,6 +99,8 @@ async function boot(): Promise<void> {
   // 设置 →「AI 助手」：全局模型设置（对局里的 AI 按钮与「AI 参战」共用），表单进入页面时才加载
   app.register('aiAssistant', (a) => aiAssistantScreen(a));
   app.go({ name: 'menu' });
+  // 在线升级：定时检查新版本，提示玩家点一下升级；升级后第一次打开展示更新内容（src/ui/update.ts）
+  initUpdates(app);
   // 图鉴与玩法：注册路由；地址带 #guide/… 时直接打开（内容进入页面时才动态加载）
   installGuideRoute(app);
 

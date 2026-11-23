@@ -25,6 +25,8 @@ export interface Settings {
   theme: 'system' | 'light' | 'dark';
   /** 显示推荐迷宫：在棋盘上淡淡标出迷宫规划建议的书本墙位置（默认关） */
   mazeHint: boolean;
+  /** 后台模式：AI 在玩（AI 玩家 / 替我玩 / AI 对战）时，切到后台继续打，不自动暂停（默认关） */
+  bgPlay: boolean;
 }
 
 export interface LeaderEntry {
@@ -105,6 +107,7 @@ export function defaultSettings(): Settings {
     reduceMotion: false,
     theme: 'system',
     mazeHint: false,
+    bgPlay: false,
   };
 }
 
@@ -220,6 +223,7 @@ export function normalizeProfile(raw: unknown): Profile {
     p.settings.fixedLayout = s.fixedLayout === true;
     p.settings.reduceMotion = s.reduceMotion === true;
     p.settings.mazeHint = s.mazeHint === true;
+    p.settings.bgPlay = s.bgPlay === true;
     p.settings.theme = s.theme === 'light' || s.theme === 'dark' ? s.theme : 'system';
     p.settings.lang = s.lang === 'zh' ? null : normalizeLocale(s.lang);
   }

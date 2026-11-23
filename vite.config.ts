@@ -1,11 +1,39 @@
-import { defineConfig } from 'vite';
+import { readFileSync } from 'node:fs';
+
+import { defineConfig, type Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
+const changelog = JSON.parse(readFileSync(new URL('./src/meta/changelog.json', import.meta.url), 'utf8')) as {
+  version: string;
+  date: string;
+}[];
+
+/**
+ * 在线升级（src/ui/update.ts）：构建时输出 version.json（当前版本 + 最近 10 个版本的更新日志）。
+ * 已打开的旧页面定时请求它，发现版本号更大就提示升级并列出更新内容。不进 PWA 预缓存，响应头见 public/_headers。
+ */
+function versionJson(): Plugin {
+  return {
+    name: 'dd-version-json',
+    apply: 'build',
+    generateBundle() {
+      const latest = changelog.find((e) => e.version === pkg.version);
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: JSON.stringify({ version: pkg.version, date: latest?.date, changelog: changelog.slice(0, 10) }),
+      });
+    },
+  };
+}
 
 /** 只属于 AI 参战的模块：src/agent、AI 面板，以及除 Phaser 外的所有第三方依赖（游戏本体只依赖 Phaser） */
 const AI_MODULE_RE = /\/src\/agent\/|\/src\/ui\/ai\/|\/node_modules\/(?!phaser\/)/;
 
 export default defineConfig({
   base: './',
+  define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   // 原生壳工程（Tauri 的 Rust 构建产物、Capacitor 复制进去的 dist）不参与热更新监听
   server: { port: 5173, watch: { ignored: ['**/src-tauri/**', '**/ios/**', '**/android/**'] } },
   build: {
@@ -27,9 +55,11 @@ export default defineConfig({
     },
   },
   plugins: [
+    versionJson(),
     VitePWA({
-      registerType: 'autoUpdate',
-      injectRegister: false, // 由 src/main.ts 用 virtual:pwa-register 注册：发现新版本自动刷新页面
+      // 新版本先在后台装好、等待；由 src/ui/update.ts 提示玩家，点「立即升级」才激活并刷新（不在对局中途自动刷新）
+      registerType: 'prompt',
+      injectRegister: false, // 由 src/ui/update.ts 用 virtual:pwa-register 注册
       includeAssets: ['icon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: '书桌防线 Desk Defense',

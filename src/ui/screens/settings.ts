@@ -1,5 +1,6 @@
 import { getLocale, LOCALES, setLocale, t } from '../../i18n';
 import { getAutoUpload, setAutoUpload } from '../../meta/online';
+import { APP_VERSION } from '../../meta/version';
 import { AI_GLYPH } from '../ai/icon';
 import { type App, applySettings, confirmDialog, type Screen, screenHeader } from '../App';
 import { audio, MUSIC_STYLES, type MusicStylePref } from '../audio';
@@ -7,6 +8,7 @@ import { h } from '../dom';
 import { G } from '../icons';
 import { rememberLocale } from '../locale';
 import { THEME_MODES, type ThemeMode } from '../theme';
+import { changelogDialog } from '../update';
 import { anim, popSelected } from './motion';
 
 /** 滑块数值变化时轻轻跳一下（上一次没播完就接着播，不叠加） */
@@ -114,6 +116,14 @@ export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLEle
   mazeInput.onchange = () => {
     audio.play('click');
     save(() => (app.store.get().settings.mazeHint = mazeInput.checked));
+  };
+
+  // 后台模式：AI 在玩时切到后台继续打（对局页 visibilitychange 时读取，改了立即生效）
+  const bgInput = h<HTMLInputElement>('input', { attrs: { type: 'checkbox' } });
+  bgInput.checked = !!s.bgPlay;
+  bgInput.onchange = () => {
+    audio.play('click');
+    save(() => (app.store.get().settings.bgPlay = bgInput.checked));
   };
 
   // 自动上传成绩：与排行榜页的开关是同一个设置（src/meta/online.ts AUTO_UPLOAD_KEY）
@@ -261,6 +271,12 @@ export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLEle
       h(
         'label.switch-row',
         null,
+        h('span', null, h('b', null, t('ui.settings.bgPlay')), h('small.muted', null, t('ui.settings.bgPlayHint'))),
+        h('span.switch', null, bgInput, h('span.knob')),
+      ),
+      h(
+        'label.switch-row',
+        null,
         h('span', null, h('b', null, t('ui.lb.autoUpload')), h('small.muted', null, t('ui.lb.autoUploadHint'))),
         h('span.switch', null, uploadInput, h('span.knob')),
       ),
@@ -335,7 +351,23 @@ export function settingsScreen(app: App): Screen {
   const el = h('div.screen.settings-screen');
   el.append(
     screenHeader(app, t('ui.settings.title'), { chips: false }),
-    h('div.screen-body.narrow', null, settingsPanel(app, { host: el }), h('p.muted.center', null, t('ui.settings.footer'))),
+    h(
+      'div.screen-body.narrow',
+      null,
+      settingsPanel(app, { host: el }),
+      h('p.muted.center', null, t('ui.settings.footer')),
+      h(
+        'button.btn.small.version-btn',
+        {
+          attrs: { type: 'button' },
+          onclick: () => {
+            audio.play('click');
+            changelogDialog(el);
+          },
+        },
+        t('ui.update.versionBtn', { v: `v${APP_VERSION}` }),
+      ),
+    ),
   );
   return { el };
 }

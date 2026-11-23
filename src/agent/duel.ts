@@ -13,6 +13,7 @@
  */
 import type { GameEvent } from '../core/types';
 import { makeMidRun } from '../meta/midrun';
+import { steadyInterval } from '../shared/bgclock';
 import { boardForOpts } from '../shared/leaderboard';
 import { type AgentModelConfig, agentTag, configErrorMessage, resolveConfig, saveableConfig, validateConfig } from './config';
 import { type BudgetChoice, DecisionEngine } from './engine';
@@ -86,7 +87,7 @@ export function createDuelController(o: DuelControllerOptions): AgentController 
   let dProv: LLMProvider | null = o.defender.provider ?? null;
   let busy = false;
   let userPaused = false;
-  let timer: ReturnType<typeof setInterval> | null = null;
+  let stopTimer: (() => void) | null = null;
   let unsub: (() => void) | null = null;
   let budgetResolve: ((c: BudgetChoice) => void) | null = null;
   /** 已为哪一波出过题（每波只问一次） */
@@ -215,7 +216,7 @@ export function createDuelController(o: DuelControllerOptions): AgentController 
         detector.feed(ev, w);
       });
       const ms = o.pollMs ?? 100;
-      if (ms > 0) timer = setInterval(poll, ms);
+      if (ms > 0) stopTimer = steadyInterval(poll, ms);
       setStatus('running');
     },
     pause() {
@@ -231,7 +232,8 @@ export function createDuelController(o: DuelControllerOptions): AgentController 
     stop() {
       budgetResolve?.('bot');
       ac.abort();
-      if (timer) clearInterval(timer);
+      stopTimer?.();
+      stopTimer = null;
       unsub?.();
       aProv?.dispose?.();
       if (dProv !== aProv) dProv?.dispose?.();

@@ -118,3 +118,9 @@
 - 本地联调 API：`npm run dev:api`（打包后用 `wrangler pages dev`，数据在 `.wrangler/state`）。
 - **机密不进仓库**：用 `npx wrangler@4 pages secret put HASH_SALT --project-name desk-defense`（必需）、`TURNSTILE_SECRET`（可选）。本地开发写在根目录 `.dev.vars`（已被 `.gitignore` 忽略）。AI 参战的模型密钥只存在玩家本机浏览器 / 环境变量里，不要写进代码、测试快照或报告。
 - 改了 `src/shared/leaderboard.ts` 的校验或 `GAME_VERSION` 时，注意新旧客户端兼容（`ACCEPT_GAME_VERSIONS`），详见 [12 全服排行榜](docs/12-全服排行榜.md)。
+
+## 发版与更新日志
+
+- 版本号在 `package.json`，每个版本更新了什么写在 `src/meta/changelog.json`（最新在最前，简体中文必填，繁中 / 英 / 日条数与简中一致；缺的语言回退简中）。游戏内「设置 → 版本 · 更新日志」、升级提示卡片、`CHANGELOG.md`、GitHub Release 都从这里读。
+- 发版：先在 `changelog.json` 最前面写好新版本的条目，再 `npm run release -- --deploy`；或直接 `npm run release -- patch|minor|major --deploy`，没写条目时用上个 tag 以来的提交标题生成简中条目。脚本会改版本号、生成 `CHANGELOG.md`、跑 `npm run check`、提交「发布 vX.Y.Z」、打 tag `vX.Y.Z` 并推送；`.github/workflows/release.yml` 收到 tag 后自动创建 GitHub Release。`--dry` 只打印步骤。
+- 在线升级：构建时输出 `version.json`，已打开的页面每 10 分钟和切回前台时检查一次，发现新版本就弹出卡片（含更新内容），玩家点「立即升级」才激活新的 Service Worker 并刷新（`src/ui/update.ts`）。原生壳（Tauri / Capacitor）不走在线升级。

@@ -1,0 +1,74 @@
+/* 在线升级卡片 / 更新日志（src/ui/update.ts） */
+.update-card {
+  position: fixed;
+  right: calc(16px + var(--sar));
+  bottom: calc(16px + var(--sab));
+  z-index: 120;
+  width: min(calc(100vw - 32px - var(--sal) - var(--sar)), 360px);
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  padding: 14px 16px;
+  display: grid;
+  gap: 10px;
+  animation: pop-in 0.22s cubic-bezier(0.3, 1.4, 0.6, 1);
+  transition:
+    opacity 0.24s,
+    transform 0.24s;
+}
+
+.update-card.out {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.update-head {
+  display: grid;
+  gap: 2px;
+}
+
+.update-head b {
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.changelog-list {
+  display: grid;
+  gap: 12px;
+}
+
+.changelog-entry h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 15px;
+}
+
+.changelog-entry ul {
+  margin: 0;
+  padding-left: 1.2em;
+  display: grid;
+  gap: 4px;
+  line-height: 1.5;
+}
+
+.changelog-dialog {
+  width: min(100%, 520px);
+  max-height: min(86vh, 720px);
+  overflow-y: auto;
+}
+
+.version-btn {
+  justify-self: center;
+  margin-top: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-card {
+    animation: none;
+  }
+}
+
+html.reduce-motion .update-card {
+  animation: none;
+}

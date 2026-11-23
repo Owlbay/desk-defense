@@ -20,6 +20,7 @@
     "docs:data": "vite-node scripts/gen-data-docs.ts",
     "gallery": "node scripts/build-gallery.mjs",
     "deploy": "npm run build && npx wrangler@4 pages deploy dist --project-name desk-defense",
+    "release": "node scripts/release.mjs",
     "test:online": "vitest run tests/online",
     "typecheck:functions": "tsc --noEmit -p functions",
     "db:migrate:local": "npx wrangler@4 d1 migrations apply desk-defense --local",

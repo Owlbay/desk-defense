@@ -1,0 +1,58 @@
+[
+  {
+    "version": "0.2.0",
+    "date": "2026-11-22",
+    "notes": {
+      "zh-CN": [
+        "新增后台模式：在设置里打开后，AI 在玩（AI 玩家、替我玩、AI 对战）时切到别的标签页或最小化窗口，对局继续打，标签页标题显示当前波次和生命",
+        "新增在线升级：发布新版本后，游戏里会弹出提示并列出更新内容，点「立即升级」即可换到新版本",
+        "新增更新日志：设置页底部可以查看每个版本更新了什么",
+        "介绍页页脚加上源码（GitHub）和 LINUX DO 社区链接"
+      ],
+      "zh-TW": [
+        "新增背景模式：在設定裡開啟後，AI 在玩（AI 玩家、替我玩、AI 對戰）時切到別的分頁或縮小視窗，對局繼續進行，分頁標題顯示目前波次和生命",
+        "新增線上升級：發布新版本後，遊戲裡會彈出提示並列出更新內容，點「立即升級」即可換到新版本",
+        "新增更新日誌：設定頁底部可以查看每個版本更新了什麼",
+        "介紹頁頁尾加上原始碼（GitHub）和 LINUX DO 社群連結"
+      ],
+      "en": [
+        "New background mode: turn it on in Settings and, while an AI is playing (AI player, Let AI play for me, AI vs AI), the run keeps going when you switch tabs or minimize the window. The tab title shows the current wave and lives",
+        "New online updates: when a new version is released, the game shows a notice with what changed. Click “Update now” to switch to it",
+        "New changelog: see what changed in each version from the bottom of the Settings page",
+        "The about page footer now links to the source code (GitHub) and the LINUX DO community"
+      ],
+      "ja": [
+        "バックグラウンドモードを追加：設定でオンにすると、AI がプレイ中（AI プレイヤー・AI に代わりにプレイ・AI 対戦）は別のタブに切り替えたりウィンドウを最小化したりしても対局が続きます。タブのタイトルに現在のウェーブとライフを表示します",
+        "オンライン更新を追加：新しいバージョンが公開されると、更新内容つきのお知らせが表示されます。「今すぐ更新」で新しいバージョンに切り替わります",
+        "更新履歴を追加：設定ページの下から各バージョンの変更内容を確認できます",
+        "紹介ページのフッターにソースコード（GitHub）と LINUX DO コミュニティへのリンクを追加"
+      ]
+    }
+  },
+  {
+    "version": "0.1.0",
+    "date": "2026-11-21",
+    "notes": {
+      "zh-CN": [
+        "首次公开发布：3 章战役、无尽、每日挑战、自定义模式与全服排行榜",
+        "AI 参战：AI 玩家、AI 军师、AI 出题、AI 对战四种模式",
+        "支持简体中文、繁體中文、English、日本語"
+      ],
+      "zh-TW": [
+        "首次公開發布：3 章戰役、無盡、每日挑戰、自訂模式與全服排行榜",
+        "AI 參戰：AI 玩家、AI 軍師、AI 出題、AI 對戰四種模式",
+        "支援简体中文、繁體中文、English、日本語"
+      ],
+      "en": [
+        "First public release: 3-chapter campaign, endless, daily challenge, custom mode and global leaderboards",
+        "AI play: four modes, AI player, AI advisor, AI wave designer and AI duel",
+        "Available in 简体中文, 繁體中文, English and 日本語"
+      ],
+      "ja": [
+        "初の一般公開：全 3 章のキャンペーン、エンドレス、デイリーチャレンジ、カスタムモード、全サーバーランキング",
+        "AI 参戦：AI プレイヤー、AI 軍師、AI 出題、AI 対戦の 4 モード",
+        "简体中文・繁體中文・English・日本語に対応"
+      ]
+    }
+  }
+]

@@ -6,6 +6,7 @@ import { isAiAssisted } from '../../meta/aiAssist';
 import { makeMidRun, replayAsync } from '../../meta/midrun';
 import { recordWave, type Rewards, settleRun } from '../../meta/progress';
 import { mountBoard } from '../../render';
+import { holdBackground, onBackgroundTick } from '../../shared/bgclock';
 import { createAiSlot, takeAiLaunch } from '../ai/launch';
 import type { App, Route, Screen } from '../App';
 import { audio } from '../audio';
@@ -248,10 +249,73 @@ export function gameScreen(app: App, route: Route): Screen {
     return o;
   };
 
+  // ───────────── 后台模式 ─────────────
+  // 设置里开了「后台模式」且当前是 AI 在操作（AI 玩家 / 替我玩 / AI 对战）：切到后台不暂停，
+  // 由后台时钟（Worker 心跳，不受浏览器后台节流）推进对局和 AI 轮询；标签页标题显示进度。
+  const bgEligible = (): boolean =>
+    !!app.store.get().settings.bgPlay && aiSlot.role === 'player' && !aiSlot.loading && !ended && !destroyed;
+  let bg: { release: () => void; off: () => void; startWave: number; title: string } | null = null;
+  let bgTitleAt = 0;
+  const bgTitle = (): string => {
+    const st = world.state;
+    if (st.phase === 'won' || st.phase === 'lost') return t('ui.bg.titleOver', { wave: st.wave });
+    return t('ui.bg.title', { wave: st.wave, lives: Math.max(0, Math.round(st.lives)) });
+  };
+  const stopBg = (): void => {
+    if (!bg) return;
+    const b = bg;
+    bg = null;
+    b.off();
+    b.release();
+    document.title = b.title;
+    const n = world.state.wave - b.startWave;
+    if (!destroyed && n > 0) overlay.toast(t('ui.bg.back', { n }), 'good');
+  };
+  const startBg = (): void => {
+    if (bg) return;
+    const release = holdBackground();
+    const off = onBackgroundTick((dt) => {
+      if (!document.hidden) return; // 前台由棋盘的渲染循环推进
+      if (!bgEligible()) {
+        // AI 被摘下 / 对局结束：照旧暂停
+        if (!ended && !destroyed) {
+          stopBg();
+          session.setAutoPaused(true);
+          openPause();
+        } else if (bg) {
+          document.title = bgTitle();
+        }
+        return;
+      }
+      session.update(dt);
+      const t0 = performance.now();
+      if (t0 - bgTitleAt > 500) {
+        bgTitleAt = t0;
+        document.title = bgTitle();
+      }
+    });
+    bg = { release, off, startWave: world.state.wave, title: document.title };
+    document.title = bgTitle();
+  };
+  cleanups.push(() => {
+    if (bg) {
+      bg.off();
+      bg.release();
+      document.title = bg.title;
+      bg = null;
+    }
+  });
+
   const onVis = () => {
     if (document.hidden && !ended && !destroyed) {
+      if (bgEligible()) {
+        startBg();
+        return;
+      }
       session.setAutoPaused(true);
       openPause();
+    } else if (!document.hidden) {
+      stopBg();
     }
   };
   document.addEventListener('visibilitychange', onVis);
