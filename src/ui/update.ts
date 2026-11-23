@@ -87,6 +87,23 @@ function notesList(entries: readonly ChangelogEntry[], o: { heads?: boolean } = 
   );
 }
 
+/**
+ * 卡片里的更新内容：可以收起。对局中、或者屏幕窄 / 矮（手机）时默认收起，只露一行「更新内容（N 条）」，
+ * 不挡塔栏和开波按钮；其他时候默认展开。
+ */
+function foldNotes(entries: readonly ChangelogEntry[]): HTMLElement {
+  const n = entries.reduce((k, e) => k + notesOf(e, getLocale()).length, 0);
+  const d = h<HTMLDetailsElement>(
+    'details.update-notes',
+    null,
+    h('summary', null, t('ui.update.notes', { n })),
+    notesList(entries, { heads: entries.length > 1 }),
+  );
+  const small = window.innerWidth <= 600 || window.innerHeight <= 560;
+  d.open = !small && appRef?.route.name !== 'game';
+  return d;
+}
+
 /** 完整更新日志对话框 */
 export function changelogDialog(parent: HTMLElement): void {
   const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -207,7 +224,7 @@ function updateCard(r: RemoteVersion | null): HTMLElement {
       h('b', null, r ? t('ui.update.available', { v: fmtVersion(r.version) }) : t('ui.update.availableGeneric')),
       h('small.muted', null, t('ui.update.current', { v: fmtVersion(APP_VERSION) })),
     ),
-    entries.length ? notesList(entries, { heads: entries.length > 1 }) : null,
+    entries.length ? foldNotes(entries) : null,
     h(
       'div.row.end',
       null,
@@ -264,7 +281,7 @@ function showWhatsNew(): void {
       'aside.update-card.whats-new.card',
       { attrs: { role: 'status', 'aria-live': 'polite' } },
       h('div.update-head', null, h('b', null, t('ui.update.updated', { v: fmtVersion(APP_VERSION) }))),
-      notesList(entries, { heads: entries.length > 1 }),
+      foldNotes(entries),
       h(
         'div.row.end',
         null,

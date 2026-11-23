@@ -900,3 +900,37 @@ html.reduce-motion .ai-dock[data-mode='sheet'] {
   gap: 6px;
   margin-bottom: 6px;
 }
+
+/* ───────────── 抽屉 · 放在棋盘旁边（data-place='side'，dock.ts sideRegion） ─────────────
+ * 竖屏盖住棋盘下方的操作区，横屏盖住棋盘右侧顶栏以下的操作区；棋盘本身不被遮挡。
+ * peek = 只露页签 + 指令输入；half = 整个旁边区域；full = 全屏（要细看思路时）。 */
+.ai-dock[data-mode='sheet'][data-place='side'][data-snap='peek'],
+.ai-dock[data-mode='sheet'][data-compact='1'][data-place='side'][data-snap='peek'] {
+  height: auto;
+}
+
+.ai-dock[data-mode='sheet'][data-compact='1'][data-place='side'][data-snap='peek'] .dock-body {
+  display: none;
+}
+
+/* peek 浮在信息面板的位置（--dk-peek-top），四边圆角 */
+.ai-dock[data-mode='sheet'][data-place='side'][data-snap='peek'] {
+  top: var(--dk-peek-top, auto);
+  bottom: auto;
+  border-bottom-width: var(--bw);
+  border-radius: var(--radius);
+}
+
+.ai-dock[data-mode='sheet'][data-place='side']:not([data-snap='full']) {
+  box-shadow: 0 -4px 12px rgb(var(--shadow-rgb) / 0.18);
+}
+
+/* ───────────── 对局弹窗（暂停 / 选增益 / 结算）打开时：整个对局层盖到抽屉上面 ─────────────
+ * .game 是独立层叠上下文（isolation），弹窗的 z-index 出不来；抽屉在弹窗期间退到对局层下面。 */
+.game-screen:has(> .game > .g-modals > .overlay:not([hidden])) > .game {
+  z-index: 46;
+}
+
+.game-screen:has(> .game > .g-modals > .overlay:not([hidden])) > .ai-dock[data-mode='sheet'] {
+  visibility: hidden;
+}

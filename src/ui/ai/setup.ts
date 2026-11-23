@@ -19,6 +19,7 @@ import {
 } from '../../meta/progress';
 import type { App } from '../App';
 import { audio } from '../audio';
+import { collapsible } from '../collapse';
 import { MAP_META } from '../coreMeta';
 import { clear, h, setText } from '../dom';
 import { G } from '../icons';
@@ -351,22 +352,33 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
     t('agent.setup.start'),
   );
 
+  const runCard = h(
+    'section.card.section.ai-card',
+    null,
+    h('h3', null, t('agent.setup.sec.run')),
+    field(t('agent.setup.field.mode'), modeBox),
+    field(t('agent.setup.field.map'), mapBox),
+    layout.el,
+    field(t('agent.setup.field.difficulty'), diffBox),
+    abyssBox,
+    h('label.field', null, h('span', null, t('agent.setup.seed')), seedInput),
+    pureSw.el,
+    autoSw.el,
+    runNote,
+  );
+  // 长页面（手机上三屏多）：对局 / 中心策略 / 决策与预算可以收起，收起时显示当前选择；决策与预算默认收起
+  const folds = [
+    collapsible(runCard, { key: 'ai.setup.run' }),
+    collapsible(doctrineCard, { key: 'ai.setup.doctrine' }),
+    collapsible(form.decisionCard, { key: 'ai.setup.decision', folded: true }),
+  ];
+  body.addEventListener('click', () => requestAnimationFrame(() => folds.forEach((f) => f.refresh())));
+
+  const roleCard = h('section.card.section.ai-card', null, h('h3', null, t('agent.setup.sec.role')), roleBox, kindNote);
+  folds.unshift(collapsible(roleCard, { key: 'ai.setup.role' }));
   body.replaceChildren(
-    h('section.card.section.ai-card', null, h('h3', null, t('agent.setup.sec.role')), roleBox, kindNote),
-    h(
-      'section.card.section.ai-card',
-      null,
-      h('h3', null, t('agent.setup.sec.run')),
-      field(t('agent.setup.field.mode'), modeBox),
-      field(t('agent.setup.field.map'), mapBox),
-      layout.el,
-      field(t('agent.setup.field.difficulty'), diffBox),
-      abyssBox,
-      h('label.field', null, h('span', null, t('agent.setup.seed')), seedInput),
-      pureSw.el,
-      autoSw.el,
-      runNote,
-    ),
+    roleCard,
+    runCard,
     doctrineCard,
     aform.modelCard,
     form.modelCard,
@@ -384,6 +396,7 @@ export function mountAiSetup(app: App, body: HTMLElement): () => void {
 
   return () => {
     disposed = true;
+    folds.forEach((f) => f.destroy());
     form.destroy();
     aform.destroy();
     clearTimeout(seedTimer);

@@ -1,5 +1,47 @@
 [
   {
+    "version": "0.3.0",
+    "date": "2026-11-23",
+    "notes": {
+      "zh-CN": [
+        "AI 面板不再挡棋盘：手机竖屏放在棋盘下方，横屏和平板放在棋盘右侧，只有拉到全屏时才盖住棋盘",
+        "AI 面板收起后浮在信息面板的位置，塔栏、技能和开波按钮都不挡",
+        "暂停、选增益、结算弹窗始终显示在 AI 面板上面",
+        "AI 面板打开时，棋盘左上角的 AI 徽标自动收起；手机上徽标更小",
+        "手机上 Boss 血条压成细条，随机事件小图标移到右上角，少挡出怪口",
+        "设置页、对局暂停菜单里的设置、AI 参战页的各个分区都可以收起，收起时显示当前选择",
+        "升级提示在对局中和手机上默认收起更新内容，点开再看"
+      ],
+      "zh-TW": [
+        "AI 面板不再擋棋盤：手機直向放在棋盤下方，橫向和平板放在棋盤右側，只有拉到全螢幕時才蓋住棋盤",
+        "AI 面板收起後浮在資訊面板的位置，塔欄、技能和開波按鈕都不擋",
+        "暫停、選增益、結算彈窗始終顯示在 AI 面板上面",
+        "AI 面板打開時，棋盤左上角的 AI 徽標自動收起；手機上徽標更小",
+        "手機上 Boss 血條壓成細條，隨機事件小圖示移到右上角，少擋出怪口",
+        "設定頁、對局暫停選單裡的設定、AI 參戰頁的各個區塊都可以收起，收起時顯示目前選擇",
+        "升級提示在對局中和手機上預設收起更新內容，點開再看"
+      ],
+      "en": [
+        "The AI panel no longer covers the board: below the board on phones in portrait, to its right in landscape and on tablets. It only covers the board when pulled to full screen",
+        "When collapsed, the AI panel sits where the info panel is, so the tower bar, skills and start-wave button stay usable",
+        "Pause, perk and results dialogs always show above the AI panel",
+        "The AI badge in the board's top-left corner hides while the AI panel is open, and is smaller on phones",
+        "On phones, boss health bars are slimmer and event icons moved to the top-right, so less of the spawn area is covered",
+        "Every section of Settings, the in-game pause settings and the AI play page can be collapsed, showing the current choices when folded",
+        "During a run and on phones, the update notice keeps the change list folded until you tap it"
+      ],
+      "ja": [
+        "AI パネルが盤面を隠さなくなりました：スマホ縦画面では盤面の下、横画面とタブレットでは盤面の右に表示し、全画面に広げたときだけ盤面に重なります",
+        "AI パネルを折りたたむと情報パネルの位置に収まり、タワーバー・スキル・ウェーブ開始ボタンを隠しません",
+        "一時停止・パーク選択・結果のダイアログは常に AI パネルの上に表示されます",
+        "AI パネルを開いている間は盤面左上の AI バッジを隠します。スマホではバッジを小さくしました",
+        "スマホではボスの HP バーを細くし、イベントのアイコンを右上に移して、出現口を隠しにくくしました",
+        "設定ページ・対局中の一時停止メニューの設定・AI 参戦ページの各セクションを折りたためます。折りたたむと現在の選択を表示します",
+        "対局中やスマホでは、更新のお知らせの変更内容を折りたたんで表示し、タップで開きます"
+      ]
+    }
+  },
+  {
     "version": "0.2.0",
     "date": "2026-11-22",
     "notes": {

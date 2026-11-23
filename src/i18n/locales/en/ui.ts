@@ -46,6 +46,10 @@ export default {
   'ui.update.inGameText':
     'Updating reloads the page. This run continues from the save at the end of the last wave, and progress in the current wave is lost.',
   'ui.update.versionBtn': 'Version {v} · Changelog',
+  'ui.update.notes': "What's new ({n} item)|What's new ({n} items)",
+  'ui.fold.expand': 'Expand',
+  'ui.fold.collapse': 'Collapse',
+  'ui.settings.waveSum': 'Wave start: {mode}',
   'ui.settings.save': 'Save data',
   'ui.settings.tutorialReset': 'Reset tutorial',
   'ui.settings.tutorialResetDone': 'Tutorial reset. It will show again next time you start Chapter 1',

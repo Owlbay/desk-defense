@@ -46,6 +46,10 @@ export default {
   'ui.update.inGameText':
     '更新するとページが再読み込みされます。対局は前のウェーブ終了時のセーブから再開され、現在のウェーブの進行は失われます。',
   'ui.update.versionBtn': 'バージョン {v} · 更新履歴',
+  'ui.update.notes': '更新内容（{n} 件）',
+  'ui.fold.expand': '展開する',
+  'ui.fold.collapse': '折りたたむ',
+  'ui.settings.waveSum': 'ウェーブ開始：{mode}',
   'ui.settings.save': 'セーブデータ',
   'ui.settings.tutorialReset': 'チュートリアルをリセット',
   'ui.settings.tutorialResetDone': 'チュートリアルをリセットしました。次に第1章を始めると再表示されます',

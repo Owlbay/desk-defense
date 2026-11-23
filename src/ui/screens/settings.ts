@@ -4,6 +4,7 @@ import { APP_VERSION } from '../../meta/version';
 import { AI_GLYPH } from '../ai/icon';
 import { type App, applySettings, confirmDialog, type Screen, screenHeader } from '../App';
 import { audio, MUSIC_STYLES, type MusicStylePref } from '../audio';
+import { collapsible } from '../collapse';
 import { h } from '../dom';
 import { G } from '../icons';
 import { rememberLocale } from '../locale';
@@ -217,7 +218,7 @@ export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLEle
   renderLang();
 
   const host = opts.host ?? app.root;
-  return h(
+  const panel = h(
     'div.settings-panel',
     null,
     h('section.card.section', null, h('h3', null, getLocale() === 'en' ? 'Language' : `${t('common.language')} · Language`), langSeg),
@@ -345,6 +346,33 @@ export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLEle
       ),
     ),
   );
+  // 收起时的一行摘要：声音显示音量，对局显示开波方式和打开的开关；其余按选中的选项自动生成
+  const pct = (v: number): string => `${Math.round(v * 100)}%`;
+  const summaries: Record<string, (() => string) | undefined> = {
+    sound: () => {
+      const st = app.store.get().settings;
+      return `${t('ui.settings.sfx')} ${pct(st.sfx)} · ${t('ui.settings.music')} ${pct(st.music)}`;
+    },
+    game: () => {
+      const st = app.store.get().settings;
+      const wave =
+        st.autoWave === null ? t('ui.settings.waveByDiff') : st.autoWave ? t('ui.settings.waveAuto') : t('ui.settings.waveManual');
+      const on = [
+        st.fixedLayout && t('ui.settings.fixedLayout'),
+        st.mazeHint && t('ui.settings.mazeHint'),
+        st.bgPlay && t('ui.settings.bgPlay'),
+        getAutoUpload() && t('ui.lb.autoUpload'),
+      ].filter(Boolean);
+      return [t('ui.settings.waveSum', { mode: wave }), ...on].join(' · ');
+    },
+  };
+  // 每个分区都可以收起（手机上设置页很长；对局暂停菜单里也一样），开合状态记在本机
+  const keys = opts.inGame ? ['lang', 'display', 'sound', 'game', 'save'] : ['lang', 'display', 'sound', 'game', 'ai', 'save'];
+  panel.querySelectorAll<HTMLElement>(':scope > section').forEach((sec, i) => {
+    const k = keys[i];
+    if (k && k !== 'lang') collapsible(sec, { key: `settings.${k}`, summary: summaries[k] });
+  });
+  return panel;
 }
 
 export function settingsScreen(app: App): Screen {

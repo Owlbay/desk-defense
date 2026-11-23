@@ -199,6 +199,19 @@ export function mountDock(o: DockOptions): DockHandle {
   }
 
   // ── 布局 ──
+  /** 棋盘旁边能放抽屉的区域（竖屏在下方，横屏在右侧顶栏以下）；放不下返回 null */
+  function sideRegion(ar: DOMRect, vw: number, vh: number): { left: number; width: number; height: number } | null {
+    const below = Math.round(vh - ar.bottom);
+    if (below >= 200 && below >= (vw - ar.right) * 0.75) return { left: 0, width: Math.round(vw), height: below };
+    const right = Math.round(vw - ar.right);
+    if (right >= 260) {
+      // 顶栏在右栏里时（横屏）让出顶栏：生命 / 金币 / 波次始终可见
+      const top = host.querySelector<HTMLElement>('.g-top')?.getBoundingClientRect();
+      const y = top && top.left >= ar.right - 4 && top.height > 0 ? Math.round(top.bottom + 4) : 0;
+      if (vh - y >= 200) return { left: Math.round(ar.right), width: right, height: Math.round(vh - y) };
+    }
+    return null;
+  }
   const occupy = (): number => (st.mode !== 'column' ? 0 : st.open ? st.width : 40);
   function placeSheet(): void {
     if (st.mode !== 'sheet') return;
@@ -212,6 +225,24 @@ export function mountDock(o: DockOptions): DockHandle {
     const bottom = ok ? Math.max(0, Math.round(vh - ar.bottom)) : 0;
     const boardH = ok ? ar.height : vh * 0.6;
     const top = ok ? ar.top : 0;
+    // 优先盖住棋盘旁边的操作区（竖屏：棋盘下方；横屏：棋盘右侧、顶栏以下），不挡棋盘。
+    // 只有两边都放不下（≥ 200 高 / ≥ 260 宽）时才退回到贴着棋盘底边、从下往上盖住棋盘。
+    const side = ok ? sideRegion(ar, vw, vh) : null;
+    el.dataset.place = side ? 'side' : 'board';
+    if (side) {
+      el.dataset.compact = vw <= 600 || vh <= 500 ? '1' : '0';
+      el.style.setProperty('--dk-x', `${side.left}px`);
+      el.style.setProperty('--dk-w', `${side.width}px`);
+      el.style.setProperty('--dk-bottom', '0px');
+      el.style.setProperty('--dk-half', `${side.height}px`);
+      el.style.removeProperty('--dk-peek');
+      el.style.setProperty('--dk-full', `${Math.round(vh)}px`);
+      // peek（只露页签 + 指令输入）放在信息面板的位置（没选中东西时它是空的），塔栏 / 技能 / 开波按钮都不挡
+      const info = host.querySelector<HTMLElement>('.g-info')?.getBoundingClientRect();
+      const peekTop = info && info.height > 0 && info.left >= side.left - 4 ? Math.min(info.top, vh - 120) : vh - 120;
+      el.style.setProperty('--dk-peek-top', `${Math.round(Math.max(0, peekTop))}px`);
+      return;
+    }
     el.style.setProperty('--dk-x', `${left}px`);
     el.style.setProperty('--dk-w', `${width}px`);
     el.style.setProperty('--dk-bottom', `${bottom}px`);
@@ -259,6 +290,7 @@ export function mountDock(o: DockOptions): DockHandle {
     host.style.setProperty('--dock-occupy', `${occupy()}px`);
     el.hidden = st.mode === 'sheet' && !st.open;
     if (st.mode === 'sheet') placeSheet();
+    else delete el.dataset.place;
     paintChrome();
     o.onChange?.(st);
   }

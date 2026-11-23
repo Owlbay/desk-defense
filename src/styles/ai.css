@@ -1500,3 +1500,22 @@ html.tab-hidden .ai-hud[data-status] .ai-dot {
 .ai-doctrine-match:empty {
   display: none;
 }
+
+/* AI 侧栏 / 抽屉打开时它自己有状态点和用量：棋盘左上角的 AI 徽标收起，不挡出怪的第一行 */
+.ai-hud[data-open='1'] .ai-chip-row {
+  display: none;
+}
+
+/* 手机：徽标更小，只留状态点和状态文字（用量在侧栏里看） */
+@media (max-width: 600px), (max-height: 500px) {
+  .ai-chip {
+    min-height: 30px;
+    gap: 6px;
+    padding: 2px 10px 2px 8px;
+    font-size: 12px;
+  }
+
+  .ai-chip-usage {
+    display: none;
+  }
+}

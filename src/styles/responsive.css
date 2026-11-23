@@ -1715,3 +1715,59 @@ html[lang='zh-TW'] .logo-zh {
   -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
   mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
 }
+
+/* ───────────── 棋盘上的常驻提示：手机上压扁，少挡出怪口 ─────────────
+ * Boss 血条：去掉头像、名字和血量叠在一行细条上、半透明；事件小图标（右上角）缩小。 */
+@media (max-width: 600px), (max-height: 500px) {
+  .overlay-top {
+    top: 4px;
+    width: min(72%, 300px);
+  }
+
+  .boss-row {
+    gap: 6px;
+    padding: 2px 8px 3px 3px;
+    border-width: 1.5px;
+    border-radius: 9px;
+    background: rgb(var(--surface-rgb) / 0.78);
+    box-shadow: none;
+  }
+
+  .boss-row > .ico {
+    width: 20px;
+    height: 20px;
+  }
+
+  .boss-main {
+    gap: 1px;
+  }
+
+  .boss-name {
+    font-size: 11px;
+    line-height: 1.2;
+  }
+
+  .boss-num {
+    font-size: 10px;
+  }
+
+  .boss-bar {
+    height: 6px;
+    border-width: 1px;
+  }
+
+  .event-chips {
+    top: 4px;
+    right: 4px;
+  }
+
+  .event-chip {
+    font-size: 11px;
+    padding: 1px 6px 1px 2px;
+  }
+
+  .event-chip .gi {
+    width: 15px;
+    height: 15px;
+  }
+}

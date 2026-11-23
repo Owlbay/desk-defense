@@ -72,3 +72,25 @@
 html.reduce-motion .update-card {
   animation: none;
 }
+
+.update-notes > summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--ink-muted);
+  list-style-position: inside;
+}
+
+.update-notes[open] > summary {
+  margin-bottom: 8px;
+}
+
+/* 手机：卡片贴底、左右留边，不超过半屏 */
+@media (max-width: 600px) {
+  .update-card {
+    left: calc(12px + var(--sal));
+    right: calc(12px + var(--sar));
+    bottom: calc(12px + var(--sab));
+    width: auto;
+    max-height: 50vh;
+  }
+}
