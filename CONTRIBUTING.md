@@ -123,4 +123,5 @@
 
 - 版本号在 `package.json`，每个版本更新了什么写在 `src/meta/changelog.json`（最新在最前，简体中文必填，繁中 / 英 / 日条数与简中一致；缺的语言回退简中）。游戏内「设置 → 版本 · 更新日志」、升级提示卡片、`CHANGELOG.md`、GitHub Release 都从这里读。
 - 发版：先在 `changelog.json` 最前面写好新版本的条目，再 `npm run release -- --deploy`；或直接 `npm run release -- patch|minor|major --deploy`，没写条目时用上个 tag 以来的提交标题生成简中条目。脚本会改版本号、生成 `CHANGELOG.md`、跑 `npm run check`、提交「发布 vX.Y.Z」、打 tag `vX.Y.Z` 并推送；`.github/workflows/release.yml` 收到 tag 后自动创建 GitHub Release。`--dry` 只打印步骤。
-- 在线升级：构建时输出 `version.json`，已打开的页面每 10 分钟和切回前台时检查一次，发现新版本就弹出卡片（含更新内容），玩家点「立即升级」才激活新的 Service Worker 并刷新（`src/ui/update.ts`）。原生壳（Tauri / Capacitor）不走在线升级。
+- 在线升级：构建时输出 `version.json`，已打开的页面每 10 分钟和切回前台时检查一次，发现新版本就自动激活新的 Service Worker 并刷新；正在对局、在 AI 设置页、开着对话框或正在输入时先挂起，空闲了再更新（`src/ui/update.ts`）。原生壳（Tauri / Capacitor）不走在线升级。
+- 存档保留：升级只替换缓存里的页面和脚本，不动 localStorage。换版本时 `src/meta/backup.ts` 把进度、历史战绩、对战记录备份到 `desk-defense.backup.v1`（不含 AI 密钥）；存档 JSON 读坏时原文另存到 `desk-defense.profile.corrupt`。**改存档格式时只能加字段、做兼容读取，不要清空旧数据。**

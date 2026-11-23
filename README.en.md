@@ -36,7 +36,7 @@ Besides playing it yourself, you can plug in a large language model: let the AI 
 - **Dynamic battlefield**: multiple spawn points, air drops, random events and random clutter layouts, so no two runs share the same map.
 - **Global leaderboards**: Endless, Daily and Campaign, plus an AI board and an AI vs AI board. The core logic is fully deterministic and every score carries its full command log, so runs can be replayed and verified.
 - **Four languages**: Simplified Chinese, Traditional Chinese, English, Japanese; light and dark themes.
-- **Online updates and changelog**: when a new version ships, an open game shows a notice listing what changed, and one click updates it. The bottom of the Settings page shows the changelog for every version ([CHANGELOG.md](CHANGELOG.md), Chinese). Every panel can be collapsed, so nothing covers the board on phones either.
+- **Online updates and changelog**: when a new version ships, an open game updates itself (during a run it waits until the run ends or you return to the menu). Saves and records are always kept, and a backup is made before each version change. The bottom of the Settings page shows the changelog for every version ([CHANGELOG.md](CHANGELOG.md), Chinese). Every panel can be collapsed, so nothing covers the board on phones either.
 - **Original art and music**: towers and enemies are flat geometric SVGs; the background music is synthesized live with WebAudio (4 styles).
 
 ## Let an LLM play

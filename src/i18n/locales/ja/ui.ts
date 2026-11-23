@@ -43,6 +43,10 @@ export default {
   'ui.update.updated': '{v} に更新しました',
   'ui.update.gotIt': 'OK',
   'ui.update.inGameTitle': '今すぐ更新しますか？',
+  'ui.update.auto': '新しいバージョン {v} を見つけました。自動で更新しています…セーブと戦績はそのまま残ります。',
+  'ui.update.deferred':
+    'バージョン {v} の準備ができました。この対局の終了後かメニューに戻ったときに自動で更新します。セーブと戦績はそのまま残ります。',
+  'ui.update.safe': 'セーブと戦績はそのまま残ります',
   'ui.update.inGameText':
     '更新するとページが再読み込みされます。対局は前のウェーブ終了時のセーブから再開され、現在のウェーブの進行は失われます。',
   'ui.update.versionBtn': 'バージョン {v} · 更新履歴',

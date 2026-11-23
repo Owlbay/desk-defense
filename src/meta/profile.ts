@@ -5,6 +5,8 @@ import { type KV, safeStorage } from './storage';
 
 /** 存档格式（文档 07 §3.3 的扩展） */
 export const PROFILE_KEY = 'desk-defense.profile.v1';
+/** 读不了的存档原文：JSON 损坏时另存一份，不让默认存档把它覆盖掉 */
+export const PROFILE_CORRUPT_KEY = 'desk-defense.profile.corrupt';
 export const PROFILE_VERSION = 1;
 
 export type Quality = 'high' | 'low';
@@ -260,6 +262,7 @@ export function loadProfile(kv: KV): Profile {
   try {
     return normalizeProfile(JSON.parse(s));
   } catch {
+    if (!kv.get(PROFILE_CORRUPT_KEY)) kv.set(PROFILE_CORRUPT_KEY, s);
     return defaultProfile();
   }
 }

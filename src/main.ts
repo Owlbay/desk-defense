@@ -28,11 +28,13 @@ import { menuScreen } from './ui/screens/menu';
 import { settingsScreen } from './ui/screens/settings';
 import { skillsScreen } from './ui/screens/skills';
 import { talentsScreen } from './ui/screens/talents';
-import { initUpdates, upgradeForStaleChunk } from './ui/update';
+import { backupOnVersionChange, initUpdates, upgradeForStaleChunk } from './ui/update';
 
 async function boot(): Promise<void> {
   const root = document.getElementById('app');
   if (!root) return;
+  // 换了版本后第一次启动：读存档之前先把旧版本留下的存档原样备份一份（升级本身不动存档，这是额外的保险）
+  backupOnVersionChange();
   // 语言：存档里的选择优先，否则按浏览器语言。字典加载完再渲染第一屏（很快）
   const store = new ProfileStore();
   const locale = resolveLocale(store);

@@ -43,6 +43,10 @@ export default {
   'ui.update.updated': 'Updated to {v}',
   'ui.update.gotIt': 'Got it',
   'ui.update.inGameTitle': 'Update now?',
+  'ui.update.auto': 'New version {v} found. Updating automatically… your saves and records are kept.',
+  'ui.update.deferred':
+    'Version {v} is ready. It will update automatically after this run or when you return to the menu. Your saves and records are kept.',
+  'ui.update.safe': 'Your saves and records are kept',
   'ui.update.inGameText':
     'Updating reloads the page. This run continues from the save at the end of the last wave, and progress in the current wave is lost.',
   'ui.update.versionBtn': 'Version {v} · Changelog',

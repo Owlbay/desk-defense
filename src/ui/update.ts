@@ -1,15 +1,19 @@
 /**
  * 在线升级与更新日志（界面部分）。
  *
- * - PWA 用 registerType: 'prompt'：新版本的 Service Worker 在后台装好后等待，不会自己接管页面。
- * - 定时（启动 5 秒后、之后每 10 分钟、切回前台时）请求 version.json；发现版本号比当前大，就在右下角弹出升级卡片，
- *   列出新版本的更新内容。点「立即升级」：激活等待中的新版本并刷新页面（对局中会先确认）。
+ * - PWA 用 registerType: 'prompt'：新版本的 Service Worker 在后台装好后等待，由这里决定什么时候接管页面。
+ * - 定时（启动 5 秒后、之后每 10 分钟、切回前台时）请求 version.json；发现版本号比当前大就自动更新：
+ *   - 不在对局 / AI 设置页、没有打开的对话框、没在输入框里打字：提示一下，2.5 秒后激活新版本并刷新；
+ *   - 否则先挂起，右下角提示「这局打完或回到菜单后自动更新」（也可以点「立即升级」），空闲了再自动更新。
+ * - 存档（localStorage）不受升级影响：Service Worker 只替换缓存里的页面和脚本。升级前另外备份一份存档（meta/backup.ts）。
+ * - 同一个版本自动更新过一次还没生效（比如浏览器拦了 Service Worker），不再自动刷新，改成手动卡片，避免反复刷新。
  * - 升级后第一次打开：弹出「已更新到 vX」卡片，列出这次跨过的所有版本的更新内容。
  * - changelogDialog()：完整更新日志（设置页底部的「版本 · 更新日志」按钮）。
  */
 import { registerSW } from 'virtual:pwa-register';
 
 import { getLocale, t } from '../i18n';
+import { backupSave } from '../meta/backup';
 import {
   APP_VERSION,
   CHANGELOG,
@@ -28,7 +32,14 @@ import { DUR, motionOK } from './screens/motion';
 
 const SEEN_KEY = 'dd.seenVersion';
 const DISMISS_KEY = 'dd.updateDismissed';
+/** 本标签页已经自动更新过的目标版本（防止反复刷新） */
+const AUTO_TRIED_KEY = 'dd.autoUpdateTried';
 const CHECK_EVERY_MS = 10 * 60_000;
+const AUTO_DELAY_MS = 2500;
+/** 挂起时多久看一次能不能更新了 */
+const PENDING_POLL_MS = 2000;
+/** 这些页面上有进行中的对局或没填完的表单：不自动刷新 */
+const BUSY_ROUTES = new Set(['game', 'ai', 'aiAssistant']);
 
 let updateSW: ((reload?: boolean) => Promise<void>) | null = null;
 let registration: ServiceWorkerRegistration | null = null;
@@ -37,6 +48,8 @@ let remote: RemoteVersion | null = null;
 let card: HTMLElement | null = null;
 let upgrading = false;
 let appRef: App | null = null;
+let pendingTimer: ReturnType<typeof setInterval> | null = null;
+let autoTimer: ReturnType<typeof setTimeout> | null = null;
 
 const storage = {
   get(k: string): string | null {
@@ -185,7 +198,10 @@ async function waitForWaiting(ms: number): Promise<boolean> {
 export async function applyUpdate(): Promise<void> {
   if (upgrading) return;
   upgrading = true;
+  stopPending();
   storage.sset('dd.reloadAt', String(Date.now()));
+  // 保险：刷新前备份存档（升级本身不会动存档）
+  backupSave(APP_VERSION);
   try {
     if (updateSW && (swWaiting || (await waitForWaiting(8000)))) {
       // 新 Service Worker 接管后 workbox-window 会刷新页面；兜底再手动刷新一次
@@ -199,7 +215,8 @@ export async function applyUpdate(): Promise<void> {
   location.reload();
 }
 
-function updateCard(r: RemoteVersion | null): HTMLElement {
+/** deferred：对局中挂起的提示（不再有「稍后」，到时候会自动更新）；否则是手动升级卡片 */
+function updateCard(r: RemoteVersion | null, deferred: boolean): HTMLElement {
   const entries = r?.changelog ? entriesBetween(r.changelog, APP_VERSION, r.version) : [];
   const btn = h(
     'button.btn.primary',
@@ -221,39 +238,136 @@ function updateCard(r: RemoteVersion | null): HTMLElement {
     h(
       'div.update-head',
       null,
-      h('b', null, r ? t('ui.update.available', { v: fmtVersion(r.version) }) : t('ui.update.availableGeneric')),
-      h('small.muted', null, t('ui.update.current', { v: fmtVersion(APP_VERSION) })),
+      h(
+        'b',
+        null,
+        deferred && r
+          ? t('ui.update.deferred', { v: fmtVersion(r.version) })
+          : r
+            ? t('ui.update.available', { v: fmtVersion(r.version) })
+            : t('ui.update.availableGeneric'),
+      ),
+      h(
+        'small.muted',
+        null,
+        deferred
+          ? t('ui.update.current', { v: fmtVersion(APP_VERSION) })
+          : `${t('ui.update.current', { v: fmtVersion(APP_VERSION) })} · ${t('ui.update.safe')}`,
+      ),
     ),
     entries.length ? foldNotes(entries) : null,
     h(
       'div.row.end',
       null,
-      h(
-        'button.btn',
-        {
-          attrs: { type: 'button' },
-          onclick: () => {
-            audio.play('click');
-            if (r) storage.sset(DISMISS_KEY, r.version);
-            removeCard();
-          },
-        },
-        t('ui.update.later'),
-      ),
+      deferred
+        ? null
+        : h(
+            'button.btn',
+            {
+              attrs: { type: 'button' },
+              onclick: () => {
+                audio.play('click');
+                if (r) storage.sset(DISMISS_KEY, r.version);
+                removeCard();
+              },
+            },
+            t('ui.update.later'),
+          ),
       btn,
     ),
   );
 }
 
+/** 现在刷新页面会不会打断玩家：对局 / AI 设置页、打开的对话框、正在输入时都算忙 */
+function busy(): boolean {
+  const app = appRef;
+  if (!app) return true;
+  if (BUSY_ROUTES.has(app.route.name)) return true;
+  if (app.root.querySelector('.overlay:not([hidden]):not(.out)')) return true;
+  const a = document.activeElement;
+  return a instanceof HTMLElement && !!a.closest('input, textarea, select, [contenteditable="true"]');
+}
+
+function stopPending(): void {
+  if (pendingTimer) clearInterval(pendingTimer);
+  pendingTimer = null;
+  if (autoTimer) clearTimeout(autoTimer);
+  autoTimer = null;
+}
+
+function autoCard(r: RemoteVersion | null): HTMLElement {
+  const v = fmtVersion(r?.version ?? '');
+  return h(
+    'aside.update-card.card',
+    { attrs: { role: 'status', 'aria-live': 'polite' } },
+    h('div.update-head', null, h('b', null, r ? t('ui.update.auto', { v }) : t('ui.update.availableGeneric'))),
+  );
+}
+
+/** 空闲：提示一下然后自动更新（期间玩家又进了对局 / 打开对话框，就退回挂起） */
+function startAuto(r: RemoteVersion | null): void {
+  stopPending();
+  storage.sset(AUTO_TRIED_KEY, r?.version ?? 'sw');
+  const el = autoCard(r);
+  el.dataset.v = r?.version ?? '';
+  el.dataset.kind = 'auto';
+  showCard(el);
+  autoTimer = setTimeout(() => {
+    autoTimer = null;
+    if (busy()) {
+      storage.sset(AUTO_TRIED_KEY, '');
+      defer(r);
+      return;
+    }
+    void applyUpdate();
+  }, AUTO_DELAY_MS);
+}
+
+/** 忙：显示「打完这局自动更新」的卡片，定时看看是不是闲下来了 */
+const inGame = (): boolean => appRef?.route.name === 'game';
+/** 对局里只提示一次（toast，不常驻），免得卡片挡住塔栏、技能和开波按钮 */
+let toastedFor: string | null = null;
+
+function defer(r: RemoteVersion | null): void {
+  if (inGame()) {
+    if (card?.dataset.kind === 'deferred') removeCard();
+    const v = r?.version ?? 'sw';
+    if (r && toastedFor !== v) {
+      toastedFor = v;
+      appRef?.toast(t('ui.update.deferred', { v: fmtVersion(r.version) }), 'info');
+    }
+  } else if (card?.dataset.kind !== 'deferred' || card.dataset.v !== (r?.version ?? '')) {
+    const el = updateCard(r, true);
+    el.dataset.v = r?.version ?? '';
+    el.dataset.kind = 'deferred';
+    showCard(el);
+  }
+  if (pendingTimer) return;
+  pendingTimer = setInterval(() => {
+    if (upgrading || autoTimer) return;
+    if (!busy()) startAuto(r);
+    else if (inGame() && card?.dataset.kind === 'deferred') removeCard();
+  }, PENDING_POLL_MS);
+}
+
 function maybeShowUpdate(): void {
-  if (upgrading) return;
+  if (upgrading || autoTimer) return;
   const newer = remote && compareVersions(remote.version, APP_VERSION) > 0;
   if (!newer && !swWaiting) return;
-  if (remote && storage.sget(DISMISS_KEY) === remote.version) return;
-  if (card?.classList.contains('update-card') && card.dataset.v === (remote?.version ?? '')) return;
-  const el = updateCard(newer ? remote : null);
-  el.dataset.v = remote?.version ?? '';
-  showCard(el);
+  const r = newer ? remote : null;
+  const target = r?.version ?? 'sw';
+  // 这个版本已经自动刷新过一次还是旧的：别再自动刷新了，留一张手动卡片
+  if (storage.sget(AUTO_TRIED_KEY) === target) {
+    if (remote && storage.sget(DISMISS_KEY) === remote.version) return;
+    if (card?.dataset.kind === 'manual' && card.dataset.v === (r?.version ?? '')) return;
+    const el = updateCard(r, false);
+    el.dataset.v = r?.version ?? '';
+    el.dataset.kind = 'manual';
+    showCard(el);
+    return;
+  }
+  if (busy()) defer(r);
+  else startAuto(r);
 }
 
 let lastCheck = 0;
@@ -299,6 +413,12 @@ function showWhatsNew(): void {
       ),
     ),
   );
+}
+
+/** 读存档之前调用：上次运行的是别的版本，就把那时的存档备份一份 */
+export function backupOnVersionChange(): void {
+  const seen = storage.get(SEEN_KEY);
+  if (seen && seen !== APP_VERSION) backupSave(seen);
 }
 
 /** 启动时调用一次（main.ts） */

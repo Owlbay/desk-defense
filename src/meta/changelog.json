@@ -1,5 +1,31 @@
 [
   {
+    "version": "0.3.1",
+    "date": "2026-11-23",
+    "notes": {
+      "zh-CN": [
+        "发现新版本后自动更新：不在对局里就直接更新；正在对局时等这局打完或回到菜单再更新，不打断游戏",
+        "更新只替换页面和脚本，存档、战绩、对战记录全部保留；每次换版本前还会自动备份一份存档",
+        "存档万一读坏，原文会另存一份，不再被新存档覆盖"
+      ],
+      "zh-TW": [
+        "發現新版本後自動更新：不在對局裡就直接更新；正在對局時等這局打完或回到選單再更新，不打斷遊戲",
+        "更新只替換頁面和腳本，存檔、戰績、對戰紀錄全部保留；每次換版本前還會自動備份一份存檔",
+        "存檔萬一讀壞，原文會另存一份，不再被新存檔覆蓋"
+      ],
+      "en": [
+        "New versions now install automatically: right away outside a run, or after the current run ends or you return to the menu, so play is never interrupted",
+        "Updates only replace the page and scripts; your saves, records and duel history are all kept, and a backup of your save is made before each version change",
+        "If a save ever fails to load, its original text is kept instead of being overwritten"
+      ],
+      "ja": [
+        "新しいバージョンを自動で適用するようになりました。対局中でなければすぐに、対局中ならその対局の終了後かメニューに戻ったときに更新し、プレイを中断しません",
+        "更新で置き換わるのはページとスクリプトだけで、セーブ・戦績・対戦記録はすべて残ります。バージョンが変わる前にはセーブのバックアップも自動で作ります",
+        "セーブが読み込めなかった場合も、元のデータを別に保存して上書きしません"
+      ]
+    }
+  },
+  {
     "version": "0.3.0",
     "date": "2026-11-22",
     "notes": {
