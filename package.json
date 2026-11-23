@@ -1,7 +1,7 @@
 {
   "name": "desk-defense",
   "private": true,
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "在书桌上用文具摆迷宫的塔防游戏，也可以让大模型来玩",
   "license": "MIT",
   "homepage": "https://jjjj.games",
