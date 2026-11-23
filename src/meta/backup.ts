@@ -48,7 +48,30 @@ export function backupSave(version: string, kv: KV = safeStorage(), now = Date.n
   }
 }
 
-/** 从备份恢复（覆盖当前存档）；返回是否恢复了 */
+/**
+ * 用备份和当前存档互换：备份写回成当前存档，当前存档变成新的备份（标记为 currentVersion）。
+ * 所以恢复之后再恢复一次就是撤销。备份里没有的项（比如备份之后才有的对战记录）会从当前存档移除，留在新备份里。
+ * 返回是否恢复了。
+ */
+export function swapWithBackup(currentVersion: string, kv: KV = safeStorage(), now = Date.now()): boolean {
+  const b = readBackup(kv);
+  if (!b || !KEYS.some((k) => typeof b.data[k] === 'string')) return false;
+  const cur: Backup['data'] = {};
+  for (const k of KEYS) {
+    const v = kv.get(k);
+    if (v) cur[k] = v;
+  }
+  for (const k of KEYS) {
+    const v = b.data[k];
+    if (typeof v === 'string') kv.set(k, v);
+    else kv.remove(k);
+  }
+  if (Object.keys(cur).length) kv.set(BACKUP_KEY, JSON.stringify({ version: currentVersion, savedAt: now, data: cur } satisfies Backup));
+  else kv.remove(BACKUP_KEY);
+  return true;
+}
+
+/** 从备份恢复（覆盖当前存档，备份保留）；返回是否恢复了 */
 export function restoreBackup(kv: KV = safeStorage()): boolean {
   const b = readBackup(kv);
   if (!b) return false;

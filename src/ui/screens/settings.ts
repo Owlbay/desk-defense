@@ -1,4 +1,5 @@
 import { getLocale, LOCALES, setLocale, t } from '../../i18n';
+import { backupSave, readBackup, swapWithBackup } from '../../meta/backup';
 import { getAutoUpload, setAutoUpload } from '../../meta/online';
 import { APP_VERSION } from '../../meta/version';
 import { AI_GLYPH } from '../ai/icon';
@@ -22,6 +23,38 @@ function bump(el: HTMLElement): void {
 export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLElement } = {}): HTMLElement {
   const s = app.store.get().settings;
 
+  /** 从备份恢复：和当前存档互换（再恢复一次就是撤销）；没有备份时不显示 */
+  const restoreButton = (): HTMLElement | null => {
+    const b = readBackup(app.store.kv);
+    if (!b) return null;
+    const when = new Date(b.savedAt).toLocaleString(getLocale(), { dateStyle: 'medium', timeStyle: 'short' });
+    const info = t('ui.settings.restoreInfo', { v: `v${b.version}`, when });
+    return h(
+      'button.btn.restore-btn',
+      {
+        attrs: { type: 'button', title: info },
+        onclick: async () => {
+          audio.play('click');
+          const ok = await confirmDialog(host, {
+            title: t('ui.settings.restoreTitle'),
+            text: t('ui.settings.restoreText', { info }),
+            ok: t('ui.settings.restoreOk'),
+          });
+          if (!ok) return;
+          if (!swapWithBackup(APP_VERSION, app.store.kv)) {
+            app.toast(t('ui.settings.restoreFailed'), 'warn');
+            return;
+          }
+          app.store.reload();
+          applySettings(app.store.get().settings);
+          app.toast(t('ui.settings.restoreDone'), 'good');
+          app.go({ name: 'menu' });
+        },
+      },
+      h('span', null, t('ui.settings.restore')),
+      h('small.muted', null, info),
+    );
+  };
   const save = (fn: () => void) => {
     app.store.update(() => fn());
     applySettings(app.store.get().settings);
@@ -321,6 +354,7 @@ export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLEle
           },
           t('ui.settings.tutorialReset'),
         ),
+        opts.inGame ? null : restoreButton(),
         opts.inGame
           ? null
           : h(
@@ -335,6 +369,8 @@ export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLEle
                     danger: true,
                   });
                   if (!ok) return;
+                  // 清除前先备份，误删了还能从备份恢复
+                  backupSave(APP_VERSION, app.store.kv);
                   app.store.reset();
                   applySettings(app.store.get().settings);
                   app.toast(t('ui.settings.wipeDone'), 'info');

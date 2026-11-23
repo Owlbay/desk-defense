@@ -1511,6 +1511,17 @@ textarea.input.code {
   flex-wrap: wrap;
 }
 
+/* 「从备份恢复」：下面一行小字写备份的版本和时间 */
+.restore-btn {
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.2;
+}
+.restore-btn small {
+  font-size: 0.75em;
+  font-weight: 400;
+}
+
 /* ═════════════════════════════ 对局 ═════════════════════════════ */
 .game-screen {
   overflow: hidden;

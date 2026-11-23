@@ -1,5 +1,27 @@
 [
   {
+    "version": "0.3.2",
+    "date": "2026-11-23",
+    "notes": {
+      "zh-CN": [
+        "设置 → 存档 新增「从备份恢复」：显示备份的版本和时间，恢复时和当前存档互换，后悔了再点一次就能换回来",
+        "清除存档前会先自动备份，误删也能找回"
+      ],
+      "zh-TW": [
+        "設定 → 存檔 新增「從備份恢復」：顯示備份的版本和時間，恢復時和目前存檔互換，後悔了再點一次就能換回來",
+        "清除存檔前會先自動備份，誤刪也能找回"
+      ],
+      "en": [
+        "Settings → Save now has Restore from backup. It shows the backup's version and time, and swaps it with your current save, so tapping it again undoes the restore",
+        "Deleting your save now makes a backup first, so you can get it back"
+      ],
+      "ja": [
+        "設定 → セーブに「バックアップから復元」を追加しました。バックアップのバージョンと日時を表示し、現在のセーブと入れ替えるので、もう一度押せば元に戻せます",
+        "セーブを削除する前に自動でバックアップを作るので、誤って消しても戻せます"
+      ]
+    }
+  },
+  {
     "version": "0.3.1",
     "date": "2026-11-23",
     "notes": {

@@ -60,8 +60,16 @@ export default {
   'ui.settings.wipe': 'Delete save',
   'ui.settings.wipeTitle': 'Delete all save data?',
   'ui.settings.wipeText':
-    'Campaign stars, ink, talents, skill levels, leaderboard records and saved runs will be deleted. This cannot be undone.',
+    'Campaign stars, ink, talents, skill levels, leaderboard records and saved runs will be deleted. A backup is made first, so you can get them back with Restore from backup.',
   'ui.settings.wipeOk': 'Delete all',
+  'ui.settings.restore': 'Restore from backup',
+  'ui.settings.restoreInfo': 'Backup: {v} · {when}',
+  'ui.settings.restoreTitle': 'Restore your save from backup?',
+  'ui.settings.restoreText':
+    'Your current save will be replaced by this backup ({info}). The current save becomes the new backup, so tapping Restore from backup again swaps them back.',
+  'ui.settings.restoreOk': 'Restore',
+  'ui.settings.restoreDone': 'Save restored from backup',
+  'ui.settings.restoreFailed': 'The backup could not be read. Your save was not changed',
   'ui.settings.wipeDone': 'Save data deleted',
   // 设置 · 主题
   'ui.settings.theme': 'Theme',

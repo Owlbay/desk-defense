@@ -59,8 +59,17 @@ export default {
   'ui.settings.tutorialResetDone': 'チュートリアルをリセットしました。次に第1章を始めると再表示されます',
   'ui.settings.wipe': 'セーブを削除',
   'ui.settings.wipeTitle': 'すべてのセーブデータを削除しますか？',
-  'ui.settings.wipeText': 'キャンペーンの星、インク、タレント、スキルレベル、ランキング、中断データがすべて削除されます。元に戻せません。',
+  'ui.settings.wipeText':
+    'キャンペーンの星、インク、タレント、スキルレベル、ランキング、中断データがすべて削除されます。削除の前に自動でバックアップを作るので、「バックアップから復元」で戻せます。',
   'ui.settings.wipeOk': 'すべて削除',
+  'ui.settings.restore': 'バックアップから復元',
+  'ui.settings.restoreInfo': 'バックアップ：{v} · {when}',
+  'ui.settings.restoreTitle': 'バックアップからセーブを復元しますか？',
+  'ui.settings.restoreText':
+    '現在のセーブをこのバックアップ（{info}）で置き換えます。現在のセーブは新しいバックアップになるので、もう一度「バックアップから復元」を押すと元に戻せます。',
+  'ui.settings.restoreOk': '復元',
+  'ui.settings.restoreDone': 'バックアップからセーブを復元しました',
+  'ui.settings.restoreFailed': 'バックアップを読み込めませんでした。セーブは変更されていません',
   'ui.settings.wipeDone': 'セーブデータを削除しました',
   // 设置 · 主题
   'ui.settings.theme': 'テーマ',

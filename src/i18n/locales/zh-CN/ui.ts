@@ -59,8 +59,16 @@ export default {
   'ui.settings.tutorialResetDone': '新手引导已重置，下次进入第一章时会重新出现',
   'ui.settings.wipe': '清除存档',
   'ui.settings.wipeTitle': '清除全部存档？',
-  'ui.settings.wipeText': '战役星星、墨水、天赋、技能等级、排行榜和中途存档都会被删除，无法恢复。',
+  'ui.settings.wipeText':
+    '战役星星、墨水、天赋、技能等级、排行榜和中途存档都会被删除，清除前会自动备份一份，之后可以用「从备份恢复」找回。',
   'ui.settings.wipeOk': '全部清除',
+  'ui.settings.restore': '从备份恢复',
+  'ui.settings.restoreInfo': '备份：{v} · {when}',
+  'ui.settings.restoreTitle': '从备份恢复存档？',
+  'ui.settings.restoreText': '用这份备份替换当前存档（{info}）。当前存档会变成新的备份，后悔了再点一次「从备份恢复」就能换回来。',
+  'ui.settings.restoreOk': '恢复',
+  'ui.settings.restoreDone': '已从备份恢复存档',
+  'ui.settings.restoreFailed': '备份读不了，存档没有改动',
   'ui.settings.wipeDone': '存档已清除',
   // 设置 · 主题
   'ui.settings.theme': '主题',

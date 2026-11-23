@@ -294,6 +294,11 @@ export class ProfileStore {
     saveProfile(this.kv, this.p);
     for (const s of this.subs) s(this.p);
   }
+  /** 存档被外部改写（比如从备份恢复）后重新读取 */
+  reload(): void {
+    this.p = loadProfile(this.kv);
+    for (const s of this.subs) s(this.p);
+  }
   /** 清除全部存档 */
   reset(): void {
     this.kv.remove(PROFILE_KEY);
