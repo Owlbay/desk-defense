@@ -307,7 +307,9 @@ export const MAZE_WALL_SHARE: Record<MazeLength, number> = { long: 0.7, standard
 export function doctrineLine(st: DoctrineState | undefined, wave: number): string | undefined {
   if (!st) return undefined;
   if (!st.chosen)
-    return 'DOC none — pick one in end.doctrine {preset,why}: balanced | pencil (single-target, long maze; armor needs lamps/erasers) | aoe (stapler/compass/glue at U-turns of a long maze; add anti-air) | lamp (ignores armor; bosses/late) | economy (piggy/calculator; normal only) | antiair (flyers/drops); or core:[≤3 towers], maze long|standard|lean, focus uturn. Playing balanced meanwhile';
+    return wave <= 3
+      ? 'DOC none (playing balanced) — optional: set end.doctrine {preset,why} once the map is clear (presets in rules)'
+      : 'DOC none (playing balanced)';
   const d = st.doc;
   const tags = [st.by, `w${st.wave}`];
   if (st.locked) tags.push('locked');

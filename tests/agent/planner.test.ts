@@ -459,7 +459,7 @@ describe('battle report, threat estimate, idle nudge', () => {
     expect(threatLine(air)).toMatch(/CTR pl→air/);
   });
 
-  it('engine injects BR / TH / IDLE once per decision and records build-phase gold', { timeout: 30_000 }, async () => {
+  it('engine injects BR / TH / NEXT once per decision and records build-phase gold', { timeout: 30_000 }, async () => {
     const msgs: string[] = [];
     const inner = new ScriptedProvider({ intents: true });
     const provider = {
@@ -472,7 +472,10 @@ describe('battle report, threat estimate, idle nudge', () => {
     };
     const rep = await runAgentGame(opts('en-1'), { config: { provider: 'scripted' }, provider, maxWaves: 3 });
     expect(msgs[0]).toMatch(/\nTH w1: /);
-    expect(msgs[0]).toMatch(/\nIDLE 150g unspent/);
+    // 闲置金币并进 NEXT 的 spend（开局全花）；其他行不再带「→ 建议」
+    expect(msgs[0]).toMatch(/\nNEXT \[.*\{"do":"spend","reserve":0\}\] ← /);
+    expect(msgs[0]).not.toMatch(/\nIDLE /);
+    expect(msgs[0].split('\n').filter((l) => /^(TH|CTR|MZ|CB|RC|GAP) /.test(l) && l.includes('→ {do:'))).toEqual([]);
     expect(msgs.some((m) => /\nBR w1: /.test(m))).toBe(true);
     expect(msgs.filter((m) => /\nBR w1: /.test(m))).toHaveLength(1);
     expect(rep.play.idleSamples).toBeGreaterThan(0);
@@ -489,7 +492,7 @@ describe('battle report, threat estimate, idle nudge', () => {
       },
     };
     await runAgentGame(opts('en-1'), { config: { provider: 'scripted', assist: false }, provider: p2, maxWaves: 1 });
-    expect(off.some((m) => /\n(TH|BR|IDLE) /.test(m))).toBe(false);
+    expect(off.some((m) => /\n(TH|BR|IDLE|NEXT) /.test(m))).toBe(false);
   });
 
   it('scripted intents beat the old scripted policy and are deterministic', { timeout: 30_000 }, async () => {

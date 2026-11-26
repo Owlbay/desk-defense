@@ -622,7 +622,7 @@ npm run agent:play -- --mode endless --map ch1 --difficulty normal --model claud
 
 ---
 
-- 打法辅助（`planner.test.ts`，§19）：迷宫意图只发合法指令、路线变长、同种子结果一致且可回放；funnel；build_near 的塔在射程内且不占规划路线；upgrade_best / spend（花到保留额）/ anti_air（飞行线覆盖上升）；三张图 × 随机意图序列 × 跑波次（含地形事件）永不堵路；save 抑制闲置提醒；act 里的意图与逐条结果、assist 关闭时拒绝意图；被拒放置自动挪位（墙不挪）；买不起的失败直接结束回合；Schema / 规则（< 1200 token、前缀稳定、军师不含意图）；战报（漏怪按敌人 @ 出生点、伤害、0 伤害塔、每份只发一次）；威胁估算（无塔 = 危险、加塔后安全、空军只算飞行线、建议 anti_air / 克制）；引擎每次决策附 BR / TH / IDLE、assist 关闭时没有；脚本意图版确定性且强于旧脚本；评测场（脚本矩阵 + 机器人对照、表格 / JSON / HTML）。
+- 打法辅助（`planner.test.ts`，§19）：迷宫意图只发合法指令、路线变长、同种子结果一致且可回放；funnel；build_near 的塔在射程内且不占规划路线；upgrade_best / spend（花到保留额）/ anti_air（飞行线覆盖上升）；三张图 × 随机意图序列 × 跑波次（含地形事件）永不堵路；save 抑制闲置提醒；act 里的意图与逐条结果、assist 关闭时拒绝意图；被拒放置自动挪位（墙不挪）；买不起的失败直接结束回合；Schema / 规则（< 1200 token、前缀稳定、军师不含意图）；战报（漏怪按敌人 @ 出生点、伤害、0 伤害塔、每份只发一次）；威胁估算（无塔 = 危险、加塔后安全、空军只算飞行线、建议 anti_air / 克制）；引擎每次决策附 BR / TH / NEXT（其余行不带「→ 建议」）、assist 关闭时没有；NEXT 清单（`advice.test.ts`：排序、最多 4 步、spend 在最后、可被 parseNext 原样解析）；脚本意图版确定性且强于旧脚本；评测场（脚本矩阵 + 机器人对照、表格 / JSON / HTML）。
 - 上下文与成本（`context.test.ts`）：预算折算；`act` 的顺序执行与逐条结果 / 错误、全部成功自动结束；速查表 < 800 token、精简工具 ≤ 7 且 Schema 严格、MCP 仍有细粒度工具；前缀（system + tools，以及 Claude 请求的 tools / system / cache_control）跨决策、跨对局逐字节相同；门控的跳过 / 不跳过条件与本地开波；增量可逐键还原、地图只在变化时 / 每 N 次发送、RLE 往返；后期观测大小上限；pi 历史压缩与不回传推理、Claude 原样回传 thinking + 服务端 context editing；备忘合并与 300 token 上限；思考等级映射（Claude 各模型的 off、pi 各接口）；预算分级（soft 不交机器人、hard 交机器人、ask 暂停询问与追加、压缩事件）；进攻路线（三张图 × 随机布局 × 空降点的航点还原、与世界路线一致、preview 不改状态、覆盖数值合理）；离线 token 模型（优化后每波折算 < 优化前的 1/3、请求 / 决策 ≈1）；三种模式下脚本策略都能打满 10 波。
 
 ---
@@ -970,6 +970,30 @@ npm run agent:eval -- --provider relay --variants "base:assist=off,thinking=low;
 **意图合并：Schema 只列 6 个**——`spend`、`maze`（`rebuild:true` = 原 rebuild_maze）、`build_near`（`tower` | `purpose` | `pair`；`purpose:"air"` = 原 anti_air，按飞行线 `route`、线已"安全"跳过、`count ≥2` 强制；`tower:"calculator"` / `"piggy"` 不给 target = 原 support / economy 的光环 / 安全门槛逻辑；`pair` = 原 combo）、`upgrade_best`、`save`、`reclaim`。旧名 `anti_air / combo / support / economy / rebuild_maze`（以及 combo 的 `near`）照收：`executeTool('act')` 与 MCP 都先经 `normalizeAction()` 改写再校验，脚本策略、玩家指令解析、旧客户端不用改。观测里的建议意图（TH / GAP / CB）都改成新写法。act 描述："Intents: spend | maze (rebuild) | build_near tower|purpose|pair (purpose air = anti-air; tower calculator/piggy = aura/economy spot) | upgrade_best | save | reclaim target"。
 
 前缀（规则 + 速查表 + 玩家工具）4281 → **4513 token**（+5.4%）；脚本对局每次决策消息均值 529 → 440 token（−17%，AR 计入后）。脚本评测数字不变（intents 60.0 / tactics 54.7，旧名走别名）。
+
+### 19.13 NEXT 行：一张排好序的建议清单（第五轮）
+**问题**：建造阶段的附加行各自带一个「→ 建议意图」——TH 说补火力、CB 说补组合、RC 说回收、MZ 说修迷宫、IDLE 说花钱——没有先后，模型每回合要自己在 4～6 个互相打架的建议里取舍（Boss 波甚至没有一行明说先防 Boss）；`DOC none` 每回合把 6 个预设重新列一遍（≈100 token）。
+
+**做法**（`src/agent/advice.ts` `turnAdvice()` / `adviceLine()`）：建造阶段**和波中**（自动开波后期几乎没有建造阶段，新出怪口只能在波中补）把这些信号合成一行，放在 DOC 之后：
+
+```
+NEXT [{"do":"build_near","purpose":"dps","target":"route:west"},{"do":"maze"},{"do":"spend","reserve":0}] ← west 危险 ×0 | maze 1.9× < 2.5× | spend the rest ; also: build_near pair:"glue+stapler"
+```
+- 优先级：TH 危险 / 吃紧的路线与飞行线（最危险的先；地面用第一个缺的克制，没有就 dps）> 近 5 波漏过 ≥2 次的缺口 > Boss 波（没有 Boss 克制，或 Boss 路线余量 < 3×）> 下一波缺的其他克制 > 迷宫短于中心策略目标 > `spend reserve:0`（永远最后；留 20 吃利息每波只多 1 金，评测里全花更稳）。最多 4 步。
+- 组合技、回收**够不着任何路线**的塔放在 `also:`（不急）；最近 0 伤害的塔常常只是后备（前段把怪打完了），不建议卖。
+- 其余行（TH / CTR / MZ / CB / RC / GAP）去掉「→ 建议」只当依据；建造阶段不再发 IDLE（并进 spend）；`save` 生效时清单不含 spend。
+- `DOC none` 缩成一句（前 3 波附「可选：end.doctrine」），预设说明移进规则（缓存前缀）。规则 1796 → 1790 token（删掉与 NEXT 重复的段落）；每次决策消息均值 均衡 508 → 413、省流 434 → 339 token（`npm run agent:tokens`）。
+- 规则「Each decision」：默认把 NEXT 照抄进 actions（玩家指令在前），只有说得出具体理由（MEMO 计划、Boss 路线、also 项）才改，理由写进 end.note。
+- MCP 的 `observe` 在建造 / 波中也附 NEXT（与内置 AI 同一行）。
+
+**检验 NEXT 本身**：新增脚本变体 `scripted-next`（完全照抄 NEXT，其余同 scripted-intents）。`--seeds f1..f6 --maps ch1,ch2,ch3 --difficulties normal,hard --max-waves 40`，各 36 局：
+
+| 变体 | 普通 输 / 平均波 | 困难 输 / 平均波 | 困难漏怪 |
+|---|---|---|---|
+| scripted-intents（原脚本） | 0 / 41.2 | 16 / 37.4 | 263 |
+| scripted-next（照抄 NEXT） | 0 / 41.3 | 15 / 38.2 | 258 |
+
+即模型什么都不想、照抄 NEXT 也不比原脚本差；真实模型的对比需要中转密钥，待补。
 
 ## 20. 中心策略（Doctrine）
 

@@ -11,6 +11,8 @@ import { createWorld } from '../core';
 import type { DifficultyId, IWorld, MapId, ModeId, RunOptions, SkillId } from '../core/types';
 import { makeMidRun } from '../meta/midrun';
 import { boardForOpts } from '../shared/leaderboard';
+import { adviceLine, turnAdvice } from './advice';
+import { threatEstimate } from './battle';
 import { renderObservation } from './observation';
 import { runHeader, systemBlocks } from './prompts';
 import { AgentScheduler } from './scheduler';
@@ -142,7 +144,10 @@ export class McpGameServer {
   private obs(g: GameSession, detail: 'compact' | 'full' = 'compact'): string {
     const p = g.point;
     const why = p ? `decision point #${p.seq}: ${p.reasons.join(', ')}` : g.sched.stopped ? `game over: ${g.sched.stopped}` : 'running';
-    return `${why}\n${renderObservation(g.world, { detail, recent: g.sched.takeRecent() })}`;
+    const ph = g.world.state.phase;
+    // 建造 / 波中：附上 NEXT（建议动作清单，可直接放进 act.actions；与内置 AI 收到的同一行）
+    const next = ph === 'build' || ph === 'wave' ? `\n${adviceLine(turnAdvice(g.world, { threat: threatEstimate(g.world) }))}` : '';
+    return `${why}${next}\n${renderObservation(g.world, { detail, recent: g.sched.takeRecent() })}`;
   }
 
   callTool(name: string, args: Record<string, unknown> = {}): McpCallResult {

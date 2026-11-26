@@ -273,6 +273,14 @@ export function threatEstimate(w: IWorld): ThreatLine[] {
  * 克制：下一波每种敌人需要的用途 + 最近漏怪的精英词缀带来的用途；缺主力塔的用途给出建议意图。
  * "CTR pc→armor ik→slow+aoe | 缺 armor,aoe → {do:"build_near",purpose:"armor"} …"
  */
+/** 下一波（+ 最近漏怪）需要、但场上还没有对应主力塔的用途（dps / air 不算：它们看 TH） */
+export function missingPurposes(w: IWorld, extra: Purpose[] = []): Purpose[] {
+  const need = new Set<Purpose>(extra);
+  for (const g of w.state.nextWave.groups) for (const p of enemyPurposes(ENEMIES[g.enemy])) need.add(p);
+  const have = new Set([...w.state.towers.values()].map((t) => t.id));
+  return [...need].filter((p) => p !== 'dps' && p !== 'air' && !PURPOSE_CORE[p].some((id) => have.has(id)));
+}
+
 export function counterLine(w: IWorld, extra: Purpose[] = []): string | undefined {
   const nw = w.state.nextWave;
   const need = new Map<Purpose, string[]>();
@@ -299,8 +307,7 @@ export function counterLine(w: IWorld, extra: Purpose[] = []): string | undefine
 }
 
 /** 威胁 + 克制 → 一行（给模型）；危险时附带建议的意图 */
-export function threatLine(w: IWorld, extra: Purpose[] = []): string | undefined {
-  const th = threatEstimate(w);
+export function threatLine(w: IWorld, extra: Purpose[] = [], th: ThreatLine[] = threatEstimate(w)): string | undefined {
   if (!th.length) return undefined;
   const nw = w.state.nextWave;
   const parts = th.map((t) => `${t.id} ${t.verdict} ×${t.ratio} (${t.enemies} hp${t.hp})`);

@@ -1,5 +1,35 @@
 [
   {
+    "version": "0.3.3",
+    "date": "2026-11-26",
+    "notes": {
+      "zh-CN": [
+        "AI 参战更好做决定：每回合给 AI 一张按紧急程度排好的建议清单（先补危险路线和漏怪缺口、Boss 波先补克制、再修迷宫、最后花钱），不再是几条互相打架的建议",
+        "波中也会给建议，后期自动开波时新出的出怪口能及时补防",
+        "发给 AI 的每回合消息平均缩短约 20%，更省 token",
+        "通过 MCP 接入的外部 AI 也能看到这张清单"
+      ],
+      "zh-TW": [
+        "AI 參戰更好做決定：每回合給 AI 一張按緊急程度排好的建議清單（先補危險路線和漏怪缺口、Boss 波先補克制、再修迷宮、最後花錢），不再是幾條互相打架的建議",
+        "波中也會給建議，後期自動開波時新出的出怪口能及時補防",
+        "發給 AI 的每回合訊息平均縮短約 20%，更省 token",
+        "透過 MCP 接入的外部 AI 也能看到這張清單"
+      ],
+      "en": [
+        "The AI player now gets one ordered list of suggested actions each turn (danger routes and leak holes first, boss counters before boss waves, then the maze, then spending) instead of several competing hints",
+        "Suggestions also come during waves, so new spawn points late in auto-wave games get covered in time",
+        "Each turn's message to the AI is about 20% shorter, saving tokens",
+        "External AIs connected over MCP see the same list"
+      ],
+      "ja": [
+        "AI 対戦の判断がしやすくなりました。毎ターン、緊急度順に並んだおすすめ行動リスト（危険なルートと漏れの穴→ボス波の対策→迷路→残りのゴールド）を AI に渡し、互いに食い違うヒントを並べるのをやめました",
+        "ウェーブ中もおすすめを出すので、後半の自動ウェーブで新しく出現した出現口にもすぐ対応できます",
+        "AI に送る毎ターンのメッセージが約 20% 短くなり、トークンを節約できます",
+        "MCP で接続した外部 AI にも同じリストが届きます"
+      ]
+    }
+  },
+  {
     "version": "0.3.2",
     "date": "2026-11-23",
     "notes": {

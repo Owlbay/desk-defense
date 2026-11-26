@@ -6,8 +6,9 @@
 import { ENEMIES } from '../config/enemies';
 import type { IWorld, RunOptions } from '../core/types';
 import { SOURCE_LOCALE, t, withLocale } from '../i18n';
+import { adviceLine, stripArrow, turnAdvice } from './advice';
 import { AttackLedger, attackMessage, attackObservation, planLine, scriptedAttackPlan } from './attack';
-import { BattleLog, eventLine, idleLine, threatLine } from './battle';
+import { BattleLog, eventLine, idleLine, threatEstimate, threatLine } from './battle';
 import { comboLine, mazeLine, reclaimLine } from './board';
 import { type AgentModelConfig, CONTEXT_MODES, type ContextModeSpec, contextSpec, type ThinkingLevel } from './config';
 import { ContextBuilder } from './context';
@@ -747,8 +748,10 @@ export class DecisionEngine {
       if (kh) out.push(kh);
     }
     const nw = w.state.nextWave.wave;
-    if (buildPhase || nw !== this.lastThreatWave) {
-      const th = threatLine(w, this.leakPurposes());
+    const leakNeeds = this.leakPurposes();
+    const threat = buildPhase || nw !== this.lastThreatWave ? threatEstimate(w) : null;
+    if (threat) {
+      const th = threatLine(w, leakNeeds, threat);
       if (th) out.push(th);
       this.lastThreatWave = nw;
     }
@@ -768,6 +771,24 @@ export class DecisionEngine {
         this.boardSeen.set(k, { text: t, n: this.buildSeq });
         out.push(t);
       }
+    }
+    // NEXT：把上面各行的建议合成一张排好序的清单放在最前（DOC 之后），其余行去掉各自的「→ 建议」只当依据。
+    // 波中也给（自动开波时后期几乎没有建造阶段，新出怪口 / 漏怪缺口只能在波中补）
+    const ph = w.state.phase;
+    if ((this.role === 'player' || this.role === 'advisor') && (ph === 'build' || ph === 'wave')) {
+      const saving = this.plannerState.saveUntil !== undefined && idleLine(w, this.plannerState) === undefined;
+      const adv = turnAdvice(w, {
+        threat: threat ?? threatEstimate(w),
+        extra: leakNeeds,
+        intel: this.intel,
+        doc: this.plannerState.doctrine?.doc,
+      });
+      if (saving) adv.actions = adv.actions.filter((a) => a.do !== 'spend');
+      const lines = out.map(stripArrow);
+      if (adv.actions.length) lines.splice(doc ? 1 : 0, 0, adviceLine(adv));
+      return lines.length ? lines.join('\n') : undefined;
+    }
+    if (buildPhase && this.role === 'player') {
       const idle = idleLine(w, this.plannerState);
       if (idle) out.push(idle);
     }

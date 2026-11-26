@@ -18,8 +18,9 @@ export async function createProvider(c: Partial<AgentModelConfig>): Promise<LLMP
       }
       const { ScriptedProvider } = await import('./providers/scripted');
       return new ScriptedProvider({
-        intents: cfg.model === 'scripted-intents' || cfg.model === 'scripted-tactics',
+        intents: cfg.model === 'scripted-intents' || cfg.model === 'scripted-tactics' || cfg.model === 'scripted-next',
         tactics: cfg.model === 'scripted-tactics',
+        next: cfg.model === 'scripted-next',
       });
     }
     case 'claude-native': {

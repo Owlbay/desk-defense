@@ -194,6 +194,37 @@ const pairName = (a: TowerId, b: TowerId): string => {
   return cb ? `${cb.a}+${cb.b}` : `${a}+${b}`;
 };
 
+/** 最值得补搭档的那座塔（收益大的组合优先：胶水→订书机、台灯↔钢笔、尺子↔圆规；铅笔→橡皮擦只在下一波有护甲时） */
+function bestLonely(w: IWorld, st: ComboState): ComboState['lonely'][number] | undefined {
+  const s = w.state;
+  const armorNext = s.nextWave.groups.some((g) => ENEMIES[g.enemy].armor >= 2);
+  const rank = (l: ComboState['lonely'][number]): number => {
+    const k = `${l.id}>${l.partner}`;
+    return (
+      (
+        {
+          'glue>stapler': 0,
+          'stapler>glue': 1,
+          'lamp>pen': 2,
+          'pen>lamp': 2,
+          'compass>ruler': 3,
+          'ruler>compass': 3,
+          'eraser>pencil': 4,
+        } as Record<string, number>
+      )[k] ?? (k === 'pencil>eraser' && armorNext ? 5 : 99)
+    );
+  };
+  return st.lonely.filter((l) => rank(l) < 99).sort((a, b) => rank(a) - rank(b))[0];
+}
+
+/** 建议补的组合技（"glue+stapler"）；攻击塔不足 4 座或没有值得补的返回 undefined */
+export function bestComboPair(w: IWorld): string | undefined {
+  const atk = [...w.state.towers.values()].filter((t) => TOWERS[t.id].attacks);
+  if (atk.length < 4) return undefined;
+  const best = bestLonely(w, comboState(w));
+  return best ? pairName(best.id, best.partner) : undefined;
+}
+
 /** CB 行：已激活的组合技与缺搭档的塔（建造阶段） */
 export function comboLine(w: IWorld): string | undefined {
   const st = comboState(w);
@@ -218,25 +249,7 @@ export function comboLine(w: IWorld): string | undefined {
         .join(' ')}`,
     );
   parts.push(`塔种 ${types.size}: ${[...types].join(',')}`);
-  // 建议：收益大的组合优先（胶水→订书机、台灯↔钢笔、尺子↔圆规）；铅笔→橡皮擦只在下一波有护甲时
-  const armorNext = s.nextWave.groups.some((g) => ENEMIES[g.enemy].armor >= 2);
-  const rank = (l: ComboState['lonely'][number]): number => {
-    const k = `${l.id}>${l.partner}`;
-    return (
-      (
-        {
-          'glue>stapler': 0,
-          'stapler>glue': 1,
-          'lamp>pen': 2,
-          'pen>lamp': 2,
-          'compass>ruler': 3,
-          'ruler>compass': 3,
-          'eraser>pencil': 4,
-        } as Record<string, number>
-      )[k] ?? (k === 'pencil>eraser' && armorNext ? 5 : 99)
-    );
-  };
-  const best = st.lonely.filter((l) => rank(l) < 99).sort((a, b) => rank(a) - rank(b))[0];
+  const best = bestLonely(w, st);
   const sug = best ? ` → {do:"build_near",pair:"${pairName(best.id, best.partner)}"}` : '';
   return `CB ${parts.join(' | ')}${sug}`;
 }

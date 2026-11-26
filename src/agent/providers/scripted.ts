@@ -237,6 +237,8 @@ export async function scriptedIntentTurn(
   reasons: DecisionReason[],
   think?: (line: string) => void,
   tactics = false,
+  /** 建造阶段照抄消息里的 NEXT 清单（评测 scripted-next：检验 NEXT 本身好不好） */
+  next?: Record<string, unknown>[],
 ): Promise<string> {
   const s = w.state;
   const say = (line: string): void => think?.(`${line}\n`);
@@ -255,8 +257,11 @@ export async function scriptedIntentTurn(
     if (opt) actions.push({ do: 'choose_crate', option: opt.id });
   }
   if (s.pickups.length) actions.push({ do: 'collect' });
-  if (s.nextWave.tags.includes('air')) actions.push({ do: 'anti_air' });
-  if (tactics && s.phase === 'build') {
+  if (next) actions.push(...next);
+  else if (s.nextWave.tags.includes('air')) actions.push({ do: 'anti_air' });
+  if (next) {
+    /* NEXT 已经包含 spend */
+  } else if (tactics && s.phase === 'build') {
     // §19.8 的新意图：回收无用墙 / 零伤害塔、按克制用途补塔、给落单塔配组合技、早期存钱罐
     const atk = [...s.towers.values()].filter((t) => t.id !== 'wall');
     if (s.wave >= 3) actions.push({ do: 'reclaim', target: 'useless_walls', max: 3, replaceWith: 'dps' });
@@ -269,7 +274,7 @@ export async function scriptedIntentTurn(
     if (s.wave >= 5 && atk.length >= 6 && lone) actions.push({ do: 'combo', pair: `${lone.id}+${lone.partner}` });
     if (s.wave >= 2 && s.wave <= 8 && s.lives === s.maxLives) actions.push({ do: 'economy' });
   }
-  actions.push({ do: 'spend', reserve: 0 });
+  if (!next) actions.push({ do: 'spend', reserve: 0 });
   if (s.phase === 'wave' && s.enemies.length) {
     let near = 0;
     let front: { x: number; y: number; d: number } | null = null;
@@ -403,13 +408,25 @@ export async function scriptedInstructionTurn(
   return { hold, ack: acks.join(' | ') };
 }
 
+/** 从决策消息里取 NEXT 行的动作清单（没有 / 解析失败 = undefined） */
+export function parseNext(message: string): Record<string, unknown>[] | undefined {
+  const m = /^NEXT (\[.*?\]) ←/m.exec(message);
+  if (!m) return undefined;
+  try {
+    const a = JSON.parse(m[1]) as unknown;
+    return Array.isArray(a) ? (a as Record<string, unknown>[]) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** 作为 LLMProvider：所有动作经 ctx.callTool（记录、realtime 时间推进与模型完全一致） */
 export class ScriptedProvider implements LLMProvider {
   readonly id = 'scripted';
   readonly model: string;
   /** intents = 意图版（一次 act + 规划器），否则旧版逐个细粒度工具 */
-  constructor(private readonly o: { intents?: boolean; tactics?: boolean } = {}) {
-    this.model = o.tactics ? 'scripted-tactics' : o.intents ? 'scripted-intents' : 'scripted-v1';
+  constructor(private readonly o: { intents?: boolean; tactics?: boolean; next?: boolean } = {}) {
+    this.model = o.next ? 'scripted-next' : o.tactics ? 'scripted-tactics' : o.intents ? 'scripted-intents' : 'scripted-v1';
   }
 
   async decide(ctx: DecisionContext): Promise<DecisionOutcome> {
@@ -457,7 +474,12 @@ export class ScriptedProvider implements LLMProvider {
     // 选了非均衡的中心策略：旧版逐个工具不经规划器，改走意图版（规划器按策略买塔 / 分支 / 迷宫）
     const intents = this.o.intents || (!!ctx.doctrine && ctx.doctrine !== 'balanced');
     const turn = this.o.tactics ? scriptedTacticsTurn : intents ? scriptedIntentTurn : scriptedTurn;
-    const note = hold ? `hold (${t('agent.demo.holdTag')})` : await turn(ctx.world, call, ctx.point.reasons, think);
+    const next = this.o.next ? parseNext(ctx.message) : undefined;
+    const note = hold
+      ? `hold (${t('agent.demo.holdTag')})`
+      : next
+        ? await scriptedIntentTurn(ctx.world, call, ctx.point.reasons, think, false, next)
+        : await turn(ctx.world, call, ctx.point.reasons, think);
     if (hold) think?.(`${t('agent.demo.holdThink')}\n`);
     if (ack) out.text = ack;
     tr?.({ k: 'text', n: 1, text: `${ack ? `${ack}\n` : ''}${t('agent.demo.turn', { note })}` });
