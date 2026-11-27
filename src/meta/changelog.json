@@ -1,5 +1,23 @@
 [
   {
+    "version": "0.3.4",
+    "date": "2026-11-26",
+    "notes": {
+      "zh-CN": [
+        "AI 参战更省 token：每回合消息总会带上金币、生命、波次和技能冷却，AI 不用再为确认这些重新拉一遍完整局面（实测困难模式每波 token 少约 14%，重新拉局面的次数减半）"
+      ],
+      "zh-TW": [
+        "AI 參戰更省 token：每回合訊息總會帶上金幣、生命、波次和技能冷卻，AI 不用再為確認這些重新拉一遍完整局面（實測困難模式每波 token 少約 14%，重新拉局面的次數減半）"
+      ],
+      "en": [
+        "The AI player uses fewer tokens: every turn's message now always includes gold, lives, wave and skill cooldowns, so the AI no longer re-fetches the full state just to check them (about 14% fewer tokens per wave on hard, half as many state re-fetches)"
+      ],
+      "ja": [
+        "AI 対戦のトークン消費を削減しました。毎ターンのメッセージにゴールド・ライフ・ウェーブ・スキルのクールダウンを必ず含めるので、AI がそれらを確かめるために局面全体を取り直す必要がなくなりました（ハードで 1 ウェーブあたり約 14% 削減、取り直しの回数は半分）"
+      ]
+    }
+  },
+  {
     "version": "0.3.3",
     "date": "2026-11-26",
     "notes": {

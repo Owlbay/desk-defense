@@ -995,3 +995,13 @@ describe('offline token model', () => {
     }
   }, 60_000);
 });
+
+describe('增量观测总带核心值', () => {
+  it('金币 / 生命 / 波次 / 阶段 / 技能没变也在增量里（模型不必为了它们再 observe）', () => {
+    const prev = { t: 1, ph: 'build', w: '3/∞', g: 40, hp: '20/20', sk: 'bell:R', sc: 100 };
+    const next = { ...prev, t: 2 };
+    const d = diffObs(prev, next);
+    for (const k of ['ph', 'w', 'g', 'hp', 'sk']) expect(d[k]).toEqual(prev[k as keyof typeof prev]);
+    expect(d.sc).toBeUndefined();
+  });
+});

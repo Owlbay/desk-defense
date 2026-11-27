@@ -1004,7 +1004,12 @@ NEXT [{"do":"build_near","purpose":"dps","target":"route:west"},{"do":"maze"},{"
 | 困难 30 波 | 改前 | 2/6 | 36 | 57 | 36 | 1.10 | 7411 |
 | 困难 30 波 | 改后 | 0/6 | 54 | 40 | 18 | 1.23 | 8719 |
 
-模型确实在用 NEXT：开局几乎照抄，之后按局面取舍并在 end.note 写理由（"air coverage 28% → anti-air before w7"、"boss on route → spend on upgrades"）。代价：困难里折算 token +18%，主要是 observe 调用从 24 次（380 次决策）涨到 59 次（399 次），新输入 / 决策 1982 → 2339。原因未定位（日志没记录模型为什么要 observe），待查。
+模型确实在用 NEXT：开局几乎照抄，之后按局面取舍并在 end.note 写理由（"air coverage 28% → anti-air before w7"、"boss on route → spend on upgrades"）。代价：困难里折算 token +18%，主要是 observe 调用从 24 次（380 次决策）涨到 59 次（399 次），新输入 / 决策 1982 → 2339。**已定位并修复（v0.3.4）**：抓思路追踪，模型原话是 "gold … not stated directly in STATE Δ. Let's observe" / "sk not shown"——增量观测只发变化过的键，金币、技能没变时就不在消息里，模型拿不准当前值只好整份重拉；NEXT 让模型更常在波中出手，碰到得更多。改为增量**总带** `ph w g hp sk`（`compact.ts ALWAYS_KEYS`，每次约十几 token），术语表写明，`w` 注明「next: nx」（模型曾把 w 和 TH 的波号搞混）。复测（困难 30 波，种子 r1..r6 × ch1/ch2，各 12 局）：
+
+| 版本 | 输 | 生命% | 漏怪 | observe / 100 决策 | 新输入 / 决策 | 折算 / 波 |
+|---|---|---|---|---|---|---|
+| v0.3.3 | 3/12 | 36 | 112 | 13.3 | 2109 | 8225 |
+| v0.3.4 | 1/12 | 40 | 108 | 6.5 | 1734 | 7108（−14%，也低于 v0.3.2 的 7417） |
 
 ## 20. 中心策略（Doctrine）
 

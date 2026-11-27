@@ -239,13 +239,18 @@ export function terrainSig(w: IWorld): string {
 const uidOf = (line: string): number => Number(/^#(\d+)/.exec(line)?.[1] ?? NaN);
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 
+/** 增量里总是带上的键（短、每次决策都用得到）：阶段、波次、金币、生命、技能冷却 */
+export const ALWAYS_KEYS = ['ph', 'w', 'g', 'hp', 'sk'] as const;
+const ALWAYS = new Set<string>(ALWAYS_KEYS);
+
 /** 增量：只含变化的键；塔按 uid：T+ = 新增 / 变化的行，T- = 消失的 uid；_unset = 消失的键 */
 export function diffObs(prev: CompactObs, next: CompactObs): CompactObs {
   const d: CompactObs = {};
   for (const [k, v] of Object.entries(next)) {
     if (k === 'T') continue;
-    // rc / pe 是"自上次以来"的一次性内容：有就发
-    if (k === 'rc' || k === 'pe' || !same(prev[k], v)) d[k] = v;
+    // rc / pe 是"自上次以来"的一次性内容：有就发；ALWAYS 是每次决策都要看的核心值（很短），
+    // 没变也发——否则模型拿不准当前金币 / 技能，会再调一次 observe（实测困难模式 observe 次数翻倍）
+    if (k === 'rc' || k === 'pe' || ALWAYS.has(k) || !same(prev[k], v)) d[k] = v;
   }
   const unset = Object.keys(prev).filter((k) => k !== 'T' && !(k in next));
   // 波次内每次都变的时间 / 分数也算变化；rc / pe 是一次性的，不进 _unset
