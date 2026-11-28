@@ -599,6 +599,7 @@ npm run agent:play -- --provider baseline --fallback expert --seeds 5 --seed are
 - 输出：`summary.md`（与 agent:eval 同一张表，按「渠道/模型」分行）、`eval.html`、`batch.json`，每局 `decisions-*.jsonl` 与 `replay-*.json`（含上传用的 `batch` 字段）。
 - 上传（`--upload` 或 `upload.enabled`）：只传无尽模式；上传前先用 `verifyRun` 在本地跑一遍服务端同款校验，声明结果取自重放，不通过的不传；遇到限流（每 IP 每 10 分钟 10 次）按 `retryAfter` 自动等待重试。每个模型一个固定设备 id（`uuidFrom(昵称模板|模型)`），榜上每个模型各占一行只留最佳；昵称模板 `{model}` 超过 12 字时保留模型名末尾（`~v4-flash`）。AI 标记与界面同口径（provider = llm、模型名、思考档位、兜底占比、token、费用）。
 - `--upload-from DIR`：不重打，只把 DIR 里跑好的结果传上去；`--dry`：只列出要打的局。
+- `--continue-from DIR [--max-waves N]`：DIR 里被封顶波数截停（outcome = cap）的局，从存档接着打到输为止（`runAgentGame` 的 `resume`：先把存档指令原样重放到存档帧，再交给模型；最终回放 = 存档指令 + 新指令，是一整局，可照常上传校验）。续打部分的 token / 决策单独统计，波数 / 生命是整局的；模型的备忘不延续。
 
 ---
 

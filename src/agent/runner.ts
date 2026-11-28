@@ -5,8 +5,8 @@
  * 可直接交给 replaySync / replayAsync 复现整局（模型的思考不影响回放：日志里只有落地的指令和帧号）。
  */
 import { createWorld } from '../core';
-import type { IWorld, RunOptions } from '../core/types';
-import { makeMidRun } from '../meta/midrun';
+import type { Command, IWorld, RunOptions } from '../core/types';
+import { makeMidRun, replaySync } from '../meta/midrun';
 import { boardForOpts } from '../shared/leaderboard';
 import { type AgentModelConfig, agentTag, resolveConfig, saveableConfig } from './config';
 import { DecisionEngine } from './engine';
@@ -36,6 +36,11 @@ export interface AgentRunConfig {
   maxWaves?: number;
   /** 游戏时间上限（秒） */
   maxGameSeconds?: number;
+  /**
+   * 从存档接着打：先把这段指令原样重放到 tick（结果与原局逐帧一致），再交给模型继续。
+   * 最终回放 = 存档指令 + 新指令，是一整局，可以照常上传校验。模型的备忘不延续（从当前局面重新判断）。
+   */
+  resume?: { log: readonly { tick: number; cmd: Command }[]; tick: number };
   signal?: AbortSignal;
   onDecision?: (rec: DecisionRecord, w: IWorld) => void;
   onWave?: (row: AgentWaveRow) => void;
@@ -119,6 +124,7 @@ export async function runAgentGame(opts: RunOptions, agent: AgentRunConfig): Pro
   const config = resolveConfig(agent.config);
   if (agent.attacker && (config.role ?? 'player') !== 'player') throw new Error('AI 对战：防守方必须是 player 角色');
   const world = createWorld(opts);
+  if (agent.resume) replaySync(world, { v: 1, opts, tick: agent.resume.tick, log: [...agent.resume.log], wave: 0, savedAt: 0 });
   const s = world.state;
   const pathLen0 = pathAvg(world);
   const sched = new AgentScheduler(world, {

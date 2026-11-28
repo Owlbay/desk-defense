@@ -3,6 +3,8 @@
  *
  *   npm run agent:batch -- --config my-batch.json [--dry] [--upload] [--out DIR]
  *   npm run agent:batch -- --config my-batch.json --upload-from DIR   （不重打，只把 DIR 里跑好的结果传上去）
+ *   npm run agent:batch -- --config my-batch.json --continue-from DIR [--max-waves N]
+ *     （DIR 里被封顶波数截停的局，从存档接着打到输为止；续打部分的 token 单独统计，波数 / 生命是整局的）
  *
  * 配置文件（JSON，示例见 scripts/agent-batch.example.json）：
  *   channels[]：{ name, preset, baseUrl | baseUrlEnv, keyEnv, api?, models: (string | { model, thinking? })[] }
@@ -108,6 +110,10 @@ interface Job {
   thinking: string;
   label: string;
   opts: RunOptions;
+  /** 续打：从这段存档接着打（--continue-from） */
+  resume?: { log: SavedRun['log']; tick: number };
+  /** 覆盖配置里的封顶波数（续打缺省不封顶，打到输为止） */
+  maxWaves?: number | null;
 }
 
 function expand(c: BatchConfig): Job[] {
@@ -179,6 +185,31 @@ async function pool<T>(items: T[], n: number, fn: (x: T, i: number) => Promise<v
       }
     }),
   );
+}
+
+/** --continue-from：找出被封顶截停的局，按原渠道 / 模型 / 思考等级接着打 */
+function continueJobs(dir: string, c: BatchConfig, cap: number | null): Job[] {
+  const jobs: Job[] = [];
+  for (const f of readdirSync(dir).filter((x) => /^replay-.*\.json$/.test(x))) {
+    const d = JSON.parse(readFileSync(join(dir, f), 'utf8')) as { result?: { outcome?: string }; batch?: SavedRun };
+    const b = d.batch;
+    if (!b || d.result?.outcome !== 'cap') continue;
+    const [chName, rest = ''] = b.label.split('/');
+    const channel = c.channels.find((x) => x.name === chName);
+    if (!channel) fail(`${f}: 配置里没有渠道 ${chName}`);
+    const at = rest.indexOf('@');
+    const thinking = at >= 0 ? rest.slice(at + 1) : (c.thinking ?? 'low');
+    jobs.push({
+      channel,
+      model: b.model,
+      thinking,
+      label: b.label,
+      opts: b.opts as RunOptions,
+      resume: { log: b.log, tick: b.tick },
+      maxWaves: cap,
+    });
+  }
+  return jobs;
 }
 
 // ───────────────────────── 上传 ─────────────────────────
@@ -317,7 +348,10 @@ async function main(): Promise<void> {
     }
     return;
   }
-  const jobs = expand(c);
+  // 续打：DIR 里被封顶波数截停（outcome = cap）的局，从存档接着打到输为止（--max-waves N 可另设上限）
+  const cont = arg('continue-from');
+  const capArg = arg('max-waves');
+  const jobs = cont ? continueJobs(resolve(cont), c, capArg ? Number(capArg) : null) : expand(c);
   const conc = Number(arg('concurrency') ?? c.concurrency ?? 3);
   console.log(
     `${jobs.length} 局 · ${new Set(jobs.map((j) => j.label)).size} 个模型 · 并行 ${conc}${doUpload ? ' · 打完上传到 AI 榜' : ''}`,
@@ -344,7 +378,8 @@ async function main(): Promise<void> {
         config,
         provider,
         fallback: botFallback('medium', j.opts.mode, j.opts.map),
-        maxWaves: c.games.maxWaves,
+        maxWaves: j.maxWaves !== undefined ? (j.maxWaves ?? undefined) : capArg ? Number(capArg) : c.games.maxWaves,
+        ...(j.resume ? { resume: { log: j.resume.log as never, tick: j.resume.tick } } : {}),
       });
     } catch (e) {
       console.error(`  ✗ ${j.label} ${j.opts.seed}: ${e instanceof Error ? e.message : String(e)}`);
