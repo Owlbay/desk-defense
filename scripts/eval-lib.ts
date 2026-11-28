@@ -364,7 +364,7 @@ table{border-collapse:collapse;width:100%}td,th{padding:3px 6px;border-bottom:1p
 <h2>每局</h2><div class="wrap"><table><tr>${rc.map((k) => `<th>${k}</th>`).join('')}</tr>${t2}</table></div>`;
 }
 
-function botFallback(name: string, mode: ModeId, map: MapId): (w: IWorld) => FallbackPolicy {
+export function botFallback(name: string, mode: ModeId, map: MapId): (w: IWorld) => FallbackPolicy {
   return (w) => {
     const bot = new StrategyBot(w, BOTS[name]({ mode, map }));
     return {

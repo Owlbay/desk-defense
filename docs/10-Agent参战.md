@@ -592,6 +592,14 @@ npm run agent:play -- --provider baseline --fallback expert --seeds 5 --seed are
 ```
 `report.json` 的 `arena` 段给出中位波数 / 得分、总 token、总费用、**每波成本**，以及各对照机器人的中位波数。指标建议：中位波数、≥ medium 的比例、每波美元、平均每决策工具调用数、被拒指令比例、兜底比例。
 
+### 14.1 批量对局（多渠道多模型 + 上传）
+
+`npm run agent:batch -- --config my-batch.json`（`scripts/agent-batch.ts`，示例 `scripts/agent-batch.example.json`）：配置里列多个渠道（`preset` = relay / claude / openai / deepseek / ollama …，`baseUrl` 或 `baseUrlEnv`，`keyEnv`），每个渠道挂多个模型（可单独指定 `thinking`）；`games` 给出模式 / 地图 / 难度 / 种子 / 封顶波数，每个模型打同样的局；`concurrency` 控制并行。配置文件里出现 `apiKey` / `key` / `token` 字段直接报错——Key 只从环境变量读，配置可以放心分享。
+
+- 输出：`summary.md`（与 agent:eval 同一张表，按「渠道/模型」分行）、`eval.html`、`batch.json`，每局 `decisions-*.jsonl` 与 `replay-*.json`（含上传用的 `batch` 字段）。
+- 上传（`--upload` 或 `upload.enabled`）：只传无尽模式；上传前先用 `verifyRun` 在本地跑一遍服务端同款校验，声明结果取自重放，不通过的不传；遇到限流（每 IP 每 10 分钟 10 次）按 `retryAfter` 自动等待重试。每个模型一个固定设备 id（`uuidFrom(昵称模板|模型)`），榜上每个模型各占一行只留最佳；昵称模板 `{model}` 超过 12 字时保留模型名末尾（`~v4-flash`）。AI 标记与界面同口径（provider = llm、模型名、思考档位、兜底占比、token、费用）。
+- `--upload-from DIR`：不重打，只把 DIR 里跑好的结果传上去；`--dry`：只列出要打的局。
+
 ---
 
 ## 15. CLI

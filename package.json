@@ -36,6 +36,7 @@
     "agent:bridge": "vite-node scripts/agent-bridge.ts",
     "agent:tokens": "vite-node scripts/agent-tokens.ts",
     "agent:eval": "vite-node scripts/agent-eval.ts",
+    "agent:batch": "vite-node scripts/agent-batch.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",

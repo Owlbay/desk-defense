@@ -1,0 +1,28 @@
+{
+  "channels": [
+    {
+      "name": "packy",
+      "preset": "relay",
+      "baseUrlEnv": "RELAY_BASE",
+      "keyEnv": "RELAY_KEY",
+      "models": ["deepseek-flash", "deepseek-v4-flash", { "model": "deepseek-v4-pro", "thinking": "low" }]
+    },
+    {
+      "name": "ollama",
+      "preset": "ollama",
+      "models": ["qwen3:8b"]
+    }
+  ],
+  "games": {
+    "mode": "endless",
+    "maps": ["ch1", "ch2"],
+    "difficulties": ["normal"],
+    "seeds": ["batch-1", "batch-2"],
+    "maxWaves": 30,
+    "pure": true
+  },
+  "concurrency": 3,
+  "thinking": "low",
+  "budgetTokens": 2000000,
+  "upload": { "enabled": false, "nickname": "雪·{model}" }
+}

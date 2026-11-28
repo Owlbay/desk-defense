@@ -98,6 +98,7 @@ npm run dev
 | `npm run dev:api` | 打包后用 wrangler 在本地起带排行榜接口的完整站点 |
 | `npm run sim -- --scenario calib` | 平衡模拟：用机器人跑各难度，报告在 `scripts/out/report.html` |
 | `npm run agent:eval` | AI 评测：同一批种子对比不同模型 / 配置 / 中心策略 |
+| `npm run agent:batch -- --config x.json` | 批量对局：多个渠道的多个模型并行打同一批局，可选上传到 AI 榜（示例 `scripts/agent-batch.example.json`） |
 | `npm run cap:ios` / `npm run cap:android` | 构建并同步到 Capacitor 原生工程 |
 | `npm run tauri:dev` / `npm run tauri:build` | Tauri 桌面版开发 / 打包 |
 | `npm run release -- patch --deploy` | 发版：升版本号、写更新日志、提交、打 tag、推送并部署；推送 tag 后 GitHub 自动创建 Release（详见 [CONTRIBUTING](CONTRIBUTING.md#发版与更新日志)） |

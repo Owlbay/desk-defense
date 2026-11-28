@@ -98,6 +98,7 @@ npm run dev
 | `npm run dev:api` | 打包後用 wrangler 在本機啟動含排行榜介面的完整網站 |
 | `npm run sim -- --scenario calib` | 平衡模擬：用機器人跑各難度，報告在 `scripts/out/report.html` |
 | `npm run agent:eval` | AI 評測：同一批種子比較不同模型 / 設定 / 中心策略 |
+| `npm run agent:batch -- --config x.json` | 批次對局：多個管道的多個模型並行打同一批局，可選上傳到 AI 榜（範例 `scripts/agent-batch.example.json`） |
 | `npm run cap:ios` / `npm run cap:android` | 建置並同步到 Capacitor 原生專案 |
 | `npm run tauri:dev` / `npm run tauri:build` | Tauri 桌面版開發 / 打包 |
 | `npm run release -- patch --deploy` | 發版：升版本號、寫更新日誌、提交、打 tag、推送並部署；推送 tag 後 GitHub 自動建立 Release（詳見 [CONTRIBUTING](CONTRIBUTING.md#发版与更新日志)（簡體）） |

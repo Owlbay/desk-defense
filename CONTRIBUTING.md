@@ -98,6 +98,7 @@
 | `npm run sim -- --scenario calib --seeds 2` | 平衡模拟（场景：`calib`、`campaign`、`endless`、`xp`、`ladder`、`custom`），报告在 `scripts/out/report.html` |
 | `npx vite-node scripts/bench.ts -- --seeds 3` | 塔的性价比基准 |
 | `npm run agent:eval` | AI 参战评测（缺省为离线确定性 scripted 策略；relay 模式的密钥只从环境变量读） |
+| `npm run agent:batch -- --config x.json` | 批量对局：多渠道多模型并行、可选上传 AI 榜（`--dry` 只列计划，`--upload-from DIR` 只上传跑好的结果；配置里只写 Key 的环境变量名） |
 | `npm run agent:play` / `agent:bridge` / `mcp` | 本地让 Agent 对局 / 浏览器桥接 / MCP 服务 |
 | `npm run docs:data` | 重新生成 `docs/guide/数据/`（生成文件，不要手改） |
 

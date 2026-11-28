@@ -98,6 +98,7 @@ npm run dev
 | `npm run dev:api` | ビルド後、wrangler でランキング API 付きのサイト全体をローカル起動 |
 | `npm run sim -- --scenario calib` | バランスシミュレーション：ボットで各難易度をプレイ。レポートは `scripts/out/report.html` |
 | `npm run agent:eval` | AI 評価：同じシードでモデル / 設定 / 中心戦略を比較 |
+| `npm run agent:batch -- --config x.json` | 一括対局：複数チャンネルの複数モデルが同じ対局を並列でプレイし、AI ランキングへのアップロードも可能（例：`scripts/agent-batch.example.json`） |
 | `npm run cap:ios` / `npm run cap:android` | ビルドして Capacitor のネイティブプロジェクトに同期 |
 | `npm run tauri:dev` / `npm run tauri:build` | Tauri デスクトップ版の開発 / パッケージ |
 | `npm run release -- patch --deploy` | リリース：バージョン更新・更新履歴の記入・コミット・tag 作成・push・デプロイ。tag が push されると GitHub が Release を自動作成（[CONTRIBUTING](CONTRIBUTING.md#发版与更新日志)（中国語）を参照） |

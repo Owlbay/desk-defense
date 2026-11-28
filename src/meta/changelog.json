@@ -1,5 +1,27 @@
 [
   {
+    "version": "0.3.6",
+    "date": "2026-11-28",
+    "notes": {
+      "zh-CN": [
+        "回放打开期间切换语言，标题、进度条和对局界面都会立刻换成新语言",
+        "开发者工具：新增批量对局命令，多个渠道的多个模型并行打同一批局，打完可以一键上传到 AI 榜"
+      ],
+      "zh-TW": [
+        "回放開啟期間切換語言，標題、進度條和對局介面都會立刻換成新語言",
+        "開發者工具：新增批次對局指令，多個管道的多個模型並行打同一批局，打完可以一鍵上傳到 AI 榜"
+      ],
+      "en": [
+        "Switching language while a replay is open now updates its title, timeline and game screen right away",
+        "Developer tool: a new batch command lets several models from several channels play the same games in parallel and upload the scores to the AI board"
+      ],
+      "ja": [
+        "リプレイ表示中に言語を切り替えると、タイトル・タイムライン・対局画面がすぐに新しい言語に変わります",
+        "開発者向け：複数チャンネルの複数モデルに同じ対局を並列でプレイさせ、結果を AI ランキングにまとめてアップロードできる一括対局コマンドを追加"
+      ]
+    }
+  },
+  {
     "version": "0.3.5",
     "date": "2026-11-27",
     "notes": {

@@ -98,6 +98,7 @@ Open the address shown in the terminal. To play on your phone, open the Network 
 | `npm run dev:api` | Build, then run the full site with the leaderboard API locally via wrangler |
 | `npm run sim -- --scenario calib` | Balance simulation: bots play every difficulty; report at `scripts/out/report.html` |
 | `npm run agent:eval` | AI evaluation: compare models / settings / core strategies on the same seeds |
+| `npm run agent:batch -- --config x.json` | Batch play: several models from several channels play the same games in parallel, optionally uploading to the AI board (example: `scripts/agent-batch.example.json`) |
 | `npm run cap:ios` / `npm run cap:android` | Build and sync to the Capacitor native projects |
 | `npm run tauri:dev` / `npm run tauri:build` | Tauri desktop dev / package |
 | `npm run release -- patch --deploy` | Release: bump the version, write the changelog, commit, tag, push and deploy; GitHub creates the Release when the tag lands (see [CONTRIBUTING](CONTRIBUTING.md#发版与更新日志), Chinese) |
