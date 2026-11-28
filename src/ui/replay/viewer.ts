@@ -11,7 +11,7 @@ import { createWorld } from '../../core';
 import { type Command, DT, type RunOptions, type WorldState } from '../../core/types';
 import { Session, type Speed } from '../../game/Session';
 import { ui } from '../../game/UiStore';
-import { t } from '../../i18n';
+import { onLocaleChange, t } from '../../i18n';
 import {
   advanceAsync,
   type AdvanceTask,
@@ -31,6 +31,10 @@ import { type SpectateScreen, spectateScreen } from '../hud/GameScreen';
 import { G } from '../icons';
 
 export type { ReplayRun } from '../../meta/replay';
+
+/** 文字：直接给字符串，或给函数（切换语言时重新取，回放打开期间换语言也能就地刷新） */
+export type ReplayText = string | (() => string);
+const txt = (x: ReplayText): string => (typeof x === 'function' ? x() : x);
 
 /** 每个播放器自己的文案（排行榜 / AI 回放各有一套） */
 export interface ReplayLabels {
@@ -57,7 +61,7 @@ export interface ReplayView {
   readonly stage: HTMLElement;
   /** 顶栏「退出」按钮（额外的按钮插到它前面） */
   readonly exitBtn: HTMLElement;
-  setSub(text: string): void;
+  setSub(text: ReplayText): void;
   /** 加载 / 播放失败：在舞台上显示说明 */
   fail(title: string, detail?: string): void;
   play(run: ReplayRun, o: ReplayPlayOptions): void;
@@ -74,19 +78,23 @@ const PERK_DWELL_MS = 1600;
 export function openReplayView(
   app: App,
   o: {
-    title: string;
-    subtitle: string;
-    labels: ReplayLabels;
+    title: ReplayText;
+    subtitle: ReplayText;
+    labels: ReplayLabels | (() => ReplayLabels);
     /** 这些容器里的按键留给它们自己（Esc 仍然退出） */
     keysIgnoredIn?: string;
     className?: string;
   },
 ): ReplayView {
-  const L = o.labels;
-  const sub = h('small.muted', null, o.subtitle);
+  const labels = (): ReplayLabels => (typeof o.labels === 'function' ? o.labels() : o.labels);
+  const L = labels();
+  let subText: ReplayText = o.subtitle;
+  const sub = h('small.muted', null, txt(subText));
+  const titleEl = h('b', null, txt(o.title));
   const stage = h('div.replay-stage');
   const speedBox = h('div.replay-speed', { attrs: { role: 'group', 'aria-label': L.speed } });
-  const exitBtn = h('button.btn.small', { attrs: { type: 'button' } }, h('span.gi', { html: G.close }), L.exit);
+  const exitLabel = h('span', null, L.exit);
+  const exitBtn = h('button.btn.small', { attrs: { type: 'button' } }, h('span.gi', { html: G.close }), exitLabel);
 
   // ── 进度条 ──
   const playBtn = h<HTMLButtonElement>(
@@ -142,7 +150,7 @@ export function openReplayView(
   const root = h(
     `div.replay-view${o.className ? `.${o.className}` : ''}`,
     { attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-label': L.dialog } },
-    h('div.replay-bar', null, h('div.replay-title', null, h('b', null, o.title), sub), speedBox, exitBtn),
+    h('div.replay-bar', null, h('div.replay-title', null, titleEl, sub), speedBox, exitBtn),
     stage,
     timeline,
   );
@@ -150,11 +158,32 @@ export function openReplayView(
   const closeFns: (() => void)[] = [];
   let closed = false;
   let player: Player | null = null;
+  /** 换语言：顶栏 / 进度条的固定文字重取，回放里的对局界面和结束卡片跟着刷新 */
+  const relabel = (): void => {
+    const l = labels();
+    setText(titleEl, txt(o.title));
+    setText(sub, txt(subText));
+    setText(exitLabel, l.exit);
+    speedBox.setAttribute('aria-label', l.speed);
+    root.setAttribute('aria-label', l.dialog);
+    for (const [b, k] of [
+      [prevBtn, 'ui.replay.prevWave'],
+      [nextBtn, 'ui.replay.nextWave'],
+    ] as const) {
+      b.setAttribute('aria-label', t(k));
+      b.title = t(k);
+    }
+    track.setAttribute('aria-label', t('ui.replay.timeline'));
+    track.title = t('ui.replay.keys');
+    player?.relocale();
+  };
+  const offLocale = onLocaleChange(relabel);
   const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
   const close = (): void => {
     if (closed) return;
     closed = true;
+    offLocale();
     document.removeEventListener('keydown', onKey, true);
     document.removeEventListener('visibilitychange', onVis);
     player?.destroy();
@@ -227,7 +256,10 @@ export function openReplayView(
     root,
     stage,
     exitBtn,
-    setSub: (text) => setText(sub, text),
+    setSub: (text) => {
+      subText = text;
+      setText(sub, txt(text));
+    },
     fail,
     onClose: (fn) => void closeFns.push(fn),
     close,
@@ -250,7 +282,7 @@ export function openReplayView(
           marksBox,
           thumb,
           tip,
-          labels: L,
+          labels,
           close,
         });
       } catch (e) {
@@ -278,7 +310,7 @@ interface PlayerEls {
   marksBox: HTMLElement;
   thumb: HTMLElement;
   tip: HTMLElement;
-  labels: ReplayLabels;
+  labels(): ReplayLabels;
   close(): void;
 }
 
@@ -452,6 +484,25 @@ class Player {
         ),
       ),
     );
+  }
+
+  /** 换语言：对局界面就地刷新；按钮 / 刻度 / 结束卡片按新语言重画 */
+  relocale(): void {
+    if (this.destroyed) return;
+    this.screen?.onLocaleChange?.();
+    // 每帧只在数值变化时才改字：清掉缓存，下一帧按新语言重写时间 / 波次 / 状态行
+    this.shown.tick = -1;
+    this.shown.wave = -1;
+    this.shown.sub = '';
+    this.shown.paused = null;
+    this.paintPlay();
+    this.els.marksBox.replaceChildren();
+    this.shown.marks = -1;
+    this.paintMarks();
+    if (this.endEl) {
+      this.hideEnd();
+      this.showEnd(0);
+    }
   }
 
   private paintPlay(): void {
@@ -696,7 +747,7 @@ class Player {
       if (this.destroyed || this.endEl || this.seekTarget !== null || !this.driver.atEnd) return;
       this.session.togglePause(true);
       const st = this.session.world.state;
-      const L = this.els.labels;
+      const L = this.els.labels();
       this.endEl = h(
         'div.replay-end',
         null,

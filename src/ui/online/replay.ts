@@ -13,15 +13,16 @@ import { openReplayView } from '../replay/viewer';
 /** 打开回放（先拉取数据）。返回关闭函数。 */
 export function openReplay(app: App, runId: string, nickname?: string): () => void {
   const view = openReplayView(app, {
-    title: nickname ? t('ui.online.replayOf', { name: nickname }) : t('ui.online.replay'),
-    subtitle: t('ui.online.loading'),
-    labels: {
+    // 都给函数：回放打开期间换语言也能就地刷新
+    title: () => (nickname ? t('ui.online.replayOf', { name: nickname }) : t('ui.online.replay')),
+    subtitle: () => t('ui.online.loading'),
+    labels: () => ({
       dialog: t('ui.online.watchReplay'),
       speed: t('ui.online.replaySpeed'),
       exit: t('ui.online.exit'),
       exitReplay: t('ui.online.exitReplay'),
       ended: t('ui.online.replayEnded'),
-    },
+    }),
   });
   let closed = false;
   view.onClose(() => (closed = true));
@@ -30,7 +31,7 @@ export function openReplay(app: App, runId: string, nickname?: string): () => vo
     const r = await fetchRun(runId);
     if (closed) return;
     if (!r.ok) {
-      view.setSub(r.status === 'unavailable' ? t('ui.online.unavailable') : r.message || t('ui.online.loadFailed'));
+      view.setSub(() => (r.status === 'unavailable' ? t('ui.online.unavailable') : r.message || t('ui.online.loadFailed')));
       view.fail(t('ui.online.replayLoadFailed'), r.message);
       return;
     }
@@ -38,14 +39,20 @@ export function openReplay(app: App, runId: string, nickname?: string): () => vo
   })();
 
   function start(run: RunReplay): void {
-    const map = MAP_META[run.opts.map]?.name ?? run.opts.map;
+    const map = (): string => MAP_META[run.opts.map]?.name ?? run.opts.map;
     view.play(
       { opts: { ...run.opts, seed: run.seed }, log: run.log, tick: run.result.ticks },
       {
         speeds: [1, 2, 4, 8],
         defaultSpeed: 1,
         status: (st, pct) =>
-          t('ui.online.replayStatus', { board: boardLabel(run.board), map, wave: st.wave, score: fmtNumber(Math.round(st.score)), pct }),
+          t('ui.online.replayStatus', {
+            board: boardLabel(run.board),
+            map: map(),
+            wave: st.wave,
+            score: fmtNumber(Math.round(st.score)),
+            pct,
+          }),
         result: (st) => [
           h('p', null, t('ui.online.replayResult', { n: run.result.wave, score: fmtNumber(Math.round(run.result.score)) })),
           Math.round(st.score) !== run.result.score ? h('small.muted', null, t('ui.online.replayMismatch')) : null,

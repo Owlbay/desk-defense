@@ -10,7 +10,7 @@ import { t } from '../../i18n';
 import type { App } from '../App';
 import { audio } from '../audio';
 import { fmtNum, h } from '../dom';
-import { openReplayView } from '../replay/viewer';
+import { openReplayView, type ReplayText } from '../replay/viewer';
 import { type DockHandle, mountDock } from './dock';
 import { DOCK_SPLIT_W, paneOf } from './dock-state';
 import { OpsRecorder, type TraceExportWithOps } from './ops';
@@ -27,8 +27,9 @@ export function openLocalReplay(
   app: App,
   run: LocalReplay,
   o: {
-    title: string;
-    subtitle: string;
+    /** 给函数时换语言能就地刷新 */
+    title: ReplayText;
+    subtitle: ReplayText;
     wave: number;
     score: number;
     /** 对局时记录的思路与请求（有就在旁边显示，随回放进度展开） */ trace?: TraceExport;
@@ -40,13 +41,13 @@ export function openLocalReplay(
     className: 'ai-replay',
     // 思路与请求面板里的输入框 / 按钮：按键留给它们（Esc 仍然退出回放）
     keysIgnoredIn: '.tr-panel, .ai-dock',
-    labels: {
+    labels: () => ({
       dialog: t('agent.replay.title'),
       speed: t('agent.replay.speed'),
       exit: t('agent.replay.exit'),
       exitReplay: t('agent.replay.exitReplay'),
       ended: t('agent.replay.ended'),
-    },
+    }),
   });
   const { root, stage } = view;
 
@@ -111,7 +112,13 @@ export function openLocalReplay(
     {
       speeds: [1, 2, 4, 8],
       defaultSpeed: 2,
-      status: (st, pct) => t('agent.replay.progress', { sub: o.subtitle, wave: st.wave, score: fmtNum(Math.round(st.score)), pct }),
+      status: (st, pct) =>
+        t('agent.replay.progress', {
+          sub: typeof o.subtitle === 'function' ? o.subtitle() : o.subtitle,
+          wave: st.wave,
+          score: fmtNum(Math.round(st.score)),
+          pct,
+        }),
       result: (st) => [
         h('p', null, t('agent.replay.result', { n: o.wave, wave: o.wave, score: fmtNum(o.score) })),
         Math.round(st.score) !== o.score

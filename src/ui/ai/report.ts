@@ -170,8 +170,8 @@ export function reportCard(app: App, s: AiRunSummary, hd: AiGameOverHandlers): H
               app,
               { opts: { ...r.opts, seed: r.opts.seed ?? st.seed }, log: r.log, tick: st.tick },
               {
-                title: t('agent.report.replayTitle', { name: s.launch.label }),
-                subtitle: campaign ? t('agent.report.campaign') : boardLabel(boardForOpts(s.opts, null)),
+                title: () => t('agent.report.replayTitle', { name: s.launch.label }),
+                subtitle: () => (campaign ? t('agent.report.campaign') : boardLabel(boardForOpts(s.opts, null))),
                 wave: s.info.wavesSurvived,
                 score: Math.round(s.info.score),
                 trace: s.trace,
