@@ -441,7 +441,7 @@ export default {
   'guide.faq.shortcuts.build': '選擇 {name}',
   'guide.faq.shortcuts.skills': '第 1～4 個技能',
   'guide.faq.shortcuts.axis': '橫掃尺切換橫向 / 縱向',
-  'guide.faq.shortcuts.space': '開始下一波 / 提前開波；滑鼠懸停在硬幣或補給箱上時為收集',
+  'guide.faq.shortcuts.space': '開始下一波 / 提前開波',
   'guide.faq.shortcuts.speed': '切換速度 1× / 2× / 3×',
   'guide.faq.shortcuts.pause': '暫停 / 繼續',
   'guide.faq.shortcuts.upgrade': '升級選取的塔',
@@ -532,7 +532,7 @@ export default {
   'guide.about.footer.label': '頁尾連結',
   'guide.about.footer.note': '書桌防線 Desk Defense，一款網頁塔防遊戲。',
   'guide.enemy.goldbag.behavior':
-    '飛快地沿路線逃跑；2 秒沒挨打就快速回血。被擊殺時爆出一大把可點擊收集的硬幣；漏走不扣生命，但會偷走一大筆金幣。',
+    '飛快地沿路線逃跑；2 秒沒挨打就快速回血。被擊殺時爆出一大把硬幣（自動收下）；漏走不扣生命，但會偷走一大筆金幣。',
   'guide.enemy.goldbag.counter': '集中火力或用大橡皮等爆發技能一口氣打掉；減速 / 定身讓它多挨幾下，別給它喘息回血的機會。',
-  'guide.affix.golden.counter': '金色菁英更耐打，但擊殺後掉落一堆硬幣——優先集火並記得點擊收集。',
+  'guide.affix.golden.counter': '金色菁英更耐打，但擊殺後掉落一堆硬幣——優先集火，硬幣會自動收下。',
 } satisfies Dict;

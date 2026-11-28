@@ -373,7 +373,7 @@ export default {
   'ui.tutorial.mazePartial': 'Placed {n} wall, out of gold|Placed {n} walls, out of gold',
   'ui.tutorial.tip-event.title': 'Random events',
   'ui.tutorial.tip-event.body':
-    'Events can happen on the desk: red is bad, green is good. The top banner warns you with a countdown. Tap coins and supply crates to collect them.',
+    'Events can happen on the desk: red is bad, green is good. The top banner warns you with a countdown. Coins are collected automatically and supply crates open by themselves; pick a reward.',
   'ui.tutorial.tip-drop.title': 'Box drop!',
   'ui.tutorial.tip-drop.body':
     'A box will soon land in the dashed circle and become a new spawner, changing the path. Tap the box to demolish it with gold, or seal it with the {tape} skill.',

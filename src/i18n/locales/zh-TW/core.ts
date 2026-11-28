@@ -77,7 +77,7 @@ export default {
   'core.toast.shieldSupply': '護盾補給：{n} 個敵人獲得護盾',
   'core.toast.medicSquad': '急救小隊：修正液 ×{n} 趕來',
   'core.toast.goldbag': '金幣袋怪出現了 ×{n}，快打！',
-  'core.toast.goldbagKilled': '金幣袋怪被打爆了，快撿硬幣！',
+  'core.toast.goldbagKilled': '金幣袋怪被打爆了，硬幣自動收下！',
   'core.toast.goldbagEscaped': '金幣袋怪跑了，捲走 {n} 金幣',
   'core.toast.goldenElite': '金色菁英：{name}',
 

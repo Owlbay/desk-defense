@@ -503,7 +503,7 @@ export default {
   'guide.faq.shortcuts.build': '{name}を選択',
   'guide.faq.shortcuts.skills': '1～4 番目のスキル',
   'guide.faq.shortcuts.axis': '定規なぎ払いの横 / 縦を切り替え',
-  'guide.faq.shortcuts.space': '次のウェーブを開始 / 早めに呼ぶ。コインや補給箱にカーソルを合わせているときは回収',
+  'guide.faq.shortcuts.space': '次のウェーブを開始 / 早めに呼ぶ',
   'guide.faq.shortcuts.speed': '速度 1× / 2× / 3× を切り替え',
   'guide.faq.shortcuts.pause': '一時停止 / 再開',
   'guide.faq.shortcuts.upgrade': '選択中のタワーを強化',
@@ -603,8 +603,9 @@ export default {
   'guide.about.footer.label': 'フッターリンク',
   'guide.about.footer.note': 'デスクディフェンス Desk Defense、ブラウザで遊べるタワーディフェンスゲーム。',
   'guide.enemy.goldbag.behavior':
-    'ルートをすばやく駆け抜け、2 秒攻撃されないと急速に回復します。倒すと回収できる硬貨を大量にばらまき、逃すとライフは減りませんが大量のゴールドを盗まれます。',
+    'ルートをすばやく駆け抜け、2 秒攻撃されないと急速に回復します。倒すと硬貨を大量にばらまき（自動で回収）、逃すとライフは減りませんが大量のゴールドを盗まれます。',
   'guide.enemy.goldbag.counter':
     '集中砲火や大きな消しゴムなどの瞬間火力スキルで一気に倒しましょう。減速や拘束で攻撃を当て続け、回復の隙を与えないこと。',
-  'guide.affix.golden.counter': '黄金エリートは頑丈ですが、倒すと硬貨を大量に落とします。優先して集中攻撃し、硬貨の回収も忘れずに。',
+  'guide.affix.golden.counter':
+    '黄金エリートは頑丈ですが、倒すと硬貨を大量に落とします。優先して集中攻撃しましょう。硬貨は自動で回収されます。',
 } satisfies Dict;

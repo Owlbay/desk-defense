@@ -77,7 +77,7 @@ export default {
   'core.toast.shieldSupply': 'シールド補給：敵 {n} 体にシールド',
   'core.toast.medicSquad': '救護班：修正液 ×{n} が接近',
   'core.toast.goldbag': '金貨袋 ×{n} 出現、急いで倒せ！',
-  'core.toast.goldbagKilled': '金貨袋を撃破、硬貨を拾おう！',
+  'core.toast.goldbagKilled': '金貨袋を撃破、硬貨は自動で回収！',
   'core.toast.goldbagEscaped': '金貨袋に逃げられ、{n} ゴールド盗まれた',
   'core.toast.goldenElite': '黄金エリート：{name}',
 

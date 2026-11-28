@@ -365,7 +365,8 @@ export default {
   'ui.tutorial.mazeNoGold': '金币不够了，先打一波攒点钱吧',
   'ui.tutorial.mazePartial': '摆了 {n} 格，金币不够了',
   'ui.tutorial.tip-event.title': '随机事件',
-  'ui.tutorial.tip-event.body': '书桌上会突然发生事件：红色是坏事，绿色是好事。顶部横幅会提前预警并倒计时；硬币和补给箱要点一下才能收集。',
+  'ui.tutorial.tip-event.body':
+    '书桌上会突然发生事件：红色是坏事，绿色是好事。顶部横幅会提前预警并倒计时；硬币会自动收下，补给箱自动打开，挑一样奖励。',
   'ui.tutorial.tip-drop.title': '空降纸箱！',
   'ui.tutorial.tip-drop.body':
     '虚线圈里很快会落下一个纸箱，变成新的出生点，路线也会跟着改变。点纸箱可以花金币拆除，技能「{tape}」也能直接封掉。',

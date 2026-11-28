@@ -513,7 +513,7 @@ export default {
   'guide.faq.shortcuts.build': 'Select {name}',
   'guide.faq.shortcuts.skills': 'Skills 1–4',
   'guide.faq.shortcuts.axis': 'Switch Ruler Sweep between horizontal / vertical',
-  'guide.faq.shortcuts.space': 'Start the next wave / call it early; collect when hovering over a coin or Supply Crate',
+  'guide.faq.shortcuts.space': 'Start the next wave / call it early',
   'guide.faq.shortcuts.speed': 'Switch speed 1× / 2× / 3×',
   'guide.faq.shortcuts.pause': 'Pause / resume',
   'guide.faq.shortcuts.upgrade': 'Upgrade the selected tower',
@@ -616,9 +616,9 @@ export default {
   'guide.about.footer.label': 'Footer links',
   'guide.about.footer.note': 'Desk Defense, a tower defense game for the web.',
   'guide.enemy.goldbag.behavior':
-    'Runs along the route very fast and regenerates quickly after 2s without being hit. Drops a big burst of collectible coins when killed; if it escapes it costs no lives but steals a large chunk of gold.',
+    'Runs along the route very fast and regenerates quickly after 2s without being hit. Drops a big burst of coins when killed (collected automatically); if it escapes it costs no lives but steals a large chunk of gold.',
   'guide.enemy.goldbag.counter':
     'Focus fire or use burst skills like the Big Eraser to take it down in one go; slows and roots keep it under fire so it never gets a breather to regenerate.',
   'guide.affix.golden.counter':
-    'Golden elites are tougher, but drop a pile of coins when killed. Focus them down and remember to tap the coins.',
+    'Golden elites are tougher, but drop a pile of coins when killed. Focus them down; the coins are collected automatically.',
 } satisfies Dict;

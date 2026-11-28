@@ -441,7 +441,7 @@ export default {
   'guide.faq.shortcuts.build': '选择 {name}',
   'guide.faq.shortcuts.skills': '第 1～4 个技能',
   'guide.faq.shortcuts.axis': '横扫尺切换横向 / 纵向',
-  'guide.faq.shortcuts.space': '开始下一波 / 提前开波；悬停在硬币或补给箱上时为收集',
+  'guide.faq.shortcuts.space': '开始下一波 / 提前开波',
   'guide.faq.shortcuts.speed': '切换速度 1× / 2× / 3×',
   'guide.faq.shortcuts.pause': '暂停 / 继续',
   'guide.faq.shortcuts.upgrade': '升级选中的塔',
@@ -532,7 +532,7 @@ export default {
   'guide.about.footer.label': '页脚链接',
   'guide.about.footer.note': '书桌防线 Desk Defense，一款网页塔防游戏。',
   'guide.enemy.goldbag.behavior':
-    '飞快地沿路线逃跑；2 秒没挨打就快速回血。被击杀时爆出一大把可点击收集的硬币；漏走不扣生命，但会偷走一大笔金币。',
+    '飞快地沿路线逃跑；2 秒没挨打就快速回血。被击杀时爆出一大把硬币（自动收下）；漏走不扣生命，但会偷走一大笔金币。',
   'guide.enemy.goldbag.counter': '集中火力或用大橡皮等爆发技能一口气打掉；减速 / 定身让它多挨几下，别给它喘息回血的机会。',
-  'guide.affix.golden.counter': '金色精英更耐打，但击杀后掉落一堆硬币——优先集火并记得点击收集。',
+  'guide.affix.golden.counter': '金色精英更耐打，但击杀后掉落一堆硬币——优先集火，硬币会自动收下。',
 } satisfies Dict;

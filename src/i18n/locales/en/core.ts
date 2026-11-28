@@ -77,7 +77,7 @@ export default {
   'core.toast.shieldSupply': 'Shield Supply: {n} enemies shielded',
   'core.toast.medicSquad': 'Medic Squad: Correction Fluid ×{n} incoming',
   'core.toast.goldbag': 'Gold Bag ×{n} spotted, hit it fast!',
-  'core.toast.goldbagKilled': 'Gold Bag popped, grab the coins!',
+  'core.toast.goldbagKilled': 'Gold Bag popped, coins collected!',
   'core.toast.goldbagEscaped': 'The Gold Bag got away with {n} gold',
   'core.toast.goldenElite': 'Golden Elite: {name}',
 
