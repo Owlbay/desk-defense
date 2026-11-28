@@ -34,6 +34,7 @@ export class PerkModal {
   private dialog: HTMLElement;
   private titleEl: HTMLElement;
   private noteEl: HTMLElement;
+  private marked: string | null = null;
 
   constructor(
     private ctx: GameCtx,
@@ -103,12 +104,26 @@ export class PerkModal {
     this.reroll.classList.toggle('poor', cost > st.gold);
   }
 
+  /** 观看回放：高亮原局选中的卡（null 取消） */
+  mark(id: string | null): void {
+    this.marked = id;
+    this.applyMark();
+  }
+
+  private applyMark(): void {
+    const id = this.marked;
+    this.dialog.classList.toggle('has-pick', id !== null);
+    for (const el of this.cards.children) {
+      if (el instanceof HTMLElement) el.classList.toggle('picked', id !== null && el.dataset.id === id);
+    }
+  }
+
   private renderCards(cards: PerkCard[]): void {
     this.cards.replaceChildren(
       ...cards.map((c, i) =>
         h(
           `button.perk-card.r-${c.rarity}`,
-          { style: `--i:${i}`, onclick: () => this.choose(c) },
+          { style: `--i:${i}`, data: { id: c.id }, onclick: () => this.choose(c) },
           h('span.perk-shine', { attrs: { 'aria-hidden': 'true' } }),
           h('span.perk-rarity', null, RARITY_NAME[c.rarity]),
           h('h3', null, c.name),
@@ -117,6 +132,7 @@ export class PerkModal {
         ),
       ),
     );
+    this.applyMark();
   }
 
   private choose(c: PerkCard): void {

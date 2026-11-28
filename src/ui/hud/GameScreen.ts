@@ -1,4 +1,4 @@
-import type { BuildOption, Command, GameEvent, RunOptions } from '../../core/types';
+import type { BuildOption, Command, CommandResult, GameEvent, RunOptions } from '../../core/types';
 import { Session } from '../../game/Session';
 import { ui } from '../../game/UiStore';
 import { t, tOr } from '../../i18n';
@@ -26,30 +26,65 @@ import { TopBar } from './TopBar';
 import { Tutorial } from './Tutorial';
 import { WavePanel } from './WavePanel';
 
+/**
+ * 观看回放（旁观模式）：同一套对局界面，只读。
+ * Session 由回放控制条创建并驱动（按日志喂指令、跳转），界面不存档、不结算、不挂 AI、不自动拾取，
+ * 玩家的操作（造塔、技能、开波、补给、增益……）一律拦下。
+ */
+export interface SpectateOptions {
+  session: Session;
+  /** 顶栏的暂停键：交给回放控制条（播放 / 暂停） */
+  togglePause(): void;
+  /** 回放里分出了胜负（结算大字已显示） */
+  onGameOver?(won: boolean): void;
+}
+
+export interface SpectateScreen extends Screen {
+  /** 回放里即将执行的指令：显示与对局时相同的反馈（补给箱选了什么等） */
+  noteCommand(cmd: Command): void;
+  /** 增益三选一：高亮回放里选中的那张卡（null 取消） */
+  markPerk(id: string | null): void;
+  /** 当前选中的塔（往前跳重建界面时保留选择） */
+  readonly selected: number | null;
+}
+
 export function gameScreen(app: App, route: Route): Screen {
   if (route.name !== 'game') throw new Error('bad route');
-  const opts: RunOptions = route.opts;
-  const userSeed = !!route.userSeed;
+  return buildGame(app, route.opts, route, null);
+}
+
+/** 回放用的只读对局界面（el 由调用方挂到容器里；destroy 不会释放传入的 Session） */
+export function spectateScreen(app: App, opts: RunOptions, spec: SpectateOptions): SpectateScreen {
+  return buildGame(app, opts, null, spec) as SpectateScreen;
+}
+
+function buildGame(app: App, opts: RunOptions, route: Extract<Route, { name: 'game' }> | null, spec: SpectateOptions | null): Screen {
+  const userSeed = !!route?.userSeed;
+  const resumeRun = route?.resume ?? null;
 
   const el = h('div.screen.game-screen');
   const game = h('div.game', { data: { layout: 'portrait', difficulty: opts.difficulty, mode: opts.mode } });
+  if (spec) game.classList.add('is-spectate');
   el.appendChild(game);
 
   let session: Session;
-  try {
-    session = new Session(opts);
-  } catch (e) {
-    console.error(e);
-    setTimeout(() => {
-      app.toast(t('ui.game.cannotStart'), 'warn');
-      if (route.resume) app.store.update((p) => (p.midRun = null));
-      app.go({ name: 'menu' });
-    }, 0);
-    return { el };
+  if (spec) session = spec.session;
+  else {
+    try {
+      session = new Session(opts);
+    } catch (e) {
+      console.error(e);
+      setTimeout(() => {
+        app.toast(t('ui.game.cannotStart'), 'warn');
+        if (resumeRun) app.store.update((p) => (p.midRun = null));
+        app.go({ name: 'menu' });
+      }, 0);
+      return { el };
+    }
   }
   const world = session.world;
   const dbg = (window as unknown as { __dd?: Record<string, unknown> }).__dd;
-  if (dbg) dbg.session = session;
+  if (dbg && !spec) dbg.session = session;
 
   const cleanups: (() => void)[] = [];
   let destroyed = false;
@@ -65,6 +100,18 @@ export function gameScreen(app: App, route: Route): Screen {
   let pauseEl: HTMLElement | null = null;
   let gameOverEl: HTMLElement | null = null;
 
+  /** 旁观模式：拦下玩家操作，提示「回放只能观看」（不连续刷屏） */
+  let refusedAt = -Infinity;
+  const refuse = (): CommandResult => {
+    const reason = t('ui.replay.readOnly');
+    const now = performance.now();
+    if (now - refusedAt > 2500) {
+      refusedAt = now;
+      overlay.toast(reason, 'info');
+    }
+    return { ok: false, code: 'replayReadOnly', reason };
+  };
+
   const ctx: GameCtx = {
     app,
     session,
@@ -72,6 +119,7 @@ export function gameScreen(app: App, route: Route): Screen {
     opts,
     root: game,
     cmd(c: Command) {
+      if (spec) return refuse();
       const r = session.command(c);
       if (!r.ok) {
         audio.play('error');
@@ -86,6 +134,10 @@ export function gameScreen(app: App, route: Route): Screen {
     toast: (text, tone) => overlay.toast(text, tone),
     openBranch(uid) {
       if (branchEl) return;
+      if (spec) {
+        refuse();
+        return;
+      }
       branchEl = branchModal(ctx, uid, () => (branchEl = null));
       if (branchEl) modals.appendChild(branchEl);
     },
@@ -103,6 +155,10 @@ export function gameScreen(app: App, route: Route): Screen {
   const perkModal = new PerkModal(
     ctx,
     (card) => {
+      if (spec) {
+        refuse();
+        return;
+      }
       perkPending = card.id;
       ui.set({ build: null, aiming: null, relocateFrom: null, selected: null, pending: null });
       perkHint.hidden = false;
@@ -126,19 +182,25 @@ export function gameScreen(app: App, route: Route): Screen {
   );
   game.append(boardWrap, side, goldFx.el, modals);
   // AI 助手：每局一个 AI 插槽（任何模式都能中途启用 / 停用）。公平性标记随中途存档恢复
-  const aiSlot = createAiSlot({ app, session, opts, game, modals }, { assist: route.resume?.aiAssist });
-  ctx.aiAssist = aiSlot.assist;
-  cleanups.push(() => aiSlot.destroy());
-  // AI 参战（文档 10）：从「AI 参战」页面开的局，由同一个插槽以「AI 参战」方式挂上（从第 1 波开始）
-  const aiLaunch = takeAiLaunch();
-  if (aiLaunch) aiSlot.attach(aiLaunch, { dedicated: true });
-  const dedicatedAi = aiSlot.dedicated;
-  // 顶栏的 AI 按钮（快捷键 I）与「AI 协助」标记
-  const aiMenu = new AiMenu(ctx, aiSlot, modals, () => tutorial.ack('tip-ai'));
-  topBar.el.insertBefore(aiMenu.badge, topBar.pauseBtn);
-  topBar.el.insertBefore(aiMenu.btn, topBar.pauseBtn);
-  aiMenu.mount(game);
-  cleanups.push(() => aiMenu.destroy());
+  // 旁观模式不挂 AI（也不能取走「AI 参战」页面留下的开局请求）
+  const aiSlot = spec ? null : createAiSlot({ app, session, opts, game, modals }, { assist: resumeRun?.aiAssist });
+  let aiMenu: AiMenu | null = null;
+  if (aiSlot) {
+    const slot = aiSlot;
+    ctx.aiAssist = slot.assist;
+    cleanups.push(() => slot.destroy());
+    // AI 参战（文档 10）：从「AI 参战」页面开的局，由同一个插槽以「AI 参战」方式挂上（从第 1 波开始）
+    const aiLaunch = takeAiLaunch();
+    if (aiLaunch) slot.attach(aiLaunch, { dedicated: true });
+    // 顶栏的 AI 按钮（快捷键 I）与「AI 协助」标记
+    const menu = new AiMenu(ctx, slot, modals, () => tutorial.ack('tip-ai'));
+    topBar.el.insertBefore(menu.badge, topBar.pauseBtn);
+    topBar.el.insertBefore(menu.btn, topBar.pauseBtn);
+    menu.mount(game);
+    cleanups.push(() => menu.destroy());
+    aiMenu = menu;
+  }
+  const dedicatedAi = aiSlot?.dedicated ?? false;
 
   // 横竖屏切换
   const applyLayout = () => {
@@ -200,13 +262,17 @@ export function gameScreen(app: App, route: Route): Screen {
       skill: (id) => skillBar.buttonFor(id),
       skills: () => skillBar.el,
       events: () => overlay.eventsEl() ?? wavePanel.el,
-      ai: () => aiMenu.btn,
+      ai: () => aiMenu?.btn ?? null,
     },
     mazeGuide,
   );
 
   // 补给箱三选一（不暂停）
   overlay.onCrate = (option, name) => {
+    if (spec) {
+      refuse();
+      return;
+    }
     const r = ctx.cmd({ type: 'chooseCrate', option });
     if (r.ok) {
       autoCollect(); // 排队的下一个补给箱
@@ -217,6 +283,10 @@ export function gameScreen(app: App, route: Route): Screen {
 
   // ───────────── 暂停 / 生命周期 ─────────────
   function openPause(): void {
+    if (spec) {
+      spec.togglePause();
+      return;
+    }
     if (pauseEl || ended || destroyed) return;
     session.togglePause(true);
     pauseEl = makePause();
@@ -255,7 +325,7 @@ export function gameScreen(app: App, route: Route): Screen {
   // 设置里开了「后台模式」且当前是 AI 在操作（AI 玩家 / 替我玩 / AI 对战）：切到后台不暂停，
   // 由后台时钟（Worker 心跳，不受浏览器后台节流）推进对局和 AI 轮询；标签页标题显示进度。
   const bgEligible = (): boolean =>
-    !!app.store.get().settings.bgPlay && aiSlot.role === 'player' && !aiSlot.loading && !ended && !destroyed;
+    !!aiSlot && !!app.store.get().settings.bgPlay && aiSlot.role === 'player' && !aiSlot.loading && !ended && !destroyed;
   let bg: { release: () => void; off: () => void; startWave: number; title: string } | null = null;
   let bgTitleAt = 0;
   const bgTitle = (): string => {
@@ -320,8 +390,11 @@ export function gameScreen(app: App, route: Route): Screen {
       stopBg();
     }
   };
-  document.addEventListener('visibilitychange', onVis);
-  cleanups.push(() => document.removeEventListener('visibilitychange', onVis));
+  // 旁观模式：切后台由回放控制条处理（它知道是否正在跳转）
+  if (!spec) {
+    document.addEventListener('visibilitychange', onVis);
+    cleanups.push(() => document.removeEventListener('visibilitychange', onVis));
+  }
 
   // ───────────── 事件 ─────────────
   let dirty = true;
@@ -349,7 +422,7 @@ export function gameScreen(app: App, route: Route): Screen {
 
   const onEvent = (ev: GameEvent) => {
     audio.onGameEvent(ev);
-    tutorial.onEvent(ev);
+    if (!spec) tutorial.onEvent(ev);
     if (ev.type === 'pickup' && ev.phase === 'spawn') autoCollect();
     switch (ev.type) {
       case 'toast':
@@ -365,10 +438,11 @@ export function gameScreen(app: App, route: Route): Screen {
         if (ev.interest > 0) parts.push(t('ui.game.interest', { n: Math.round(ev.interest) }));
         overlay.toast(parts.join(' '), 'good');
         // AI 参战局不存档；对局中启用过 AI 的局照常存档，并带上公平性标记
-        if (!dedicatedAi && !ended && world.state.phase !== 'won' && world.state.phase !== 'lost') {
+        if (aiSlot && !dedicatedAi && !ended && world.state.phase !== 'won' && world.state.phase !== 'lost') {
+          const assist = aiSlot.assist;
           app.store.update((p) => {
             recordWave(p, opts, ev.wave);
-            p.midRun = makeMidRun(world, aiSlot.assist);
+            p.midRun = makeMidRun(world, assist);
           });
         }
         break;
@@ -484,11 +558,23 @@ export function gameScreen(app: App, route: Route): Screen {
     branchEl = null;
     const st = world.state;
     const wavesSurvived = won ? wave : Math.max(0, wave - 1);
+    if (spec || !aiSlot) {
+      // 旁观模式：只显示胜负大字，结果卡片由回放控制条给出（不结算、不存档）
+      ui.clear();
+      overlay.bigText(
+        won ? t('ui.game.victory') : t('ui.game.defeat'),
+        won ? t('ui.game.victorySub') : t('ui.game.defeatSub'),
+        won ? 'win' : 'lose',
+      );
+      spec?.onGameOver?.(won);
+      return;
+    }
     // 对局中启用的 AI：马上停掉（照常结算）；AI 参战局稍后换成 AI 报告卡片
-    aiMenu.end();
+    aiMenu?.end();
     if (!dedicatedAi) aiSlot.gameOver({ won, wave, wavesSurvived, score }, { again: () => {}, menu: () => {} });
     let rewards: Rewards = { stars: 0, starsBest: 0, ink: 0, rank: 0, newRecord: false };
-    if (!aiSlot.noSettle)
+    const slot = aiSlot;
+    if (!slot.noSettle)
       app.store.update((p) => {
         rewards = settleRun(p, opts, {
           won,
@@ -501,7 +587,7 @@ export function gameScreen(app: App, route: Route): Screen {
           perks: st.perks.slice(),
           autoWave: st.autoWave ? !!st.autoWave.enabled : undefined,
           // 用过「让 AI 替我玩」：本地排行榜条目打上 AI 协助标记（进度 / 星星 / 墨水照常发放）
-          aiAssisted: isAiAssisted(aiSlot.assist),
+          aiAssisted: isAiAssisted(slot.assist),
         });
       });
     ui.clear();
@@ -516,7 +602,7 @@ export function gameScreen(app: App, route: Route): Screen {
       pauseEl = null;
       if (dedicatedAi) {
         // AI 参战局：换成 AI 报告卡片（没有「提交到全服榜」，只能进 AI 榜）
-        gameOverEl = aiSlot.gameOver(
+        gameOverEl = slot.gameOver(
           { won, wave, wavesSurvived, score },
           {
             again: () => (audio.play('select'), app.go({ name: 'game', opts: restartOpts(), userSeed })),
@@ -652,19 +738,22 @@ export function gameScreen(app: App, route: Route): Screen {
       case 'i':
         if (e.repeat) break;
         e.preventDefault();
-        aiMenu.toggle();
+        aiMenu?.toggle();
         break;
     }
   };
   const onKeyUp = (e: KeyboardEvent) => {
     if (e.key === 'Shift') ui.set({ shift: false });
   };
-  window.addEventListener('keydown', onKey);
-  window.addEventListener('keyup', onKeyUp);
-  cleanups.push(() => {
-    window.removeEventListener('keydown', onKey);
-    window.removeEventListener('keyup', onKeyUp);
-  });
+  // 旁观模式的按键（播放 / 暂停 / 跳转 / 退出）由回放控制条处理
+  if (!spec) {
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('keyup', onKeyUp);
+    cleanups.push(() => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keyup', onKeyUp);
+    });
+  }
 
   // ───────────── HUD 刷新 ─────────────
   let raf = 0;
@@ -682,13 +771,14 @@ export function gameScreen(app: App, route: Route): Screen {
     mazeGuide.tick();
     if (dirty || frame % 6 === 0) {
       dirty = false;
-      mazeGuide.setHint(!!app.store.get().settings.mazeHint);
+      mazeGuide.setHint(!spec && !!app.store.get().settings.mazeHint);
       const opts2 = world.getBuildOptions();
       buildBar.update(opts2);
       wavePanel.update(st);
       const sel = ui.state.selected;
       const ti = sel !== null ? world.getTowerInfo(sel) : null;
-      if (sel !== null && !ti) ui.set({ selected: null });
+      // 结束后不再清：AI 报告上打开的回放与这里共用 ui 选择（选的是回放里的塔）
+      if (sel !== null && !ti && !ended) ui.set({ selected: null });
       const bo: BuildOption | null = ui.state.build ? (opts2.find((o) => o.id === ui.state.build) ?? null) : null;
       info.update(ti, bo);
       game.classList.toggle('has-selection', !!ti);
@@ -716,7 +806,8 @@ export function gameScreen(app: App, route: Route): Screen {
   let board: { destroy(): void } | null = null;
   const begin = () => {
     if (destroyed) return;
-    live = true;
+    // 旁观模式不自动拾取：回放日志里已经有原局的拾取指令
+    live = !spec;
     autoCollect(); // 续玩时存档里还留着的掉落物
     ui.clear();
     ui.set({ perkTargeting: null, hover: null });
@@ -730,14 +821,15 @@ export function gameScreen(app: App, route: Route): Screen {
     }
     applyLayout();
     raf = requestAnimationFrame(loop);
+    if (spec) return;
     tutorial.start();
     // 配乐：开局 / 续玩从布防曲开始；之后由 audio.onGameEvent 按波次 / Boss / 结算切换
     audio.setMusicState('build');
-    if (route.resume) overlay.toast(t('ui.game.resumed', { wave: world.state.wave }), 'good');
+    if (resumeRun) overlay.toast(t('ui.game.resumed', { wave: world.state.wave }), 'good');
   };
 
-  if (route.resume) {
-    const run = route.resume;
+  if (resumeRun) {
+    const run = resumeRun;
     const ld = loadingOverlay(t('ui.game.resuming'));
     modals.appendChild(ld.el);
     replayAsync(world, run, (p) => ld.set(p))
@@ -754,14 +846,14 @@ export function gameScreen(app: App, route: Route): Screen {
       });
   } else {
     // 开新局即放弃旧的中途存档
-    if (!dedicatedAi && app.store.get().midRun) app.store.update((p) => (p.midRun = null));
+    if (!spec && !dedicatedAi && app.store.get().midRun) app.store.update((p) => (p.midRun = null));
     requestAnimationFrame(begin);
   }
 
   /** 切换语言：就地刷新 HUD 文字，不重开对局 */
   const onLocale = (): boolean => {
     topBar.relabel();
-    aiMenu.relabel();
+    aiMenu?.relabel();
     buildBar.relabel();
     skillBar.relabel();
     overlay.relabel();
@@ -774,7 +866,7 @@ export function gameScreen(app: App, route: Route): Screen {
     return true;
   };
 
-  return {
+  const screen: Screen = {
     el,
     onLocaleChange: onLocale,
     destroy() {
@@ -793,9 +885,31 @@ export function gameScreen(app: App, route: Route): Screen {
       } catch (e) {
         console.error(e);
       }
-      session.dispose();
+      if (!spec) session.dispose();
       ui.clear();
       ui.set({ hover: null, shift: false });
     },
   };
+  if (!spec) return screen;
+  const extra: Omit<SpectateScreen, keyof Screen> = {
+    noteCommand(c: Command): void {
+      if (destroyed) return;
+      if (c.type === 'chooseCrate') {
+        // 与对局时点选补给相同的提示
+        const o = world.state.crateChoice?.options.find((x) => x.id === c.option);
+        if (o) {
+          audio.play('crateOpen');
+          overlay.toast(t('ui.game.crateGot', { name: o.name }), 'good');
+        }
+      } else if (c.type === 'choosePerk') perkModal.mark(null);
+      dirty = true;
+    },
+    markPerk(id: string | null): void {
+      perkModal.mark(id);
+    },
+    get selected(): number | null {
+      return ui.state.selected;
+    },
+  };
+  return Object.defineProperties(screen, Object.getOwnPropertyDescriptors(extra)) as SpectateScreen;
 }
