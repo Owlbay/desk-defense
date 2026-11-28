@@ -66,7 +66,11 @@ export class Session {
    */
   holdStart: (() => boolean) | null = null;
 
+  /** 观看回放：界面 / 棋盘发出的指令一律拒绝（回放驱动直接对 world 下达日志里的指令） */
+  readOnly = false;
+
   command(cmd: Command): CommandResult {
+    if (this.readOnly) return { ok: false, code: 'replayReadOnly', reason: tr('ui.replay.readOnly') };
     if (cmd.type === 'startWave' && this.holdStart?.()) {
       return { ok: false, code: 'attackPending', reason: tr('core.reason.attackPending') };
     }

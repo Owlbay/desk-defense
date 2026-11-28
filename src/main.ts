@@ -5,6 +5,7 @@ import './styles/hud-motion.css';
 import './styles/online.css';
 import './styles/responsive.css';
 import './styles/ai.css';
+import './styles/replay.css';
 import './styles/update.css';
 
 import { ui } from './game/UiStore';
