@@ -12,6 +12,8 @@ export const AI_SETUP_KEY = 'desk-defense.ai.setup.v1';
 /** AI 对战（文档 10 §2.3）：进攻方模型的设置（与上面同形，只用模型相关字段） */
 export const AI_DUEL_ATTACKER_KEY = 'desk-defense.ai.duel-attacker.v1';
 const KEY_PREFIX = 'desk-defense.ai.key.';
+/** 模型渠道（多渠道多模型）：防守方 / 进攻方的设置共用这一份列表 */
+export const AI_CHANNELS_KEY = 'desk-defense.ai.channels.v1';
 
 /** 模型来源：离线演示 / Claude 官方 SDK / pi 的各个预设 */
 export type AiSource = 'demo' | 'claude' | Preset;
@@ -27,6 +29,48 @@ export interface PerSource {
   detected?: { api: RelayApi; for: string };
 }
 
+/**
+ * 渠道：一个服务地址 + 一把 Key + 若干收藏的模型（例如「packyapi 中转」下面挂 deepseek-flash、deepseek-v4-pro）。
+ * id 也是 Key 的存放键（readKey(id)）；从旧设置迁移来的渠道 id = 来源名，旧 Key 原样可用。
+ * 不含 Key；per 里不存 model（当前用哪个模型由各自的设置 st.per[source].model 决定）。
+ */
+export interface AiChannel {
+  id: string;
+  /** 玩家起的名字；空 = 显示服务商名称 */
+  name: string;
+  source: Exclude<AiSource, 'demo'>;
+  per: Omit<PerSource, 'model'>;
+  /** 收藏的模型（按添加顺序） */
+  models: string[];
+}
+
+export function loadChannels(): AiChannel[] {
+  try {
+    const raw = safeStorage().get(AI_CHANNELS_KEY);
+    const v = raw ? (JSON.parse(raw) as unknown) : null;
+    if (!Array.isArray(v)) return [];
+    return v
+      .filter((c): c is AiChannel => !!c && typeof c === 'object' && typeof c.id === 'string' && typeof c.source === 'string')
+      .map((c) => ({
+        id: c.id,
+        name: typeof c.name === 'string' ? c.name : '',
+        source: c.source,
+        per: c.per && typeof c.per === 'object' ? { ...c.per } : {},
+        models: Array.isArray(c.models) ? c.models.filter((m): m is string => typeof m === 'string' && !!m.trim()) : [],
+      }));
+  } catch {
+    return [];
+  }
+}
+
+export function saveChannels(list: readonly AiChannel[]): void {
+  try {
+    safeStorage().set(AI_CHANNELS_KEY, JSON.stringify(list));
+  } catch {
+    /* ignore */
+  }
+}
+
 export type AiSetupKind = 'defend' | 'attack' | 'duel';
 
 export interface AiSetupSaved {
@@ -39,6 +83,8 @@ export interface AiSetupSaved {
    */
   kind?: AiSetupKind;
   source: AiSource;
+  /** 当前用的渠道 id（AI_CHANNELS_KEY 里的）；没有 = 旧式「按来源」 */
+  channel?: string;
   run: { mode: 'endless' | 'campaign'; map: MapId; difficulty: DifficultyId; abyss: number; pure: boolean; autoWave: boolean };
   /** 每个来源各自记住的模型 / 地址 */
   per: Partial<Record<AiSource, PerSource>>;
@@ -105,6 +151,8 @@ export function loadSetup(): AiSetupSaved {
     if (v.contextMode === undefined && v.waveIntervalSec === 10) out.waveIntervalSec = null;
     delete out.context;
     delete out.effort;
+    // 上下文模式不再让玩家选（预算分级会自动收紧）：一律自动
+    out.contextMode = 'auto';
     return out;
   } catch {
     return d;
@@ -119,7 +167,7 @@ export function loadAttackerSetup(): AiSetupSaved {
     if (!raw) return d;
     const v = JSON.parse(raw) as Partial<AiSetupSaved> | null;
     if (!v || typeof v !== 'object' || v.v !== 1) return d;
-    return { ...d, ...v, run: d.run, per: { ...(v.per ?? {}) }, decisionMode: 'pause' };
+    return { ...d, ...v, run: d.run, per: { ...(v.per ?? {}) }, decisionMode: 'pause', contextMode: 'auto' };
   } catch {
     return d;
   }
@@ -176,8 +224,8 @@ const ls = (): Storage | null => {
   }
 };
 
-/** 读取某个来源的 Key：内存 → sessionStorage → localStorage */
-export function readKey(source: AiSource): string {
+/** 读取某个来源 / 渠道的 Key：内存 → sessionStorage → localStorage */
+export function readKey(source: string): string {
   const m = mem.get(source);
   if (m) return m;
   try {
@@ -188,7 +236,7 @@ export function readKey(source: AiSource): string {
 }
 
 /** 这个来源的 Key 目前存在哪（用于恢复界面上的选项） */
-export function keyModeOf(source: AiSource): KeyMode | null {
+export function keyModeOf(source: string): KeyMode | null {
   try {
     if (ls()?.getItem(KEY_PREFIX + source)) return 'local';
     if (ss()?.getItem(KEY_PREFIX + source)) return 'session';
@@ -199,7 +247,7 @@ export function keyModeOf(source: AiSource): KeyMode | null {
 }
 
 /** 按玩家选择的方式保存 Key；其它位置的旧副本一律清掉 */
-export function writeKey(source: AiSource, key: string, mode: KeyMode): void {
+export function writeKey(source: string, key: string, mode: KeyMode): void {
   const k = KEY_PREFIX + source;
   if (key) mem.set(source, key);
   else mem.delete(source);
@@ -217,6 +265,6 @@ export function writeKey(source: AiSource, key: string, mode: KeyMode): void {
   }
 }
 
-export function forgetKey(source: AiSource): void {
+export function forgetKey(source: string): void {
   writeKey(source, '', 'memory');
 }

@@ -1,5 +1,31 @@
 [
   {
+    "version": "0.3.5",
+    "date": "2026-11-27",
+    "notes": {
+      "zh-CN": [
+        "AI 模型设置支持多渠道多模型：可以保存多个服务（比如两家中转），每个渠道各自的地址和 Key，下面挂多个模型；顶部「我的模型」列表能按名字筛选，点一下就切换",
+        "模型设置更简洁：工具模式和上下文模式不再需要手选（自动判断），渠道配好后自动收起，高级设置只留价格、超预算处理和决策间隔",
+        "升级后原来的模型设置自动变成渠道，保存的 Key 继续可用"
+      ],
+      "zh-TW": [
+        "AI 模型設定支援多管道多模型：可以儲存多個服務（例如兩家中轉），每個管道各自的位址和 Key，下面掛多個模型；頂部「我的模型」清單能按名稱篩選，點一下就切換",
+        "模型設定更簡潔：工具模式和上下文模式不再需要手選（自動判斷），管道設定好後自動收起，進階設定只留價格、超預算處理和決策間隔",
+        "升級後原本的模型設定自動變成管道，儲存的 Key 繼續可用"
+      ],
+      "en": [
+        "AI model settings now support multiple channels and models: save several services (for example two relays), each with its own address and key and several models, and switch with one click from a filterable \"My models\" list",
+        "Simpler model settings: tool mode and context mode are chosen automatically, channel settings fold away once configured, and advanced settings only hold price, over-budget handling and decision interval",
+        "Your existing model settings become channels automatically and saved keys keep working"
+      ],
+      "ja": [
+        "AI モデル設定が複数チャンネル・複数モデルに対応しました。複数のサービス（例：2 つの中継サービス）をそれぞれのアドレスとキーで保存し、各チャンネルに複数のモデルを登録できます。上部の「マイモデル」一覧で名前を絞り込み、ワンクリックで切り替えられます",
+        "モデル設定をシンプルにしました。ツールモードとコンテキストモードは自動で決まり、チャンネル設定は設定後に折りたたまれ、詳細設定は価格・予算超過時の動作・判断間隔だけになりました",
+        "既存のモデル設定は自動でチャンネルに変換され、保存したキーもそのまま使えます"
+      ]
+    }
+  },
+  {
     "version": "0.3.4",
     "date": "2026-11-26",
     "notes": {

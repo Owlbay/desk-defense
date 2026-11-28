@@ -20,7 +20,7 @@ import {
 import { t, tOr } from '../../i18n';
 import type { BridgeConn } from './bridge-state';
 import type { AiRole } from './launch';
-import { type AiSetupSaved, type AiSource, type PerSource, readKey } from './store';
+import { type AiChannel, type AiSetupSaved, type AiSource, loadChannels, type PerSource, readKey, saveChannels } from './store';
 
 export const SOURCE_ORDER: AiSource[] = [
   'demo',
@@ -136,7 +136,7 @@ export function buildModelConfig(st: AiSetupSaved, o: BuildOpts): Partial<AgentM
   }
   const s = st.source;
   if (s === 'demo') return { ...common, provider: 'scripted', model: 'scripted-v1' };
-  const key = readKey(s).trim();
+  const key = readKey(keyIdOf(st)).trim();
   if (s === 'claude')
     return { ...common, provider: 'claude-native', model: modelOf(st, s).trim(), browser: true, ...(key ? { apiKey: key } : {}) };
   if (s === 'relay') {
@@ -177,7 +177,7 @@ export function modelConfigErrors(st: AiSetupSaved, cfg: Partial<AgentModelConfi
   const drop = new Set<string>();
   const s = st.source;
   const extra: string[] = [];
-  if (s !== 'demo' && !isLocal(s) && s !== 'custom' && !readKey(s).trim()) extra.push(t('agent.setup.err.needKey'));
+  if (s !== 'demo' && !isLocal(s) && s !== 'custom' && !readKey(keyIdOf(st)).trim()) extra.push(t('agent.setup.err.needKey'));
   if (s === 'relay') {
     const raw = baseUrlOf(st, s).trim();
     drop.add('badUrl');
@@ -197,4 +197,82 @@ export function sourceLabelOf(st: AiSetupSaved, bridge: BridgeConn | null | unde
   const s = st.source;
   if (s === 'demo') return t('agent.setup.label.demo');
   return `${s === 'claude' ? 'Claude' : presetLabel(s).replace(/\s*[（(].*[）)]/, '')} · ${modelOf(st, s) || t('agent.setup.label.noModel')}`;
+}
+
+// ───────────── 渠道（多渠道多模型） ─────────────
+
+/** 当前渠道：st.channel 指向的、来源与当前来源一致的那个（玩家在编辑器里改了服务商类型时也会同步过去） */
+export function activeChannel(st: AiSetupSaved, list: readonly AiChannel[] = loadChannels()): AiChannel | undefined {
+  const c = st.channel ? list.find((x) => x.id === st.channel) : undefined;
+  return c && c.source === st.source ? c : undefined;
+}
+
+/** 当前 Key 的存放键：有渠道用渠道 id，否则用来源名（旧设置） */
+export const keyIdOf = (st: AiSetupSaved, list?: readonly AiChannel[]): string => activeChannel(st, list)?.id ?? st.source;
+
+/** 渠道显示名：玩家起的名字 > 服务商名（中转再带上域名） */
+export function channelLabel(c: AiChannel): string {
+  if (c.name.trim()) return c.name.trim();
+  const base = c.source === 'claude' ? 'Claude' : presetLabel(c.source).replace(/\s*[（(].*[）)]/, '');
+  const host = c.source === 'relay' ? parseRelayUrl(c.per.baseUrl ?? '')?.origin.replace(/^https?:\/\//, '') : undefined;
+  return host ? `${base} · ${host}` : base;
+}
+
+/** 新渠道的 id：来源名没被占用就用它，否则加序号 */
+export function newChannelId(list: readonly AiChannel[], source: AiSource): string {
+  if (!list.some((c) => c.id === source)) return source;
+  let n = 2;
+  while (list.some((c) => c.id === `${source}-${n}`)) n++;
+  return `${source}-${n}`;
+}
+
+/**
+ * 第一次用渠道：把旧的「按来源」设置（每个来源一个地址 + 模型）迁移成渠道，id = 来源名（Key 不用搬）。
+ * 当前来源没有对应渠道时也建一个。返回（可能新建的）列表，并把 st.channel 指到当前来源的渠道。
+ */
+export function ensureChannels(st: AiSetupSaved): AiChannel[] {
+  const list = loadChannels();
+  let dirty = false;
+  if (!list.length) {
+    for (const s of SOURCE_ORDER) {
+      if (s === 'demo') continue;
+      const p = st.per[s];
+      if (!p || (!p.model && !p.baseUrl)) continue;
+      const { model, ...per } = p;
+      list.push({ id: s, name: '', source: s, per, models: model ? [model] : [] });
+      dirty = true;
+    }
+  }
+  if (st.source !== 'demo' && !activeChannel(st, list)) {
+    const c = list.find((x) => x.id === st.source && x.source === st.source);
+    if (c) st.channel = c.id;
+    else {
+      const { model, ...per } = perOf(st);
+      const src = st.source;
+      list.push({ id: newChannelId(list, src), name: '', source: src, per, models: model ? [model] : [] });
+      st.channel = list[list.length - 1].id;
+      dirty = true;
+    }
+  }
+  if (dirty) saveChannels(list);
+  return list;
+}
+
+/** 选用某个渠道的某个模型（编辑器的缓冲区 st.per[source] 换成这个渠道的地址 / 接口） */
+export function useChannel(st: AiSetupSaved, c: AiChannel, model?: string): void {
+  st.tab = 'direct';
+  st.channel = c.id;
+  st.source = c.source;
+  st.per[c.source] = { ...c.per, model: model ?? c.models[0] ?? modelOf({ ...st, per: {} }, c.source) };
+}
+
+/** 编辑器里的改动写回当前渠道（地址 / 接口 / 检测结果；用过的模型加进收藏） */
+export function syncChannel(st: AiSetupSaved, list: AiChannel[]): void {
+  const c = activeChannel(st, list);
+  if (!c) return;
+  const { model, ...per } = perOf(st);
+  c.per = per;
+  const m = model?.trim();
+  if (m && !c.models.includes(m)) c.models.push(m);
+  saveChannels(list);
 }

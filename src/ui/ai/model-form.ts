@@ -14,7 +14,6 @@ import {
   claudeThinkingPlan,
   connectBridge,
   type ConnectionDiagnostics,
-  CONTEXT_MODE_LABEL,
   CONTEXT_MODES,
   type ContextMode,
   detectRelayApi,
@@ -53,14 +52,19 @@ import { type BridgeConn, bridgeProvider, getBridge, setBridge } from './bridge-
 import { fmtCost } from './format';
 import type { AiRole } from './launch';
 import {
+  activeChannel,
   apiOf,
   baseUrlOf,
   buildModelConfig,
+  channelLabel,
+  ensureChannels,
   isLocal,
   isPreset,
+  keyIdOf,
   modelConfigErrors,
   modelKey,
   modelOf,
+  newChannelId,
   perOf,
   presetLabel,
   priceOverrideOf,
@@ -72,10 +76,25 @@ import {
   setThinkingFor,
   SOURCE_ORDER,
   sourceLabelOf,
+  syncChannel,
   thinkingOf,
+  useChannel,
 } from './model-config';
 import { bridgeCommands, detectOs, localGuides, networkNotes, OS_NAME, type OsId, type SetupStep } from './snippets';
-import { type AiSetupSaved, type AiSource, forgetKey, type KeyMode, keyModeOf, loadSetup, readKey, saveSetup, writeKey } from './store';
+import {
+  type AiChannel,
+  type AiSetupSaved,
+  type AiSource,
+  forgetKey,
+  type KeyMode,
+  keyModeOf,
+  loadChannels,
+  loadSetup,
+  readKey,
+  saveChannels,
+  saveSetup,
+  writeKey,
+} from './store';
 
 /** 服务商预设的说明：src/agent 里是中文，这里按 id 取本地化文字（没有翻译时用原文） */
 const presetNotes = (s: Preset): string | undefined =>
@@ -98,8 +117,6 @@ const API_LABEL = (a: PiApi): string =>
         : 'Google Generative AI';
 const API_IDS: PiApi[] = ['anthropic-messages', 'openai-completions', 'openai-responses', 'google-generative-ai'];
 const thinkingLabel = (l: ThinkingLevel): string => tOr(`agent.setup.thinking.${l}`, THINKING_LABEL[l]);
-const ctxLabel = (m: ContextMode): string => tOr(`agent.setup.ctx.${m}`, CONTEXT_MODE_LABEL[m]);
-const ctxDesc = (m: ContextMode): string => tOr(`agent.setup.ctxDesc.${m}`, CONTEXT_MODES[m].desc);
 const familyLabel = (f: keyof typeof FAMILY_LABEL): string => tOr(`agent.setup.family.${f}`, FAMILY_LABEL[f]);
 /** 每百万 token 的单价：$0.3 / $1.25 / $15 */
 const fmtUsd = (n: number): string => `$${n >= 100 ? Math.round(n) : Number(n.toPrecision(3))}`;
@@ -256,7 +273,15 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
   };
   if (st.tab === 'direct' && !SOURCE_ORDER.includes(st.source)) st.source = 'demo';
 
-  const persist = (): void => (o.save ?? saveSetup)(st);
+  /** 渠道列表（与另一份设置共用，例如 AI 对战的进攻方：每次用前重新读） */
+  let channels = ensureChannels(st);
+  /** 渠道设置是否展开（重画时保持） */
+  let editorOpen = !activeChannel(st, channels)?.models.length && st.source !== 'demo';
+  const persist = (): void => {
+    channels = loadChannels();
+    syncChannel(st, channels);
+    (o.save ?? saveSetup)(st);
+  };
 
   // ───────────── 模型：直连 ─────────────
   const tabBox = h('div.lb-mode-tabs.ai-tabs', { attrs: { role: 'tablist', 'aria-label': t('agent.setup.tabsAria') } });
@@ -364,8 +389,10 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
                 attrs: { type: 'button' },
                 onclick: () => {
                   audio.play('click');
-                  const g = directBox.querySelector<HTMLDetailsElement>('details.ai-guide');
+                  const g = directBox.querySelector<HTMLDetailsElement>('details.ai-guide:not(.ai-ch-editor)');
                   if (g) {
+                    const ed = g.closest<HTMLDetailsElement>('details.ai-ch-editor');
+                    if (ed) ed.open = editorOpen = true;
                     g.open = true;
                     g.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
                   }
@@ -413,39 +440,8 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
     );
   }
 
-  const toolSeg = segs(
-    [
-      ['native', t('agent.setup.tool.native'), t('agent.setup.tool.nativeHint')],
-      ['json', t('agent.setup.tool.json'), t('agent.setup.tool.jsonHint')],
-    ] as const,
-    () => st.toolMode,
-    (v) => ((st.toolMode = v), persist()),
-    t('agent.setup.tool.label'),
-    '.two',
-  );
-  // 上下文模式：自动 / 省流 / 均衡 / 完整（估算按离线 token 模型，思考等级 低）
-  const ctxHint = h('small.muted');
+  // 工具模式（测试连接自动判断）与上下文模式（自动：本机 省流、其他 均衡；预算分级自动收紧）不再让玩家选
   const autoCtx = (): ContextMode => (isLocal(st.source) ? 'saver' : 'balanced');
-  const paintCtxHint = (): void => {
-    const m = st.contextMode === 'auto' ? autoCtx() : st.contextMode;
-    const sp = CONTEXT_MODES[m];
-    setText(
-      ctxHint,
-      `${st.contextMode === 'auto' ? t('agent.setup.ctx.autoArrow', { mode: ctxLabel(m) }) : ''}${t('agent.setup.ctx.estimate', { n: fmtNum(sp.estTokensPerWave) })}${ctxDesc(m)}`,
-    );
-  };
-  const ctxSeg = segs(
-    [
-      ['auto', t('agent.setup.auto'), t('agent.setup.ctx.autoHint')],
-      ['saver', ctxLabel('saver'), ctxDesc('saver')],
-      ['balanced', ctxLabel('balanced'), ctxDesc('balanced')],
-      ['full', ctxLabel('full'), ctxDesc('full')],
-    ] as const,
-    () => st.contextMode,
-    (v) => ((st.contextMode = v), persist(), paintCtxHint(), paintPrice()),
-    t('agent.setup.ctx.label'),
-  );
-  paintCtxHint();
   const decisionSeg = segs(
     [
       ['pause', t('agent.setup.decision.pause'), t('agent.setup.decision.pauseHint')],
@@ -497,7 +493,8 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
     );
     for (const e of opts) thinkingSel.appendChild(h('option', { attrs: { value: e, selected: e === sel } }, thinkingLabel(e)));
     const lv = sel === 'auto' ? auto : sel;
-    setText(thinkingHint, [supportNote(), thinkingNote(lv), t('agent.mi.think.perModel')].filter(Boolean).join(' '));
+    // 只说这个模型支持哪些档位；查不到模型时才补一句这一档的作用（协议细节不展示）
+    setText(thinkingHint, supportNote() && lookupModel(curModel()) ? supportNote() : thinkingNote(lv));
   };
   thinkingSel.onchange = () => {
     setThinkingFor(st, thinkingSel.value as ThinkingLevel | 'auto');
@@ -617,26 +614,197 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
     (v) => (st.budgetUsd = v),
   );
 
+  /** 全部重画（换了渠道 / 模型） */
+  const refreshAll = (): void => {
+    modelChanged();
+    paintDirect();
+    paintDiag();
+    changed();
+    paintErrors();
+  };
+  let pickerQuery = '';
+  let pickerSlot: HTMLElement | null = null;
+  /** 只重画「我的模型」列表（编辑器里填了新模型：不动编辑器，免得丢焦点） */
+  const repaintPicker = (): void => {
+    if (!pickerSlot?.isConnected) return;
+    channels = loadChannels();
+    const n = modelPicker();
+    pickerSlot.replaceWith(n);
+    pickerSlot = n;
+  };
+  /**
+   * 「我的模型」：所有渠道收藏的模型 + 离线演示，按渠道分组，输入框按渠道名 / 模型名筛选，点一下就切过去。
+   * 新模型：在渠道设置里填模型名（或从列表里选）就会自动收藏到这个渠道。
+   */
+  const modelPicker = (): HTMLElement => {
+    const listEl = h('div.ai-pick-list', { attrs: { role: 'listbox', 'aria-label': t('agent.ch.title') } });
+    const row = (label: string, on: boolean, pick: () => void, extra?: HTMLElement | null, sub?: string): HTMLElement =>
+      h(
+        `div.ai-pick-row${on ? '.on' : ''}`,
+        null,
+        h(
+          'button.ai-pick-btn',
+          {
+            attrs: { type: 'button', role: 'option', 'aria-selected': on ? 'true' : 'false' },
+            onclick: () => {
+              audio.play('click');
+              pick();
+            },
+          },
+          h('span.ai-pick-name', null, label),
+          sub ? h('small.muted', null, sub) : null,
+        ),
+        extra ?? null,
+      );
+    const smallBtn = (title: string, icon: string, on: () => void): HTMLElement =>
+      h(
+        'button.ai-pick-x',
+        {
+          attrs: { type: 'button', title, 'aria-label': title },
+          onclick: (e: MouseEvent) => {
+            e.stopPropagation();
+            audio.play('click');
+            on();
+          },
+        },
+        h('span.gi', { html: icon }),
+      );
+    const textBtn = (label: string, on: () => void): HTMLElement =>
+      h(
+        'button.ai-pick-del',
+        {
+          attrs: { type: 'button' },
+          onclick: () => {
+            audio.play('click');
+            on();
+          },
+        },
+        label,
+      );
+    const paintList = (): void => {
+      clear(listEl);
+      const q = pickerQuery.trim().toLowerCase();
+      const hit = (...xs: string[]): boolean => !q || xs.join(' ').toLowerCase().includes(q);
+      let n = 0;
+      if (hit(t('agent.ch.demo'), 'demo')) {
+        n++;
+        listEl.appendChild(
+          row(t('agent.ch.demo'), st.source === 'demo', () => {
+            st.source = 'demo';
+            st.tab = 'direct';
+            persist();
+            refreshAll();
+          }),
+        );
+      }
+      for (const c of channels) {
+        const name = channelLabel(c);
+        const models = c.models.filter((m) => hit(name, m));
+        if (q && !models.length && !hit(name)) continue;
+        const remove = textBtn(t('agent.ch.remove'), () => {
+          // 按需加载：App 模块会带上 Phaser（表单也在无 DOM 的测试里被引用）
+          void import('../App')
+            .then(({ confirmDialog }) =>
+              confirmDialog(app.root, {
+                title: t('agent.ch.removeTitle', { name }),
+                text: t('agent.ch.removeText'),
+                ok: t('agent.ch.remove'),
+                danger: true,
+              }),
+            )
+            .then((ok) => {
+              if (!ok) return;
+              const list = loadChannels().filter((x) => x.id !== c.id);
+              saveChannels(list);
+              forgetKey(c.id);
+              if (st.channel === c.id) {
+                st.channel = undefined;
+                const next = list[0];
+                if (next) useChannel(st, next);
+                else st.source = 'demo';
+              }
+              persist();
+              refreshAll();
+            });
+        });
+        listEl.appendChild(
+          h('div.ai-pick-group', null, h('b', null, name), h('small.muted', null, t('agent.ch.count', { n: c.models.length })), remove),
+        );
+        const active = st.source !== 'demo' && st.channel === c.id;
+        for (const m of q ? models : c.models) {
+          n++;
+          const p = priceOf(m);
+          const sub = p ? `${fmtUsd(p.in)} / ${fmtUsd(p.out)}` : undefined;
+          const drop = smallBtn(t('agent.ch.unpin'), G.close, () => {
+            const list = loadChannels();
+            const x = list.find((y) => y.id === c.id);
+            if (x) x.models = x.models.filter((y) => y !== m);
+            saveChannels(list);
+            channels = list;
+            paintList();
+          });
+          listEl.appendChild(
+            row(
+              m,
+              active && modelOf(st).trim() === m,
+              () => {
+                useChannel(st, c, m);
+                persist();
+                refreshAll();
+              },
+              drop,
+              sub,
+            ),
+          );
+        }
+        if (!c.models.length && !q) listEl.appendChild(h('p.muted.small.ai-pick-empty', null, t('agent.ch.noModels')));
+      }
+      if (!n && q) listEl.appendChild(h('p.muted.small.ai-pick-empty', null, t('agent.ch.noMatch')));
+    };
+    const filter = h<HTMLInputElement>('input.input.ai-pick-filter', {
+      attrs: {
+        type: 'search',
+        autocomplete: 'off',
+        spellcheck: 'false',
+        placeholder: t('agent.ch.filter'),
+        'aria-label': t('agent.ch.filter'),
+      },
+    });
+    filter.value = pickerQuery;
+    filter.addEventListener('input', () => {
+      pickerQuery = filter.value;
+      paintList();
+    });
+    const addBtn = h(
+      'button.btn.small',
+      {
+        attrs: { type: 'button' },
+        onclick: () => {
+          audio.play('click');
+          const list = loadChannels();
+          const c: AiChannel = { id: newChannelId(list, 'relay'), name: '', source: 'relay', per: {}, models: [] };
+          list.push(c);
+          saveChannels(list);
+          channels = list;
+          useChannel(st, c, '');
+          editorOpen = true;
+          pickerQuery = '';
+          persist();
+          refreshAll();
+        },
+      },
+      t('agent.ch.add'),
+    );
+    paintList();
+    return h('div.ai-picker', null, h('div.ai-inline', null, filter, addBtn), listEl, h('small.muted', null, t('agent.ch.hint')));
+  };
+
   const paintDirect = (): void => {
     clear(directBox);
+    channels = loadChannels();
+    pickerSlot = modelPicker();
+    directBox.appendChild(pickerSlot);
     const s = st.source;
-    const srcSel = h<HTMLSelectElement>('select.input', { attrs: { 'aria-label': t('agent.setup.service') } });
-    for (const o of SOURCE_ORDER) srcSel.appendChild(h('option', { attrs: { value: o, selected: o === s } }, SOURCE_LABEL(o)));
-    srcSel.onchange = () => {
-      st.source = srcSel.value as AiSource;
-      // 本机小模型：间隔拉长（文档 10 §10.6）
-      if (isLocal(st.source) && st.waveIntervalSec !== null) st.waveIntervalSec = Math.max(20, st.waveIntervalSec);
-      intervalInput.value = st.waveIntervalSec === null ? '' : String(st.waveIntervalSec);
-      persist();
-      modelChanged();
-      paintCtxHint();
-      paintDirect();
-      paintDiag();
-      changed();
-      paintErrors();
-    };
-    directBox.appendChild(field(t('agent.setup.service'), srcSel, isPreset(s) && s !== 'relay' ? presetNotes(s) : undefined));
-
     if (s === 'demo') {
       directBox.appendChild(
         h(
@@ -649,6 +817,65 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
       );
       return;
     }
+    // 渠道设置（服务商 / 地址 / Key / 模型 / 测试连接）：配好之后收起，只在新建或有问题时展开
+    const box = h('div.ai-guide-body');
+    const ch = activeChannel(st, channels);
+    const editor = h<HTMLDetailsElement>(
+      'details.ai-guide.ai-ch-editor',
+      null,
+      h('summary', null, h('span.gi', { html: G.sliders }), t('agent.ch.edit', { name: ch ? channelLabel(ch) : SOURCE_LABEL(s) })),
+      box,
+    );
+    editor.open = editorOpen || formErrors().length > 0;
+    editor.addEventListener('toggle', () => (editorOpen = editor.open));
+    directBox.appendChild(editor);
+    if (ch) {
+      const nameInput = h<HTMLInputElement>('input.input', {
+        attrs: {
+          type: 'text',
+          autocomplete: 'off',
+          maxlength: 40,
+          placeholder: channelLabel({ ...ch, name: '' }),
+          'aria-label': t('agent.ch.name'),
+        },
+      });
+      nameInput.value = ch.name;
+      nameInput.addEventListener('change', () => {
+        const list = loadChannels();
+        const c = list.find((x) => x.id === ch.id);
+        if (c) c.name = nameInput.value.trim();
+        saveChannels(list);
+        paintDirect();
+      });
+      box.appendChild(field(t('agent.ch.name'), nameInput));
+    }
+    const srcSel = h<HTMLSelectElement>('select.input', { attrs: { 'aria-label': t('agent.setup.service') } });
+    for (const o of SOURCE_ORDER)
+      if (o !== 'demo') srcSel.appendChild(h('option', { attrs: { value: o, selected: o === s } }, SOURCE_LABEL(o)));
+    srcSel.onchange = () => {
+      const next = srcSel.value as Exclude<AiSource, 'demo'>;
+      // 改的是当前渠道的服务商类型：渠道跟着改（地址清空、换成这个服务商的默认值）
+      const list = loadChannels();
+      const c = st.channel ? list.find((x) => x.id === st.channel) : undefined;
+      if (c) {
+        c.source = next;
+        c.per = {};
+        c.models = [];
+        saveChannels(list);
+        st.per[next] = {};
+      }
+      st.source = next;
+      // 本机小模型：间隔拉长（文档 10 §10.6）
+      if (isLocal(st.source) && st.waveIntervalSec !== null) st.waveIntervalSec = Math.max(20, st.waveIntervalSec);
+      intervalInput.value = st.waveIntervalSec === null ? '' : String(st.waveIntervalSec);
+      persist();
+      modelChanged();
+      paintDirect();
+      paintDiag();
+      changed();
+      paintErrors();
+    };
+    box.appendChild(field(t('agent.setup.service'), srcSel, isPreset(s) && s !== 'relay' ? presetNotes(s) : undefined));
 
     /** 中转服务：Key 的去向（随地址实时更新） */
     const keyDest = h('small.muted.ai-key-dest');
@@ -673,7 +900,7 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
           anthropic: ep('anthropic-messages'),
         });
       };
-      directBox.appendChild(
+      box.appendChild(
         h(
           'div.ai-note',
           null,
@@ -712,7 +939,7 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
         persist();
         relayChanged();
       });
-      directBox.appendChild(field(t('agent.setup.relay.url'), urlInput, urlHint));
+      box.appendChild(field(t('agent.setup.relay.url'), urlInput, urlHint));
 
       const apiSel = h<HTMLSelectElement>('select.input', { attrs: { 'aria-label': t('agent.setup.relay.api') } });
       apiSel.appendChild(h('option', { attrs: { value: 'auto', selected: relayMode(st) === 'auto' } }, t('agent.setup.relay.apiAuto')));
@@ -741,7 +968,7 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
         paintUrlHint();
         relayChanged();
       };
-      directBox.appendChild(field(t('agent.setup.relay.api'), apiSel, apiHint));
+      box.appendChild(field(t('agent.setup.relay.api'), apiSel, apiHint));
     } else if (isPreset(s)) {
       const apiSel = h<HTMLSelectElement>('select.input', { attrs: { 'aria-label': t('agent.setup.apiType') } });
       for (const a of API_IDS) apiSel.appendChild(h('option', { attrs: { value: a, selected: a === apiOf(st, s) } }, API_LABEL(a)));
@@ -750,7 +977,7 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
         perOf(st, s).api = apiSel.value as PiApi;
         persist();
       };
-      directBox.appendChild(field(t('agent.setup.apiType'), apiSel, s === 'custom' ? undefined : t('agent.setup.apiTypeAuto')));
+      box.appendChild(field(t('agent.setup.apiType'), apiSel, s === 'custom' ? undefined : t('agent.setup.apiTypeAuto')));
       const urlInput = h<HTMLInputElement>('input.input', {
         attrs: {
           type: 'url',
@@ -769,7 +996,7 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
         persist();
         paintErrors();
       });
-      directBox.appendChild(field('Base URL', urlInput));
+      box.appendChild(field('Base URL', urlInput));
     }
 
     // 模型 + 获取模型列表
@@ -794,6 +1021,7 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
     modelInput.addEventListener('change', () => {
       perOf(st, s).model = modelInput.value.trim();
       persist();
+      repaintPicker();
       if (s === 'relay') relayChanged();
       modelChanged();
       changed();
@@ -806,6 +1034,7 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
       modelInput.value = m;
       perOf(st, s).model = m;
       persist();
+      repaintPicker();
       relayChanged();
       modelChanged();
       paintPicker();
@@ -904,8 +1133,8 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
       h('span.gi', { html: G.refresh }),
       t('agent.setup.models.fetch'),
     );
-    directBox.appendChild(field(t('agent.setup.model'), h('div.ai-inline', null, modelInput, listBtn, dl), listMsg));
-    if (s === 'relay') directBox.appendChild(picker);
+    box.appendChild(field(t('agent.setup.model'), h('div.ai-inline', null, modelInput, listBtn, dl), listMsg));
+    if (s === 'relay') box.appendChild(picker);
 
     // Key
     const local = isLocal(s);
@@ -916,14 +1145,14 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
         spellcheck: 'false',
         placeholder: local ? t('agent.setup.key.localPlaceholder') : 'API Key',
         'aria-label': 'API Key',
-        name: `ai-key-${s}`,
+        name: `ai-key-${keyIdOf(st)}`,
       },
     });
-    keyInput.value = readKey(s);
+    keyInput.value = readKey(keyIdOf(st));
     if (s === 'relay') paintKeyDest();
-    st.keyMode = keyModeOf(s) ?? st.keyMode;
+    st.keyMode = keyModeOf(keyIdOf(st)) ?? st.keyMode;
     const saveKey = (): void => {
-      writeKey(s, keyInput.value.trim(), st.keyMode);
+      writeKey(keyIdOf(st), keyInput.value.trim(), st.keyMode);
       paintErrors();
     };
     keyInput.addEventListener('change', saveKey);
@@ -951,7 +1180,7 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
         attrs: { type: 'button' },
         onclick: () => {
           audio.play('click');
-          forgetKey(s);
+          forgetKey(keyIdOf(st));
           keyInput.value = '';
           app.toast(t('agent.setup.key.forgotten'), 'info');
           paintErrors();
@@ -959,7 +1188,7 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
       },
       t('agent.setup.key.forget'),
     );
-    directBox.appendChild(
+    box.appendChild(
       h(
         'div.ai-key',
         null,
@@ -1009,7 +1238,7 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
         guideBody.appendChild(h('p.muted.small', null, t('agent.setup.guide.mobile')));
       };
       paintGuide();
-      directBox.appendChild(
+      box.appendChild(
         h(
           'details.ai-guide',
           null,
@@ -1065,11 +1294,14 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
           testBtn.disabled = false;
           diag = { source: src, d };
           // 连得上但不会调用工具：自动建议 JSON 动作模式（文档 10 §17.9）
+          // 工具模式不让玩家选：连得上但不会调用工具 → JSON 动作；会调用工具 → 原生（文档 10 §17.9）
           if (d.reachable && !d.toolCalling && st.toolMode === 'native') {
             st.toolMode = 'json';
             persist();
-            toolSeg.paint();
             app.toast(t('agent.setup.toast.jsonRetry'), 'info');
+          } else if (d.toolCalling && st.toolMode === 'json') {
+            st.toolMode = 'native';
+            persist();
           }
           paintDiag();
           audio.play(d.ok ? 'select' : 'error');
@@ -1078,7 +1310,7 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
       h('span.gi', { html: G.bolt }),
       t('agent.setup.test'),
     );
-    directBox.appendChild(
+    box.appendChild(
       h(
         'div.ai-test-row',
         null,
@@ -1127,7 +1359,6 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
     if (!r.ok && r.api && st.toolMode === 'native') {
       st.toolMode = 'json';
       persist();
-      toolSeg.paint();
       app.toast(t('agent.setup.toast.json'), 'info');
     }
     paintDiag();
@@ -1314,12 +1545,7 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
       h('summary', null, h('span.gi', { html: G.list }), t('agent.mi.adv')),
       h('div.ai-guide-body', null, ...children),
     );
-  const modelAdv = advanced(
-    h('p.muted.small', null, t('agent.mi.advHint')),
-    field(t('agent.setup.tool.label'), toolSeg.el, t('agent.setup.tool.fieldHint')),
-    field(t('agent.setup.ctx.label'), ctxSeg.el, ctxHint),
-    field(t('agent.mi.price.label'), priceBox, priceHint),
-  );
+  const modelAdv = advanced(field(t('agent.mi.price.label'), priceBox, priceHint));
   modelChanged();
 
   const modelCard = h(
@@ -1342,10 +1568,12 @@ export function mountAiModelConfigForm(app: App, o: AiModelConfigFormOptions): A
       null,
       field(t('agent.setup.decision.label'), decisionSeg.el, o.perRole ? t('ui.assist.decisionHint') : t('agent.setup.decision.fieldHint')),
       field(t('agent.setup.budget.tokens'), tokenInput, t('agent.setup.budget.tokensHint')),
-      field(t('agent.setup.budget.over'), budgetModeSeg.el, t('agent.setup.budget.overHint')),
       field(t('agent.setup.budget.usd'), usdInput, t('agent.setup.budget.usdHint')),
     ),
-    advanced(field(t('agent.setup.interval.label'), intervalInput, t('agent.setup.interval.hint'))),
+    advanced(
+      field(t('agent.setup.budget.over'), budgetModeSeg.el, t('agent.setup.budget.overHint')),
+      field(t('agent.setup.interval.label'), intervalInput, t('agent.setup.interval.hint')),
+    ),
   );
   paintTabs();
   ready = true;
