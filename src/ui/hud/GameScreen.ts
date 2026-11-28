@@ -44,6 +44,8 @@ export interface SpectateScreen extends Screen {
   noteCommand(cmd: Command): void;
   /** 增益三选一：高亮回放里选中的那张卡（null 取消） */
   markPerk(id: string | null): void;
+  /** 回放跳转完成：清掉跳转前的提示 */
+  clearToasts(): void;
   /** 当前选中的塔（往前跳重建界面时保留选择） */
   readonly selected: number | null;
 }
@@ -906,6 +908,9 @@ function buildGame(app: App, opts: RunOptions, route: Extract<Route, { name: 'ga
     },
     markPerk(id: string | null): void {
       perkModal.mark(id);
+    },
+    clearToasts(): void {
+      overlay.clearToasts();
     },
     get selected(): number | null {
       return ui.state.selected;

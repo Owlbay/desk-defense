@@ -537,6 +537,7 @@ class Player {
     this.seekTask = null;
     this.seekTarget = null;
     this.hideSeeking();
+    this.screen?.clearToasts();
     this.session.setAutoPaused(this.hidden);
     this.session.togglePause(!this.resumeAfterSeek || this.driver.atEnd);
     if (this.driver.atEnd) this.showEnd(0);
@@ -548,6 +549,7 @@ class Player {
     this.seekTask = null;
     this.seekTarget = null;
     this.hideSeeking();
+    this.screen?.clearToasts();
     this.session.setAutoPaused(this.hidden);
     this.app.toast(t('ui.replay.seekFailed'), 'warn');
   }

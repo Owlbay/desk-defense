@@ -328,6 +328,11 @@ export class BoardOverlay {
     }
   }
 
+  /** 清掉还在显示的提示（回放跳转后，旧时间点的提示不该留在画面上） */
+  clearToasts(): void {
+    this.toastBox.replaceChildren();
+  }
+
   toast(text: string, tone: 'info' | 'warn' | 'good' = 'info'): void {
     const now = performance.now();
     const last = this.recent.get(text) ?? 0;
