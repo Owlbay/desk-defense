@@ -23,7 +23,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 10em;
+  max-width: 16em;
 }
 
 .online-bar {
@@ -106,16 +106,17 @@
 
 .olb-row .name {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 2px 6px;
   min-width: 0;
   font-weight: 700;
 }
 
+/* 昵称完整显示：放不下时徽标换到下一行，昵称本身太长再折行（不截断） */
 .olb-row .name > span:first-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .olb-row .score {
@@ -418,10 +419,6 @@
     row-gap: 2px;
   }
 
-  .lb-ai-badge .lb-ai-model {
-    display: none;
-  }
-
   .lb-hist-row {
     grid-template-columns: minmax(0, 1fr) auto;
   }
@@ -533,7 +530,7 @@
 }
 
 .lb-ai-model {
-  max-width: 9em;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;

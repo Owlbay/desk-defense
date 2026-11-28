@@ -1,5 +1,19 @@
 [
   {
+    "version": "0.3.7",
+    "date": "2026-11-28",
+    "notes": {
+      "zh-CN": ["昵称上限从 12 字加到 24 字，排行榜上昵称和 AI 模型名都完整显示（太长时换行，不再省略）"],
+      "zh-TW": ["暱稱上限從 12 字加到 24 字，排行榜上暱稱和 AI 模型名稱都完整顯示（太長時換行，不再省略）"],
+      "en": [
+        "Nicknames can now be up to 24 characters, and the leaderboard shows nicknames and AI model names in full (wrapping instead of truncating)"
+      ],
+      "ja": [
+        "ニックネームの上限を 12 文字から 24 文字に増やし、ランキングではニックネームと AI モデル名を省略せず表示します（長い場合は折り返し）"
+      ]
+    }
+  },
+  {
     "version": "0.3.6",
     "date": "2026-11-27",
     "notes": {

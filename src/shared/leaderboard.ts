@@ -35,7 +35,8 @@ export const LOG_MAX_ENTRIES = 20_000;
 /** 请求体上限（plain JSON 日志兜底时也够用） */
 export const MAX_BODY_BYTES = 320_000;
 export const NICK_MIN = 1;
-export const NICK_MAX = 12;
+/** 昵称上限（字）：AI 批量上传常用完整模型名当昵称（deepseek-v4-flash 17 字），给到 24 */
+export const NICK_MAX = 24;
 export const SEED_MAX = 64;
 /** 每个 IP / 每台设备：windowSec 内最多 max 次提交 */
 export const RATE_LIMIT = { max: 10, windowSec: 600 } as const;

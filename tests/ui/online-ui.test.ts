@@ -49,7 +49,8 @@ describe('online ui helpers', () => {
   it('nickname validation', () => {
     expect(nicknameError('')).not.toBeNull();
     expect(nicknameError('小明')).toBeNull();
-    expect(nicknameError('一二三四五六七八九十一二三')).not.toBeNull();
+    expect(nicknameError('一二三四五六七八九十'.repeat(2) + '一二三四五')).not.toBeNull();
+    expect(nicknameError('deepseek-v4-flash')).toBeNull();
   });
 
   it('feeder issues commands at their ticks', () => {

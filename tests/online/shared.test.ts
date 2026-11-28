@@ -200,8 +200,9 @@ describe('昵称', () => {
   it('清理控制字符与空白、限制长度', () => {
     expect(sanitizeNickname('  小\u0000明​  ')).toEqual({ ok: true, value: '小明' });
     expect(sanitizeNickname('Ａｂｃ')).toEqual({ ok: true, value: 'Abc' });
-    expect(sanitizeNickname('一二三四五六七八九十一二').ok).toBe(true);
-    expect(sanitizeNickname('一二三四五六七八九十一二三').ok).toBe(false);
+    expect(sanitizeNickname('一二三四五六七八九十'.repeat(2) + '一二三四').ok).toBe(true); // 24 字
+    expect(sanitizeNickname('一二三四五六七八九十'.repeat(2) + '一二三四五').ok).toBe(false);
+    expect(sanitizeNickname('deepseek-v4-flash').ok).toBe(true);
     expect(sanitizeNickname('   ').ok).toBe(false);
     expect(sanitizeNickname(42).ok).toBe(false);
   });
