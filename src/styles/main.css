@@ -2315,9 +2315,10 @@ textarea.input.code {
 }
 
 /* 快捷行：再放一个 + 换成…（都在信息卡内，不盖棋盘） */
+/* 「再放一个」收成图标按钮（文字在提示里），和「换成…」同一行，免得换塔一排被挤到信息栏的折叠线下面 */
 .quick-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 6px 8px;
   min-width: 0;
@@ -2338,6 +2339,10 @@ textarea.input.code {
   font-weight: 800;
 }
 
+.quick-again .qa-text {
+  display: none;
+}
+
 .quick-again .gi {
   width: 14px;
   height: 14px;
@@ -2347,7 +2352,7 @@ textarea.input.code {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex: 1 1 180px;
+  flex: 1 1 0;
   min-width: 0;
 }
 
