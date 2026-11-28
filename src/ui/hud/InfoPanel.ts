@@ -1,4 +1,4 @@
-import type { BuildOption, SpawnerState, TargetMode, TowerInfo, WorldState } from '../../core/types';
+import type { BuildOption, SpawnerState, TargetMode, TowerId, TowerInfo, WorldState } from '../../core/types';
 import { ui } from '../../game/UiStore';
 import { getLocale, t } from '../../i18n';
 import { abilityIcon, enemyIcon, svgUrl, towerIcon } from '../assets';
@@ -7,8 +7,9 @@ import { ENEMY_META, SKILL_META, spawnerName } from '../coreMeta';
 import { fmtNum, h, img, setText, toggle } from '../dom';
 import { G } from '../icons';
 import { ABILITY_TARGET_TEXT, castTowerAbility } from './abilities';
-import { fmtSec, type GameCtx, TARGET_NAME } from './context';
+import { BUILD_KEYS, fmtSec, type GameCtx, TARGET_NAME } from './context';
 import { reduced, replay, sparkle } from './motion';
+import { executeSwap, planSwap } from './swap';
 
 interface AbilityRefs {
   card: HTMLElement;
@@ -21,6 +22,20 @@ interface AbilityRefs {
   charged: boolean;
   lastPct: number;
   wasReady: boolean | null;
+}
+
+interface SwapChip {
+  el: HTMLButtonElement;
+  price: HTMLElement;
+  name: string;
+}
+
+/** 「再放一个 / 换成…」快捷行 */
+interface QuickRefs {
+  row: HTMLElement;
+  again: HTMLButtonElement;
+  label: HTMLElement;
+  chips: Map<TowerId, SwapChip>;
 }
 
 interface TowerRefs {
@@ -44,6 +59,7 @@ interface TowerRefs {
   sellSub: HTMLElement;
   record: HTMLElement;
   ability: AbilityRefs | null;
+  quick: QuickRefs;
 }
 
 interface SpawnerRefs {
@@ -67,6 +83,10 @@ export class InfoPanel {
   private mode = '';
   private info: TowerInfo | null = null;
   private sellArmed = 0;
+  /** 换塔两步确认：第一次点（或 Shift+数字）预览净花费，期限内再点同一个执行 */
+  private swapArmed: { uid: number; to: TowerId; until: number } | null = null;
+  /** 「再放一个」：交给塔栏选中同种塔（GameScreen 注入，沿用塔栏的解锁 / 上限提示） */
+  onBuild: (id: TowerId) => void = (id) => ui.set({ build: id, selected: null, aiming: null, relocateFrom: null, pending: null });
   /** 当前显示内容的「身份」：变了才播放切换动画（同一座塔升级重建不算） */
   private ident = '';
   /** 最近一次花钱升级 / 进化成功的时间（用来区分经验升级） */
@@ -418,7 +438,7 @@ export class InfoPanel {
     const upDisc = h('span.disc');
     const upBtn = h<HTMLButtonElement>(
       'button.btn.act.upgrade',
-      { onclick: () => this.upgrade() },
+      { title: t('ui.quick.upgradeTitle'), onclick: () => this.upgrade() },
       h('span.gi', { html: legend ? G.star : G.up }),
       h('span.act-text', null, upLabel, upPrice),
       upDisc,
@@ -432,6 +452,7 @@ export class InfoPanel {
       h('span.act-text', null, sellLabel, sellSub),
     );
     const record = h('span.muted.small');
+    const quick = this.buildQuick(i);
 
     const traitList = (list: TowerInfo['traits'], evo: boolean) =>
       list.length > 0
@@ -537,6 +558,7 @@ export class InfoPanel {
         ),
       ),
       h('div.actions', null, upBtn, sellBtn),
+      quick.row,
       abilityCard,
       modeRow,
       h(
@@ -606,7 +628,77 @@ export class InfoPanel {
       sellSub,
       record,
       ability,
+      quick,
     };
+  }
+
+  /** 快捷行：再放一个同种塔 + 换成其他塔（图标 + 净花费；买不起 / 未解锁置灰） */
+  private buildQuick(i: TowerInfo): QuickRefs {
+    const again = h<HTMLButtonElement>(
+      'button.quick-again',
+      {
+        title: t('ui.quick.againTitle', { name: i.name }),
+        attrs: { 'aria-label': t('ui.quick.againTitle', { name: i.name }) },
+        onclick: () => this.placeAgain(),
+      },
+      h('span.gi', { html: G.refresh }),
+      h('span.qa-text', null, t('ui.quick.again')),
+      h('kbd.key-hint.inline', null, 'B'),
+    );
+    const label = h('span.quick-label', { title: t('ui.quick.swapHint') }, t('ui.quick.swap'));
+    const chips = new Map<TowerId, SwapChip>();
+    const list = h('div.swap-list', { attrs: { role: 'group', 'aria-label': t('ui.quick.swapList') } });
+    this.ctx.world.getBuildOptions().forEach((o, k) => {
+      if (o.id === i.id) return;
+      const price = h('span.sw-price');
+      const el = h<HTMLButtonElement>(
+        'button.swap-chip',
+        { attrs: { 'data-key': BUILD_KEYS[k] ?? '' }, onclick: () => this.swapTo(o.id) },
+        img(towerIcon(o.id), 'ico'),
+        price,
+        h('span.sw-lock.gi', { html: G.lock }),
+      );
+      chips.set(o.id, { el, price, name: o.name });
+      list.appendChild(el);
+    });
+    const row = h('div.quick-row', null, again, h('div.quick-swap', null, label, list));
+    return { row, again, label, chips };
+  }
+
+  private applyQuick(i: TowerInfo, opts: BuildOption[]): void {
+    const q = this.refs?.quick;
+    if (!q) return;
+    const inspect = ui.state.inspectOnly;
+    q.row.hidden = inspect;
+    if (inspect) return;
+    const now = performance.now();
+    const armed = this.swapArmed && this.swapArmed.uid === i.uid && this.swapArmed.until > now ? this.swapArmed : null;
+    if (!armed) this.swapArmed = null;
+    setText(q.label, armed ? t('ui.quick.swapArmed') : t('ui.quick.swap'));
+    toggle(q.label, 'armed', !!armed);
+    for (const [id, c] of q.chips) {
+      const opt = opts.find((o) => o.id === id);
+      const plan = planSwap(this.ctx.world, i.uid, id, opts, i);
+      const locked = !opt?.unlocked;
+      const net = plan.net;
+      setText(c.price, locked ? '' : net > 0 ? fmtNum(net) : `+${fmtNum(-net)}`);
+      toggle(c.price, 'gain', net <= 0);
+      toggle(c.el, 'locked', locked);
+      toggle(c.el, 'poor', !locked && !plan.ok);
+      toggle(c.el, 'armed', armed?.to === id);
+      c.el.setAttribute('aria-disabled', plan.ok ? 'false' : 'true');
+      const what = locked
+        ? t('ui.quick.swapLocked', { name: c.name })
+        : net > 0
+          ? t('ui.quick.swapPay', { name: c.name, cost: fmtNum(plan.cost), refund: fmtNum(plan.refund), n: fmtNum(net) })
+          : t('ui.quick.swapGain', { name: c.name, cost: fmtNum(plan.cost), refund: fmtNum(plan.refund), n: fmtNum(-net) });
+      const key = c.el.dataset.key;
+      const title = key ? `${what}\n${t('ui.quick.swapKey', { key })}` : what;
+      if (c.el.title !== title) {
+        c.el.title = title;
+        c.el.setAttribute('aria-label', what);
+      }
+    }
   }
 
   private applyTower(i: TowerInfo): void {
@@ -705,6 +797,9 @@ export class InfoPanel {
     }
     toggle(r.sellBtn, 'undo', i.canUndo);
     toggle(r.sellBtn, 'armed', armed && !i.canUndo);
+    const sellTitle = t('ui.quick.sellTitle', { n: fmtNum(i.sellValue) });
+    if (r.sellBtn.title !== sellTitle) r.sellBtn.title = sellTitle;
+    this.applyQuick(i, this.ctx.world.getBuildOptions());
     setText(r.record, t('ui.info.record', { kills: fmtNum(i.kills), dmg: fmtNum(i.damage) }));
   }
 
@@ -735,6 +830,59 @@ export class InfoPanel {
     if (this.ctx.cmd({ type: 'upgrade', uid: i.uid }).ok) this.paidAt = performance.now();
   }
 
+  /** B：再放一个同种塔（塔栏选中该塔，可连续放置） */
+  placeAgain(): void {
+    const i = this.info;
+    if (!i || ui.state.inspectOnly) return;
+    this.onBuild(i.id);
+  }
+
+  /** Shift + 塔栏快捷键：换成塔栏第 k 个塔 */
+  swapIndex(k: number): void {
+    const id = this.ctx.world.getBuildOptions()[k]?.id;
+    if (id) this.swapTo(id);
+  }
+
+  /** 换塔：第一次预览净花费，再点一次执行（出售 + 原地放置两条普通指令） */
+  swapTo(to: TowerId): void {
+    const i = this.info;
+    if (!i || ui.state.inspectOnly) return;
+    const world = this.ctx.world;
+    const plan = planSwap(world, i.uid, to, world.getBuildOptions(), i);
+    const name = world.getBuildOptions().find((o) => o.id === to)?.name ?? to;
+    if (!plan.ok) {
+      audio.play('error');
+      this.swapArmed = null;
+      const code = plan.code ?? '';
+      const msg =
+        code === 'same'
+          ? t('ui.quick.same')
+          : code === 'locked'
+            ? t('ui.quick.swapLocked', { name })
+            : t(`core.reason.${code}`, plan.params);
+      this.ctx.toast(msg, 'warn');
+      this.applyTower(i);
+      return;
+    }
+    const now = performance.now();
+    const a = this.swapArmed;
+    if (!a || a.uid !== i.uid || a.to !== to || a.until <= now) {
+      audio.play('click');
+      this.swapArmed = { uid: i.uid, to, until: now + 3000 };
+      this.applyTower(i);
+      return;
+    }
+    this.swapArmed = null;
+    const r = executeSwap(world, (c) => this.ctx.cmd(c), i.uid, to);
+    if (r.ok && r.uid) {
+      ui.set({ selected: r.uid });
+      this.ctx.toast(t('ui.quick.swapDone', { name }), 'good');
+    } else if (r.sold) {
+      ui.set({ selected: null });
+      this.ctx.toast(t('ui.quick.swapLost', { name, reason: r.fail?.reason ?? '' }), 'warn');
+    }
+  }
+
   /** A：释放选中神话塔的能力 */
   castAbility(): void {
     const i = this.info;
@@ -742,11 +890,12 @@ export class InfoPanel {
     castTowerAbility(this.ctx, i.uid, i);
   }
 
-  /** immediate：键盘 S 直接出售 */
+  /** 一点即卖（按钮上已写明退款）；只有传奇 / 神话这种大投入的塔要再点一次确认。immediate：键盘 S / Delete 直接出售 */
   sell(immediate: boolean): void {
     const i = this.info;
     if (!i) return;
-    if (!immediate && !i.canUndo && this.sellArmed <= performance.now()) {
+    const precious = i.id !== 'wall' && i.level >= i.maxLevel;
+    if (!immediate && precious && !i.canUndo && this.sellArmed <= performance.now()) {
       audio.play('click');
       this.sellArmed = performance.now() + 2500;
       this.applyTower(i);
