@@ -140,6 +140,7 @@ The design docs and the player guide are written in Chinese. The [docs/](docs/) 
 
 ## Feedback
 
+- **In-game feedback**: tap "Feedback" at the bottom of the main menu or in Settings, write a few words and send; the version and screen info are attached automatically.
 - **Bugs and ideas**: [open an issue](https://github.com/Owlbay/desk-defense/issues). Please include the seed (copy it from the pause menu), the difficulty and your browser. Scores carry replays, so issues are quick to reproduce.
 - **Discussion and high scores**: post on [LINUX DO](https://linux.do/). Tell us how many waves your model survived and which core strategy works best.
 - **Errors while an AI plays**: a screenshot or the error copied from the side panel is enough. **Remove your API key from screenshots and logs first.**

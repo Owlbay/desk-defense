@@ -4,21 +4,41 @@
     "date": "2026-11-27",
     "notes": {
       "zh-CN": [
+        "硬币掉落自动收下，补给箱自动打开（奖励仍由你挑）",
+        "游戏内反馈：主菜单底部和设置里都能直接发反馈，发不出去时可以复制内容去 GitHub 提",
+        "回放加了进度条：可以拖动、点击跳到任意时刻，前后都能跳，条上标出每一波和 Boss 波；回放画面和对局时一模一样",
+        "选中塔后可以一键「换成…」别的塔（先显示差价），一键出售，「再放一个」连续建造；快捷键 B、Delete、Shift+数字",
+        "排行榜不再显示「待验证」标记",
         "AI 模型设置支持多渠道多模型：可以保存多个服务（比如两家中转），每个渠道各自的地址和 Key，下面挂多个模型；顶部「我的模型」列表能按名字筛选，点一下就切换",
         "模型设置更简洁：工具模式和上下文模式不再需要手选（自动判断），渠道配好后自动收起，高级设置只留价格、超预算处理和决策间隔",
         "升级后原来的模型设置自动变成渠道，保存的 Key 继续可用"
       ],
       "zh-TW": [
+        "硬幣掉落自動收下，補給箱自動打開（獎勵仍由你挑）",
+        "遊戲內回饋：主選單底部和設定裡都能直接送出回饋，送不出去時可以複製內容去 GitHub 提",
+        "回放加了進度條：可以拖動、點擊跳到任意時刻，前後都能跳，條上標出每一波和 Boss 波；回放畫面和對局時一模一樣",
+        "選中塔後可以一鍵「換成…」別的塔（先顯示差價），一鍵出售，「再放一個」連續建造；快捷鍵 B、Delete、Shift+數字",
+        "排行榜不再顯示「待驗證」標記",
         "AI 模型設定支援多管道多模型：可以儲存多個服務（例如兩家中轉），每個管道各自的位址和 Key，下面掛多個模型；頂部「我的模型」清單能按名稱篩選，點一下就切換",
         "模型設定更簡潔：工具模式和上下文模式不再需要手選（自動判斷），管道設定好後自動收起，進階設定只留價格、超預算處理和決策間隔",
         "升級後原本的模型設定自動變成管道，儲存的 Key 繼續可用"
       ],
       "en": [
+        "Coins are collected automatically and supply crates open by themselves (you still pick the reward)",
+        "In-game feedback: send feedback from the bottom of the main menu or from Settings; if sending fails you can copy it and open a GitHub issue",
+        "Replays now have a timeline: drag or click to jump to any moment, backwards too, with every wave and boss wave marked; replays look exactly like the live game",
+        "With a tower selected you can swap it for another type in one tap (net cost shown first), sell it in one tap, and use \"Place another\" for repeated building; shortcuts B, Delete and Shift+number",
+        "The leaderboard no longer shows the \"pending verification\" badge",
         "AI model settings now support multiple channels and models: save several services (for example two relays), each with its own address and key and several models, and switch with one click from a filterable \"My models\" list",
         "Simpler model settings: tool mode and context mode are chosen automatically, channel settings fold away once configured, and advanced settings only hold price, over-budget handling and decision interval",
         "Your existing model settings become channels automatically and saved keys keep working"
       ],
       "ja": [
+        "コインは自動で回収、補給箱は自動で開きます（報酬は自分で選びます）",
+        "ゲーム内フィードバック：メインメニュー下部と設定から送信できます。送れないときは内容をコピーして GitHub に投稿できます",
+        "リプレイにタイムラインを追加：ドラッグやクリックで好きな時点へ前後どちらにも移動でき、各ウェーブとボスウェーブを表示。リプレイ画面はプレイ時とまったく同じです",
+        "タワーを選ぶとワンタップで別のタワーに「入れ替え」（差額を先に表示）、ワンタップ売却、「もう一つ置く」で連続建設。ショートカットは B、Delete、Shift+数字",
+        "ランキングの「検証待ち」表示をなくしました",
         "AI モデル設定が複数チャンネル・複数モデルに対応しました。複数のサービス（例：2 つの中継サービス）をそれぞれのアドレスとキーで保存し、各チャンネルに複数のモデルを登録できます。上部の「マイモデル」一覧で名前を絞り込み、ワンクリックで切り替えられます",
         "モデル設定をシンプルにしました。ツールモードとコンテキストモードは自動で決まり、チャンネル設定は設定後に折りたたまれ、詳細設定は価格・予算超過時の動作・判断間隔だけになりました",
         "既存のモデル設定は自動でチャンネルに変換され、保存したキーもそのまま使えます"
