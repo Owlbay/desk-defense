@@ -208,6 +208,7 @@ export function gameScreen(app: App, route: Route): Screen {
   overlay.onCrate = (option, name) => {
     const r = ctx.cmd({ type: 'chooseCrate', option });
     if (r.ok) {
+      autoCollect(); // 排队的下一个补给箱
       audio.play('crateOpen');
       overlay.toast(t('ui.game.crateGot', { name }), 'good');
     }
@@ -324,9 +325,31 @@ export function gameScreen(app: App, route: Route): Screen {
   // ───────────── 事件 ─────────────
   let dirty = true;
 
+  /**
+   * 自动拾取：硬币掉下来就收，补给箱自动打开（三选一仍由玩家挑；同一时间只开一个）。
+   * 走和点击一样的 collect 指令（进回放日志），回放与全服校验不受影响。续玩重放存档期间（live = false）不发指令。
+   */
+  let live = false;
+  let collectQueued = false;
+  const autoCollect = (): void => {
+    if (collectQueued) return;
+    collectQueued = true;
+    queueMicrotask(() => {
+      collectQueued = false;
+      if (!live || destroyed || ended) return;
+      const s = world.state;
+      for (const pk of [...s.pickups]) {
+        if (pk.kind === 'crate' && s.crateChoice) continue;
+        session.command({ type: 'collect', uid: pk.uid });
+        dirty = true;
+      }
+    });
+  };
+
   const onEvent = (ev: GameEvent) => {
     audio.onGameEvent(ev);
     tutorial.onEvent(ev);
+    if (ev.type === 'pickup' && ev.phase === 'spawn') autoCollect();
     switch (ev.type) {
       case 'toast':
         overlay.toast(ev.key ? tOr(ev.key, ev.text, ev.params) : ev.text, ev.tone);
@@ -672,6 +695,8 @@ export function gameScreen(app: App, route: Route): Screen {
   let board: { destroy(): void } | null = null;
   const begin = () => {
     if (destroyed) return;
+    live = true;
+    autoCollect(); // 续玩时存档里还留着的掉落物
     ui.clear();
     ui.set({ perkTargeting: null, hover: null });
     applyLayout();

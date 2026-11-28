@@ -39,7 +39,7 @@ export function submitText(v: SubmitView): { text: string; tone: '' | 'good' | '
     case 'done':
       return {
         text: v.improved
-          ? t(v.pending ? 'ui.online.submittedPending' : 'ui.online.submitted', { rank: fmtNumber(v.rank) })
+          ? t('ui.online.submitted', { rank: fmtNumber(v.rank) })
           : t('ui.online.submittedNoBest', { rank: fmtNumber(v.rank) }),
         tone: 'good',
       };

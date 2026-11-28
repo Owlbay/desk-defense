@@ -26,7 +26,7 @@ export function stateBox(kind: 'loading' | 'empty' | 'error' | 'off', title: str
 }
 
 function statusBadge(r: LeaderRow): HTMLElement | null {
-  if (r.status === 'pending') return h('span.badge.pending', { title: t('ui.online.pendingTip') }, t('ui.online.pending'));
+  // 待验证（回放校验还没跑完）不再单独标出：校验通过前后看起来一样，只有被拒的才标
   if (r.status === 'rejected') return h('span.badge.rejected', { title: t('ui.online.rejectedTip') }, t('ui.online.rejected'));
   return null;
 }
