@@ -14,6 +14,7 @@ import { localize } from '../config/text';
 import type { RunOptions, WorldState } from '../core/types';
 import { getLocale, t } from '../i18n';
 import { decodeLogPayload, encodeLog } from '../shared/codec';
+import type { FeedbackBody, FeedbackResponse } from '../shared/feedback';
 import {
   type AgentMeta,
   type AiAssistMeta,
@@ -709,6 +710,23 @@ export function runToMidRun(r: RunReplay): MidRun {
     wave: r.result.wave,
     savedAt: r.createdAt,
   };
+}
+
+// ───────────────────────── 反馈 ─────────────────────────
+
+/**
+ * 发送一条游戏内反馈（POST /api/feedback）。不进离线队列：失败时界面给「复制反馈内容」+ GitHub Issues 兜底。永不抛异常。
+ * 设备 id 只用于服务端限流（只存哈希）。
+ */
+export async function sendFeedback(body: Omit<FeedbackBody, 'deviceId' | 'turnstileToken'>): Promise<Fetched<FeedbackResponse>> {
+  try {
+    let token: string | null = null;
+    if (state.turnstileSiteKey && turnstileProvider) token = await turnstileProvider().catch(() => null);
+    const full: FeedbackBody = { ...body, deviceId: getDeviceId(), ...(token ? { turnstileToken: token } : {}) };
+    return toFetched(await call<FeedbackResponse>('/api/feedback', { method: 'POST', body: JSON.stringify(full) }));
+  } catch {
+    return { ok: false, status: state.status, message: t('core.online.requestFailed') };
+  }
 }
 
 /** 仅测试用：重置模块状态 */

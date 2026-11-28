@@ -1,0 +1,135 @@
+/* 游戏内反馈：对话框（src/ui/feedback.ts）、设置页底部 / 主菜单底部的入口 */
+
+.feedback-dialog {
+  width: min(100%, 520px);
+  max-height: min(90vh, 760px);
+  max-height: min(90dvh, 760px);
+  overflow-y: auto;
+  display: grid;
+  gap: 12px;
+}
+
+.feedback-dialog h2,
+.feedback-dialog p {
+  margin: 0;
+}
+
+.feedback-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.feedback-count {
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.feedback-count.near {
+  color: var(--warn-text);
+}
+
+.feedback-text {
+  width: 100%;
+  min-height: 7.5em;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.feedback-dialog .input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.feedback-dialog .field small {
+  font-weight: 400;
+}
+
+.feedback-attached {
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.feedback-status:empty {
+  display: none;
+}
+
+.feedback-status {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: var(--bw) dashed var(--border-soft);
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+}
+
+.feedback-status .form-msg {
+  min-height: 0;
+  margin: 0;
+}
+
+.feedback-status .row {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.feedback-url {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.feedback-url a {
+  color: var(--info-text);
+}
+
+.feedback-thanks {
+  font-weight: 700;
+  color: var(--good-text-strong);
+}
+
+/* 设置页底部：「版本 · 更新日志」旁边 */
+.settings-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.settings-links .version-btn {
+  margin-top: 0;
+}
+
+/* 对局暂停 → 设置：面板最下面 */
+.settings-panel > .feedback-btn {
+  justify-self: center;
+}
+
+/* 主菜单底部：跟在「进度保存在本机」后面的一个小文字按钮 */
+.menu-feedback {
+  margin-left: 8px;
+  padding: 4px 6px;
+  min-height: 32px;
+  border: 0;
+  background: none;
+  color: var(--ink-muted);
+  font-size: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.menu-feedback:hover,
+.menu-feedback:focus-visible {
+  color: var(--ink);
+}
+
+@media (max-width: 420px) {
+  .feedback-dialog {
+    gap: 10px;
+    padding: 14px;
+  }
+}

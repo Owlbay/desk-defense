@@ -6,6 +6,7 @@ import './styles/online.css';
 import './styles/responsive.css';
 import './styles/ai.css';
 import './styles/update.css';
+import './styles/feedback.css';
 
 import { ui } from './game/UiStore';
 import { getLocale, onLocaleChange, setLocale, t } from './i18n';
