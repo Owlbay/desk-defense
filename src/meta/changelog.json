@@ -1,5 +1,15 @@
 [
   {
+    "version": "0.3.8",
+    "date": "2026-11-28",
+    "notes": {
+      "zh-CN": ["手机上排行榜的 AI 标记也显示模型名（换到第二行），不再只显示「AI 辅助」"],
+      "zh-TW": ["手機上排行榜的 AI 標記也顯示模型名稱（換到第二行），不再只顯示「AI 輔助」"],
+      "en": ["On phones, the leaderboard's AI badge now shows the model name too (on a second line) instead of only \"AI-assisted\""],
+      "ja": ["スマホのランキングでも AI バッジにモデル名を表示するようにしました（2 行目に表示）。「AI 補助」だけの表示ではなくなりました"]
+    }
+  },
+  {
     "version": "0.3.7",
     "date": "2026-11-27",
     "notes": {
