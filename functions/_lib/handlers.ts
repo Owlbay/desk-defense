@@ -110,10 +110,10 @@ export function randomId(len = 14): string {
 
 const RUN_ID_RE = /^[0-9a-z]{8,32}$/;
 
-const clientIp = (req: Request): string =>
+export const clientIp = (req: Request): string =>
   req.headers.get('CF-Connecting-IP') ?? req.headers.get('X-Forwarded-For')?.split(',')[0].trim() ?? 'unknown';
 
-function notConfigured(): Response {
+export function notConfigured(): Response {
   return apiError('not_configured', '在线功能暂未开放（服务器未配置数据库）');
 }
 
@@ -129,7 +129,7 @@ export function leaderboardCacheKey(origin: string, board: string, limit: number
   return `${origin}/api/leaderboard?board=${encodeURIComponent(board)}&limit=${limit}&hideAi=${hideAi ? 1 : 0}`;
 }
 
-async function verifyTurnstile(deps: Deps, token: string | undefined, ip: string): Promise<boolean> {
+export async function verifyTurnstile(deps: Deps, token: string | undefined, ip: string): Promise<boolean> {
   if (!deps.turnstileSecret) return true;
   if (!token) return false;
   const f = deps.fetch ?? fetch;

@@ -7,6 +7,7 @@ import { type App, applySettings, confirmDialog, type Screen, screenHeader } fro
 import { audio, MUSIC_STYLES, type MusicStylePref } from '../audio';
 import { collapsible } from '../collapse';
 import { h } from '../dom';
+import { feedbackDialog } from '../feedback';
 import { G } from '../icons';
 import { rememberLocale } from '../locale';
 import { THEME_MODES, type ThemeMode } from '../theme';
@@ -17,6 +18,21 @@ import { anim, popSelected } from './motion';
 function bump(el: HTMLElement): void {
   if (el.getAnimations?.().length) return;
   anim(el, [{ transform: 'scale(1.14)' }, { transform: 'scale(1)' }], { duration: 160, easing: 'ease-out' });
+}
+
+/** 「反馈」按钮：打开反馈对话框（附带当前页面 / 对局模式） */
+function feedbackButton(app: App, host: HTMLElement): HTMLElement {
+  return h(
+    'button.btn.small.feedback-btn',
+    {
+      attrs: { type: 'button' },
+      onclick: () => {
+        audio.play('click');
+        feedbackDialog(host, app.route);
+      },
+    },
+    t('ui.feedback.button'),
+  );
 }
 
 /** 设置面板（菜单页与暂停菜单共用） */
@@ -408,6 +424,8 @@ export function settingsPanel(app: App, opts: { inGame?: boolean; host?: HTMLEle
     const k = keys[i];
     if (k && k !== 'lang') collapsible(sec, { key: `settings.${k}`, summary: summaries[k] });
   });
+  // 对局暂停 → 设置：底部也放一个「反馈」（会附带当前对局的模式 / 地图 / 难度）
+  if (opts.inGame) panel.append(feedbackButton(app, host));
   return panel;
 }
 
@@ -421,15 +439,20 @@ export function settingsScreen(app: App): Screen {
       settingsPanel(app, { host: el }),
       h('p.muted.center', null, t('ui.settings.footer')),
       h(
-        'button.btn.small.version-btn',
-        {
-          attrs: { type: 'button' },
-          onclick: () => {
-            audio.play('click');
-            changelogDialog(el);
+        'div.settings-links',
+        null,
+        h(
+          'button.btn.small.version-btn',
+          {
+            attrs: { type: 'button' },
+            onclick: () => {
+              audio.play('click');
+              changelogDialog(el);
+            },
           },
-        },
-        t('ui.update.versionBtn', { v: `v${APP_VERSION}` }),
+          t('ui.update.versionBtn', { v: `v${APP_VERSION}` }),
+        ),
+        feedbackButton(app, el),
       ),
     ),
   );

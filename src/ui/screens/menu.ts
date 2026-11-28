@@ -7,6 +7,7 @@ import { towerIcon } from '../assets';
 import { audio } from '../audio';
 import { MAP_META } from '../coreMeta';
 import { h, img } from '../dom';
+import { feedbackDialog } from '../feedback';
 import { G } from '../icons';
 
 const modeName = (m: RunOptions['mode']): string => t(`ui.menu.mode.${m}`);
@@ -151,7 +152,23 @@ export function menuScreen(app: App): Screen {
         btn(t('ui.menu.settings'), G.gear, go({ name: 'settings' }), t('ui.menu.settingsSub')),
       ),
     ),
-    h('footer.menu-foot.muted', null, app.store.kv.persistent ? t('ui.menu.savedLocal') : t('ui.menu.noSave')),
+    h(
+      'footer.menu-foot.muted',
+      null,
+      h('span', null, app.store.kv.persistent ? t('ui.menu.savedLocal') : t('ui.menu.noSave')),
+      // 小小的「反馈」入口（设置页底部也有）
+      h(
+        'button.menu-feedback',
+        {
+          attrs: { type: 'button' },
+          onclick: () => {
+            audio.play('click');
+            feedbackDialog(app.root, app.route);
+          },
+        },
+        t('ui.feedback.button'),
+      ),
+    ),
   );
   return { el };
 }
