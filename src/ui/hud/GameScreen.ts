@@ -95,6 +95,7 @@ export function gameScreen(app: App, route: Route): Screen {
   const topBar = new TopBar(ctx, () => openPause());
   const buildBar = new BuildBar(ctx);
   const info = new InfoPanel(ctx);
+  info.onBuild = (id) => buildBar.pick(id);
   const skillBar = new SkillBar(ctx);
   const wavePanel = new WavePanel(ctx);
   /** 「传奇在望」等需要选塔的增益：等待玩家点塔 */
@@ -561,6 +562,11 @@ export function gameScreen(app: App, route: Route): Screen {
   /** 按物理键兜底（不同键盘布局 / 小键盘 / Shift+= 输入 '+'） */
   const BUILD_CODE_INDEX: Record<string, number> = { Minus: 10, NumpadSubtract: 10, Equal: 11, NumpadAdd: 11 };
   const SKILL_KEY_INDEX: Record<string, number> = { q: 0, w: 1, e: 2, r: 3 };
+  const SWAP_CODE_INDEX: Record<string, number> = {
+    ...Object.fromEntries(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((d, i) => [`Digit${d}`, i])),
+    Minus: 10,
+    Equal: 11,
+  };
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Shift') ui.set({ shift: true });
     if (isTypingTarget(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -583,6 +589,13 @@ export function gameScreen(app: App, route: Route): Screen {
     }
     if (perkModal.isOpen) {
       if (k === 'p') openPause();
+      return;
+    }
+    // 选中塔时 Shift + 塔栏快捷键 = 换成那种塔（按物理键，Shift 会改变字符）
+    const swapIdx = e.shiftKey && ui.state.selected !== null ? SWAP_CODE_INDEX[e.code] : undefined;
+    if (swapIdx !== undefined) {
+      e.preventDefault();
+      if (!e.repeat) info.swapIndex(swapIdx);
       return;
     }
     const buildIdx = BUILD_KEY_INDEX[k] ?? (k === '+' ? 11 : BUILD_CODE_INDEX[e.code]);
@@ -623,7 +636,15 @@ export function gameScreen(app: App, route: Route): Screen {
         if (ui.state.selected !== null) info.upgrade();
         break;
       case 's':
-        if (ui.state.selected !== null) info.sell(true);
+      case 'Delete':
+      case 'Backspace':
+        if (ui.state.selected !== null) {
+          e.preventDefault();
+          info.sell(true);
+        }
+        break;
+      case 'b':
+        if (ui.state.selected !== null) info.placeAgain();
         break;
       case 't':
         skillBar.toggleAxis();

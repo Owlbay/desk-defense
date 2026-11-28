@@ -2314,6 +2314,136 @@ textarea.input.code {
   color: var(--on-inverse);
 }
 
+/* 快捷行：再放一个 + 换成…（都在信息卡内，不盖棋盘） */
+.quick-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+}
+
+.quick-again {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--tint-blue);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.quick-again .gi {
+  width: 14px;
+  height: 14px;
+}
+
+.quick-swap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.quick-label {
+  flex: none;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+.quick-label.armed {
+  color: var(--bad-text);
+}
+
+.swap-list {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  padding: 2px 0;
+}
+
+.swap-chip {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 2px 4px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.swap-chip .ico {
+  width: 24px;
+  height: 24px;
+}
+
+.sw-price {
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold-text);
+}
+
+.sw-price.gain {
+  color: var(--good-text);
+}
+
+.sw-price:empty {
+  display: none;
+}
+
+.sw-lock {
+  display: none;
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 12px;
+  height: 12px;
+}
+
+.swap-chip.locked .sw-lock {
+  display: block;
+}
+
+.swap-chip.poor,
+.swap-chip.locked {
+  opacity: 0.45;
+}
+
+.swap-chip.locked .ico {
+  filter: grayscale(1);
+}
+
+.swap-chip.armed {
+  border-color: var(--red);
+  background: var(--red);
+  color: var(--on-color);
+}
+
+.swap-chip.armed .sw-price {
+  color: var(--on-color);
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));

@@ -146,7 +146,9 @@ export class BuildBar {
       const el = h<HTMLButtonElement>(
         'button.build-btn',
         {
-          title: `${t('ui.build.nameRole', { name: o.name, role: o.role })}${air ? ' · ' + air : ''}\n${o.desc}`,
+          title:
+            `${t('ui.build.nameRole', { name: o.name, role: o.role })}${air ? ' · ' + air : ''}\n${o.desc}` +
+            (BUILD_KEYS[i] ? `\n${t('ui.quick.buildKey', { key: BUILD_KEYS[i] })}` : ''),
           attrs: { 'aria-label': t('ui.build.btnLabel', { name: o.name, n: o.cost }), 'aria-pressed': 'false' },
           onclick: () => this.pick(o.id),
         },
